@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
@@ -19,6 +21,9 @@ beforeEach(function (): void {
         Route::get('/model', fn () => throw (new ModelNotFoundException)->setModel(User::class, [1]));
         Route::get('/throttle', fn () => 'ok')->middleware('throttle:1,1');
         Route::get('/boom', fn () => throw new RuntimeException('secret internals'));
+        Route::get('/response', fn () => throw new HttpResponseException(
+            new JsonResponse(['custom' => true], 418, ['X-Probe' => 'yes']),
+        ));
     });
 });
 
@@ -78,4 +83,11 @@ it('localizes messages', function (): void {
 
     $this->getJson('/api/v1/does-not-exist')
         ->assertJsonPath('errors.message', 'İstenen kayıt bulunamadı.');
+});
+
+it('passes http response exceptions through unchanged', function (): void {
+    $this->getJson('/api/v1/_probe/response')
+        ->assertStatus(418)
+        ->assertExactJson(['custom' => true])
+        ->assertHeader('X-Probe', 'yes');
 });

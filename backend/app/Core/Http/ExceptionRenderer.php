@@ -7,9 +7,11 @@ namespace App\Core\Http;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
@@ -23,13 +25,15 @@ final class ExceptionRenderer
         return $request->is('api/*') || $request->expectsJson();
     }
 
-    public function __invoke(Throwable $e, Request $request): ?JsonResponse
+    public function __invoke(Throwable $e, Request $request): ?Response
     {
         if (! self::shouldRender($request)) {
             return null;
         }
 
         return match (true) {
+            // The thrower already built the exact response it wants sent.
+            $e instanceof HttpResponseException => $e->getResponse(),
             $e instanceof ValidationException => ApiResponse::error(
                 ErrorCode::ValidationError,
                 fields: $this->fields($e),
