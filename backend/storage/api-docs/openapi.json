@@ -66,7 +66,21 @@
                     "METHOD_NOT_ALLOWED",
                     "TOO_MANY_ATTEMPTS",
                     "HTTP_ERROR",
-                    "SERVER_ERROR"
+                    "SERVER_ERROR",
+                    "VERSION_CONFLICT",
+                    "IDEMPOTENCY_KEY_REQUIRED",
+                    "IDEMPOTENCY_KEY_REUSED",
+                    "IDEMPOTENCY_IN_PROGRESS",
+                    "COMPANY_REQUIRED",
+                    "COMPANY_FORBIDDEN",
+                    "TWO_FACTOR_REQUIRED",
+                    "INVALID_TWO_FACTOR_CODE",
+                    "PASSWORD_CHANGE_REQUIRED",
+                    "USER_DEACTIVATED",
+                    "INVALID_STATE_TRANSITION",
+                    "APPROVAL_REQUIRED",
+                    "FILE_TOO_LARGE",
+                    "UNSUPPORTED_FILE_TYPE"
                 ],
                 "title": "ErrorCode"
             },
