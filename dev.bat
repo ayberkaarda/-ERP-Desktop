@@ -10,7 +10,7 @@ if errorlevel 1 (
 )
 docker compose up -d
 if errorlevel 1 exit /b 1
-call :waitport 5432 || exit /b 1
+call :waitport 5433 || exit /b 1
 call :waitport 6379 || exit /b 1
 start "Keystone API" /D "%~dp0backend" cmd /k "php artisan serve --host=0.0.0.0 --port=8000"
 start "Keystone Reverb" /D "%~dp0backend" cmd /k "php artisan reverb:start --host=0.0.0.0 --port=8080"
