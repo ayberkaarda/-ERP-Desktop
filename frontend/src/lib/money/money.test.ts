@@ -1,4 +1,4 @@
-import { formatMoney, parseDecimal, sum } from './money'
+import { formatMoney, parseDecimal, sum } from '.'
 
 describe('money', () => {
   it('sums without float drift', () => {

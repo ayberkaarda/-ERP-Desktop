@@ -1,0 +1,204 @@
+{
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "delete": "Supprimer",
+    "add": "Ajouter",
+    "close": "Fermer",
+    "retry": "Réessayer",
+    "clear": "Effacer",
+    "reset": "Réinitialiser",
+    "open": "Ouvrir",
+    "back": "Retour"
+  },
+  "states": {
+    "loading": "Chargement…",
+    "saving": "Enregistrement…",
+    "errorTitle": "Un problème est survenu",
+    "errorBody": "Les données n’ont pas pu être chargées. Vérifiez votre connexion et réessayez."
+  },
+  "validation": {
+    "required": "Ce champ est obligatoire.",
+    "number": "Saisissez un nombre valide.",
+    "scale": "Trop de décimales.",
+    "positive": "La valeur doit être supérieure à zéro.",
+    "nonNegative": "La valeur ne peut pas être négative.",
+    "min": "La valeur est inférieure au minimum autorisé.",
+    "max": "La valeur est supérieure au maximum autorisé.",
+    "date": "Saisissez une date valide.",
+    "invalid": "Valeur non valide."
+  },
+  "dataTable": {
+    "search": "Rechercher dans cette liste",
+    "searchPlaceholder": "Rechercher…",
+    "columns": "Colonnes",
+    "density": "Densité des lignes",
+    "densityComfortable": "Confortable",
+    "densityCompact": "Compacte",
+    "resetView": "Réinitialiser la vue",
+    "sortedAsc": "Tri croissant",
+    "sortedDesc": "Tri décroissant",
+    "sortBy": "Trier par {{column}}",
+    "selectPage": "Sélectionner toutes les lignes de la page",
+    "selectRow": "Sélectionner la ligne",
+    "selected_one": "{{count}} enregistrement sélectionné",
+    "selected_other": "{{count}} enregistrements sélectionnés",
+    "clearSelection": "Effacer la sélection",
+    "bulkActions": "Actions groupées",
+    "emptyTitle": "Aucun enregistrement trouvé",
+    "emptyBody": "Modifiez la recherche ou les filtres puis réessayez.",
+    "errorTitle": "La liste n’a pas pu être chargée",
+    "loading": "Chargement des enregistrements…",
+    "range": "{{from}}–{{to}} sur {{total}}",
+    "perPage": "Enregistrements par page",
+    "page": "Page {{page}} sur {{pages}}",
+    "pagination": "Pagination",
+    "firstPage": "Première page",
+    "prevPage": "Page précédente",
+    "nextPage": "Page suivante",
+    "lastPage": "Dernière page",
+    "filterAll": "Tous",
+    "clearFilters": "Effacer les filtres",
+    "resizeColumn": "Largeur de la colonne {{column}}",
+    "keyboardHint": "Utilisez les flèches pour passer d’une ligne à l’autre ; Entrée ouvre, Espace sélectionne."
+  },
+  "form": {
+    "errorSummaryTitle": "L’enregistrement a échoué",
+    "errorSummaryBody": "Veuillez corriger les champs ci-dessous.",
+    "optional": "facultatif",
+    "required": "obligatoire"
+  },
+  "combobox": {
+    "placeholder": "Sélectionner…",
+    "noResults": "Aucun résultat",
+    "searching": "Recherche…",
+    "typeToSearch": "Commencez à saisir pour rechercher",
+    "loadFailed": "Les options n’ont pas pu être chargées",
+    "clear": "Effacer la sélection",
+    "toggle": "Afficher les options"
+  },
+  "date": {
+    "openCalendar": "Ouvrir le calendrier",
+    "calendar": "Calendrier",
+    "prevMonth": "Mois précédent",
+    "nextMonth": "Mois suivant",
+    "today": "Aujourd’hui"
+  },
+  "lines": {
+    "title": "Lignes du document",
+    "add": "Ajouter une ligne",
+    "remove": "Supprimer la ligne {{index}}",
+    "lineNo": "N°",
+    "row": "Ligne {{index}}",
+    "empty": "Aucune ligne. Utilisez « Ajouter une ligne » pour commencer.",
+    "hint": "Entrée passe à la cellule suivante et crée une ligne depuis la dernière. Ctrl+Suppr supprime la ligne.",
+    "actions": "Action"
+  },
+  "status": {
+    "draft": "Brouillon",
+    "pending": "En attente",
+    "pending_approval": "En attente d’approbation",
+    "approved": "Approuvé",
+    "rejected": "Rejeté",
+    "cancelled": "Annulé",
+    "posted": "Comptabilisé",
+    "completed": "Terminé",
+    "closed": "Clôturé",
+    "active": "Actif",
+    "inactive": "Inactif"
+  },
+  "approval": {
+    "title": "Circuit d’approbation",
+    "step": "Étape {{order}}",
+    "approvers": "Peuvent approuver : {{names}}",
+    "threshold": "Seuil de montant : {{amount}}",
+    "approvedBy": "Approuvé par {{name}}",
+    "rejectedBy": "Rejeté par {{name}}",
+    "state": {
+      "waiting": "En file",
+      "pending": "Décision attendue",
+      "approved": "Approuvé",
+      "rejected": "Rejeté",
+      "skipped": "Ignoré"
+    },
+    "empty": "Aucun circuit d’approbation n’a été lancé pour ce document."
+  },
+  "attachments": {
+    "title": "Pièces jointes",
+    "drop": "Déposez les fichiers ici",
+    "choose": "Choisir un fichier",
+    "hint": "Jusqu’à {{size}} par fichier",
+    "uploading": "Envoi de {{name}}…",
+    "empty": "Aucune pièce jointe.",
+    "tooLarge": "{{name}} est trop volumineux (max. {{size}}).",
+    "unsupported": "Le type de fichier de {{name}} n’est pas pris en charge.",
+    "uploadFailed": "{{name}} n’a pas pu être envoyé.",
+    "loadFailed": "Les pièces jointes n’ont pas pu être chargées.",
+    "download": "Télécharger {{name}}",
+    "remove": "Supprimer {{name}}",
+    "removeTitle": "Supprimer la pièce jointe ?",
+    "removeBody": "{{name}} sera supprimé définitivement."
+  },
+  "audit": {
+    "title": "Historique des modifications",
+    "empty": "Aucun historique pour cet enregistrement.",
+    "system": "Système",
+    "event": {
+      "created": "a créé",
+      "updated": "a modifié",
+      "deleted": "a supprimé",
+      "other": "a agi"
+    },
+    "field": "Champ",
+    "before": "Avant",
+    "after": "Après",
+    "emptyValue": "(vide)",
+    "loadMore": "Afficher plus"
+  },
+  "confirm": {
+    "title": "Êtes-vous sûr ?",
+    "confirm": "Confirmer",
+    "cancel": "Annuler"
+  },
+  "empty": {
+    "title": "Rien ici pour le moment"
+  },
+  "pageHeader": {
+    "breadcrumbs": "Fil d’Ariane"
+  },
+  "showcase": {
+    "title": "Vitrine des composants",
+    "description": "Composants ERP partagés avec des données d’exemple.",
+    "dataTable": "Tableau de données",
+    "form": "Kit de formulaire",
+    "lines": "Lignes du document",
+    "status": "Badges de statut",
+    "approval": "Chronologie d’approbation",
+    "attachments": "Panneau des pièces jointes",
+    "audit": "Historique des modifications",
+    "dialogs": "Boîte de confirmation et état vide",
+    "submit": "Envoyer",
+    "simulateServerError": "Simuler une erreur serveur",
+    "deleteSelected": "Supprimer la sélection",
+    "openConfirm": "Ouvrir la confirmation de suppression",
+    "fields": {
+      "customer": "Client",
+      "account": "Compte",
+      "amount": "Montant",
+      "quantity": "Quantité",
+      "date": "Date du document",
+      "note": "Description",
+      "product": "Article",
+      "unitPrice": "Prix unitaire",
+      "lineTotal": "Montant de la ligne",
+      "code": "Code",
+      "name": "Nom",
+      "status": "Statut",
+      "balance": "Solde",
+      "createdAt": "Créé le"
+    },
+    "total": "Total",
+    "submitted": "Le formulaire est valide et a été envoyé."
+  }
+}
