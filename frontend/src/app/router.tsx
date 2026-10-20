@@ -1,17 +1,52 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
+import { bindAuthFailures } from '@/features/auth/session'
+import { GuestOnly, RequireAuth } from './guards'
 import { RouteError } from './RouteError'
+
+// Dev-only routes (e.g. /showcase) live in an optional ./devRoutes.tsx exporting `devRoutes`;
+// the glob keeps this file compiling whether or not it exists.
+const devModules = import.meta.env.DEV
+  ? import.meta.glob<{ devRoutes?: RouteObject[] }>('./devRoutes.tsx', { eager: true })
+  : {}
+const devRoutes = Object.values(devModules).flatMap((m) => m.devRoutes ?? [])
 
 // Each page is its own chunk; modules add their routes here as they land.
 export const routes: RouteObject[] = [
   {
     path: '/login',
+    element: <GuestOnly />,
     errorElement: <RouteError />,
-    lazy: async () => ({ Component: (await import('@/features/auth/pages/LoginPage')).LoginPage }),
+    children: [
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import('@/features/auth/pages/LoginPage')).LoginPage,
+        }),
+      },
+    ],
+  },
+  {
+    path: '/password/change',
+    element: <RequireAuth allowPasswordChange />,
+    errorElement: <RouteError />,
+    children: [
+      {
+        index: true,
+        lazy: async () => ({
+          Component: (await import('@/features/auth/pages/ForcePasswordChangePage'))
+            .ForcePasswordChangePage,
+        }),
+      },
+    ],
   },
   {
     path: '/',
-    element: <AppShell />,
+    element: (
+      <RequireAuth>
+        <AppShell />
+      </RequireAuth>
+    ),
     errorElement: <RouteError />,
     children: [
       {
@@ -30,6 +65,13 @@ export const routes: RouteObject[] = [
             }),
           },
           {
+            path: 'profile/security',
+            lazy: async () => ({
+              Component: (await import('@/features/auth/pages/SecurityPage')).SecurityPage,
+            }),
+          },
+          ...devRoutes,
+          {
             path: '*',
             lazy: async () => ({
               Component: (await import('@/components/shared/NotFound')).NotFound,
@@ -42,5 +84,7 @@ export const routes: RouteObject[] = [
 ]
 
 export function createRouter() {
-  return createBrowserRouter(routes)
+  const router = createBrowserRouter(routes)
+  bindAuthFailures(router)
+  return router
 }

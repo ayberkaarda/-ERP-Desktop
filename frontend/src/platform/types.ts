@@ -6,6 +6,10 @@ export interface HttpRequestOptions {
   signal?: AbortSignal
   /** Sent as Idempotency-Key; required by the API for document-creating POSTs. */
   idempotencyKey?: string
+  /** JSON body for DELETE requests that need one. */
+  body?: unknown
+  /** Leaves 401/403 session failures to the caller (session probe, login steps). */
+  skipAuthHandling?: boolean
 }
 
 export interface HttpClient {
@@ -14,6 +18,31 @@ export interface HttpClient {
   put<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>
   patch<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>
   delete<T>(url: string, options?: HttpRequestOptions): Promise<T>
+  /** Primes the session (Sanctum CSRF cookie on web) before the first unsafe request. */
+  prepareSession(): Promise<void>
+}
+
+/** Session failures the HTTP layer reports upward; the auth feature decides what to do. */
+export type AuthFailure = 'unauthenticated' | 'deactivated' | 'passwordChangeRequired'
+
+export type SubscriptionStatus = 'subscribed' | 'error'
+
+export type RealtimeState = 'disabled' | 'idle' | 'connecting' | 'connected' | 'unavailable'
+
+export interface Realtime {
+  /** Opens the socket on first call; only call after login. */
+  connect(): void
+  disconnect(): void
+  /** Listens on a private channel; the returned function stops listening. */
+  listenPrivate(
+    channel: string,
+    event: string,
+    handler: (payload: unknown) => void,
+    /** Reports whether the channel subscription (incl. authorization) succeeded. */
+    onStatus?: (status: SubscriptionStatus) => void,
+  ): () => void
+  state(): RealtimeState
+  subscribe(listener: (state: RealtimeState) => void): () => void
 }
 
 export interface Connectivity {
@@ -37,6 +66,7 @@ export interface Platform {
   http: HttpClient
   connectivity: Connectivity
   notify: Notify
+  realtime: Realtime
 }
 
 /** API envelopes, see CONTRACT: {data, meta} and {errors:{message, code, fields?}}. */
