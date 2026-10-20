@@ -6,7 +6,6 @@ namespace Database\Factories;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -14,13 +13,10 @@ use Illuminate\Support\Str;
  */
 class UserFactory extends Factory
 {
-    /**
-     * The current password being used by the factory.
-     */
-    protected static ?string $password;
+    protected $model = User::class;
 
     /**
-     * Define the model's default state.
+     * Each factory user gets an unknown random password; tests that log in pass one explicitly.
      *
      * @return array<string, mixed>
      */
@@ -30,18 +26,24 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
+            'password' => Str::password(32),
             'remember_token' => Str::random(10),
+            'locale' => 'en',
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
     public function unverified(): static
     {
-        return $this->state(fn (array $attributes) => [
-            'email_verified_at' => null,
-        ]);
+        return $this->state(fn (): array => ['email_verified_at' => null]);
+    }
+
+    public function superAdmin(): static
+    {
+        return $this->state(fn (): array => ['is_super_admin' => true]);
+    }
+
+    public function inactive(): static
+    {
+        return $this->state(fn (): array => ['is_active' => false, 'deactivated_at' => now()]);
     }
 }

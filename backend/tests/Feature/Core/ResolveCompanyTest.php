@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
-use App\Core\Company\DenyAllMembershipChecker;
 use App\Core\Company\MembershipChecker;
 use Illuminate\Auth\GenericUser;
 use Illuminate\Support\Facades\Route;
@@ -35,8 +34,7 @@ function allowMembership(string $userId, string $companyId): void
     });
 }
 
-it('denies membership by default until identity binds a checker', function (): void {
-    expect(app(MembershipChecker::class))->toBeInstanceOf(DenyAllMembershipChecker::class);
+it('denies a user who is not a member', function (): void {
 
     $this->actingAs($this->user)
         ->getJson('/api/v1/_probe/company', ['X-Company-Id' => $this->company])

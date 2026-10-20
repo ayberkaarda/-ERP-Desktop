@@ -7,7 +7,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Tests\Support\Companies;
 
 /*
  * Two real connections, committed data: the wrapping test transaction of
@@ -21,7 +21,7 @@ beforeEach(function (): void {
 
     config(['database.connections.pgsql_second' => config('database.connections.pgsql')]);
 
-    $this->company = (string) Str::uuid7();
+    $this->company = Companies::make();
     $this->a = DB::connection('pgsql');
     $this->b = DB::connection('pgsql_second');
     $this->numbersA = new NumberSequenceService($this->a);
@@ -34,6 +34,7 @@ afterEach(function (): void {
     }
 
     $this->a->table('number_sequences')->where('company_id', $this->company)->delete();
+    Companies::remove($this->company);
     $this->b->statement('RESET lock_timeout');
     DB::purge('pgsql_second');
 });

@@ -6,7 +6,7 @@ use App\Modules\Workflow\Http\Controllers\ApprovalController;
 use App\Modules\Workflow\Http\Controllers\ApprovalFlowController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'company'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(function (): void {
     Route::get('approvals/pending', [ApprovalController::class, 'pending']);
     Route::get('approvals/{id}', [ApprovalController::class, 'show'])->whereUuid('id');
     Route::post('approvals/{id}/decisions', [ApprovalController::class, 'decide'])

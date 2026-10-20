@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Models\Activity;
+use App\Modules\Identity\Support\CompanyAwareLogActivityAction;
 use Spatie\Activitylog\Actions\CleanActivityLogAction;
-use Spatie\Activitylog\Actions\LogActivityAction;
-use Spatie\Activitylog\Models\Activity;
 
 return [
 
@@ -23,7 +23,7 @@ return [
      * If no log name is passed to the activity() helper
      * we use this default log name.
      */
-    'default_log_name' => 'default',
+    'default_log_name' => 'audit',
 
     /*
      * You can specify an auth driver here that gets user models.
@@ -69,7 +69,7 @@ return [
      * are logged and cleaned. Your custom classes must extend the originals.
      */
     'actions' => [
-        'log_activity' => LogActivityAction::class,
+        'log_activity' => CompanyAwareLogActivityAction::class,
         'clean_log' => CleanActivityLogAction::class,
     ],
 ];

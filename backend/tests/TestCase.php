@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Support\Facades\DB;
@@ -32,7 +33,12 @@ abstract class TestCase extends BaseTestCase
      */
     public function createApplication(): Application
     {
-        $app = parent::createApplication();
+        $app = require Application::inferBasePath().'/bootstrap/app.php';
+        // Tests never read a developer's .env (nor warn when CI has none): test values live in
+        // phpunit.xml; tests/testing.env is an intentionally empty environment file.
+        $app->useEnvironmentPath($app->basePath('tests'))->loadEnvironmentFrom('testing.env');
+        $this->traitsUsedByTest = class_uses_recursive(static::class);
+        $app->make(Kernel::class)->bootstrap();
 
         $row = DB::selectOne('select current_database() as name');
         $name = is_object($row) && property_exists($row, 'name') && is_string($row->name) ? $row->name : null;

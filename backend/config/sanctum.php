@@ -54,6 +54,9 @@ return [
 
     'expiration' => null,
 
+    // Lifetime of desktop device tokens issued by POST /auth/device (each token also carries expires_at).
+    'device_token_ttl_days' => (int) env('DEVICE_TOKEN_TTL_DAYS', 30),
+
     /*
     |--------------------------------------------------------------------------
     | Token Prefix
