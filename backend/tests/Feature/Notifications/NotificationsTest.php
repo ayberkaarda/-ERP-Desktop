@@ -14,17 +14,16 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
-use Tests\Support\Svc\SvcActors;
+use Tests\Support\Actors;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    SvcActors::install();
-    $this->company = SvcActors::company();
-    $this->me = SvcActors::user();
-    $this->other = SvcActors::user();
+    $this->company = Actors::company();
+    $this->me = Actors::user();
+    $this->other = Actors::user();
 
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     $this->notifier = app(Notifier::class);
     $this->make = fn ($user, string $title = 'Hi') => $this->notifier->notify($user->id, 'invoice.approved', ['title' => $title, 'body' => 'Body', 'url' => '/x']);
 
@@ -82,7 +81,7 @@ it('lists only my notifications of the active company, newest first, with unread
     ($this->api)()->getJson('/api/v1/notifications?unread=1')
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.data.title', 'two');
 
-    ($this->api)(null, SvcActors::company())->getJson('/api/v1/notifications')
+    ($this->api)(null, Actors::companyFor($this->me))->getJson('/api/v1/notifications')
         ->assertJsonCount(0, 'data')->assertJsonPath('meta.unread_count', 0);
 });
 
@@ -104,10 +103,10 @@ it('answers 404 for other users, other companies and malformed ids', function ()
 
     ($this->api)()->patchJson("/api/v1/notifications/{$theirs}/read")
         ->assertNotFound()->assertJsonPath('errors.code', 'NOT_FOUND');
-    ($this->api)($this->other, SvcActors::company())->patchJson("/api/v1/notifications/{$theirs}/read")->assertNotFound();
+    ($this->api)($this->other, Actors::companyFor($this->other))->patchJson("/api/v1/notifications/{$theirs}/read")->assertNotFound();
     ($this->api)()->patchJson('/api/v1/notifications/not-a-uuid/read')->assertNotFound();
 
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     expect(Notification::query()->findOrFail($theirs)->read_at)->toBeNull();
 });
 
@@ -119,7 +118,7 @@ it('marks only my unread notifications read with read-all', function (): void {
     ($this->api)()->postJson('/api/v1/notifications/read-all')->assertOk()->assertJsonPath('data.updated', 2);
     ($this->api)()->postJson('/api/v1/notifications/read-all')->assertJsonPath('data.updated', 0);
 
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     expect(Notification::query()->findOrFail($theirs)->read_at)->toBeNull();
 });
 

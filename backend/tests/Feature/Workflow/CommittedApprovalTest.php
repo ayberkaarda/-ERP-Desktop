@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
 use App\Core\Http\ApiException;
+use App\Models\User;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
 use App\Modules\Workflow\Contracts\ApproverResolver;
 use App\Modules\Workflow\Events\ApprovalCancelled;
@@ -20,9 +21,8 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Tests\Fixtures\FixtureDocument;
-use Tests\Support\Workflow\WorkflowTestUser;
+use Tests\Support\Companies;
 
 beforeEach(function (): void {
     if (! Schema::hasTable('approval_requests')) {
@@ -30,11 +30,12 @@ beforeEach(function (): void {
     }
     Schema::dropIfExists('fixture_documents');
     FixtureDocument::createTable();
-    $this->company = (string) Str::uuid7();
+    // Committed rows: a real company and users, removed again in afterEach.
+    $this->company = Companies::make();
+    $this->requester = User::factory()->create();
+    $this->first = User::factory()->create();
+    $this->second = User::factory()->create();
     app(CompanyContext::class)->set($this->company);
-    $this->requester = new WorkflowTestUser(['id' => (string) Str::uuid7()]);
-    $this->first = new WorkflowTestUser(['id' => (string) Str::uuid7()]);
-    $this->second = new WorkflowTestUser(['id' => (string) Str::uuid7()]);
     $this->app->instance(ApproverResolver::class, new class((string) $this->first->getAuthIdentifier(), (string) $this->second->getAuthIdentifier()) implements ApproverResolver
     {
         public function __construct(private readonly string $first, private readonly string $second) {}
@@ -56,6 +57,10 @@ afterEach(function (): void {
     foreach (['approval_request_approvers', 'approval_decisions', 'approval_requests', 'approval_flow_steps', 'approval_flows'] as $table) {
         DB::table($table)->where('company_id', $this->company)->delete();
     }
+    $users = [$this->requester->id, $this->first->id, $this->second->id];
+    DB::table('activity_log')->whereIn('subject_id', $users)->delete();
+    DB::table('users')->whereIn('id', $users)->delete();
+    Companies::remove($this->company);
     Schema::dropIfExists('fixture_documents');
 });
 

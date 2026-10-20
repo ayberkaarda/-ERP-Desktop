@@ -12,15 +12,14 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Tests\Support\Svc\SvcActors;
+use Tests\Support\Actors;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    SvcActors::install();
     Storage::fake('local');
-    $this->company = SvcActors::company();
-    $this->user = SvcActors::user(['files.view', 'files.create', 'files.delete']);
+    $this->company = Actors::company();
+    $this->user = Actors::user(['files.view', 'files.create', 'files.delete']);
     $this->post = function (UploadedFile $file, string $key = 'k') {
         Auth::forgetGuards();
 
@@ -49,7 +48,7 @@ it('fails with 500 and leaves nothing behind when the storage write fails', func
 
     ($this->post)(UploadedFile::fake()->createWithContent('a.txt', 'hello'), 'w1')
         ->assertStatus(500)->assertJsonPath('errors.code', 'SERVER_ERROR');
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     expect(File::query()->count())->toBe(0);
 
     // The failure is not stored as a replayable response.
@@ -67,7 +66,7 @@ it('answers 413 for an upload PHP refused, before idempotency touches it', funct
 });
 
 it('removes the blob when the surrounding transaction rolls back', function (): void {
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     $service = app(FileService::class);
 
     try {

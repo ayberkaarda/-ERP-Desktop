@@ -15,17 +15,17 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Tests\Fixtures\Svc\AttachableDoc;
-use Tests\Support\Svc\SvcActors;
+use Tests\Support\Actors;
+use Tests\Support\Companies;
 
 uses(RefreshDatabase::class);
 
 const PNG_BYTES = "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x00\x05\xfe\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00\x00IEND\xaeB`\x82";
 
 beforeEach(function (): void {
-    SvcActors::install();
     Storage::fake('local');
-    $this->company = SvcActors::company();
-    $this->user = SvcActors::user(['files.view', 'files.create', 'files.delete']);
+    $this->company = Actors::company();
+    $this->user = Actors::user(['files.view', 'files.create', 'files.delete']);
     $this->n = 0;
 
     $this->api = fn ($user = null, ?string $company = null) => tap($this, fn () => Auth::forgetGuards())
@@ -190,20 +190,20 @@ it('soft deletes', function (): void {
 
 it('hides files of other companies behind 404', function (): void {
     $id = ($this->upload)(($this->png)())->json('data.id');
-    $elsewhere = SvcActors::company();
+    $elsewhere = Actors::companyFor($this->user, ['files.view', 'files.create', 'files.delete']);
 
     ($this->api)(null, $elsewhere)->getJson("/api/v1/files/{$id}")->assertNotFound();
     ($this->api)(null, $elsewhere)->get("/api/v1/files/{$id}/download")->assertNotFound();
     ($this->api)(null, $elsewhere)->deleteJson("/api/v1/files/{$id}")->assertNotFound();
     ($this->api)(null, $elsewhere)->getJson('/api/v1/files')->assertJsonCount(0, 'data');
 
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     expect(File::query()->count())->toBe(1);
 });
 
 it('enforces file permissions', function (): void {
     $id = ($this->upload)(($this->png)())->json('data.id');
-    $nobody = SvcActors::user();
+    $nobody = Actors::user();
 
     ($this->api)($nobody)->getJson('/api/v1/files')->assertForbidden();
     ($this->api)($nobody)->getJson("/api/v1/files/{$id}")->assertForbidden();
@@ -211,7 +211,7 @@ it('enforces file permissions', function (): void {
     ($this->api)($nobody)->deleteJson("/api/v1/files/{$id}")->assertForbidden();
     ($this->upload)(($this->png)(), [], $nobody)->assertForbidden();
 
-    $reader = SvcActors::user(['files.view']);
+    $reader = Actors::user(['files.view']);
     ($this->api)($reader)->deleteJson("/api/v1/files/{$id}")->assertForbidden();
 
     Auth::forgetGuards();
@@ -237,7 +237,7 @@ describe('attachments', function (): void {
     });
 
     it('refuses targets that are missing, foreign or not Attachable', function (): void {
-        $foreign = AttachableDoc::query()->create(['id' => (string) Str::uuid7(), 'company_id' => SvcActors::company()]);
+        $foreign = AttachableDoc::query()->create(['id' => (string) Str::uuid7(), 'company_id' => Companies::make()]);
 
         foreach ([
             [AttachableDoc::class, (string) Str::uuid7()],

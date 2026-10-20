@@ -120,7 +120,9 @@ return [
      * Set this to false if you want to implement custom logic for checking permissions.
      */
 
-    'register_permission_check_method' => true,
+    // Identity answers catalog abilities itself (CompanyAuthorizer, active company), so checks never
+    // depend on role relations cached on a user instance.
+    'register_permission_check_method' => false,
 
     /*
      * When set to true, Laravel\Octane\Events\OperationTerminated event listener will be registered

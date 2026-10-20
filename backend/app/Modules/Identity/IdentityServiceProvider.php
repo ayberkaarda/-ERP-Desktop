@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity;
 
+use App\Core\Company\CompanyContext;
 use App\Core\Company\MembershipChecker;
 use App\Core\Modules\ModuleServiceProvider;
 use App\Models\User;
@@ -65,6 +66,18 @@ final class IdentityServiceProvider extends ModuleServiceProvider
 
         // Super admins pass every ability; invariants that must hold for them live in services.
         Gate::before(static fn (mixed $user): ?bool => $user instanceof User && $user->is_super_admin && $user->is_active ? true : null);
+
+        // Catalog permission names as abilities (Gate::allows('files.view')): decided in the active
+        // company only, from the role tables. Unknown abilities fall through to policies/definitions.
+        Gate::before(static function (mixed $user, string $ability): ?bool {
+            if (! in_array($ability, app(PermissionRegistry::class)->all(), true)) {
+                return null;
+            }
+
+            $company = app(CompanyContext::class)->idOrNull();
+
+            return $user instanceof User && $company !== null && app(CompanyAuthorizer::class)->allows($user, $ability, $company);
+        });
 
         Gate::policy(User::class, UserPolicy::class);
         Gate::policy(Role::class, RolePolicy::class);

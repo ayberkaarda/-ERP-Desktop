@@ -76,7 +76,7 @@ final class Identity
         app(CompanyDirectory::class)->setMembership($user->id, $company->id, true);
 
         if ($roles !== []) {
-            app(UserAdministration::class)->syncRoles($user, $company->id, $roles);
+            app(UserAdministration::class)->syncRoles(null, $user, $company->id, $roles);
         }
 
         self::fresh();

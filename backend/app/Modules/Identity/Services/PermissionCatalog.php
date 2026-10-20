@@ -18,6 +18,9 @@ final class PermissionCatalog implements PermissionRegistry
 {
     public const string GUARD = 'web';
 
+    /** Never delegable through roles by anyone but a super admin. */
+    public const array SUPER_ADMIN_ONLY = ['companies.delete'];
+
     /** @var array<string, list<string>> */
     private array $modules = [
         'identity' => [
@@ -34,7 +37,7 @@ final class PermissionCatalog implements PermissionRegistry
     public function register(string $module, array $names): void
     {
         foreach ($names as $name) {
-            if (preg_match('/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/', $name) !== 1) {
+            if (preg_match('/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/', $name) !== 1) {
                 throw new InvalidArgumentException("Invalid permission name [{$name}].");
             }
         }

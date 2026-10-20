@@ -3,41 +3,30 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
-use App\Core\Company\MembershipChecker;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
 use App\Modules\Workflow\Contracts\ApproverResolver;
 use App\Modules\Workflow\Models\ApprovalDecision;
 use App\Modules\Workflow\Models\ApprovalRequest;
 use App\Modules\Workflow\Repositories\ApprovalFlowRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Tests\Fixtures\FixtureDocument;
-use Tests\Support\Workflow\WorkflowTestUser;
+use Tests\Support\Actors;
+use Tests\Support\Companies;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     FixtureDocument::createTable();
-    $this->company = (string) Str::uuid7();
-    $this->otherCompany = (string) Str::uuid7();
-    app(CompanyContext::class)->set($this->company);
-    $this->requester = new WorkflowTestUser(['id' => (string) Str::uuid7()]);
-    $this->first = new WorkflowTestUser(['id' => (string) Str::uuid7()]);
-    $this->second = new WorkflowTestUser(['id' => (string) Str::uuid7()]);
+    // Real users, roles and memberships: requester and approvers hold the workflow permissions in
+    // $this->company only; $this->otherCompany is a real company none of them belongs to.
+    $this->company = Actors::company();
+    $this->otherCompany = Companies::make();
     $this->permissions = ['approvals.view', 'approvals.decide', 'approval_flows.manage'];
-    foreach ($this->permissions as $permission) {
-        Gate::define($permission, fn () => in_array($permission, $this->permissions, true));
-    }
-    $this->app->instance(MembershipChecker::class, new class($this->company) implements MembershipChecker
-    {
-        public function __construct(private readonly string $company) {}
-
-        public function isMember(string $userId, string $companyId): bool
-        {
-            return $companyId === $this->company;
-        }
-    });
+    $this->requester = Actors::user($this->permissions);
+    $this->first = Actors::user($this->permissions);
+    $this->second = Actors::user($this->permissions);
+    app(CompanyContext::class)->set($this->company);
     $this->app->instance(ApproverResolver::class, new class((string) $this->first->getAuthIdentifier(), (string) $this->second->getAuthIdentifier()) implements ApproverResolver
     {
         public function __construct(private readonly string $first, private readonly string $second) {}
@@ -97,7 +86,7 @@ it('requires a decision idempotency key', function (): void {
 it('denies endpoints without their permissions', function (): void {
     $flow = ($this->flow)();
     $r = $this->engine->start($this->doc, 'purchase_order', null);
-    $this->permissions = [];
+    Actors::revoke($this->first, $this->company);
     $this->actingAs($this->first, 'sanctum');
     $this->getJson('/api/v1/approvals/pending', $this->headers)->assertForbidden();
     $this->getJson("/api/v1/approvals/$r->id", $this->headers)->assertForbidden();
@@ -114,7 +103,7 @@ it('blocks a requester and an unrelated actor from deciding via HTTP', function 
     ($this->flow)();
     $r = $this->engine->start($this->doc, 'purchase_order', null);
     $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertForbidden();
-    $this->actingAs(new WorkflowTestUser(['id' => (string) Str::uuid7()]), 'sanctum');
+    $this->actingAs(Actors::user($this->permissions), 'sanctum');
     $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertForbidden();
     expect(ApprovalDecision::query()->count())->toBe(0);
 });

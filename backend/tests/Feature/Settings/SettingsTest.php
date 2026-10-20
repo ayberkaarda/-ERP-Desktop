@@ -10,14 +10,13 @@ use App\Modules\Settings\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Tests\Support\Svc\SvcActors;
+use Tests\Support\Actors;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    SvcActors::install();
-    $this->company = SvcActors::company();
-    $this->admin = SvcActors::user(['settings.view', 'settings.update']);
+    $this->company = Actors::company();
+    $this->admin = Actors::user(['settings.view', 'settings.update']);
 
     $this->api = fn ($user = null, ?string $company = null) => tap($this, fn () => Auth::forgetGuards())
         ->actingAs($user ?? $this->admin, 'web')
@@ -46,11 +45,11 @@ it('requires authentication, a company and permissions', function (): void {
     $this->actingAs($this->admin, 'web')->getJson('/api/v1/settings')
         ->assertStatus(400)->assertJsonPath('errors.code', 'COMPANY_REQUIRED');
 
-    $nobody = SvcActors::user();
+    $nobody = Actors::user();
     ($this->api)($nobody)->getJson('/api/v1/settings')->assertForbidden();
     ($this->api)($nobody)->patchJson('/api/v1/settings', ['settings' => ['general.timezone' => 'UTC']])->assertForbidden();
 
-    $viewer = SvcActors::user(['settings.view']);
+    $viewer = Actors::user(['settings.view']);
     ($this->api)($viewer)->getJson('/api/v1/settings')->assertOk();
     ($this->api)($viewer)->patchJson('/api/v1/settings', ['settings' => ['general.timezone' => 'UTC']])->assertForbidden();
 });
@@ -104,7 +103,7 @@ it('resets a key to its default with null', function (): void {
 it('isolates companies', function (): void {
     ($this->api)()->patchJson('/api/v1/settings', ['settings' => ['general.default_locale' => 'en']])->assertOk();
 
-    ($this->api)(null, SvcActors::company())->getJson('/api/v1/settings')
+    ($this->api)(null, Actors::companyFor($this->admin, ['settings.view', 'settings.update']))->getJson('/api/v1/settings')
         ->assertJsonFragment(['key' => 'general.default_locale', 'value' => 'tr']);
 });
 
@@ -117,7 +116,7 @@ it('serves from cache and invalidates on every write path', function (): void {
     expect($reader->get('general.default_locale'))->toBe('fr');
 
     // A write that bypasses the service still drops the cache.
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     Setting::query()->where('key', 'general.default_locale')->firstOrFail()->update(['value' => 'de']);
     expect(app(SettingsReader::class)->get('general.default_locale'))->toBe('de');
 });
@@ -136,7 +135,7 @@ it('lets modules register settings with their own permissions', function (): voi
 
     ($this->api)()->patchJson('/api/v1/settings', ['settings' => ['accounting.lock_day' => 10]])->assertForbidden();
 
-    $accountant = SvcActors::user(['settings.view', 'settings.update', 'accounting.settings.update']);
+    $accountant = Actors::user(['settings.view', 'settings.update', 'accounting.settings.update']);
     ($this->api)($accountant)->patchJson('/api/v1/settings', ['settings' => ['accounting.lock_day' => 10, 'accounting.hidden' => ['a' => 1]]])
         ->assertOk()
         ->assertJsonFragment(['key' => 'accounting.lock_day', 'value' => 10])
@@ -146,12 +145,12 @@ it('lets modules register settings with their own permissions', function (): voi
 });
 
 it('does not return values to a writer who cannot view them', function (): void {
-    $writer = SvcActors::user(['settings.update']);
+    $writer = Actors::user(['settings.update']);
 
     ($this->api)($writer)->patchJson('/api/v1/settings', ['settings' => ['general.default_locale' => 'en']])
         ->assertNoContent();
 
-    SvcActors::activate($this->company);
+    Actors::activate($this->company);
     expect(app(SettingsReader::class)->get('general.default_locale'))->toBe('en');
 });
 

@@ -6,7 +6,7 @@ use App\Modules\Files\Http\Controllers\FileController;
 use App\Modules\Files\Http\ValidateUploadBeforeIdempotency;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'company'])->group(function (): void {
+Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(function (): void {
     Route::get('/files', [FileController::class, 'index']);
     Route::post('/files', [FileController::class, 'store'])->middleware([ValidateUploadBeforeIdempotency::class, 'idempotent']);
     Route::get('/files/{id}', [FileController::class, 'show'])->whereUuid('id');

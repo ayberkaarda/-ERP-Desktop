@@ -9,13 +9,13 @@ declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
 use App\Core\Http\ApiException;
+use App\Models\User;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
 use App\Modules\Workflow\Events\ApprovalCompleted;
 use App\Modules\Workflow\Models\ApprovalRequest;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Tests\Support\Workflow\WorkflowTestUser;
 use Tests\TestCase;
 
 require __DIR__.'/../../../vendor/autoload.php';
@@ -36,7 +36,7 @@ Event::listen(ApprovalCompleted::class, static function () use (&$events): void 
 
 try {
     $request = ApprovalRequest::query()->findOrFail($requestId);
-    $app->make(ApprovalEngine::class)->decide($request, new WorkflowTestUser(['id' => $actorId]), $decision);
+    $app->make(ApprovalEngine::class)->decide($request, User::query()->findOrFail($actorId), $decision);
     $outcome = 'ok';
 } catch (ApiException $e) {
     $outcome = $e->errorCode->value;
