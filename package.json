@@ -1,5 +1,12 @@
 {
   "name": "keystone-erp",
   "private": true,
-  "workspaces": ["frontend"]
+  "workspaces": [
+    "frontend"
+  ],
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "6.0.3"
+    }
+  }
 }
