@@ -17,6 +17,6 @@ it('runs against the postgres test database', function (): void {
     $row = DB::selectOne('select current_database() as name, version() as version');
 
     expect(DB::connection()->getDriverName())->toBe('pgsql')
-        ->and($row->name)->toBe('keystone_test')
+        ->and($row->name)->toBe(getenv('DB_DATABASE'))
         ->and($row->version)->toStartWith('PostgreSQL 18');
 });

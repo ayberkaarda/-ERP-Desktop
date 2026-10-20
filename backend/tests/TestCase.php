@@ -11,7 +11,21 @@ use RuntimeException;
 
 abstract class TestCase extends BaseTestCase
 {
-    private const string TEST_DATABASE = 'keystone_test';
+    /** Keep in sync with tests/bootstrap.php. */
+    public const string TEST_DATABASE_PATTERN = '/^keystone_test(_[a-z0-9]{1,20})?$/';
+
+    /**
+     * Refuses any database that is not a keystone_test[_lane] database.
+     */
+    public static function assertSafeDatabase(?string $name): void
+    {
+        if ($name === null || preg_match(self::TEST_DATABASE_PATTERN, $name) !== 1) {
+            throw new RuntimeException(sprintf(
+                'Refusing to run tests against database [%s]; expected keystone_test or keystone_test_<lane>.',
+                $name ?? 'unknown',
+            ));
+        }
+    }
 
     /**
      * Runs before RefreshDatabase so a misconfigured env can never wipe a real database.
@@ -21,15 +35,9 @@ abstract class TestCase extends BaseTestCase
         $app = parent::createApplication();
 
         $row = DB::selectOne('select current_database() as name');
-        $name = is_object($row) && property_exists($row, 'name') ? $row->name : null;
+        $name = is_object($row) && property_exists($row, 'name') && is_string($row->name) ? $row->name : null;
 
-        if ($name !== self::TEST_DATABASE) {
-            throw new RuntimeException(sprintf(
-                'Refusing to run tests against database [%s]; expected [%s].',
-                is_scalar($name) ? (string) $name : 'unknown',
-                self::TEST_DATABASE,
-            ));
-        }
+        self::assertSafeDatabase($name);
 
         return $app;
     }
