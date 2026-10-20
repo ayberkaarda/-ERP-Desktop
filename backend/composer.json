@@ -1,0 +1,113 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "keystone/backend",
+    "type": "project",
+    "description": "Keystone ERP REST API.",
+    "keywords": [
+        "erp"
+    ],
+    "license": "proprietary",
+    "require": {
+        "php": "^8.4",
+        "brick/money": "^0.15.2",
+        "dedoc/scramble": "^0.13.49",
+        "laravel/ai": "^1.3",
+        "laravel/framework": "^13.17",
+        "laravel/horizon": "^5.50",
+        "laravel/reverb": "^1.12",
+        "laravel/sanctum": "^4.3",
+        "laravel/tinker": "^3.0",
+        "predis/predis": "^3.7",
+        "spatie/laravel-activitylog": "^5.1",
+        "spatie/laravel-permission": "^8.3",
+        "spatie/laravel-query-builder": "^7.3"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^1.23",
+        "larastan/larastan": "^3.13",
+        "laravel/pail": "^1.2.5",
+        "laravel/pint": "^1.27",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.6",
+        "pestphp/pest": "^5.3",
+        "pestphp/pest-plugin-laravel": "^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "dev": [
+            "Composer\\Config::disableProcessTimeout",
+            "npx --yes concurrently@9.2.1 -k -n api,queue,reverb -c blue,magenta,green \"php artisan serve --port=8000\" \"php artisan queue:listen redis --queue=default,documents,edocs,reports,imports,assistant --tries=1\" \"php artisan reverb:start --port=8080\""
+        ],
+        "test": [
+            "@php artisan config:clear --ansi",
+            "@php vendor/bin/pest"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ],
+        "post-update-cmd": [
+            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
+        ],
+        "pre-package-uninstall": [
+            "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
+        ],
+        "setup": [
+            "composer install",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php artisan key:generate",
+            "@php artisan migrate --force"
+        ],
+        "lint": [
+            "@php vendor/bin/pint --test"
+        ],
+        "format": [
+            "@php vendor/bin/pint"
+        ],
+        "analyse": [
+            "@php vendor/bin/phpstan analyse --memory-limit=1G --no-progress"
+        ],
+        "openapi": [
+            "@php artisan scramble:export --path=storage/api-docs/openapi.json"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        },
+        "platform": {
+            "ext-pcntl": "8.4",
+            "ext-posix": "8.4"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts-descriptions": {
+        "test": "Run the Pest suite",
+        "lint": "Check code style",
+        "format": "Fix code style",
+        "analyse": "Run static analysis",
+        "openapi": "Export the OpenAPI document",
+        "dev": "Run API, queue worker and Reverb"
+    }
+}
