@@ -15,6 +15,7 @@ use Illuminate\Contracts\Filesystem\Factory as Filesystems;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
@@ -67,7 +68,7 @@ final class FileService
         $sniffed = (new \finfo(FILEINFO_MIME_TYPE))->file($localPath);
         $mime = $sniffed === false ? null : AllowedFileTypes::mimeFor($extension, $sniffed);
 
-        if ($mime === null) {
+        if ($mime === null || (OoxmlPackage::handles($extension) && ! OoxmlPackage::isValid($localPath, $extension))) {
             throw new ApiException(ErrorCode::UnsupportedFileType);
         }
 
@@ -88,11 +89,26 @@ final class FileService
             throw ValidationException::withMessages(['file' => [__('files::messages.upload_failed')]]);
         }
 
+        $disk = $this->storage->disk($this->disk);
+
         try {
-            $this->storage->disk($this->disk)->writeStream($path, $stream);
+            // Disks run with throw=false, so a failed write is only visible in the return value.
+            $written = $disk->writeStream($path, $stream);
         } finally {
             fclose($stream);
         }
+
+        if ($written !== true) {
+            $disk->delete($path);
+
+            throw new ApiException(ErrorCode::ServerError);
+        }
+
+        // The blob is written before the row; if the surrounding transaction (idempotency owns one)
+        // rolls back, the row vanishes and so must the blob.
+        DB::afterRollBack(static function () use ($disk, $path): void {
+            $disk->delete($path);
+        });
 
         $actorId = $actor->getAuthIdentifier();
 
@@ -109,7 +125,7 @@ final class FileService
                 'attachable_id' => $id,
             ]);
         } catch (Throwable $e) {
-            $this->storage->disk($this->disk)->delete($path);
+            $disk->delete($path);
 
             throw $e;
         }

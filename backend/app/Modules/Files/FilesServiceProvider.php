@@ -6,6 +6,7 @@ namespace App\Modules\Files;
 
 use App\Core\Company\CompanyContext;
 use App\Core\Modules\ModuleServiceProvider;
+use App\Modules\Files\Console\PruneOrphanBlobs;
 use App\Modules\Files\Contracts\FileScanner;
 use App\Modules\Files\Models\File;
 use App\Modules\Files\Policies\FilePolicy;
@@ -39,6 +40,10 @@ final class FilesServiceProvider extends ModuleServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([PruneOrphanBlobs::class]);
+        }
 
         Gate::policy(File::class, FilePolicy::class);
     }
