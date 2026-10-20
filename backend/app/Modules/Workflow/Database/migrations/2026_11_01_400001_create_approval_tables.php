@@ -48,11 +48,23 @@ return new class extends Migration
             $table->uuid('requested_by');
             $table->boolean('allow_self_approval')->default(false);
             $table->jsonb('steps');
+            $table->string('revision', 100)->nullable();
             $table->unsignedInteger('version')->default(1);
             $table->timestampsTz();
             $table->index(['company_id', 'status']);
         });
         DB::statement("CREATE UNIQUE INDEX approval_requests_pending_document_unique ON approval_requests (company_id, document_type, document_id) WHERE status = 'pending'");
+        Schema::create('approval_request_approvers', function (Blueprint $table): void {
+            $table->uuid('id')->primary()->default(DB::raw('uuidv7()'));
+            $table->uuid('company_id');
+            $table->foreignUuid('request_id')->constrained('approval_requests')->cascadeOnDelete();
+            $table->unsignedInteger('step_position');
+            $table->string('approver_type', 10)->default('user');
+            $table->string('approver_ref');
+            $table->timestampTz('created_at')->useCurrent();
+            $table->unique(['request_id', 'step_position', 'approver_type', 'approver_ref'], 'approval_request_approvers_unique');
+            $table->index(['company_id', 'approver_type', 'approver_ref', 'request_id'], 'approval_request_approvers_lookup');
+        });
         Schema::create('approval_decisions', function (Blueprint $table): void {
             $table->uuid('id')->primary()->default(DB::raw('uuidv7()'));
             $table->uuid('company_id')->index();
@@ -73,6 +85,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('approval_decisions');
+        Schema::dropIfExists('approval_request_approvers');
         Schema::dropIfExists('approval_requests');
         Schema::dropIfExists('approval_flow_steps');
         Schema::dropIfExists('approval_flows');

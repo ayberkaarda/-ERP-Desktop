@@ -27,6 +27,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $requested_by
  * @property bool $allow_self_approval
  * @property list<array{position: int, mode: string, approvers: list<string>}> $steps
+ * @property string|null $revision
  * @property int $version
  * @property Collection<int, ApprovalDecision> $decisions
  */

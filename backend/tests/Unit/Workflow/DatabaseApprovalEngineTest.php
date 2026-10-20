@@ -210,3 +210,65 @@ it('blocks starting approval against a foreign document', function (): void {
     app(CompanyContext::class)->set($this->otherCompany);
     $this->engine->start($this->doc, 'purchase_order', null);
 })->throws(ApiException::class);
+
+it('refuses to start without an amount when the flow has thresholds', function (): void {
+    ($this->flow)(['steps' => [
+        ['position' => 1, 'mode' => 'any_of', 'approver_type' => 'role', 'approver_ref' => 'manager', 'min_amount' => '1000'],
+    ]]);
+    try {
+        $this->engine->start($this->doc, 'purchase_order', null);
+        $this->fail('start() must refuse a missing amount');
+    } catch (ApiException $e) {
+        expect($e->status())->toBe(422)->and($e->fields)->toHaveKey('amount');
+    }
+    expect(ApprovalRequest::query()->count())->toBe(0);
+});
+
+it('recalculates steps when the document amount or revision changes', function (): void {
+    ($this->flow)(['steps' => [
+        ['position' => 1, 'mode' => 'any_of', 'approver_type' => 'role', 'approver_ref' => 'manager'],
+        ['position' => 2, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => (string) $this->second->getAuthIdentifier(), 'min_amount' => '1000'],
+    ]]);
+    $old = $this->engine->start($this->doc, 'purchase_order', '100', 'r1');
+    expect($old->steps)->toHaveCount(1)
+        ->and($this->engine->start($this->doc, 'purchase_order', '100', 'r1')->id)->toBe($old->id);
+
+    $raised = $this->engine->start($this->doc, 'purchase_order', '5000', 'r1');
+    expect($raised->id)->not->toBe($old->id)->and($raised->steps)->toHaveCount(2)
+        ->and($raised->amount)->toBe('5000.0000')
+        ->and(ApprovalRequest::query()->findOrFail($old->id)->status)->toBe('cancelled');
+
+    $revised = $this->engine->start($this->doc, 'purchase_order', '5000', 'r2');
+    expect($revised->id)->not->toBe($raised->id)->and($revised->revision)->toBe('r2')
+        ->and(ApprovalRequest::query()->where('status', 'pending')->count())->toBe(1);
+});
+
+it('keeps the relational approver list in step with the active step', function (): void {
+    $approvers = fn (): array => DB::table('approval_request_approvers')->orderBy('step_position')->orderBy('approver_ref')
+        ->get()->map(fn ($row): string => $row->step_position.':'.$row->approver_ref)->all();
+    ($this->flow)(['steps' => [
+        ['position' => 1, 'mode' => 'all_of', 'approver_type' => 'role', 'approver_ref' => 'manager'],
+        ['position' => 2, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => (string) $this->second->getAuthIdentifier()],
+    ]]);
+    $first = (string) $this->first->getAuthIdentifier();
+    $second = (string) $this->second->getAuthIdentifier();
+    $r = $this->engine->start($this->doc, 'purchase_order', null);
+    $both = ["1:$first", "1:$second"];
+    sort($both);
+    expect($approvers())->toBe($both);
+    $r = $this->engine->decide($r, $this->first, 'approve');
+    expect($approvers())->toBe(["1:$second"]);
+    $r = $this->engine->decide($r, $this->second, 'approve');
+    expect($approvers())->toBe(["2:$second"])
+        ->and($this->engine->pendingFor($this->second)->count())->toBe(1)
+        ->and($this->engine->pendingFor($this->first)->count())->toBe(0);
+    $this->engine->cancel($r, $this->requester);
+    expect($approvers())->toBe([])->and($this->engine->pendingFor($this->second)->count())->toBe(0);
+});
+
+it('does not leak pending items of another company', function (): void {
+    ($this->flow)();
+    $this->engine->start($this->doc, 'purchase_order', null);
+    app(CompanyContext::class)->set($this->otherCompany);
+    expect($this->engine->pendingFor($this->first)->count())->toBe(0);
+});

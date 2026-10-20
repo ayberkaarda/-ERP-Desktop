@@ -8,4 +8,5 @@ return [
     'user_uuid' => 'L’approbateur doit être un UUID utilisateur valide.',
     'invalid_range' => 'Le montant maximal doit être supérieur ou égal au montant minimal.',
     'active_flow_exists' => 'Un circuit actif existe déjà pour ce type de document.',
+    'amount_required' => 'Un montant est requis car ce circuit d’approbation comporte des seuils de montant.',
 ];

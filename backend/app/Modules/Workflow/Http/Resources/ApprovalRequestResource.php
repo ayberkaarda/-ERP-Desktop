@@ -19,7 +19,7 @@ final class ApprovalRequestResource extends JsonResource
             'document_type' => $this->document_type, 'document_id' => $this->document_id,
             'status' => $this->status, 'current_step' => $this->current_step,
             'amount' => $this->amount, 'requested_by' => $this->requested_by,
-            'version' => $this->version, 'steps' => $this->steps,
+            'version' => $this->version, 'revision' => $this->revision, 'steps' => $this->steps,
             'decisions' => ApprovalDecisionResource::collection($this->whenLoaded('decisions')),
         ];
     }

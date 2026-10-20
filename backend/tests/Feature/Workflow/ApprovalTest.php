@@ -7,6 +7,7 @@ use App\Core\Company\MembershipChecker;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
 use App\Modules\Workflow\Contracts\ApproverResolver;
 use App\Modules\Workflow\Models\ApprovalDecision;
+use App\Modules\Workflow\Models\ApprovalRequest;
 use App\Modules\Workflow\Repositories\ApprovalFlowRepository;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Gate;
@@ -79,8 +80,8 @@ it('lists only pending items assigned to the current user and replays HTTP comma
     $this->getJson('/api/v1/approvals/pending', $this->headers)->assertOk()->assertJsonPath('meta.pagination.total', 1);
     $this->getJson("/api/v1/approvals/$r->id", $this->headers)->assertOk()->assertJsonPath('data.amount', '100.0000');
     $path = "/api/v1/approvals/$r->id/decisions";
-    $this->postJson($path, ['decision' => 'approve'], $this->headers)->assertOk()->assertJsonPath('data.status', 'approved');
-    $this->postJson($path, ['decision' => 'approve'], $this->headers)->assertOk()->assertHeader('Idempotent-Replayed', 'true');
+    $this->postJson($path, ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertOk()->assertJsonPath('data.status', 'approved');
+    $this->postJson($path, ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertOk()->assertHeader('Idempotent-Replayed', 'true');
     $this->postJson($path, ['decision' => 'reject'], $this->headers)->assertStatus(422);
     expect(ApprovalDecision::query()->count())->toBe(1);
 });
@@ -89,7 +90,7 @@ it('requires a decision idempotency key', function (): void {
     ($this->flow)();
     $r = $this->engine->start($this->doc, 'purchase_order', null);
     $this->actingAs($this->first, 'sanctum');
-    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve'], ['X-Company-Id' => $this->company])
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], ['X-Company-Id' => $this->company])
         ->assertStatus(400)->assertJsonPath('errors.code', 'IDEMPOTENCY_KEY_REQUIRED');
 });
 
@@ -100,7 +101,7 @@ it('denies endpoints without their permissions', function (): void {
     $this->actingAs($this->first, 'sanctum');
     $this->getJson('/api/v1/approvals/pending', $this->headers)->assertForbidden();
     $this->getJson("/api/v1/approvals/$r->id", $this->headers)->assertForbidden();
-    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve'], $this->headers)->assertForbidden();
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertForbidden();
     $this->getJson('/api/v1/approval-flows', $this->headers)->assertForbidden();
     $this->getJson("/api/v1/approval-flows/$flow->id", $this->headers)->assertForbidden();
     $headers = array_replace($this->headers, ['Idempotency-Key' => (string) Str::uuid7()]);
@@ -112,9 +113,9 @@ it('denies endpoints without their permissions', function (): void {
 it('blocks a requester and an unrelated actor from deciding via HTTP', function (): void {
     ($this->flow)();
     $r = $this->engine->start($this->doc, 'purchase_order', null);
-    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve'], $this->headers)->assertForbidden();
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertForbidden();
     $this->actingAs(new WorkflowTestUser(['id' => (string) Str::uuid7()]), 'sanctum');
-    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve'], $this->headers)->assertForbidden();
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertForbidden();
     expect(ApprovalDecision::query()->count())->toBe(0);
 });
 
@@ -132,7 +133,7 @@ it('hides foreign company records for every resource action', function (): void 
     $this->patchJson("/api/v1/approval-flows/$flow->id", ['name' => 'No', 'version' => 1], $this->headers)->assertNotFound();
     $this->deleteJson("/api/v1/approval-flows/$flow->id", ['version' => 1], $this->headers)->assertNotFound();
     $this->getJson("/api/v1/approvals/$r->id", $this->headers)->assertNotFound();
-    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve'], $this->headers)->assertNotFound();
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)->assertNotFound();
 });
 
 it('validates thresholds, user UUIDs, positions and string money', function (array $step): void {
@@ -166,7 +167,56 @@ it('validates decision input and enforces the supplied version', function (): vo
     $this->actingAs($this->first, 'sanctum');
     $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'unknown'], $this->headers)->assertUnprocessable();
     $headers = array_replace($this->headers, ['Idempotency-Key' => (string) Str::uuid7()]);
-    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 99], $headers)
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => 99, 'step' => 1], $headers)
+        ->assertStatus(409)->assertJsonPath('errors.code', 'VERSION_CONFLICT');
+    expect(ApprovalDecision::query()->count())->toBe(0);
+});
+
+it('requires the version and the step the client saw', function (): void {
+    ($this->flow)();
+    $r = $this->engine->start($this->doc, 'purchase_order', null);
+    $this->actingAs($this->first, 'sanctum');
+    $path = "/api/v1/approvals/$r->id/decisions";
+    $this->postJson($path, ['decision' => 'approve', 'step' => 1], $this->headers)->assertUnprocessable();
+    $headers = array_replace($this->headers, ['Idempotency-Key' => (string) Str::uuid7()]);
+    $this->postJson($path, ['decision' => 'approve', 'version' => 1], $headers)->assertUnprocessable();
+    expect(ApprovalDecision::query()->count())->toBe(0);
+});
+
+it('rejects a decision made from a stale screen of an earlier step', function (): void {
+    ($this->flow)(['steps' => [
+        ['position' => 1, 'mode' => 'any_of', 'approver_type' => 'role', 'approver_ref' => 'manager'],
+        ['position' => 2, 'mode' => 'any_of', 'approver_type' => 'role', 'approver_ref' => 'manager'],
+    ]]);
+    $r = $this->engine->start($this->doc, 'purchase_order', null);
+    $this->engine->decide($r, $this->first, 'approve');
+    $this->actingAs($this->second, 'sanctum');
+    $path = "/api/v1/approvals/$r->id/decisions";
+    // The screen was rendered while step 1 was active (version 1).
+    $this->postJson($path, ['decision' => 'approve', 'version' => 1, 'step' => 1], $this->headers)
+        ->assertStatus(409)->assertJsonPath('errors.code', 'VERSION_CONFLICT');
+    expect(ApprovalDecision::query()->count())->toBe(1);
+    $headers = array_replace($this->headers, ['Idempotency-Key' => (string) Str::uuid7()]);
+    $fresh = ApprovalRequest::query()->findOrFail($r->id);
+    $this->postJson($path, ['decision' => 'approve', 'version' => $fresh->version, 'step' => 2], $headers)
+        ->assertOk()->assertJsonPath('data.status', 'approved');
+});
+
+it('paginates the pending list with a correct total', function (): void {
+    ($this->flow)();
+    foreach (range(1, 3) as $i) {
+        $this->engine->start(FixtureDocument::create(['name' => "Doc $i"]), 'purchase_order', null);
+    }
+    $this->actingAs($this->first, 'sanctum');
+    $this->getJson('/api/v1/approvals/pending?per_page=2', $this->headers)->assertOk()
+        ->assertJsonPath('meta.pagination.total', 3)->assertJsonCount(2, 'data');
+});
+
+it('rejects a decision whose step differs from the active step even with the current version', function (): void {
+    ($this->flow)();
+    $r = $this->engine->start($this->doc, 'purchase_order', null);
+    $this->actingAs($this->first, 'sanctum');
+    $this->postJson("/api/v1/approvals/$r->id/decisions", ['decision' => 'approve', 'version' => $r->version, 'step' => 2], $this->headers)
         ->assertStatus(409)->assertJsonPath('errors.code', 'VERSION_CONFLICT');
     expect(ApprovalDecision::query()->count())->toBe(0);
 });

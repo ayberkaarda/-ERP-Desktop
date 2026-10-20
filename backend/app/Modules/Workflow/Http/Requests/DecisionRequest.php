@@ -19,7 +19,8 @@ final class DecisionRequest extends FormRequest
         return [
             'decision' => ['required', 'in:approve,reject'],
             'comment' => ['nullable', 'string', 'max:5000'],
-            'version' => ['sometimes', 'integer', 'min:1'],
+            'version' => ['required', 'integer', 'min:1'],
+            'step' => ['required', 'integer', 'min:1'],
         ];
     }
 }

@@ -43,13 +43,11 @@ final class ApprovalController
     {
         $approval = ApprovalRequest::query()->findOrFail($id);
         Gate::authorize('decide', $approval);
-        if ($request->has('version')) {
-            $approval->assertVersion($request->integer('version'));
-        }
         $user = $request->user() ?? throw new ApiException(ErrorCode::Unauthenticated);
         $comment = $request->input('comment');
         $approval = $this->engine->decide(
             $approval, $user, $request->string('decision')->toString(), is_string($comment) ? $comment : null,
+            $request->integer('version'), $request->integer('step'),
         );
 
         return ApiResponse::success((new ApprovalRequestResource($approval->load('decisions')))->resolve($request));

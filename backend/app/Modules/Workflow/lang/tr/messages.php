@@ -8,4 +8,5 @@ return [
     'user_uuid' => 'Onaylayıcı geçerli bir kullanıcı UUID değeri olmalıdır.',
     'invalid_range' => 'Üst tutar alt tutardan büyük veya ona eşit olmalıdır.',
     'active_flow_exists' => 'Bu belge türü için etkin bir onay akışı zaten mevcut.',
+    'amount_required' => 'Bu onay akışında tutar eşikleri bulunduğu için tutar zorunludur.',
 ];
