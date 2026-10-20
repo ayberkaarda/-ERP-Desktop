@@ -16,11 +16,15 @@ use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Appended to the `api` group: rejects deactivated accounts on every API request (whatever module
- * serves it) and keeps the session tracking row fresh.
+ * Appended to the `api` group, so no module can forget it: rejects deactivated accounts and, while
+ * a password change is forced, every route except the allowlist below (broadcasting auth included).
+ * Also keeps the session tracking row fresh.
  */
 final class EnforceAccountState
 {
+    /** Route names a user with a forced password change may still call. */
+    public const array PASSWORD_CHANGE_ALLOWLIST = ['auth.me', 'auth.logout', 'auth.password.change'];
+
     public function __construct(
         private readonly AuthManager $auth,
         private readonly SessionRegistry $sessions,
@@ -37,6 +41,11 @@ final class EnforceAccountState
             $this->signOut($request, $user);
 
             throw new ApiException(ErrorCode::UserDeactivated);
+        }
+
+        if ($user instanceof User && $user->must_change_password
+            && ! in_array($request->route()?->getName(), self::PASSWORD_CHANGE_ALLOWLIST, true)) {
+            throw new ApiException(ErrorCode::PasswordChangeRequired);
         }
 
         $response = $next($request);

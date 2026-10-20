@@ -12,6 +12,7 @@ use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -66,6 +67,7 @@ final class TwoFactorService
             'two_factor_confirmed_at' => Carbon::now(),
             'two_factor_recovery_codes' => array_map(self::hashCode(...), $codes),
         ])->save();
+        $user->bumpAuthVersion();
 
         return $codes;
     }
@@ -78,6 +80,7 @@ final class TwoFactorService
             'two_factor_recovery_codes' => null,
             'two_factor_last_timestep' => null,
         ])->save();
+        $user->bumpAuthVersion();
     }
 
     /**
@@ -113,21 +116,30 @@ final class TwoFactorService
         return true;
     }
 
+    /**
+     * Consumes a recovery code under a row lock, so concurrent requests can neither use one code
+     * twice nor write back a list that still contains another request's consumed code.
+     */
     public function useRecoveryCode(User $user, string $code): bool
     {
-        $hashes = $user->two_factor_recovery_codes ?? [];
         $candidate = self::hashCode($code);
 
-        foreach ($hashes as $i => $hash) {
-            if (hash_equals($hash, $candidate)) {
-                unset($hashes[$i]);
-                $user->forceFill(['two_factor_recovery_codes' => array_values($hashes)])->save();
+        return DB::transaction(function () use ($user, $candidate): bool {
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->first();
+            $hashes = $locked instanceof User ? ($locked->two_factor_recovery_codes ?? []) : [];
 
-                return true;
+            foreach ($hashes as $i => $hash) {
+                if (hash_equals($hash, $candidate)) {
+                    unset($hashes[$i]);
+                    $locked->forceFill(['two_factor_recovery_codes' => array_values($hashes)])->save();
+                    $user->setRawAttributes($locked->getAttributes(), true);
+
+                    return true;
+                }
             }
-        }
 
-        return false;
+            return false;
+        });
     }
 
     /**

@@ -52,6 +52,7 @@ final class PasswordController
             'must_change_password' => false,
             'password_changed_at' => Carbon::now(),
         ])->save();
+        $user->bumpAuthVersion();
 
         $token = CurrentToken::of($user);
         $revoker->revokeAll(

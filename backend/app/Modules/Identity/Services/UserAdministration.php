@@ -9,6 +9,7 @@ use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
 use App\Models\User;
 use App\Modules\Identity\Contracts\CompanyAuthorizer;
+use App\Modules\Identity\Events\MembershipRevoked;
 use App\Modules\Identity\Models\Role;
 use App\Modules\Organization\Contracts\CompanyDirectory;
 use Illuminate\Support\Carbon;
@@ -31,7 +32,7 @@ final class UserAdministration
     /**
      * @param  array{name: string, email: string, password: string, locale?: string, roles?: list<string>}  $data
      */
-    public function create(array $data, string $companyId): User
+    public function create(?User $actor, array $data, string $companyId): User
     {
         $user = new User;
         $user->fill([
@@ -46,7 +47,7 @@ final class UserAdministration
         $this->companies->setMembership($user->id, $companyId, true);
 
         if (($data['roles'] ?? []) !== []) {
-            $this->syncRoles($user, $companyId, $data['roles']);
+            $this->syncRoles($actor, $user, $companyId, $data['roles']);
         }
 
         return $user;
@@ -105,6 +106,7 @@ final class UserAdministration
             'must_change_password' => true,
             'password_changed_at' => Carbon::now(),
         ])->save();
+        $target->bumpAuthVersion();
 
         $this->revoker->revokeAll($target, 'password_reset');
     }
@@ -126,13 +128,13 @@ final class UserAdministration
      * @param  list<string>  $roles  role ids or names
      * @return list<string> role names now held
      */
-    public function syncRoles(User $target, string $companyId, array $roles): array
+    public function syncRoles(?User $actor, User $target, string $companyId, array $roles): array
     {
         if (! $this->companies->isActive($companyId)) {
             throw new ApiException(ErrorCode::NotFound);
         }
 
-        return $this->context->runAs($companyId, function () use ($target, $companyId, $roles): array {
+        return $this->context->runAs($companyId, function () use ($actor, $target, $companyId, $roles): array {
             $ids = array_values(array_filter($roles, Str::isUuid(...)));
             $names = array_values(array_diff($roles, $ids));
 
@@ -148,11 +150,20 @@ final class UserAdministration
             }
 
             $target->unsetRelation('roles');
-            $before = $target->roles()->pluck('name')->sort()->values()->all();
+            $current = Role::query()->whereIn('id', $target->roles()->pluck('roles.id'))->get();
+            $before = $current->pluck('name')->sort()->values()->all();
+
+            if ($actor !== null) {
+                $this->guardRoleChange($actor, $target, $companyId, $current->all(), $found->all());
+            }
 
             $target->syncRoles($found->all());
             $target->unsetRelation('roles');
             $this->companies->setMembership($target->id, $companyId, $found->isNotEmpty());
+
+            if ($found->isEmpty() && $current->isNotEmpty()) {
+                MembershipRevoked::dispatch($target->id, $companyId);
+            }
 
             $after = array_map(static fn (Role $role): string => $role->name, $found->all());
             sort($after);
@@ -169,6 +180,47 @@ final class UserAdministration
 
             return $after;
         });
+    }
+
+    /**
+     * Role changes may only move permissions the actor holds in that company; the system Admin
+     * role is reserved to its holders; nobody edits their own roles. Super admins are exempt
+     * from the delegation rules, not from the own-roles rule.
+     *
+     * @param  array<int, Role>  $current
+     * @param  array<int, Role>  $next
+     */
+    private function guardRoleChange(User $actor, User $target, string $companyId, array $current, array $next): void
+    {
+        if ($actor->id === $target->id) {
+            throw new ApiException(ErrorCode::Forbidden, __('identity::users.not_own_roles'));
+        }
+
+        if ($actor->is_super_admin) {
+            return;
+        }
+
+        $currentIds = array_map(static fn (Role $r): string => $r->id, $current);
+        $nextIds = array_map(static fn (Role $r): string => $r->id, $next);
+        $changed = array_merge(
+            array_filter($next, static fn (Role $r): bool => ! in_array($r->id, $currentIds, true)),
+            array_filter($current, static fn (Role $r): bool => ! in_array($r->id, $nextIds, true)),
+        );
+
+        $held = $this->authorizer->permissionsByCompany($actor)[$companyId] ?? [];
+        $actorRoles = $this->authorizer->roleNamesByCompany($actor)[$companyId] ?? [];
+
+        foreach ($changed as $role) {
+            if ($role->is_system && $role->name === Role::ADMIN && ! in_array(Role::ADMIN, $actorRoles, true)) {
+                throw new ApiException(ErrorCode::Forbidden, __('identity::users.role_not_delegable'));
+            }
+
+            $permissions = $role->permissions()->pluck('name')->all();
+
+            if (array_diff($permissions, $held) !== []) {
+                throw new ApiException(ErrorCode::Forbidden, __('identity::users.role_not_delegable'));
+            }
+        }
     }
 
     private function guardSelf(User $actor, User $target): void

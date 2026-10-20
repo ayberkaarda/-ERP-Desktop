@@ -35,6 +35,7 @@ use Spatie\Permission\Traits\HasRoles;
  * @property list<string>|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property int|null $two_factor_last_timestep
+ * @property int $auth_version
  * @property string|null $remember_token
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -65,6 +66,7 @@ class User extends Authenticatable
         'is_super_admin' => false,
         'is_active' => true,
         'must_change_password' => false,
+        'auth_version' => 0,
     ];
 
     protected string $guard_name = 'web';
@@ -72,6 +74,14 @@ class User extends Authenticatable
     public function getMorphClass(): string
     {
         return 'user';
+    }
+
+    /**
+     * Invalidates pending login challenges issued before a credential change.
+     */
+    public function bumpAuthVersion(): void
+    {
+        $this->forceFill(['auth_version' => $this->auth_version + 1])->save();
     }
 
     public function hasTwoFactorEnabled(): bool
@@ -110,6 +120,7 @@ class User extends Authenticatable
             'two_factor_recovery_codes' => 'encrypted:array',
             'two_factor_confirmed_at' => 'datetime',
             'two_factor_last_timestep' => 'integer',
+            'auth_version' => 'integer',
         ];
     }
 }

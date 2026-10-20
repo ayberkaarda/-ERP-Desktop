@@ -30,7 +30,7 @@ final class DefaultRoles
     ];
 
     /** Never granted by default, even to Admin. */
-    private const array ADMIN_EXCLUDED = ['companies.delete'];
+    private const array ADMIN_EXCLUDED = PermissionCatalog::SUPER_ADMIN_ONLY;
 
     public function __construct(
         private readonly PermissionCatalog $catalog,

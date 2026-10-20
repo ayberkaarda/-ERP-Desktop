@@ -6,6 +6,7 @@ namespace App\Modules\Identity\Services;
 
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Models\User;
 use App\Modules\Identity\Contracts\CompanyAuthorizer;
 use App\Modules\Identity\Models\Permission;
 use App\Modules\Identity\Models\Role;
@@ -21,7 +22,7 @@ final class RoleAdministration
     /**
      * @param  array{name: string, description?: string|null, permissions?: list<string>}  $data
      */
-    public function create(array $data): Role
+    public function create(User $actor, array $data): Role
     {
         $role = new Role([
             'name' => $data['name'],
@@ -31,7 +32,7 @@ final class RoleAdministration
         ]);
         $role->save();
 
-        $this->syncPermissions($role, $data['permissions'] ?? []);
+        $this->syncPermissions($actor, $role, $data['permissions'] ?? []);
 
         return $role;
     }
@@ -39,7 +40,7 @@ final class RoleAdministration
     /**
      * @param  array{name?: string, description?: string|null, permissions?: list<string>}  $data
      */
-    public function update(Role $role, array $data): Role
+    public function update(User $actor, Role $role, array $data): Role
     {
         $isAdmin = $role->is_system && $role->name === Role::ADMIN;
 
@@ -50,7 +51,7 @@ final class RoleAdministration
         $role->fill(array_intersect_key($data, array_flip(['name', 'description'])))->save();
 
         if (array_key_exists('permissions', $data)) {
-            $this->syncPermissions($role, $data['permissions']);
+            $this->syncPermissions($actor, $role, $data['permissions']);
         }
 
         return $role;
@@ -69,9 +70,10 @@ final class RoleAdministration
     /**
      * @param  list<string>  $names
      */
-    private function syncPermissions(Role $role, array $names): void
+    private function syncPermissions(User $actor, Role $role, array $names): void
     {
         $before = $role->permissions()->pluck('name')->sort()->values()->all();
+        $this->guardDelegation($actor, $role, array_values(array_diff($names, $before)));
         $permissions = Permission::query()->whereIn('name', $names)->where('guard_name', PermissionCatalog::GUARD)->get();
 
         $role->syncPermissions($permissions->all());
@@ -88,5 +90,24 @@ final class RoleAdministration
         }
 
         $this->authorizer->forget();
+    }
+
+    /**
+     * Only permissions the actor holds in the role's company may be added, and super-admin-only
+     * permissions never by anyone else.
+     *
+     * @param  list<string>  $added
+     */
+    private function guardDelegation(User $actor, Role $role, array $added): void
+    {
+        if ($actor->is_super_admin || $added === []) {
+            return;
+        }
+
+        $held = $this->authorizer->permissionsByCompany($actor)[$role->company_id] ?? [];
+
+        if (array_intersect($added, PermissionCatalog::SUPER_ADMIN_ONLY) !== [] || array_diff($added, $held) !== []) {
+            throw new ApiException(ErrorCode::Forbidden, __('identity::roles.permission_not_delegable'));
+        }
     }
 }

@@ -67,6 +67,7 @@ final class SessionAuthenticator
         $request->session()->put(self::CHALLENGE, [
             'user_id' => $user->id,
             'remember' => $remember,
+            'auth_version' => $user->auth_version,
             'expires_at' => Carbon::now()->addSeconds(is_numeric($seconds) ? (int) $seconds : 300)->getTimestamp(),
         ]);
     }
@@ -90,7 +91,14 @@ final class SessionAuthenticator
 
         $user = User::query()->find($challenge['user_id']);
 
-        return $user instanceof User ? ['user' => $user, 'remember' => (bool) ($challenge['remember'] ?? false)] : null;
+        // A password reset/change or 2FA change after the password step voids the challenge.
+        if (! $user instanceof User || ($challenge['auth_version'] ?? null) !== $user->auth_version) {
+            $this->clearChallenge($request);
+
+            return null;
+        }
+
+        return ['user' => $user, 'remember' => (bool) ($challenge['remember'] ?? false)];
     }
 
     public function clearChallenge(Request $request): void

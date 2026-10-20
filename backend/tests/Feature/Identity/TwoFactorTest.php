@@ -50,7 +50,7 @@ function withSession(string $cookie): mixed
 }
 
 it('sets up, stores the secret encrypted and confirms with recovery codes stored hashed', function (): void {
-    $setup = $this->actingAs($this->user)->postJson('/api/v1/auth/two-factor/setup', [], Identity::headers())
+    $setup = $this->actingAs($this->user)->postJson('/api/v1/auth/two-factor/setup', ['password' => Identity::PASSWORD], Identity::headers())
         ->assertOk()
         ->assertJsonStructure(['data' => ['secret', 'otpauth_url', 'qr_svg']]);
 
@@ -59,12 +59,12 @@ it('sets up, stores the secret encrypted and confirms with recovery codes stored
         ->and($setup->json('data.otpauth_url'))->toStartWith('otpauth://totp/')
         ->and(DB::table('users')->where('id', $this->user->id)->value('two_factor_secret'))->not->toContain($secret);
 
-    $this->actingAs($this->user)->postJson('/api/v1/auth/two-factor/confirm', ['code' => '000000'], Identity::headers())
+    $this->actingAs($this->user)->postJson('/api/v1/auth/two-factor/confirm', ['code' => '000000', 'password' => Identity::PASSWORD], Identity::headers())
         ->assertStatus(422)
         ->assertJsonPath('errors.code', 'INVALID_TWO_FACTOR_CODE');
 
     $codes = $this->actingAs($this->user)
-        ->postJson('/api/v1/auth/two-factor/confirm', ['code' => $this->totp->currentCode($secret)], Identity::headers())
+        ->postJson('/api/v1/auth/two-factor/confirm', ['code' => $this->totp->currentCode($secret), 'password' => Identity::PASSWORD], Identity::headers())
         ->assertOk()
         ->json('data.recovery_codes');
 
@@ -73,7 +73,7 @@ it('sets up, stores the secret encrypted and confirms with recovery codes stored
         ->and(decrypt($raw, false))->not->toContain($codes[0])
         ->and($this->user->fresh()?->hasTwoFactorEnabled())->toBeTrue();
 
-    $this->actingAs($this->user)->postJson('/api/v1/auth/two-factor/setup', [], Identity::headers())
+    $this->actingAs($this->user)->postJson('/api/v1/auth/two-factor/setup', ['password' => Identity::PASSWORD], Identity::headers())
         ->assertStatus(422);
 });
 
@@ -86,7 +86,7 @@ it('keeps the session unauthenticated until the second factor is verified', func
     withSession($cookie)->getJson('/api/v1/auth/me', Identity::headers())->assertStatus(401);
 
     $verified = withSession($cookie)
-        ->postJson('/api/v1/auth/two-factor/verify', ['code' => $this->totp->currentCode($secret)], Identity::headers())
+        ->postJson('/api/v1/auth/two-factor/verify', ['code' => $this->totp->currentCode($secret), 'password' => Identity::PASSWORD], Identity::headers())
         ->assertOk()
         ->assertJsonPath('data.user.id', $this->user->id)
         ->assertJsonPath('data.user.two_factor_enabled', true);
@@ -127,10 +127,10 @@ it('needs a pending challenge and throttles guessing', function (): void {
     [, $cookie] = passwordStep('mert@example.com');
 
     foreach (range(1, 5) as $_) {
-        withSession($cookie)->postJson('/api/v1/auth/two-factor/verify', ['code' => '000000'], Identity::headers())->assertStatus(422);
+        withSession($cookie)->postJson('/api/v1/auth/two-factor/verify', ['code' => '000000', 'password' => Identity::PASSWORD], Identity::headers())->assertStatus(422);
     }
 
-    withSession($cookie)->postJson('/api/v1/auth/two-factor/verify', ['code' => '000000'], Identity::headers())
+    withSession($cookie)->postJson('/api/v1/auth/two-factor/verify', ['code' => '000000', 'password' => Identity::PASSWORD], Identity::headers())
         ->assertStatus(429)
         ->assertJsonPath('errors.code', 'TOO_MANY_ATTEMPTS');
 });

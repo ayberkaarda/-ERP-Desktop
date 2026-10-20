@@ -6,6 +6,7 @@ namespace App\Modules\Identity\Http\Controllers;
 
 use App\Core\Http\ApiResponse;
 use App\Core\Http\ListQuery;
+use App\Models\User;
 use App\Modules\Identity\Http\Requests\RoleRequest;
 use App\Modules\Identity\Http\Resources\RoleResource;
 use App\Modules\Identity\Models\Role;
@@ -19,7 +20,14 @@ use Illuminate\Support\Facades\Gate;
  */
 final class RoleController
 {
+    use CurrentUser;
+
     // Resolved per call: the router reuses controller instances and the service holds request state.
+    private function actor(Request $request): User
+    {
+        return $this->currentUser($request);
+    }
+
     private function roles(): RoleAdministration
     {
         return app(RoleAdministration::class);
@@ -48,7 +56,7 @@ final class RoleController
 
         /** @var array{name: string, description?: string|null, permissions?: list<string>} $data */
         $data = $request->validated();
-        $role = $this->roles()->create($data);
+        $role = $this->roles()->create($this->actor($request), $data);
 
         return ApiResponse::created((new RoleResource($role->load('permissions')))->resolve($request));
     }
@@ -59,7 +67,7 @@ final class RoleController
 
         /** @var array{name?: string, description?: string|null, permissions?: list<string>} $data */
         $data = $request->validated();
-        $this->roles()->update($role, $data);
+        $this->roles()->update($this->actor($request), $role, $data);
 
         return ApiResponse::success((new RoleResource($role->load('permissions')))->resolve($request));
     }

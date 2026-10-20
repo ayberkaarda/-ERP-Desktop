@@ -12,12 +12,15 @@ use App\Modules\Identity\Enums\SessionEvent;
 use App\Modules\Identity\Http\Requests\LoginRequest;
 use App\Modules\Identity\Http\Requests\TwoFactorVerifyRequest;
 use App\Modules\Identity\Http\Resources\AuthUserResource;
+use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\CredentialVerifier;
+use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Identity\Services\LoginThrottle;
 use App\Modules\Identity\Services\MeAssembler;
 use App\Modules\Identity\Services\SessionAuthenticator;
 use App\Modules\Identity\Services\SessionLogger;
 use App\Modules\Identity\Services\TwoFactorService;
+use App\Modules\Identity\Support\CurrentToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -104,13 +107,26 @@ final class AuthController
         ]);
     }
 
-    public function logout(Request $request): JsonResponse
+    public function logout(Request $request, DeviceTokens $tokens): JsonResponse
     {
         $user = $request->user();
 
-        if ($user instanceof User) {
-            $this->authenticator->logout($request, $user);
+        if (! $user instanceof User) {
+            return ApiResponse::noContent();
         }
+
+        // Bearer clients (desktop) end their own token and device; browsers end their session.
+        $token = CurrentToken::of($user);
+
+        if ($token !== null) {
+            $device = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->first();
+            $device instanceof UserDevice ? $tokens->revoke($user, $device) : $token->delete();
+            $this->logger->log(SessionEvent::Logout, $request, $user);
+
+            return ApiResponse::noContent();
+        }
+
+        $this->authenticator->logout($request, $user);
 
         return ApiResponse::noContent();
     }

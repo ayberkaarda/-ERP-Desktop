@@ -75,7 +75,7 @@ final class UserController
             Gate::authorize('assignRoles', [new User, $this->companyId()]);
         }
 
-        $user = $this->users()->create($data, $this->companyId());
+        $user = $this->users()->create($this->currentUser($request), $data, $this->companyId());
 
         return ApiResponse::created((new UserResource($user->load('roles')))->resolve($request));
     }
@@ -138,7 +138,7 @@ final class UserController
 
         /** @var list<string> $roles */
         $roles = $request->validated('roles');
-        $names = $this->users()->syncRoles($user, $companyId, $roles);
+        $names = $this->users()->syncRoles($this->currentUser($request), $user, $companyId, $roles);
 
         return ApiResponse::success(['company_id' => $companyId, 'roles' => $names]);
     }

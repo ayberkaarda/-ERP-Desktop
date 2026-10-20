@@ -20,6 +20,13 @@ interface CompanyAuthorizer
      */
     public function permissionsByCompany(User $user): array;
 
+    /**
+     * Role names per company.
+     *
+     * @return array<string, list<string>>
+     */
+    public function roleNamesByCompany(User $user): array;
+
     /** Drops memoized permissions after role or membership changes. */
     public function forget(?string $userId = null): void;
 }

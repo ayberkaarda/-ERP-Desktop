@@ -8,6 +8,7 @@ use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
 use App\Models\User;
 use App\Modules\Identity\Enums\SessionEvent;
+use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -18,10 +19,11 @@ use Illuminate\Support\Str;
  */
 final class CredentialVerifier
 {
-    private static ?string $dummyHash = null;
+    public const string DUMMY_HASH_KEY = 'identity:dummy_password_hash';
 
     public function __construct(
         private readonly Hasher $hasher,
+        private readonly Repository $cache,
         private readonly LoginThrottle $throttle,
         private readonly SessionLogger $logger,
     ) {}
@@ -71,8 +73,12 @@ final class CredentialVerifier
         $this->throttle->clear($this->key($request, $email));
     }
 
+    /**
+     * Precomputed with the configured hasher settings and kept in the cache, so an unknown email
+     * costs exactly one hash verification, like a known one (computed once per cache lifetime).
+     */
     private function dummyHash(): string
     {
-        return self::$dummyHash ??= $this->hasher->make(Str::random(40));
+        return $this->cache->rememberForever(self::DUMMY_HASH_KEY, fn (): string => $this->hasher->make(Str::random(40)));
     }
 }

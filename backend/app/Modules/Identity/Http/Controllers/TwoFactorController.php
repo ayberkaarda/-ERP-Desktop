@@ -7,6 +7,7 @@ namespace App\Modules\Identity\Http\Controllers;
 use App\Core\Http\ApiException;
 use App\Core\Http\ApiResponse;
 use App\Core\Http\ErrorCode;
+use App\Models\User;
 use App\Modules\Identity\Http\Requests\PasswordConfirmationRequest;
 use App\Modules\Identity\Http\Requests\TwoFactorConfirmRequest;
 use App\Modules\Identity\Services\LoginThrottle;
@@ -16,7 +17,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
- * The signed-in user's own two-factor settings.
+ * The signed-in user's own two-factor settings. Every change re-verifies the current password,
+ * so a hijacked session alone cannot replace or remove the second factor.
  */
 final class TwoFactorController
 {
@@ -25,16 +27,22 @@ final class TwoFactorController
     public function __construct(
         private readonly TwoFactorService $twoFactor,
         private readonly LoginThrottle $throttle,
+        private readonly Hasher $hasher,
     ) {}
 
-    public function setup(Request $request): JsonResponse
+    public function setup(PasswordConfirmationRequest $request): JsonResponse
     {
-        return ApiResponse::success($this->twoFactor->beginSetup($this->currentUser($request)));
+        $user = $this->currentUser($request);
+        $this->confirmPassword($request, $user);
+
+        return ApiResponse::success($this->twoFactor->beginSetup($user));
     }
 
     public function confirm(TwoFactorConfirmRequest $request): JsonResponse
     {
         $user = $this->currentUser($request);
+        $this->confirmPassword($request, $user);
+
         $key = LoginThrottle::key('two_factor_confirm', $user->id, $request->ip());
 
         if ($this->throttle->isLocked($key)) {
@@ -56,16 +64,24 @@ final class TwoFactorController
         return ApiResponse::success(['recovery_codes' => $codes]);
     }
 
-    public function disable(PasswordConfirmationRequest $request, Hasher $hasher): JsonResponse
+    public function disable(PasswordConfirmationRequest $request): JsonResponse
     {
         $user = $this->currentUser($request);
-        $key = LoginThrottle::key('two_factor_disable', $user->id, $request->ip());
+        $this->confirmPassword($request, $user);
+        $this->twoFactor->disable($user);
+
+        return ApiResponse::noContent();
+    }
+
+    private function confirmPassword(Request $request, User $user): void
+    {
+        $key = LoginThrottle::key('two_factor_password', $user->id, $request->ip());
 
         if ($this->throttle->isLocked($key)) {
             throw $this->throttle->lockedException($key);
         }
 
-        if (! $hasher->check($request->string('password')->toString(), $user->password)) {
+        if (! $this->hasher->check($request->string('password')->toString(), $user->password)) {
             $this->throttle->fail($key);
 
             throw new ApiException(ErrorCode::ValidationError, fields: [
@@ -74,8 +90,5 @@ final class TwoFactorController
         }
 
         $this->throttle->clear($key);
-        $this->twoFactor->disable($user);
-
-        return ApiResponse::noContent();
     }
 }

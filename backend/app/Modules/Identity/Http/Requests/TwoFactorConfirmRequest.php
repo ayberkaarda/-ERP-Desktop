@@ -20,6 +20,7 @@ final class TwoFactorConfirmRequest extends FormRequest
     {
         return [
             'code' => ['required', 'string', 'max:16'],
+            'password' => ['required', 'string', 'max:1000'],
         ];
     }
 }
