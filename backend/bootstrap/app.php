@@ -2,7 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Core\Company\Http\ResolveCompany;
 use App\Core\Http\ExceptionRenderer;
+use App\Core\Idempotency\EnsureIdempotency;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -17,6 +20,16 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+
+        $middleware->alias([
+            'company' => ResolveCompany::class,
+            'idempotent' => EnsureIdempotency::class,
+        ]);
+
+        // auth -> company -> idempotent -> bindings, so route model binding is company scoped
+        // and idempotency keys are scoped to user + company.
+        $middleware->appendToPriorityList(AuthenticatesRequests::class, ResolveCompany::class);
+        $middleware->appendToPriorityList(ResolveCompany::class, EnsureIdempotency::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
