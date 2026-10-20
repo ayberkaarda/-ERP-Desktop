@@ -6,6 +6,7 @@ namespace App\Core\Money;
 
 use Brick\Math\BigDecimal;
 use Brick\Math\BigNumber;
+use Brick\Math\BigRational;
 use Brick\Math\RoundingMode;
 use InvalidArgumentException;
 
@@ -80,7 +81,8 @@ final class RoundingPolicy
         $allocated = BigDecimal::zero();
 
         foreach ($weights as $i => $weight) {
-            $exact = $total->multipliedBy($weight)->dividedBy($sum, $scale + 10, RoundingMode::Down);
+            // Exact rational share: decimal truncation could misorder nearly equal remainders.
+            $exact = BigRational::of($total)->multipliedBy($weight)->dividedBy($sum);
             $part = $exact->toScale($scale, RoundingMode::Down);
             $parts[$i] = $part;
             $remainders[$i] = $exact->minus($part);
@@ -91,7 +93,7 @@ final class RoundingPolicy
         $left = $total->minus($allocated);
         $step = $left->isNegative() ? $unit->negated() : $unit;
 
-        uasort($remainders, static fn (BigDecimal $a, BigDecimal $b): int => $b->abs()->compareTo($a->abs()));
+        uasort($remainders, static fn (BigRational $a, BigRational $b): int => $b->abs()->compareTo($a->abs()));
         $order = array_keys($remainders);
         $n = 0;
 

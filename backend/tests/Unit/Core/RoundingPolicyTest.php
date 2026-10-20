@@ -30,3 +30,10 @@ it('allocates without losing or inventing a cent', function (array $weights, str
 it('refuses empty or zero weights', function (array $weights): void {
     expect(fn () => RoundingPolicy::allocate('1', $weights))->toThrow(InvalidArgumentException::class);
 })->with([[[]], [[0, 0]]]);
+
+it('compares remainders exactly, not after decimal truncation', function (): void {
+    // Differences far below any fixed working precision must still pick the larger share.
+    $parts = RoundingPolicy::allocate('0.01', ['1', '1.000000000000001', '1']);
+
+    expect(array_map('strval', $parts))->toBe(['0.00', '0.01', '0.00']);
+});
