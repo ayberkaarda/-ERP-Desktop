@@ -17,17 +17,45 @@ enum ErrorCode: string
     case TooManyAttempts = 'TOO_MANY_ATTEMPTS';
     case HttpError = 'HTTP_ERROR';
     case ServerError = 'SERVER_ERROR';
+    case VersionConflict = 'VERSION_CONFLICT';
+    case IdempotencyKeyRequired = 'IDEMPOTENCY_KEY_REQUIRED';
+    case IdempotencyKeyReused = 'IDEMPOTENCY_KEY_REUSED';
+    case IdempotencyInProgress = 'IDEMPOTENCY_IN_PROGRESS';
+    case CompanyRequired = 'COMPANY_REQUIRED';
+    case CompanyForbidden = 'COMPANY_FORBIDDEN';
+    case TwoFactorRequired = 'TWO_FACTOR_REQUIRED';
+    case InvalidTwoFactorCode = 'INVALID_TWO_FACTOR_CODE';
+    case PasswordChangeRequired = 'PASSWORD_CHANGE_REQUIRED';
+    case UserDeactivated = 'USER_DEACTIVATED';
+    case InvalidStateTransition = 'INVALID_STATE_TRANSITION';
+    case ApprovalRequired = 'APPROVAL_REQUIRED';
+    case FileTooLarge = 'FILE_TOO_LARGE';
+    case UnsupportedFileType = 'UNSUPPORTED_FILE_TYPE';
 
     public function status(): int
     {
         return match ($this) {
-            self::ValidationError => 422,
-            self::Unauthenticated => 401,
-            self::Forbidden => 403,
+            self::ValidationError,
+            self::IdempotencyKeyReused,
+            self::InvalidTwoFactorCode,
+            self::InvalidStateTransition,
+            self::UnsupportedFileType => 422,
+            self::Unauthenticated,
+            self::TwoFactorRequired => 401,
+            self::Forbidden,
+            self::CompanyForbidden,
+            self::PasswordChangeRequired,
+            self::UserDeactivated => 403,
             self::NotFound => 404,
             self::MethodNotAllowed => 405,
+            self::VersionConflict,
+            self::IdempotencyInProgress,
+            self::ApprovalRequired => 409,
+            self::FileTooLarge => 413,
             self::TooManyAttempts => 429,
-            self::HttpError => 400,
+            self::HttpError,
+            self::IdempotencyKeyRequired,
+            self::CompanyRequired => 400,
             self::ServerError => 500,
         };
     }
@@ -40,6 +68,9 @@ enum ErrorCode: string
         return is_string($message) ? $message : $key;
     }
 
+    /**
+     * Generic fallback for HTTP exceptions that carry no domain code.
+     */
     public static function fromStatus(int $status): self
     {
         return match (true) {
