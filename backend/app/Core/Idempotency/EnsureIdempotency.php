@@ -18,7 +18,19 @@ use Throwable;
 
 /**
  * Middleware alias `idempotent`. POST requires an Idempotency-Key; PUT/PATCH/DELETE honour one if sent.
- * A finished request is replayed; the same key with another body is rejected.
+ *
+ * Semantics:
+ * - A claim row (status `processing`, with a short lease) is committed first, so concurrent
+ *   duplicates get 409 IDEMPOTENCY_IN_PROGRESS; the same key with another fingerprint gets 422.
+ * - The handler runs inside a transaction on the default connection that this middleware owns.
+ *   The stored response is written in that same transaction, so business writes and the
+ *   replayable response commit together or not at all.
+ * - On 5xx, 429, 409 or an exception the transaction is rolled back, which proves nothing
+ *   committed, and only then is the claim released so the client can retry with the same key.
+ * - A claim whose lease ran out may be taken over by a retry. Every later write of the original
+ *   request is fenced by its claim id, so a late original rolls back instead of overwriting.
+ * - Not covered: side effects outside the default connection (files, mail, other connections).
+ *   Handlers must defer those until after commit (afterCommit jobs/events).
  */
 final class EnsureIdempotency
 {
@@ -35,6 +47,7 @@ final class EnsureIdempotency
         private readonly ConnectionInterface $db,
         private readonly CompanyContext $company,
         private readonly int $ttlHours = 24,
+        private readonly int $leaseSeconds = 300,
     ) {}
 
     /**
@@ -67,12 +80,15 @@ final class EnsureIdempotency
         $userId = $this->userId($request);
         $companyId = $this->company->idOrNull();
         $scopeHash = hash('sha256', implode("\0", [$userId ?? '', $companyId ?? '', $key]));
-        $requestHash = $this->requestHash($request);
+        $requestHash = self::fingerprint($request);
 
         $this->purgeExpired($scopeHash);
 
+        $claimId = (string) Str::uuid7();
+        $now = Carbon::now();
+
         $inserted = $this->db->table('idempotency_keys')->insertOrIgnore([
-            'id' => (string) Str::uuid7(),
+            'id' => $claimId,
             'scope_hash' => $scopeHash,
             'key' => $key,
             'user_id' => $userId,
@@ -81,26 +97,89 @@ final class EnsureIdempotency
             'path' => '/'.ltrim($request->path(), '/'),
             'request_hash' => $requestHash,
             'status' => 'processing',
-            'expires_at' => Carbon::now()->addHours($this->ttlHours),
-            'created_at' => Carbon::now(),
-            'updated_at' => Carbon::now(),
+            'lease_expires_at' => $now->copy()->addSeconds($this->leaseSeconds),
+            'expires_at' => $now->copy()->addHours($this->ttlHours),
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
 
         if ($inserted === 0) {
             return $this->existing($scopeHash, $requestHash);
         }
 
+        $this->db->beginTransaction();
+
         try {
             $response = $next($request);
         } catch (Throwable $e) {
-            $this->forget($scopeHash);
+            $this->abandon($claimId);
 
             throw $e;
         }
 
-        $this->remember($scopeHash, $response);
+        if (! self::storable($response->getStatusCode())) {
+            $this->abandon($claimId);
+
+            return $response;
+        }
+
+        if ($this->remember($claimId, $response) === 0) {
+            // Our lease expired and a retry took the key over; it owns the outcome now.
+            $this->db->rollBack();
+
+            throw new ApiException(ErrorCode::IdempotencyInProgress);
+        }
+
+        $this->db->commit();
 
         return $response;
+    }
+
+    /**
+     * Canonical request fingerprint: method, path, sorted query, body (or form fields + uploads).
+     */
+    public static function fingerprint(Request $request): string
+    {
+        $query = $request->query->all();
+        self::sortRecursive($query);
+
+        $body = $request->getContent();
+
+        if ($body === '') {
+            $fields = $request->request->all();
+            self::sortRecursive($fields);
+            $files = self::describeFiles($request->allFiles());
+            self::sortRecursive($files);
+            $body = json_encode([$fields, $files], JSON_THROW_ON_ERROR);
+        }
+
+        return hash('sha256', implode("\n", [
+            $request->getMethod(),
+            $request->path(),
+            http_build_query($query),
+            $body,
+        ]));
+    }
+
+    private static function storable(int $status): bool
+    {
+        // Transient outcomes must stay retryable with the same key.
+        return $status < 500 && $status !== 429 && $status !== 409;
+    }
+
+    /**
+     * Rolls back everything the handler wrote, then releases only our own claim.
+     */
+    private function abandon(string $claimId): void
+    {
+        if ($this->db->transactionLevel() > 0) {
+            $this->db->rollBack();
+        }
+
+        $this->db->table('idempotency_keys')
+            ->where('id', $claimId)
+            ->where('status', 'processing')
+            ->delete();
     }
 
     private function existing(string $scopeHash, string $requestHash): Response
@@ -129,17 +208,11 @@ final class EnsureIdempotency
         return new Response($row->response_body ?? '', (int) $row->response_status, $headers);
     }
 
-    private function remember(string $scopeHash, Response $response): void
+    /**
+     * @return int affected rows; 0 when the claim is no longer ours
+     */
+    private function remember(string $claimId, Response $response): int
     {
-        $status = $response->getStatusCode();
-
-        // Transient failures must stay retryable with the same key.
-        if ($status >= 500 || $status === 429) {
-            $this->forget($scopeHash);
-
-            return;
-        }
-
         $headers = [];
 
         foreach (self::KEPT_HEADERS as $name) {
@@ -152,25 +225,32 @@ final class EnsureIdempotency
 
         $body = $response->getContent();
 
-        $this->db->table('idempotency_keys')->where('scope_hash', $scopeHash)->update([
-            'status' => 'completed',
-            'response_status' => $status,
-            'response_headers' => json_encode($headers, JSON_THROW_ON_ERROR),
-            'response_body' => $body === false ? '' : $body,
-            'updated_at' => Carbon::now(),
-        ]);
+        return $this->db->table('idempotency_keys')
+            ->where('id', $claimId)
+            ->where('status', 'processing')
+            ->update([
+                'status' => 'completed',
+                'response_status' => $response->getStatusCode(),
+                'response_headers' => json_encode($headers, JSON_THROW_ON_ERROR),
+                'response_body' => $body === false ? '' : $body,
+                'lease_expires_at' => null,
+                'updated_at' => Carbon::now(),
+            ]);
     }
 
-    private function forget(string $scopeHash): void
-    {
-        $this->db->table('idempotency_keys')->where('scope_hash', $scopeHash)->delete();
-    }
-
+    /**
+     * Completed records live for the TTL; processing claims only for their lease.
+     */
     private function purgeExpired(string $scopeHash): void
     {
+        $now = Carbon::now();
+
         $this->db->table('idempotency_keys')
             ->where('scope_hash', $scopeHash)
-            ->where('expires_at', '<', Carbon::now())
+            ->where(function ($q) use ($now): void {
+                $q->where(fn ($c) => $c->where('status', 'completed')->where('expires_at', '<', $now))
+                    ->orWhere(fn ($p) => $p->where('status', 'processing')->where('lease_expires_at', '<', $now));
+            })
             ->delete();
     }
 
@@ -181,20 +261,41 @@ final class EnsureIdempotency
         return is_string($id) || is_int($id) ? (string) $id : null;
     }
 
-    private function requestHash(Request $request): string
+    /**
+     * @param  array<array-key, mixed>  $files
+     * @return array<array-key, mixed>
+     */
+    private static function describeFiles(array $files): array
     {
-        $body = $request->getContent();
+        $out = [];
 
-        if ($body === '') {
-            $files = array_map(
-                static fn (mixed $file): mixed => $file instanceof UploadedFile
-                    ? hash_file('sha256', $file->getRealPath())
-                    : null,
-                $request->allFiles(),
-            );
-            $body = json_encode([$request->post(), $files], JSON_THROW_ON_ERROR);
+        foreach ($files as $name => $file) {
+            if (is_array($file)) {
+                $out[$name] = self::describeFiles($file);
+            } elseif ($file instanceof UploadedFile) {
+                $path = $file->getRealPath();
+                $out[$name] = [
+                    'name' => $file->getClientOriginalName(),
+                    'size' => $file->getSize(),
+                    'sha256' => $path === false ? null : hash_file('sha256', $path),
+                ];
+            }
         }
 
-        return hash('sha256', $request->getMethod()."\n".$request->path()."\n".$body);
+        return $out;
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $value
+     */
+    private static function sortRecursive(array &$value): void
+    {
+        ksort($value);
+
+        foreach ($value as &$item) {
+            if (is_array($item)) {
+                self::sortRecursive($item);
+            }
+        }
     }
 }

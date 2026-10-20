@@ -22,6 +22,8 @@ return new class extends Migration
             $table->string('path', 2048);
             $table->char('request_hash', 64);
             $table->string('status', 16);
+            // Short lease for an in-flight claim; a retry may take over once it has passed.
+            $table->timestampTz('lease_expires_at')->nullable();
             $table->unsignedSmallInteger('response_status')->nullable();
             $table->jsonb('response_headers')->nullable();
             $table->text('response_body')->nullable();

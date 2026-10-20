@@ -36,6 +36,7 @@ final class CoreServiceProvider extends ServiceProvider
             $app->make(ConnectionInterface::class),
             $app->make(CompanyContext::class),
             self::int($app, 'idempotency.ttl_hours', 24),
+            self::int($app, 'idempotency.lease_seconds', 300),
         ));
 
         (new ModuleLoader($this->app->path('Modules')))->register($this->app);

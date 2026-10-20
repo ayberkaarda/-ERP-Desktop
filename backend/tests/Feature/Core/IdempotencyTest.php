@@ -9,6 +9,7 @@ use Illuminate\Auth\GenericUser;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,26 @@ beforeEach(function (): void {
         });
         Route::patch('/orders/{id}', fn () => ['data' => ['n' => ++$this->calls]]);
         Route::get('/orders', fn () => ['data' => ['n' => ++$this->calls]]);
+        Route::post('/writes/{outcome}', function (string $outcome) {
+            $this->calls++;
+            DB::table('number_sequences')->insert([
+                'company_id' => (string) Str::uuid7(),
+                'doc_type' => 'probe',
+                'fiscal_year' => 2026,
+                'last_value' => $this->calls,
+            ]);
+
+            return match ($outcome) {
+                'throw' => throw new RuntimeException('after write'),
+                'conflict' => new JsonResponse(['errors' => ['code' => 'VERSION_CONFLICT']], 409),
+                default => new JsonResponse(['data' => ['n' => $this->calls]], 201),
+            };
+        });
+        Route::post('/upload', function (Request $request) {
+            $this->calls++;
+
+            return ['data' => ['n' => $this->calls]];
+        });
     });
 });
 
@@ -141,4 +162,60 @@ it('passes GET through and makes the key optional for PATCH', function (): void 
     $this->patchJson('/api/v1/_probe/orders/1', [], ['Idempotency-Key' => 'k-7'])->assertJsonPath('data.n', 3);
 
     expect($this->calls)->toBe(3);
+});
+
+it('rolls back business writes and releases the key when the handler fails after writing', function (string $outcome, int $status): void {
+    $headers = ['Idempotency-Key' => 'w-'.$outcome];
+
+    $this->postJson("/api/v1/_probe/writes/{$outcome}", [], $headers)->assertStatus($status);
+    expect(DB::table('number_sequences')->where('doc_type', 'probe')->count())->toBe(0)
+        ->and(DB::table('idempotency_keys')->count())->toBe(0);
+
+    $this->postJson("/api/v1/_probe/writes/{$outcome}", [], $headers)->assertStatus($status);
+    expect($this->calls)->toBe(2);
+})->with([['throw', 500], ['conflict', 409]]);
+
+it('commits business writes together with the stored response', function (): void {
+    $headers = ['Idempotency-Key' => 'w-ok'];
+
+    $this->postJson('/api/v1/_probe/writes/ok', [], $headers)->assertCreated();
+    $this->postJson('/api/v1/_probe/writes/ok', [], $headers)->assertCreated()->assertHeader(EnsureIdempotency::REPLAY_HEADER, 'true');
+
+    expect(DB::table('number_sequences')->where('doc_type', 'probe')->count())->toBe(1)
+        ->and(DB::table('idempotency_keys')->value('status'))->toBe('completed');
+});
+
+it('includes canonical query parameters in the fingerprint', function (): void {
+    $headers = ['Idempotency-Key' => 'q-1'];
+
+    $this->postJson('/api/v1/_probe/orders?b=2&a=1', ['name' => 'a'], $headers)->assertCreated();
+    $this->postJson('/api/v1/_probe/orders?a=1&b=2', ['name' => 'a'], $headers)->assertHeader(EnsureIdempotency::REPLAY_HEADER, 'true');
+    $this->postJson('/api/v1/_probe/orders?a=1&b=3', ['name' => 'a'], $headers)
+        ->assertStatus(422)
+        ->assertJsonPath('errors.code', 'IDEMPOTENCY_KEY_REUSED');
+});
+
+it('fingerprints nested uploads by content, name and size', function (): void {
+    $headers = ['Idempotency-Key' => 'f-1', 'Accept' => 'application/json'];
+    $files = fn (string $second): array => ['files' => [
+        UploadedFile::fake()->createWithContent('a.txt', 'alpha'),
+        UploadedFile::fake()->createWithContent('b.txt', $second),
+    ]];
+
+    $this->post('/api/v1/_probe/upload', $files('beta'), $headers)->assertOk();
+    $this->post('/api/v1/_probe/upload', $files('beta'), $headers)->assertHeader(EnsureIdempotency::REPLAY_HEADER, 'true');
+    $this->post('/api/v1/_probe/upload', $files('gamma'), $headers)
+        ->assertStatus(422)
+        ->assertJsonPath('errors.code', 'IDEMPOTENCY_KEY_REUSED');
+
+    expect($this->calls)->toBe(1);
+});
+
+it('lets a retry take over a claim whose lease has expired', function (): void {
+    $headers = ['Idempotency-Key' => 'l-1'];
+
+    $this->postJson('/api/v1/_probe/orders', ['name' => 'a'], $headers)->assertCreated();
+    DB::table('idempotency_keys')->update(['status' => 'processing', 'lease_expires_at' => Carbon::now()->subSecond()]);
+
+    $this->postJson('/api/v1/_probe/orders', ['name' => 'a'], $headers)->assertCreated()->assertJsonPath('data.n', 2);
 });
