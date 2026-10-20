@@ -17,7 +17,9 @@ export function ConnectivityBadge() {
       <span
         className={cn('size-1.5 rounded-full', online ? 'bg-success' : 'bg-danger animate-pulse')}
       />
-      {online ? t('common.online') : t('common.offline')}
+      <span className="sr-only sm:not-sr-only">
+        {online ? t('common.online') : t('common.offline')}
+      </span>
     </span>
   )
 }

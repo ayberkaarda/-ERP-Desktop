@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { safeJSONStorage } from '@/lib/storage'
 
 export interface CompanySummary {
   id: string
@@ -37,7 +38,11 @@ export const useCompanyStore = create<CompanyState>()(
       activeCompanyId: PLACEHOLDER[0]?.id ?? null,
       setActiveCompany: (id) => set({ activeCompanyId: id }),
     }),
-    { name: 'keystone.company', partialize: ({ activeCompanyId }) => ({ activeCompanyId }) },
+    {
+      name: 'keystone.company',
+      storage: safeJSONStorage,
+      partialize: ({ activeCompanyId }) => ({ activeCompanyId }),
+    },
   ),
 )
 

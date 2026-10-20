@@ -45,14 +45,22 @@ const SECTIONS: { key: 'main' | 'system'; items: NavItem[] }[] = [
 const itemClass =
   'group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[0.8125rem] font-medium transition-colors duration-150'
 
-export function Sidebar() {
+interface SidebarProps {
+  /** 'rail' is the docked desktop column; 'drawer' fills the off-canvas panel on small screens. */
+  variant?: 'rail' | 'drawer'
+  onNavigate?: () => void
+}
+
+export function Sidebar({ variant = 'rail', onNavigate }: SidebarProps) {
   const { t } = useTranslation()
-  const collapsed = useUiStore((s) => s.sidebarCollapsed)
+  const railCollapsed = useUiStore((s) => s.sidebarCollapsed)
+  const collapsed = variant === 'rail' && railCollapsed
 
   return (
     <aside
       className={cn(
-        'flex h-dvh shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        'flex shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground',
+        variant === 'rail' ? 'h-dvh' : 'h-full',
         'transition-[width] duration-200 ease-standard',
         collapsed ? 'w-16' : 'w-sidebar',
       )}
@@ -77,7 +85,12 @@ export function Sidebar() {
               </p>
             )}
             {section.items.map((item) => (
-              <SidebarItem key={item.key} item={item} collapsed={collapsed} />
+              <SidebarItem
+                key={item.key}
+                item={item}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
             ))}
           </div>
         ))}
@@ -86,7 +99,15 @@ export function Sidebar() {
   )
 }
 
-function SidebarItem({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
+function SidebarItem({
+  item,
+  collapsed,
+  onNavigate,
+}: {
+  item: NavItem
+  collapsed: boolean
+  onNavigate: (() => void) | undefined
+}) {
   const { t } = useTranslation()
   const label = t(`nav.${item.key}`)
   const Icon = item.icon
@@ -107,6 +128,7 @@ function SidebarItem({ item, collapsed }: { item: NavItem; collapsed: boolean })
     <NavLink
       to={item.to}
       end={item.to === '/'}
+      onClick={onNavigate}
       aria-label={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(

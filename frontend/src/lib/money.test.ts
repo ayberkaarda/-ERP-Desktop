@@ -16,6 +16,17 @@ describe('money', () => {
     expect(parseDecimal('abc')).toBeNull()
   })
 
+  it('accepts only well-formed thousands grouping', () => {
+    expect(parseDecimal('1.234.567')?.toString()).toBe('1234567')
+    expect(parseDecimal('1234567,5')?.toString()).toBe('1234567.5')
+    expect(parseDecimal('1.2.3,45')).toBeNull()
+    expect(parseDecimal('12.34')).toBeNull()
+    expect(parseDecimal('1.2345,6')).toBeNull()
+    expect(parseDecimal('.123')).toBeNull()
+    expect(parseDecimal('1,234.56', 'en-US')?.toString()).toBe('1234.56')
+    expect(parseDecimal('1.234,56', 'en-US')).toBeNull()
+  })
+
   it('rounds half up', () => {
     expect(formatMoney('0.005')).toBe('₺0,01')
   })

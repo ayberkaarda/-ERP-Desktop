@@ -6,28 +6,34 @@ import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
 // Features must reach the network only through src/platform (desktop adapter swaps it out).
+const NET_MSG = 'Use platform.http from @/platform.'
+const NET_MODULES = ['axios', 'ky', 'node-fetch', 'cross-fetch', 'socket.io-client']
+const NET_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource']
+const NET_HOSTS = ['window', 'globalThis', 'self']
+
 const networkBan = {
   'no-restricted-imports': [
     'error',
     {
-      paths: [
-        { name: 'axios', message: 'Use platform.http from @/platform.' },
-        { name: 'ky', message: 'Use platform.http from @/platform.' },
-        { name: 'node-fetch', message: 'Use platform.http from @/platform.' },
-        { name: 'cross-fetch', message: 'Use platform.http from @/platform.' },
-      ],
-      patterns: [{ group: ['axios/*'], message: 'Use platform.http from @/platform.' }],
+      paths: NET_MODULES.map((name) => ({ name, message: NET_MSG })),
+      patterns: [{ group: NET_MODULES.map((m) => `${m}/*`), message: NET_MSG }],
     },
   ],
-  'no-restricted-globals': [
+  'no-restricted-syntax': [
     'error',
-    { name: 'fetch', message: 'Use platform.http from @/platform.' },
-    { name: 'XMLHttpRequest', message: 'Use platform.http from @/platform.' },
+    {
+      // Dynamic import('axios') is not covered by no-restricted-imports.
+      selector: `ImportExpression[source.value=/^(${NET_MODULES.join('|')})(\\/|$)/]`,
+      message: NET_MSG,
+    },
   ],
+  'no-restricted-globals': ['error', ...NET_GLOBALS.map((name) => ({ name, message: NET_MSG }))],
   'no-restricted-properties': [
     'error',
-    { object: 'window', property: 'fetch', message: 'Use platform.http from @/platform.' },
-    { object: 'globalThis', property: 'fetch', message: 'Use platform.http from @/platform.' },
+    ...NET_HOSTS.flatMap((object) =>
+      NET_GLOBALS.map((property) => ({ object, property, message: NET_MSG })),
+    ),
+    { object: 'navigator', property: 'sendBeacon', message: NET_MSG },
   ],
 }
 

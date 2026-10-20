@@ -62,7 +62,7 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1440px] p-6">
+    <div className="mx-auto max-w-[1440px] p-4 sm:p-6">
       <PageHeader
         title={t('dashboard.title')}
         description={t('dashboard.subtitle', { company: company?.name ?? '' })}

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { persist } from 'zustand/middleware'
+import { safeJSONStorage } from '@/lib/storage'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 /** Decorative motion/effects level. 'auto' follows prefers-reduced-motion and device capability. */
@@ -25,7 +26,7 @@ export const useThemeStore = create<ThemeState>()(
     }),
     {
       name: THEME_STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: safeJSONStorage,
       partialize: ({ theme, effects }) => ({ theme, effects }),
     },
   ),

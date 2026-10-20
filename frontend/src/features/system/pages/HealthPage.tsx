@@ -20,7 +20,7 @@ export function HealthPage() {
   const checkedAt = Math.max(dataUpdatedAt, errorUpdatedAt)
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
+    <div className="mx-auto max-w-3xl p-4 sm:p-6">
       <PageHeader
         title={t('health.title')}
         description={t('health.subtitle')}
@@ -65,7 +65,7 @@ export function HealthPage() {
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[10rem_1fr] items-center gap-4 px-5 py-3">
+    <div className="grid grid-cols-1 items-center gap-1 px-5 py-3 sm:grid-cols-[10rem_1fr] sm:gap-4">
       <dt className="text-muted-foreground">{label}</dt>
       <dd className="min-w-0">{children}</dd>
     </div>

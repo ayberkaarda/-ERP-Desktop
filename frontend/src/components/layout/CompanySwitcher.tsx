@@ -19,13 +19,17 @@ export function CompanySwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex h-9 max-w-72 items-center gap-2.5 rounded-md border border-border bg-surface px-2.5 text-left shadow-xs hover:bg-surface-sunken"
-        aria-label={t('topbar.switchCompany')}
+        className="flex h-9 w-full max-w-72 min-w-0 items-center gap-2.5 rounded-md border border-border bg-surface px-2.5 text-left shadow-xs hover:bg-surface-sunken"
+        aria-label={
+          active
+            ? t('topbar.switchCompanyCurrent', { name: active.name })
+            : t('topbar.switchCompany')
+        }
       >
-        <span className="grid size-6 place-items-center rounded-sm bg-primary-soft text-primary-soft-foreground">
+        <span className="grid size-6 shrink-0 place-items-center rounded-sm bg-primary-soft text-primary-soft-foreground">
           <Building2 className="size-3.5" />
         </span>
-        <span className="min-w-0 leading-tight">
+        <span className="min-w-0 flex-1 leading-tight">
           <span className="block text-2xs text-muted-foreground">{t('topbar.company')}</span>
           <span className="block truncate text-[0.8125rem] font-medium">{active?.name ?? '—'}</span>
         </span>

@@ -24,7 +24,8 @@
     "system": "Sistem",
     "health": "Sistem durumu",
     "collapse": "Menüyü daralt",
-    "expand": "Menüyü genişlet"
+    "expand": "Menüyü genişlet",
+    "open": "Menüyü aç"
   },
   "topbar": {
     "company": "Şirket",
@@ -32,7 +33,8 @@
     "taxNumber": "VKN {{value}}",
     "userMenu": "Kullanıcı menüsü",
     "language": "Dil",
-    "signOut": "Oturumu kapat"
+    "signOut": "Oturumu kapat",
+    "switchCompanyCurrent": "Şirket değiştir, geçerli şirket: {{name}}"
   },
   "theme": {
     "label": "Tema",

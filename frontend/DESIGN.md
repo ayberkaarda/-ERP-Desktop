@@ -121,3 +121,25 @@ Hareket bilgi taşır, süs olarak eklenmez. Bütün hareket **yalnızca CSS ve 
 - Tablo hücresinde sayılar sağa, metin sola hizalanır. Para birimi sembolü tutarla aynı hücrede yer alır.
 - Sayfa başlığı (`PageHeader`) solda başlık ve açıklamadan, sağda eylemlerden oluşur. Sayfa başına tek başlık seviyesi (`h1`) kullanılır.
 - Gezinmedeki "Yakında" öğeleri sonraki fazlardaki modülleri gösterir. Tıklanamazlar ve `aria-disabled` taşırlar.
+- **Duyarlı kabuk:** 1024 px altında kenar menü, soldan açılan bir çekmeceye (Radix Dialog) dönüşür. Bu kırılım 1440 px ekranda %200 yakınlaştırmayı da kapsar. Üst bar daralınca satır kırar; hiçbir kontrol gizlenmez, yalnızca bağlantı durumunun metni ekran okuyuculara bırakılır. 360 px, 768 px ve %200 yakınlaştırmada denetlenir.
+
+## 9. Güvenlik başlıkları (CSP)
+
+CSP, `index.html` içinde `<meta>` olarak verilmez; üretimde web sunucusunun **yanıt başlığıyla** gönderilir. Bunun üç nedeni var:
+
+- Vite geliştirme sunucusu HMR için satır içi betik ve `ws:` bağlantısı kullanır. Sıkı bir meta CSP geliştirmeyi bozar.
+- `frame-ancestors`, `report-to` gibi yönergeler meta etiketle çalışmaz.
+- Başlık, ortam başına (API ve Reverb adresleri) ayarlanabilir.
+
+Önerilen üretim politikası:
+
+```
+default-src 'self'; script-src 'self' <tema-betiği-hash>; style-src 'self' 'unsafe-inline';
+img-src 'self' data: blob:; font-src 'self'; connect-src 'self' wss://<reverb-host>;
+object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+```
+
+- `index.html` içindeki tema betiği satır içidir; hash'i `npm run build && npm run csp:hash` ile üretilir. Betik her değiştiğinde hash de güncellenir.
+- `style-src 'unsafe-inline'`, Radix'in konumlandırma stilleri ve Recharts için gereklidir.
+- Fontlar ve bütün varlıklar aynı kökten gelir; dış CDN yoktur.
+- API aynı kökten sunulur (geliştirmede Vite proxy'si, üretimde ters proxy). HTTP adaptörü mutlak ve `//` ile başlayan adresleri reddeder, böylece çerez ve XSRF token'ı başka bir köke gitmez.

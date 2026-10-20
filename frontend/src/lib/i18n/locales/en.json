@@ -24,7 +24,8 @@
     "system": "System",
     "health": "System status",
     "collapse": "Collapse menu",
-    "expand": "Expand menu"
+    "expand": "Expand menu",
+    "open": "Open menu"
   },
   "topbar": {
     "company": "Company",
@@ -32,7 +33,8 @@
     "taxNumber": "Tax no. {{value}}",
     "userMenu": "User menu",
     "language": "Language",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "switchCompanyCurrent": "Switch company, current: {{name}}"
   },
   "theme": {
     "label": "Theme",

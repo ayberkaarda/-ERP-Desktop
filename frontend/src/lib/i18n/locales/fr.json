@@ -24,7 +24,8 @@
     "system": "Système",
     "health": "État du système",
     "collapse": "Réduire le menu",
-    "expand": "Développer le menu"
+    "expand": "Développer le menu",
+    "open": "Ouvrir le menu"
   },
   "topbar": {
     "company": "Société",
@@ -32,7 +33,8 @@
     "taxNumber": "N° fiscal {{value}}",
     "userMenu": "Menu utilisateur",
     "language": "Langue",
-    "signOut": "Se déconnecter"
+    "signOut": "Se déconnecter",
+    "switchCompanyCurrent": "Changer de société, société actuelle : {{name}}"
   },
   "theme": {
     "label": "Thème",
