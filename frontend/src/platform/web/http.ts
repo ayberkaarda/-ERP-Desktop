@@ -1,10 +1,32 @@
 import axios, { type AxiosRequestConfig } from 'axios'
-import { ApiError, type HttpClient, type HttpRequestOptions } from '../types'
+import { ApiError, type AuthFailure, type HttpClient, type HttpRequestOptions } from '../types'
+
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    skipAuthHandling?: boolean
+    csrfRetried?: boolean
+    csrfRefresh?: boolean
+    sentCompanyId?: string | null
+    sentGeneration?: number
+  }
+}
 
 export interface WebHttpOptions {
   baseURL?: string
+  /** Sanctum CSRF endpoint, outside the API base. */
+  csrfPath?: string
   getCompanyId?: () => string | null
   getLocale?: () => string
+  /** Bumped on every sign-in/sign-out; a replay from an older session is refused. */
+  getSessionGeneration?: () => number
+  onAuthFailure?: (failure: AuthFailure) => void
+}
+
+export const STALE_REQUEST = 'REQUEST_STALE'
+
+/** A request dropped because the company or session changed before its CSRF replay. */
+export function isStaleRequest(error: unknown): boolean {
+  return error instanceof ApiError && error.code === STALE_REQUEST
 }
 
 // Scheme ("https:", "javascript:") or protocol-relative ("//host") targets leave the API origin.
@@ -48,6 +70,39 @@ export function toApiError(error: unknown): ApiError {
   return new ApiError(0, 'UNKNOWN', error instanceof Error ? error.message : String(error))
 }
 
+/** Maps a failed response to the session failure it signals, if any. */
+export function classifyAuthFailure(status: number, code: string): AuthFailure | null {
+  if (status === 401) return 'unauthenticated'
+  if (status === 403 && code === 'USER_DEACTIVATED') return 'deactivated'
+  if (status === 403 && code === 'PASSWORD_CHANGE_REQUIRED') return 'passwordChangeRequired'
+  return null
+}
+
+function randomUuid(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  // randomUUID is missing outside secure contexts; build a v4 by hand.
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = ((b[6] ?? 0) & 0x0f) | 0x40
+  b[8] = ((b[8] ?? 0) & 0x3f) | 0x80
+  const hex = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+export function createIdempotencyKey(): string {
+  return randomUuid()
+}
+
+/**
+ * Adds an Idempotency-Key to request options. Reuse the same key when retrying the same
+ * logical submit so the API can replay instead of creating a duplicate.
+ */
+export function withIdempotency(
+  options: HttpRequestOptions = {},
+  key: string = createIdempotencyKey(),
+): HttpRequestOptions {
+  return { ...options, idempotencyKey: key }
+}
+
 export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
   const instance = axios.create({
     baseURL: options.baseURL ?? '/api/v1',
@@ -59,17 +114,68 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
   })
 
+  const csrfPath = options.csrfPath ?? '/sanctum/csrf-cookie'
+  let csrfInFlight: Promise<void> | null = null
+
+  // Concurrent 419s share one cookie refresh.
+  function refreshCsrf(): Promise<void> {
+    csrfInFlight ??= instance
+      .get(csrfPath, { baseURL: '/', skipAuthHandling: true, csrfRefresh: true })
+      .then(() => undefined)
+      .finally(() => {
+        csrfInFlight = null
+      })
+    return csrfInFlight
+  }
+
+  const currentCompany = () => options.getCompanyId?.() ?? null
+  const currentGeneration = () => options.getSessionGeneration?.() ?? 0
+
   instance.interceptors.request.use((config) => {
-    const companyId = options.getCompanyId?.()
+    const companyId = currentCompany()
+    // Remember the context of the first send; a replay must happen in the same one.
+    if (!config.csrfRetried) {
+      config.sentCompanyId = companyId
+      config.sentGeneration = currentGeneration()
+    }
     if (companyId) config.headers.set('X-Company-Id', companyId)
     const locale = options.getLocale?.()
     if (locale) config.headers.set('Accept-Language', locale)
     return config
   })
 
+  instance.interceptors.response.use(undefined, async (error: unknown) => {
+    if (!axios.isAxiosError(error) || !error.config) throw error
+    const config = error.config
+    const status = error.response?.status ?? 0
+
+    // Expired CSRF token: refresh the cookie and replay the original request exactly once.
+    // The refresh itself and self-handled requests never recover (a 419 there would wait on
+    // its own refresh).
+    if (status === 419 && !config.csrfRetried && !config.csrfRefresh && !config.skipAuthHandling) {
+      config.csrfRetried = true
+      await refreshCsrf()
+      if (
+        currentCompany() !== (config.sentCompanyId ?? null) ||
+        currentGeneration() !== config.sentGeneration
+      ) {
+        throw new ApiError(0, STALE_REQUEST, 'Company or session changed; request not replayed.')
+      }
+      return instance.request(config)
+    }
+
+    if (!config.skipAuthHandling) {
+      const failure = classifyAuthFailure(status, toApiError(error).code)
+      if (failure) options.onAuthFailure?.(failure)
+    }
+    throw error
+  })
+
   const toConfig = (o: HttpRequestOptions = {}): AxiosRequestConfig => ({
     params: o.params,
     signal: o.signal,
+    skipAuthHandling: o.skipAuthHandling,
+    data: o.body,
     headers: o.idempotencyKey ? { ...o.headers, 'Idempotency-Key': o.idempotencyKey } : o.headers,
   })
 
@@ -88,5 +194,12 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
     put: (url, body, o) => run(url, () => instance.put(url, body, toConfig(o))),
     patch: (url, body, o) => run(url, () => instance.patch(url, body, toConfig(o))),
     delete: (url, o) => run(url, () => instance.delete(url, toConfig(o))),
+    prepareSession: async () => {
+      try {
+        await refreshCsrf()
+      } catch (error) {
+        throw toApiError(error)
+      }
+    },
   }
 }

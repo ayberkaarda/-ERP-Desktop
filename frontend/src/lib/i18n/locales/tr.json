@@ -10,7 +10,8 @@
     "online": "Çevrimiçi",
     "offline": "Çevrimdışı",
     "backHome": "Panele dön",
-    "close": "Kapat"
+    "close": "Kapat",
+    "cancel": "Vazgeç"
   },
   "nav": {
     "main": "Ana menü",
@@ -30,11 +31,11 @@
   "topbar": {
     "company": "Şirket",
     "switchCompany": "Şirket değiştir",
-    "taxNumber": "VKN {{value}}",
     "userMenu": "Kullanıcı menüsü",
     "language": "Dil",
     "signOut": "Oturumu kapat",
-    "switchCompanyCurrent": "Şirket değiştir, geçerli şirket: {{name}}"
+    "switchCompanyCurrent": "Şirket değiştir, geçerli şirket: {{name}}",
+    "security": "Güvenlik ve oturumlar"
   },
   "theme": {
     "label": "Tema",
@@ -58,7 +59,6 @@
       "submit": "Oturum aç",
       "submitting": "Oturum açılıyor…",
       "forgot": "Parolamı unuttum",
-      "pending": "Kimlik doğrulama sunucuya henüz bağlı değil; panele yönlendiriliyorsunuz.",
       "heroTitle": "Her kayıt, tek bir kilit taşında birleşir.",
       "heroBody": "Muhasebe, stok, satış ve finans; tüm şirketleriniz için tek, tutarlı bir kayıt sistemi.",
       "footer": "© Keystone · Tüm hakları saklıdır"
@@ -66,11 +66,73 @@
     "validation": {
       "emailRequired": "E-posta adresi gerekli.",
       "emailInvalid": "Geçerli bir e-posta adresi girin.",
-      "passwordMin": "Parola en az {{count}} karakter olmalı."
+      "passwordMin": "Parola en az {{count}} karakter olmalı.",
+      "codeFormat": "6 haneli kodu girin.",
+      "recoveryRequired": "Kurtarma kodunu girin.",
+      "currentRequired": "Geçerli parolanızı girin.",
+      "passwordMismatch": "Parolalar eşleşmiyor.",
+      "passwordSame": "Yeni parola eskisiyle aynı olamaz."
     },
     "forgot": {
       "title": "Parola sıfırlama",
       "body": "Parola sıfırlama bağlantısı şirket yöneticiniz tarafından gönderilir. Kendi kendine sıfırlama, kimlik modülüyle birlikte açılacak."
+    },
+    "errors": {
+      "tooManyAttempts": "Çok fazla deneme yapıldı. Lütfen birkaç dakika sonra tekrar deneyin.",
+      "invalidCode": "Kod geçersiz ya da süresi dolmuş.",
+      "deactivated": "Hesabınız devre dışı bırakıldı. Şirket yöneticinizle görüşün.",
+      "invalidCredentials": "E-posta adresi ya da parola hatalı.",
+      "twoFactorRequired": "İki adımlı doğrulama gerekiyor.",
+      "network": "Sunucuya ulaşılamıyor. Bağlantınızı denetleyin.",
+      "server": "Sunucuda bir hata oluştu. Lütfen daha sonra tekrar deneyin.",
+      "generic": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
+      "sessionExpired": "Oturumunuz sona erdi. Lütfen yeniden oturum açın.",
+      "challengeExpired": "Doğrulama süresi doldu. Lütfen yeniden oturum açın."
+    },
+    "twoFactor": {
+      "title": "İki adımlı doğrulama",
+      "subtitle": "{{email}} hesabı için doğrulama uygulamanızdaki kodu girin.",
+      "recoverySubtitle": "Kurulumda kaydettiğiniz kurtarma kodlarından birini girin.",
+      "useRecovery": "Kurtarma kodu kullan",
+      "useTotp": "Doğrulama uygulamasını kullan",
+      "back": "Geri dön",
+      "code": "Doğrulama kodu",
+      "recoveryCode": "Kurtarma kodu",
+      "codeHint": "Uygulamadaki 6 haneli kod her 30 saniyede yenilenir.",
+      "recoveryHint": "Her kurtarma kodu yalnızca bir kez kullanılabilir.",
+      "verify": "Doğrula",
+      "verifying": "Doğrulanıyor…"
+    },
+    "password": {
+      "title": "Parola değiştir",
+      "current": "Geçerli parola",
+      "new": "Yeni parola",
+      "confirm": "Yeni parola (tekrar)",
+      "rule": "En az {{count}} karakter.",
+      "submit": "Parolayı güncelle",
+      "saving": "Kaydediliyor…",
+      "changed": "Parolanız güncellendi.",
+      "forceTitle": "Yeni parola belirleyin",
+      "forceBody": "Devam etmeden önce hesabınız için yeni bir parola belirlemeniz gerekiyor.",
+      "forceSubmit": "Parolayı belirle ve devam et"
+    },
+    "session": {
+      "checking": "Oturum denetleniyor…",
+      "failed": "Oturum bilgisi alınamadı. Sunucuya ulaşılamıyor olabilir."
+    },
+    "forbidden": {
+      "title": "Bu sayfaya erişiminiz yok",
+      "body": "Seçili şirketteki rolünüz bu işlem için yetki vermiyor. Gerekirse yöneticinizden yetki isteyin."
+    },
+    "signOut": {
+      "failedTitle": "Oturum kapatılamadı",
+      "failedBody": "Sunucu oturumu kapattığını doğrulamadı. Yeniden deneyebilirsiniz.",
+      "localWarning": "Yalnızca bu cihazda kapatırsanız oturum sunucuda açık kalabilir ve bu tarayıcının çerezleriyle yeniden kullanılabilir.",
+      "local": "Yalnızca bu cihazda kapat"
+    },
+    "permissions": {
+      "refreshing": "Seçili şirketteki yetkileriniz yükleniyor…",
+      "failed": "Seçili şirketteki yetkileriniz yüklenemedi."
     }
   },
   "dashboard": {
@@ -114,5 +176,77 @@
     "notFoundTitle": "Sayfa bulunamadı",
     "notFoundBody": "Aradığınız adres taşınmış ya da hiç var olmamış olabilir.",
     "reload": "Sayfayı yenile"
+  },
+  "security": {
+    "title": "Güvenlik",
+    "subtitle": "Parolanızı, iki adımlı doğrulamayı ve açık oturumlarınızı yönetin.",
+    "passwordDescription": "Parolanızı değiştirdiğinizde diğer cihazlardaki oturumlar kapanabilir.",
+    "twoFactor": {
+      "title": "İki adımlı doğrulama",
+      "description": "Oturum açarken parolaya ek olarak doğrulama uygulamasından kod istenir.",
+      "on": "Açık",
+      "off": "Kapalı",
+      "enable": "Kurulumu başlat",
+      "disable": "Devre dışı bırak",
+      "qrAlt": "Doğrulama uygulamasıyla taranacak QR kodu",
+      "step1": "Doğrulama uygulamanızla QR kodunu tarayın ya da anahtarı elle girin.",
+      "step2": "Uygulamanın gösterdiği 6 haneli kodu girip onaylayın.",
+      "manualKey": "Elle giriş anahtarı",
+      "confirm": "Onayla ve aç",
+      "recoveryTitle": "Kurtarma kodları",
+      "recoveryOnce": "Bu kodlar yalnızca şimdi gösteriliyor. Güvenli bir yere kaydedin; telefonunuza erişemezseniz oturum açmak için gerekir.",
+      "copy": "Kodları kopyala",
+      "copied": "Kurtarma kodları panoya kopyalandı.",
+      "copyFailed": "Kopyalanamadı; kodları elle not edin.",
+      "saved": "Kaydettim",
+      "disabled": "İki adımlı doğrulama kapatıldı.",
+      "disableTitle": "İki adımlı doğrulama kapatılsın mı?",
+      "disableBody": "Onaylamak için geçerli parolanızı girin. Hesabınız yalnızca parolayla korunur."
+    },
+    "sessions": {
+      "title": "Açık oturumlar",
+      "description": "Hesabınızla oturum açılmış tarayıcı ve cihazlar.",
+      "empty": "Başka açık oturum yok.",
+      "current": "Bu oturum",
+      "agent": "{{browser}} · {{os}}",
+      "unknownDevice": "Bilinmeyen cihaz",
+      "meta": "IP {{ip}} · son etkinlik {{at}}",
+      "revoke": "Oturumu kapat",
+      "revokeLabel": "{{device}} oturumunu kapat",
+      "revoked": "Oturum kapatıldı."
+    }
+  },
+  "company": {
+    "none": "Şirket yok",
+    "switched": "{{name}} şirketine geçildi.",
+    "switchTo": "Şirkete geç: {{name}}",
+    "refreshFailed": "Şirket yetkileri yenilenemedi."
+  },
+  "notifications": {
+    "label": "Bildirimler",
+    "labelUnread": "Bildirimler, {{count}} okunmamış",
+    "title": "Bildirimler",
+    "markAll": "Tümünü okundu say",
+    "error": "Bildirimler yüklenemedi.",
+    "empty": "Yeni bildirim yok.",
+    "untitled": "Bildirim",
+    "unread": " (okunmamış)",
+    "offlineHint": "Canlı bağlantı yok; bildirimler dakikada bir yenilenir."
+  },
+  "palette": {
+    "title": "Komut paleti",
+    "open": "Komut paletini aç",
+    "search": "Ara veya komut çalıştır",
+    "placeholder": "Sayfa, komut ya da şirket arayın…",
+    "results": "Sonuçlar",
+    "empty": "Eşleşen komut yok.",
+    "theme": "Tema: {{name}}",
+    "language": "Dil: {{name}}",
+    "group": {
+      "navigation": "Git",
+      "actions": "İşlemler",
+      "company": "Şirket",
+      "preferences": "Tercihler"
+    }
   }
 }

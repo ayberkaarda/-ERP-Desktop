@@ -5,12 +5,16 @@ import { useTranslation } from 'react-i18next'
 import { Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SignOutFailedDialog } from '@/features/auth/components/SignOutFailedDialog'
+import { UserMenu } from '@/features/auth/components/UserMenu'
+import { CommandPalette } from '@/features/command-palette/CommandPalette'
+import { PaletteTrigger } from '@/features/command-palette/PaletteTrigger'
+import { CompanySwitcher } from '@/features/company/components/CompanySwitcher'
+import { NotificationBell } from '@/features/notifications/components/NotificationBell'
 import { useUiStore } from '@/stores/ui'
-import { CompanySwitcher } from './CompanySwitcher'
 import { ConnectivityBadge } from './ConnectivityBadge'
 import { Sidebar } from './Sidebar'
 import { ThemeToggle } from './ThemeToggle'
-import { UserMenu } from './UserMenu'
 
 // Below lg (1024px, also 1440px at 200% zoom) the rail becomes an off-canvas drawer.
 export function AppShell() {
@@ -75,7 +79,9 @@ export function AppShell() {
             <CompanySwitcher />
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
+            <PaletteTrigger />
             <ConnectivityBadge />
+            <NotificationBell />
             <ThemeToggle />
             <span className="mx-1 h-5 w-px bg-border sm:mx-1.5" />
             <UserMenu />
@@ -87,6 +93,8 @@ export function AppShell() {
           </Suspense>
         </main>
       </div>
+      <CommandPalette />
+      <SignOutFailedDialog />
     </div>
   )
 }

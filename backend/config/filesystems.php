@@ -17,6 +17,11 @@ return [
 
     'default' => env('FILESYSTEM_DISK', 'local'),
 
+    // Disk and signed-URL lifetime used by the Files module for user uploads.
+    'files_disk' => env('KEYSTONE_FILES_DISK', 'local'),
+
+    'files_url_ttl_minutes' => (int) env('KEYSTONE_FILES_URL_TTL', 5),
+
     /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
@@ -49,15 +54,22 @@ return [
             'report' => false,
         ],
 
+        // KEYSTONE_S3_* wins so the app can point at MinIO/S3 without touching generic AWS_* variables.
         's3' => [
             'driver' => 's3',
-            'key' => env('AWS_ACCESS_KEY_ID'),
-            'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_BUCKET'),
-            'url' => env('AWS_URL'),
-            'endpoint' => env('AWS_ENDPOINT'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'key' => env('KEYSTONE_S3_KEY', env('AWS_ACCESS_KEY_ID')),
+            'secret' => env('KEYSTONE_S3_SECRET', env('AWS_SECRET_ACCESS_KEY')),
+            'region' => env('KEYSTONE_S3_REGION', env('AWS_DEFAULT_REGION', 'us-east-1')),
+            'bucket' => env('KEYSTONE_S3_BUCKET', env('AWS_BUCKET')),
+            'url' => env('KEYSTONE_S3_URL', env('AWS_URL')),
+            'endpoint' => env('KEYSTONE_S3_ENDPOINT', env('AWS_ENDPOINT')),
+            // Browsers reach MinIO through another host than the container network does.
+            'temporary_url' => env('KEYSTONE_S3_PUBLIC_ENDPOINT'),
+            'use_path_style_endpoint' => filter_var(
+                env('KEYSTONE_S3_PATH_STYLE', env('AWS_USE_PATH_STYLE_ENDPOINT', false)),
+                FILTER_VALIDATE_BOOLEAN,
+            ),
+            'visibility' => 'private',
             'throw' => false,
             'report' => false,
         ],

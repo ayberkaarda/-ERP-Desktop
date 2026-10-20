@@ -18,4 +18,4 @@ Yalnızca altyapıyı başlatmak için `docker compose up -d` komutunu çalışt
 
 [Mühendislik Kuralları](docs/ENGINEERING-RULES.md), [Mimari](docs/ARCHITECTURE.md) ve [Yol Haritası](docs/ROADMAP.md) belgelerini okuyun. Güncel teslim durumu [İlerleme](docs/PROGRESS.md) dosyasında, mimari kararlar `docs/adr/` altında tutulur.
 
-API temel yolu `/api/v1`'dir. Başarılı yanıtlar `data`, hatalar `errors` zarfını kullanır. Üretilen OpenAPI şeması ile frontend API türleri eşzamanlı tutulmalıdır.
+API temel yolu `/api/v1`'dir. Başarılı yanıtlar `data`, hatalar `errors` zarfını kullanır. Üretilen OpenAPI şeması ve frontend API türleri commit edilmez; backend bağımlılıkları kurulduktan sonra `npm run gen:api` çalıştırın.
