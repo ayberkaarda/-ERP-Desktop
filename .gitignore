@@ -1,0 +1,12 @@
+node_modules/
+vendor/
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+*.log
+storage/*.key
+/backend/storage/logs/*
+/frontend/dist/
+.DS_Store
