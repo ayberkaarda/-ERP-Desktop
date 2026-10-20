@@ -7,6 +7,7 @@ import {
   readServerError,
   type ApplyServerErrorsOptions,
 } from '@/lib/forms/serverErrors'
+import { ownValue } from '@/lib/forms/own'
 import { cn } from '@/lib/utils'
 
 interface FormErrorSummaryProps extends ApplyServerErrorsOptions {
@@ -31,11 +32,18 @@ export function FormErrorSummary({
   knownFields,
 }: FormErrorSummaryProps) {
   const { t } = useTranslation('common')
-  const { setError, setFocus } = useFormContext<FieldValues>()
+  const { setError, setFocus, getValues, control } = useFormContext<FieldValues>()
   const ref = useRef<HTMLDivElement>(null)
   const server = useMemo(() => readServerError(error), [error])
   const parts = useMemo(
-    () => (server ? partitionServerErrors(server, { mapField, knownFields }) : null),
+    () => {
+      if (!server) return null
+      // Mounted names (react-hook-form keeps them on the control) or a value at that path.
+      const mounted = (control as unknown as { _names?: { mount?: Set<string> } })._names?.mount
+      const isRegistered = (path: string) =>
+        Boolean(mounted?.has(path)) || getValues(path) !== undefined
+      return partitionServerErrors(server, { mapField, knownFields, isRegistered })
+    },
     // Options are config; a new mapField closure each render must not re-apply errors.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [server],
@@ -50,7 +58,7 @@ export function FormErrorSummary({
   }, [parts, setError])
 
   if (!server || !parts) return null
-  const label = (field: string) => fieldLabels[field] ?? field
+  const label = (field: string) => ownValue(fieldLabels, field) ?? field
 
   return (
     <div

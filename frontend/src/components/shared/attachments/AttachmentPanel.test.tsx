@@ -1,11 +1,11 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createWebHttp } from '@/platform/web/http'
 import { createFileHandlers } from '@/test/handlers/feb'
 import { server } from '@/test/msw/server'
 import { AttachmentPanel } from './AttachmentPanel'
 import { createFilesApi } from './filesApi'
-import type { AttachmentApi } from './types'
+import type { AttachmentApi, FileMeta } from './types'
 
 const doc = { type: 'sales_invoice', id: 'inv-1' }
 
@@ -75,6 +75,7 @@ describe('AttachmentPanel', () => {
     const user = userEvent.setup({ applyAccept: false })
     const upload = vi.fn()
     const api: AttachmentApi = {
+      key: 'doc-1',
       list: () => Promise.resolve([]),
       upload,
       remove: () => Promise.resolve(),
@@ -120,6 +121,7 @@ describe('AttachmentPanel', () => {
     const user = userEvent.setup()
     let calls = 0
     const api: AttachmentApi = {
+      key: 'doc-1',
       list: () => (++calls === 1 ? Promise.reject(new Error('down')) : Promise.resolve([])),
       upload: () => Promise.reject(new Error('no')),
       remove: () => Promise.resolve(),
@@ -131,5 +133,52 @@ describe('AttachmentPanel', () => {
     await user.click(within(alert).getByRole('button', { name: 'Tekrar dene' }))
     expect(await screen.findByText('Henüz ek yok.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Dosya seç' })).not.toBeInTheDocument()
+  })
+
+  it('fetches every page of a document with more than 100 attachments', async () => {
+    const seed = Array.from({ length: 230 }, (_, i) => ({
+      id: `f-${i}`,
+      original_name: `dosya-${i}.pdf`,
+      mime_type: 'application/pdf',
+      size: 10,
+      created_at: '2026-10-20T10:00:00Z',
+      attachable_type: doc.type,
+      attachable_id: doc.id,
+    }))
+    const { handlers } = createFileHandlers(seed)
+    server.use(...handlers)
+    const files = await createFilesApi(createWebHttp(), doc).list()
+    expect(files).toHaveLength(230)
+    expect(files.at(-1)?.original_name).toBe('dosya-229.pdf')
+  })
+
+  it('resets to the new document and ignores late results of the old one', async () => {
+    let resolveOld: (files: FileMeta[]) => void = () => undefined
+    const meta = (id: string, name: string): FileMeta => ({
+      id,
+      original_name: name,
+      mime_type: 'application/pdf',
+      size: 1,
+      created_at: '2026-10-20T10:00:00Z',
+    })
+    const make = (key: string, list: () => Promise<FileMeta[]>): AttachmentApi => ({
+      key,
+      list,
+      upload: () => Promise.reject(new Error('no')),
+      remove: () => Promise.resolve(),
+      downloadUrl: () => '#',
+    })
+    const oldApi = make('doc-a', () => new Promise((r) => (resolveOld = r)))
+    const { rerender } = render(<AttachmentPanel api={oldApi} />)
+    rerender(<AttachmentPanel api={make('doc-b', () => Promise.resolve([meta('b', 'b.pdf')]))} />)
+    expect(await screen.findByRole('link', { name: 'b.pdf' })).toBeInTheDocument()
+    await act(async () => {
+      resolveOld([meta('a', 'a.pdf')])
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('link', { name: 'a.pdf' })).not.toBeInTheDocument()
+    // Same document, new object each render: no reset, no reload loop.
+    rerender(<AttachmentPanel api={make('doc-b', () => Promise.resolve([]))} />)
+    expect(screen.getByRole('link', { name: 'b.pdf' })).toBeInTheDocument()
   })
 })

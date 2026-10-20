@@ -163,6 +163,7 @@ export function createFakeAttachmentApi(): AttachmentApi {
     },
   ]
   return {
+    key: 'showcase',
     list: async () => {
       await delay(200)
       return files

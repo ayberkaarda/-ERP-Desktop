@@ -1,6 +1,10 @@
 import type { HttpClient } from '@/platform/types'
 import type { AttachmentApi, FileMeta } from './types'
 
+const PER_PAGE = 100
+/** Safety stop: 50 pages = 5000 attachments on one document. */
+const MAX_PAGES = 50
+
 export interface AttachableRef {
   /** Morph alias of the owning document, e.g. "sales_invoice". */
   type: string
@@ -17,15 +21,26 @@ export function createFilesApi(
   baseUrl = '/api/v1',
 ): AttachmentApi {
   return {
+    key: `${attachable.type}:${attachable.id}`,
+    // Assumed listing contract (being confirmed with the svc lane):
+    // GET /files?filter[attachable_type]=&filter[attachable_id]=&page=&per_page= (ListQuery
+    // paginator, meta.last_page). All pages are fetched so documents with >100 files show fully.
     async list() {
-      const res = await http.get<{ data: FileMeta[] }>('/files', {
-        params: {
-          'filter[attachable_type]': attachable.type,
-          'filter[attachable_id]': attachable.id,
-          per_page: 100,
-        },
-      })
-      return res.data
+      const all: FileMeta[] = []
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const res = await http.get<{ data: FileMeta[]; meta?: { last_page?: number } }>('/files', {
+          params: {
+            'filter[attachable_type]': attachable.type,
+            'filter[attachable_id]': attachable.id,
+            page,
+            per_page: PER_PAGE,
+          },
+        })
+        all.push(...res.data)
+        const last = res.meta?.last_page
+        if (last !== undefined ? page >= last : res.data.length < PER_PAGE) break
+      }
+      return all
     },
     async upload(file, signal) {
       const body = new FormData()

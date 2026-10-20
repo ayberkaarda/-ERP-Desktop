@@ -36,5 +36,22 @@ export function formatDecimal(value: MoneyInput, fractionDigits = 2, locale = 't
   }).format(toDecimal(value).toFixed(fractionDigits) as Intl.StringNumericLiteral)
 }
 
+/**
+ * Document rounding rule: each line amount (quantity × unit price) is rounded half-up to the
+ * currency scale first, and document totals are the sum of those rounded line amounts. The
+ * total therefore always equals the sum of the amounts printed on the lines.
+ */
+export function lineAmount(quantity: MoneyInput, unitPrice: MoneyInput, scale = 2): Decimal {
+  return toDecimal(quantity).mul(unitPrice).toDecimalPlaces(scale, Decimal.ROUND_HALF_UP)
+}
+
+/** Sum of already-rounded line amounts (see lineAmount). */
+export function documentTotal(
+  lines: readonly { quantity: MoneyInput; unitPrice: MoneyInput }[],
+  scale = 2,
+): Decimal {
+  return sum(lines.map((l) => lineAmount(l.quantity, l.unitPrice, scale)))
+}
+
 export { parseDecimal } from './parse'
 export * from './input'

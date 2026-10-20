@@ -190,4 +190,54 @@ describe('DataTable', () => {
     expect(screen.queryByRole('columnheader', { name: 'Tutar' })).not.toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: /Ad/ })).toBeInTheDocument()
   })
+
+  it('leaves keys typed in embedded inputs to those inputs', async () => {
+    const user = userEvent.setup()
+    const onActivate = vi.fn()
+    const editable = [
+      col.accessor('name', {
+        header: 'Ad',
+        cell: (c) => <input aria-label={`Düzenle ${c.row.id}`} defaultValue={c.getValue()} />,
+      }),
+    ]
+    const { container } = render(
+      <Harness columns={editable} selectable onRowActivate={onActivate} />,
+    )
+    const input = screen.getByRole('textbox', { name: 'Düzenle r1' })
+    await user.click(input)
+    await user.keyboard('{ArrowDown}{Home}{End}{Enter} ')
+    expect(input).toHaveFocus()
+    expect(onActivate).not.toHaveBeenCalled()
+    expect(bodyRows(container)[1]).toHaveAttribute('aria-selected', 'false')
+
+    // A handler that already consumed the key wins even on the row itself.
+    const rows = bodyRows(container)
+    act(() => rows[0]?.focus())
+    rows[0]?.addEventListener('keydown', (e) => e.preventDefault(), { capture: true })
+    await user.keyboard('{ArrowDown}')
+    expect(rows[0]).toHaveFocus()
+  })
+
+  it('keeps the focused row mounted when it scrolls out of the virtual window', async () => {
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(360)
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800)
+    const { container } = render(<Harness data={makeRows(100)} />)
+    await waitFor(() => expect(bodyRows(container).length).toBeGreaterThan(0))
+    const first = bodyRows(container)[0]
+    act(() => first?.focus())
+    const scroller = container.querySelector<HTMLElement>('.overflow-auto')
+    if (!scroller) throw new Error('scroll container missing')
+    act(() => {
+      scroller.scrollTop = 3000
+      scroller.dispatchEvent(new Event('scroll'))
+    })
+    await waitFor(() =>
+      expect(container.querySelector('[data-row-index="85"]')).toBeInTheDocument(),
+    )
+    expect(container.querySelector('[data-row-index="0"]')).toBe(first)
+    expect(first).toHaveFocus()
+    expect(container.querySelector('[data-row-index="40"]')).not.toBeInTheDocument()
+    height.mockRestore()
+    width.mockRestore()
+  })
 })

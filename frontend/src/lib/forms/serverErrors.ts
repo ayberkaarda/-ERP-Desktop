@@ -13,13 +13,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readFields(value: unknown): Record<string, string[]> {
   if (!isRecord(value)) return {}
-  const out: Record<string, string[]> = {}
+  const out: [string, string[]][] = []
   for (const [key, messages] of Object.entries(value)) {
     if (Array.isArray(messages))
-      out[key] = messages.filter((m): m is string => typeof m === 'string')
-    else if (typeof messages === 'string') out[key] = [messages]
+      out.push([key, messages.filter((m): m is string => typeof m === 'string')])
+    else if (typeof messages === 'string') out.push([key, [messages]])
   }
-  return out
+  // fromEntries defines own properties, so a "__proto__" key cannot reach the prototype.
+  return Object.fromEntries(out)
 }
 
 /** Normalizes ApiError (platform) or a response body into one shape; null when not an API error. */
@@ -39,6 +40,32 @@ export interface ApplyServerErrorsOptions {
   mapField?: (serverField: string) => string | null
   /** Only these form paths receive errors; others are reported back as unmapped. */
   knownFields?: readonly string[]
+  /**
+   * Whether the form actually has this path registered. Descendants of a known field
+   * ("lines.7.price") are only mapped when it says yes, so the summary never links to a field
+   * that does not exist.
+   */
+  isRegistered?: (path: string) => boolean
+}
+
+const UNSAFE_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype'])
+
+/** Dotted form path without empty or prototype-polluting segments. */
+export function isSafeFieldPath(path: string): boolean {
+  const parts = path.split('.')
+  return parts.every((p) => p !== '' && !UNSAFE_SEGMENTS.has(p))
+}
+
+function isMappable(field: string, options: ApplyServerErrorsOptions): boolean {
+  if (!isSafeFieldPath(field)) return false
+  const { knownFields, isRegistered } = options
+  if (knownFields) {
+    if (knownFields.includes(field)) return isRegistered ? isRegistered(field) : true
+    const descendant = knownFields.some((k) => field.startsWith(`${k}.`))
+    // Without a registration check a descendant path cannot be trusted to exist.
+    return descendant && isRegistered?.(field) === true
+  }
+  return isRegistered ? isRegistered(field) : true
 }
 
 export interface AppliedServerErrors {
@@ -56,11 +83,7 @@ export function partitionServerErrors(
     const message = messages[0]
     if (!message) continue
     const field = options.mapField ? options.mapField(serverField) : serverField
-    const known =
-      field !== null &&
-      (!options.knownFields ||
-        options.knownFields.some((k) => field === k || field.startsWith(`${k}.`)))
-    if (field !== null && known) result.mapped.push({ field, message })
+    if (field !== null && isMappable(field, options)) result.mapped.push({ field, message })
     else result.unmapped.push({ field: serverField, message })
   }
   return result

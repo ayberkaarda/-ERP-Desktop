@@ -5,7 +5,9 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { ApiError } from '@/platform/types'
+import { INVALID_DATE } from '@/lib/datetime'
 import { decimalString, MSG, snakeToCamelPath } from '@/lib/forms'
+import { INVALID_DECIMAL } from '@/lib/money'
 import { Combobox } from './Combobox'
 import { DateInput } from './DateInput'
 import { MoneyInput, QuantityInput } from './DecimalInput'
@@ -123,7 +125,7 @@ describe('MoneyInput / QuantityInput', () => {
 
     await user.clear(input)
     await user.type(input, '12,3,4')
-    expect(onValue).toHaveBeenLastCalledWith('12,3,4')
+    expect(onValue).toHaveBeenLastCalledWith(INVALID_DECIMAL)
     expect(screen.getByLabelText('Miktar')).toHaveValue('2,5')
   })
 })
@@ -222,7 +224,7 @@ describe('DateInput', () => {
 
     await user.clear(input)
     await user.type(input, '31.02.2027')
-    expect(onValue).toHaveBeenLastCalledWith('31.02.2027')
+    expect(onValue).toHaveBeenLastCalledWith(INVALID_DATE)
   })
 
   it('picks a day from the calendar', async () => {

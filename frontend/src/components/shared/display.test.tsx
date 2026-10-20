@@ -28,6 +28,31 @@ describe('StatusBadge', () => {
   })
 })
 
+describe('own-property lookups', () => {
+  it('does not resolve inherited keys as statuses or labels', () => {
+    render(
+      <>
+        <StatusBadge status="constructor" />
+        <AuditTrail
+          fieldLabels={{}}
+          entries={[
+            {
+              id: 'x',
+              event: 'updated',
+              causer: null,
+              created_at: '2026-10-20T11:12:00Z',
+              properties: { attributes: { toString: 'b' }, old: {} },
+            },
+          ]}
+        />
+      </>,
+    )
+    expect(screen.getByText('constructor')).toHaveAttribute('data-status', 'constructor')
+    expect(screen.getByRole('rowheader', { name: 'toString' })).toBeInTheDocument()
+    expect(screen.getByText('b')).toBeInTheDocument()
+  })
+})
+
 describe('ApprovalTimeline', () => {
   it('orders steps and marks the pending one', () => {
     render(

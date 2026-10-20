@@ -11,6 +11,7 @@ import { formatBytes } from './formatBytes'
 import { DEFAULT_ACCEPT, MAX_FILE_BYTES, type AttachmentApi, type FileMeta } from './types'
 
 interface AttachmentPanelProps {
+  /** `api.key` identifies the document; when it changes the panel resets and reloads. */
   api: AttachmentApi
   readOnly?: boolean
   /** Extensions without the dot. */
@@ -54,9 +55,22 @@ export function AttachmentPanel({
   const [dragging, setDragging] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<FileMeta | null>(null)
   const maxLabel = formatBytes(maxBytes, locale)
+  const scope = api.key
+  const scopeRef = useRef(scope)
+  // A different document: drop everything shown or pending for the previous one.
+  const [loadedScope, setLoadedScope] = useState(scope)
+  if (loadedScope !== scope) {
+    setLoadedScope(scope)
+    setFiles([])
+    setStatus('loading')
+    setUploads([])
+    setErrors([])
+    setPendingDelete(null)
+  }
 
   useEffect(() => {
     apiRef.current = api
+    scopeRef.current = scope
   })
 
   useEffect(() => {
@@ -74,12 +88,13 @@ export function AttachmentPanel({
     return () => {
       alive = false
     }
-  }, [reload])
+  }, [scope, reload])
 
   useEffect(() => {
-    const active = inFlight.current
+    const active = new Set<AbortController>()
+    inFlight.current = active
     return () => active.forEach((c) => c.abort())
-  }, [])
+  }, [scope])
 
   const uploadOne = async (file: File) => {
     const ext = extension(file.name)
@@ -97,13 +112,15 @@ export function AttachmentPanel({
       name: file.name,
       controller: new AbortController(),
     }
-    inFlight.current.add(upload.controller)
+    const owner = scopeRef.current
+    const active = inFlight.current
+    active.add(upload.controller)
     setUploads((u) => [...u, upload])
     try {
       const meta = await apiRef.current.upload(file, upload.controller.signal)
-      setFiles((f) => [...f, meta])
+      if (scopeRef.current === owner) setFiles((f) => [...f, meta])
     } catch (error) {
-      if (upload.controller.signal.aborted) return
+      if (upload.controller.signal.aborted || scopeRef.current !== owner) return
       const server = readServerError(error)
       const message =
         server?.code === 'FILE_TOO_LARGE'
@@ -113,8 +130,8 @@ export function AttachmentPanel({
             : t('attachments.uploadFailed', { name: file.name })
       setErrors((e) => [...e, message])
     } finally {
-      inFlight.current.delete(upload.controller)
-      if (!upload.controller.signal.aborted)
+      active.delete(upload.controller)
+      if (!upload.controller.signal.aborted && scopeRef.current === owner)
         setUploads((u) => u.filter((x) => x.key !== upload.key))
     }
   }
@@ -134,13 +151,15 @@ export function AttachmentPanel({
   const confirmDelete = async () => {
     const target = pendingDelete
     if (!target) return
+    const owner = scopeRef.current
     try {
       await apiRef.current.remove(target.id)
     } catch (error) {
+      if (scopeRef.current !== owner) return
       setErrors([readServerError(error)?.message ?? t('states.errorTitle')])
       throw error
     }
-    setFiles((f) => f.filter((x) => x.id !== target.id))
+    if (scopeRef.current === owner) setFiles((f) => f.filter((x) => x.id !== target.id))
   }
 
   return (

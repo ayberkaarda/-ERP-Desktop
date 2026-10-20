@@ -4,6 +4,7 @@ import { useIntlLocale } from '@/lib/datetime/locale'
 import {
   decimalSeparator,
   formatDecimalDisplay,
+  INVALID_DECIMAL,
   parseDecimalInput,
   toEditableText,
 } from '@/lib/money/input'
@@ -14,7 +15,10 @@ const CANONICAL = /^-?\d+(?:\.\d+)?$/
 type NativeProps = Omit<ComponentProps<'input'>, 'value' | 'onChange' | 'type' | 'defaultValue'>
 
 export interface DecimalInputProps extends NativeProps {
-  /** Canonical decimal string ("1234.50") or ''. Invalid text is passed through for zod to flag. */
+  /**
+   * Canonical decimal string ("1234.50"), '' or INVALID_DECIMAL while the typed draft is rejected
+   * (malformed, negative when not allowed). Drafts are never passed out as values.
+   */
   value: string
   onChange: (value: string) => void
   scale: number
@@ -43,18 +47,34 @@ export function DecimalInput({
   const uiLocale = useIntlLocale()
   const locale = localeProp ?? uiLocale
   const [editing, setEditing] = useState(false)
-  const [text, setText] = useState('')
+  const [text, setText] = useState(() =>
+    CANONICAL.test(value) ? toEditableText(value, locale) : '',
+  )
+  // Last value this input emitted; any other incoming value is an outside change (reset, load).
+  const [emitted, setEmitted] = useState(value)
   const options = { scale, locale, allowNegative }
 
+  if (value !== emitted) {
+    setEmitted(value)
+    if (value !== INVALID_DECIMAL)
+      setText(CANONICAL.test(value) ? toEditableText(value, locale) : '')
+  }
+
   const canonical = CANONICAL.test(value)
+  const invalid = value === INVALID_DECIMAL
   const display = canonical
     ? formatDecimalDisplay(value, { locale, minFraction: displayMinFraction, maxFraction: scale })
-    : value
+    : invalid
+      ? text
+      : ''
 
   const emit = (next: string) => {
     setText(next)
     const parsed = parseDecimalInput(next, options)
-    onChange(parsed.ok ? parsed.value : next)
+    // Rejected drafts stay local; the form only ever sees a canonical string or the marker.
+    const out = parsed.ok ? parsed.value : INVALID_DECIMAL
+    setEmitted(out)
+    onChange(out)
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -80,8 +100,10 @@ export function DecimalInput({
         inputMode="decimal"
         autoComplete="off"
         value={editing ? text : display}
+        aria-invalid={invalid || props['aria-invalid'] ? true : undefined}
         onFocus={(e) => {
-          setText(canonical ? toEditableText(value, locale) : value)
+          if (canonical) setText(toEditableText(value, locale))
+          else if (!invalid) setText('')
           setEditing(true)
           onFocus?.(e)
         }}

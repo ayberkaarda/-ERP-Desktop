@@ -11,6 +11,8 @@ export interface FileMeta {
 
 /** Everything AttachmentPanel needs from the outside; see createFilesApi for the HTTP binding. */
 export interface AttachmentApi {
+  /** Identity of the owning document ("sales_invoice:42"); a new key resets the panel. */
+  key: string
   list: () => Promise<FileMeta[]>
   upload: (file: File, signal: AbortSignal) => Promise<FileMeta>
   remove: (id: string) => Promise<void>

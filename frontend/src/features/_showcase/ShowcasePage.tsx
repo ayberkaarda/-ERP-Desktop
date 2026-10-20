@@ -29,7 +29,7 @@ import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { calendarDate, decimalString, MSG } from '@/lib/forms'
-import { formatMoney } from '@/lib/money'
+import { formatMoney, lineAmount } from '@/lib/money'
 import {
   ACCOUNT_OPTIONS,
   ACCOUNTS,
@@ -310,7 +310,8 @@ type Line = LinesValues['lines'][number]
 const CANONICAL = /^-?\d+(?:\.\d+)?$/
 function lineTotal(line: Line | undefined): Decimal | null {
   if (!line || !CANONICAL.test(line.quantity) || !CANONICAL.test(line.unitPrice)) return null
-  return new Decimal(line.quantity).mul(line.unitPrice)
+  // Rounded per line (lib/money lineAmount) so the total equals the sum of the shown lines.
+  return lineAmount(line.quantity, line.unitPrice)
 }
 
 function LinesDemo() {

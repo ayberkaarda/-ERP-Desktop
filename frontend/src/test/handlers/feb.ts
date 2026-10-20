@@ -42,7 +42,17 @@ export function createFileHandlers(seed: StoredFile[] = []) {
       const data = [...files.values()].filter(
         (f) => (!type || f.attachable_type === type) && (!id || f.attachable_id === id),
       )
-      return HttpResponse.json({ data, meta: { total: data.length } })
+      const perPage = Math.min(Number(url.searchParams.get('per_page') ?? 25), 100)
+      const page = Math.max(Number(url.searchParams.get('page') ?? 1), 1)
+      return HttpResponse.json({
+        data: data.slice((page - 1) * perPage, page * perPage),
+        meta: {
+          current_page: page,
+          per_page: perPage,
+          total: data.length,
+          last_page: Math.max(1, Math.ceil(data.length / perPage)),
+        },
+      })
     }),
     http.post('*/api/v1/files', async ({ request }) => {
       const form = await request.formData()

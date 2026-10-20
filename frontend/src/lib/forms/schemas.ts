@@ -50,8 +50,13 @@ export function decimalString(options: DecimalStringOptions = {}) {
 }
 
 /** Calendar date "YYYY-MM-DD" (never an instant). */
-export function calendarDate() {
-  return z.string().min(1, MSG.required).refine(isValidCalendarDate, MSG.date)
+export function calendarDate(range: { min?: string; max?: string } = {}) {
+  return z
+    .string()
+    .min(1, MSG.required)
+    .refine(isValidCalendarDate, MSG.date)
+    .refine((d) => range.min === undefined || d >= range.min, MSG.min)
+    .refine((d) => range.max === undefined || d <= range.max, MSG.max)
 }
 
 export function requiredString() {

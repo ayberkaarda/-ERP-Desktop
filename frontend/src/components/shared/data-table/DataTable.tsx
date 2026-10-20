@@ -7,9 +7,10 @@ import {
   type RowSelectionState,
   type Updater,
 } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react'
 import {
+  Fragment,
   useEffect,
   useId,
   useMemo,
@@ -195,24 +196,36 @@ export function DataTable<T>({
   const rows = table.getRowModel().rows
   const rowHeight = ROW_HEIGHT[view.density]
   const virtualize = rows.length > virtualizeThreshold
+  const active = Math.min(activeIndex, Math.max(rows.length - 1, 0))
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => rowHeight,
     overscan: 8,
     enabled: virtualize,
+    // The roving-focus row stays mounted even when scrolled away, so focus is never dropped.
+    rangeExtractor: (range) => {
+      const indexes = defaultRangeExtractor(range)
+      if (active < range.count && !indexes.includes(active)) {
+        indexes.push(active)
+        indexes.sort((a, b) => a - b)
+      }
+      return indexes
+    },
   })
   const items = virtualize ? virtualizer.getVirtualItems() : null
+  // Each rendered row carries the spacer height before it; the kept-mounted active row can sit
+  // far from the visible window, so gaps are filled per row, not just at the ends.
+  let cursor = 0
   const visible = items
     ? items.flatMap((item) => {
         const row = rows[item.index]
-        return row ? [{ row, index: item.index }] : []
+        const gap = item.start - cursor
+        cursor = item.end
+        return row ? [{ row, index: item.index, gap }] : []
       })
-    : rows.map((row, index) => ({ row, index }))
-  const padTop = items?.[0]?.start ?? 0
-  const padBottom = items ? virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0) : 0
-
-  const active = Math.min(activeIndex, Math.max(rows.length - 1, 0))
+    : rows.map((row, index) => ({ row, index, gap: 0 }))
+  const padBottom = items ? virtualizer.getTotalSize() - cursor : 0
   const selectedIds = Object.keys(rowSelection).filter((id) => rowSelection[id])
   const clearSelection = () => setRowSelection({})
   const columnCount = table.getVisibleLeafColumns().length
@@ -246,11 +259,11 @@ export function DataTable<T>({
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLTableSectionElement>) => {
-    const target = e.target as HTMLElement
-    const rowEl = target.closest<HTMLElement>('[data-row-index]')
-    if (!rowEl) return
+    // Keys typed in embedded inputs, comboboxes or menus belong to them, not to row navigation.
+    if (e.defaultPrevented) return
+    const rowEl = e.target as HTMLElement
+    if (!rowEl.matches('[data-row-index]')) return
     const index = Number(rowEl.dataset.rowIndex)
-    const onRow = target === rowEl
     const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 360) / rowHeight) - 1)
     const keys: Record<string, () => void> = {
       ArrowDown: () => moveTo(index + 1),
@@ -260,8 +273,8 @@ export function DataTable<T>({
       Home: () => moveTo(0),
       End: () => moveTo(rows.length - 1),
     }
-    if (onRow && e.key === 'Enter' && onRowActivate) keys.Enter = () => activate(index)
-    if (onRow && e.key === ' ' && selectable) keys[' '] = () => rows[index]?.toggleSelected()
+    if (e.key === 'Enter' && onRowActivate) keys.Enter = () => activate(index)
+    if (e.key === ' ' && selectable) keys[' '] = () => rows[index]?.toggleSelected()
     if (e.key === 'Escape' && selectedIds.length > 0) keys.Escape = clearSelection
     const handler = keys[e.key]
     if (handler) {
@@ -323,41 +336,42 @@ export function DataTable<T>({
   } else {
     body = (
       <>
-        {padTop > 0 && (
-          <tr aria-hidden="true">
-            <td colSpan={columnCount} style={{ height: padTop, padding: 0 }} />
-          </tr>
-        )}
-        {visible.map(({ row, index }) => (
-          <tr
-            key={row.id}
-            data-row-index={index}
-            tabIndex={index === active ? 0 : -1}
-            aria-rowindex={rowOffset + index + 2}
-            aria-selected={selectable ? row.getIsSelected() : undefined}
-            onClick={(e) => onRowClick(e, index)}
-            onFocus={() => setActiveIndex(index)}
-            className={cn(
-              'group outline-none',
-              onRowActivate && 'cursor-pointer',
-              row.getIsSelected() ? 'bg-primary-soft/60' : 'hover:bg-surface-sunken',
-              'focus-visible:bg-primary-soft/40 focus-visible:shadow-[inset_2px_0_0_var(--color-ring)]',
+        {visible.map(({ row, index, gap }) => (
+          <Fragment key={row.id}>
+            {gap > 0 && (
+              <tr aria-hidden="true">
+                <td colSpan={columnCount} style={{ height: gap, padding: 0 }} />
+              </tr>
             )}
-            style={{ height: rowHeight }}
-          >
-            {row.getVisibleCells().map((cell) => (
-              <td
-                key={cell.id}
-                className={cn(
-                  'truncate border-b border-border px-3',
-                  ALIGN[cell.column.columnDef.meta?.align ?? 'left'],
-                )}
-                style={fixedLayout ? { width: cell.column.getSize() } : undefined}
-              >
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </td>
-            ))}
-          </tr>
+            <tr
+              data-row-index={index}
+              tabIndex={index === active ? 0 : -1}
+              aria-rowindex={rowOffset + index + 2}
+              aria-selected={selectable ? row.getIsSelected() : undefined}
+              onClick={(e) => onRowClick(e, index)}
+              onFocus={() => setActiveIndex(index)}
+              className={cn(
+                'group outline-none',
+                onRowActivate && 'cursor-pointer',
+                row.getIsSelected() ? 'bg-primary-soft/60' : 'hover:bg-surface-sunken',
+                'focus-visible:bg-primary-soft/40 focus-visible:shadow-[inset_2px_0_0_var(--color-ring)]',
+              )}
+              style={{ height: rowHeight }}
+            >
+              {row.getVisibleCells().map((cell) => (
+                <td
+                  key={cell.id}
+                  className={cn(
+                    'truncate border-b border-border px-3',
+                    ALIGN[cell.column.columnDef.meta?.align ?? 'left'],
+                  )}
+                  style={fixedLayout ? { width: cell.column.getSize() } : undefined}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </td>
+              ))}
+            </tr>
+          </Fragment>
         ))}
         {padBottom > 0 && (
           <tr aria-hidden="true">

@@ -8,6 +8,12 @@ export interface DecimalInputOptions {
   allowNegative?: boolean
 }
 
+/**
+ * Form value of a decimal field whose typed text was rejected. Not a number, so decimalString()
+ * fails it with `validation.number` and it can never be mistaken for an amount.
+ */
+export const INVALID_DECIMAL = '#invalid'
+
 /** `value` is the canonical API string ("1234.50"), or '' for an empty field. */
 export type DecimalParseResult = { ok: true; value: string } | { ok: false }
 

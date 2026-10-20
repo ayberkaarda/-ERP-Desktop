@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { Badge, type BadgeProps } from '@/components/ui/badge'
+import { ownValue } from '@/lib/forms/own'
 import { cn } from '@/lib/utils'
 
 type Tone = NonNullable<BadgeProps['tone']>
@@ -43,11 +44,14 @@ interface StatusBadgeProps {
 /** Status is never conveyed by color alone: the dot is decorative, the label carries meaning. */
 export function StatusBadge({ status, definitions, className }: StatusBadgeProps) {
   const { t, i18n } = useTranslation('common')
-  const def = definitions?.[status]
-  const tone: Tone = def?.tone ?? DEFAULT_TONES[status] ?? 'neutral'
+  const def = ownValue(definitions, status)
+  const tone: Tone = def?.tone ?? ownValue(DEFAULT_TONES, status) ?? 'neutral'
   const key = `status.${status}`
+  // Only statuses in the built-in table have `common:status.*` keys; anything else (including
+  // inherited names like "constructor") is shown verbatim instead of reaching i18next lookups.
+  const known = ownValue(DEFAULT_TONES, status) !== undefined
   const label =
-    def?.label ?? (i18n.exists(key, { ns: 'common' }) ? t(key as 'status.draft') : status)
+    def?.label ?? (known && i18n.exists(key, { ns: 'common' }) ? t(key as 'status.draft') : status)
   return (
     <Badge tone={tone} className={cn('gap-1.5', className)} data-status={status}>
       <span aria-hidden="true" className={cn('size-1.5 rounded-full', DOT[tone])} />

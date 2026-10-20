@@ -65,30 +65,53 @@ export function toListParams(state: ListQueryState): Record<string, string | num
   return params
 }
 
-/** URL form of the state; values equal to `defaults` are omitted to keep links short. */
+const FILTER_PARAM = /^filter\[([^\]]+)\]$/
+
+/** True for the query-string keys the table owns; everything else in the URL is left alone. */
+export function isListQueryParam(key: string): boolean {
+  return (
+    key === 'page' || key === 'per_page' || key === 'sort' || key === 'q' || FILTER_PARAM.test(key)
+  )
+}
+
+/**
+ * URL form of the state. Values equal to `defaults` are omitted to keep links short; a value
+ * cleared away from a non-empty default is written as an explicit empty param (`sort=`,
+ * `filter[status]=`) so it is not mistaken for "absent, use the default" on reload.
+ */
 export function toSearchParams(
   state: ListQueryState,
   defaults: ListQueryState = DEFAULT_LIST_QUERY,
 ): URLSearchParams {
   const out = new URLSearchParams()
-  for (const [key, value] of Object.entries(toListParams(state))) {
-    const isDefault =
-      (key === 'page' && value === defaults.page) ||
-      (key === 'per_page' && value === defaults.perPage) ||
-      (key === 'sort' && value === serializeSort(defaults.sort))
-    if (!isDefault) out.set(key, String(value))
+  const page = clampPage(state.page)
+  const perPage = clampPerPage(state.perPage)
+  if (page !== defaults.page) out.set('page', String(page))
+  if (perPage !== defaults.perPage) out.set('per_page', String(perPage))
+  const sort = serializeSort(state.sort)
+  if (sort !== serializeSort(defaults.sort)) out.set('sort', sort)
+  const q = state.q.trim()
+  if (q !== defaults.q.trim()) out.set('q', q)
+  const keys = new Set([...Object.keys(state.filters), ...Object.keys(defaults.filters)])
+  for (const key of keys) {
+    const value = Object.hasOwn(state.filters, key) ? (state.filters[key] ?? '') : ''
+    const fallback = Object.hasOwn(defaults.filters, key) ? (defaults.filters[key] ?? '') : ''
+    if (value !== fallback) out.set(`filter[${key}]`, value)
   }
   return out
 }
 
+/** Absent params take the default; present-but-empty params mean "explicitly cleared". */
 export function fromSearchParams(
   params: URLSearchParams,
   defaults: ListQueryState = DEFAULT_LIST_QUERY,
 ): ListQueryState {
-  const filters: Record<string, string> = {}
+  const filters = new Map(Object.entries(defaults.filters))
   for (const [key, value] of params) {
-    const m = /^filter\[([^\]]+)\]$/.exec(key)
-    if (m?.[1] && value !== '') filters[m[1]] = value
+    const name = FILTER_PARAM.exec(key)?.[1]
+    if (!name) continue
+    if (value === '') filters.delete(name)
+    else filters.set(name, value)
   }
   const page = params.get('page')
   const perPage = params.get('per_page')
@@ -96,7 +119,7 @@ export function fromSearchParams(
     page: page ? clampPage(Number(page)) : defaults.page,
     perPage: perPage ? clampPerPage(Number(perPage)) : defaults.perPage,
     sort: params.has('sort') ? parseSort(params.get('sort')) : defaults.sort,
-    filters: Object.keys(filters).length ? filters : defaults.filters,
+    filters: Object.fromEntries(filters),
     q: params.get('q') ?? defaults.q,
   }
 }

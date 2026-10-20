@@ -41,6 +41,7 @@ describe('server error mapping', () => {
     const parts = partitionServerErrors(server, {
       mapField: snakeToCamelPath,
       knownFields: ['unitPrice', 'lines'],
+      isRegistered: (p) => p === 'unitPrice' || p === 'lines.0.quantity',
     })
     expect(parts.mapped).toEqual([
       { field: 'unitPrice', message: 'Fiyat zorunlu.' },

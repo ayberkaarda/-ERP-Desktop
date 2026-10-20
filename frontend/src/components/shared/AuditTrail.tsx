@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDateTime, useIntlLocale } from '@/lib/datetime'
+import { ownValue } from '@/lib/forms/own'
 import { cn } from '@/lib/utils'
 import { EmptyState } from './EmptyState'
 
@@ -45,7 +46,7 @@ function changes(entry: AuditEntry) {
   const after = entry.properties?.attributes ?? {}
   const before = entry.properties?.old ?? {}
   const keys = [...new Set([...Object.keys(after), ...Object.keys(before)])]
-  return keys.map((key) => ({ key, before: before[key], after: after[key] }))
+  return keys.map((key) => ({ key, before: ownValue(before, key), after: ownValue(after, key) }))
 }
 
 export function AuditTrail({
@@ -119,7 +120,7 @@ export function AuditTrail({
                     {rows.map((row) => (
                       <tr key={row.key} className="border-t border-border align-top">
                         <th scope="row" className="py-1 pr-3 text-left font-medium">
-                          {fieldLabels[row.key] ?? row.key}
+                          {ownValue(fieldLabels, row.key) ?? row.key}
                         </th>
                         <td className="py-1 pr-3 break-all text-muted-foreground line-through decoration-danger/50">
                           {event === 'created' ? '' : show(row.key, row.before)}

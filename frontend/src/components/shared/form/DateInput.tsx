@@ -7,6 +7,9 @@ import { Popover, PopoverAnchor, PopoverContent } from '@/components/ui/popover'
 import {
   addDays,
   addMonths,
+  clampCalendarDate,
+  inCalendarRange,
+  INVALID_DATE,
   formatDate,
   isValidCalendarDate,
   monthMatrix,
@@ -23,7 +26,10 @@ type NativeProps = Omit<
 >
 
 export interface DateInputProps extends NativeProps {
-  /** Calendar date "YYYY-MM-DD" or ''. Unparseable text is passed through for zod to flag. */
+  /**
+   * Calendar date "YYYY-MM-DD", '' or INVALID_DATE while the typed text is not a date inside
+   * [min, max]; the draft itself is never passed out.
+   */
   value: string
   onChange: (value: string) => void
   locale?: string
@@ -50,10 +56,22 @@ export function DateInput({
   const locale = localeProp ?? uiLocale
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState('')
+  const [emitted, setEmitted] = useState(value)
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   const valid = isValidCalendarDate(value)
-  const display = valid ? formatDate(value, locale) : value
+  const invalid = value === INVALID_DATE
+  if (value !== emitted) {
+    // Outside change (reset, load): the draft follows it.
+    setEmitted(value)
+    if (!invalid) setText(valid ? formatDate(value, locale) : '')
+  }
+  const display = valid ? formatDate(value, locale) : invalid ? text : ''
+
+  const emit = (next: string) => {
+    setEmitted(next)
+    onChange(next)
+  }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     onKeyDown?.(e)
@@ -75,6 +93,7 @@ export function DateInput({
             autoComplete="off"
             disabled={disabled}
             value={editing ? text : display}
+            aria-invalid={invalid || props['aria-invalid'] ? true : undefined}
             onFocus={(e) => {
               setText(display)
               setEditing(true)
@@ -86,7 +105,14 @@ export function DateInput({
             }}
             onChange={(e) => {
               setText(e.target.value)
-              onChange(parseCalendarInput(e.target.value, locale) ?? e.target.value)
+              const parsed = parseCalendarInput(e.target.value, locale)
+              emit(
+                parsed === ''
+                  ? ''
+                  : parsed !== null && inCalendarRange(parsed, min, max)
+                    ? parsed
+                    : INVALID_DATE,
+              )
             }}
             onKeyDown={handleKeyDown}
             className="pr-9"
@@ -121,7 +147,8 @@ export function DateInput({
           min={min}
           max={max}
           onSelect={(date) => {
-            onChange(date)
+            setText(formatDate(date, locale))
+            emit(date)
             setOpen(false)
           }}
         />
@@ -141,7 +168,9 @@ interface CalendarGridProps {
 function CalendarGrid({ value, locale, min, max, onSelect }: CalendarGridProps) {
   const { t } = useTranslation('common')
   const today = toIsoDate(new Date())
-  const [focused, setFocused] = useState(value ?? today)
+  // Start on the value, else today; either one is pulled into range so focus lands on an enabled day.
+  const [focused, setFocusedRaw] = useState(() => clampCalendarDate(value ?? today, min, max))
+  const setFocused = (d: string) => setFocusedRaw(clampCalendarDate(d, min, max))
   const { year, month } = splitCalendarDate(focused)
   const gridRef = useRef<HTMLTableElement>(null)
   const weekStartsOn = locale === 'en-US' ? 0 : 1
@@ -157,7 +186,7 @@ function CalendarGrid({ value, locale, min, max, onSelect }: CalendarGridProps) 
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(Date.UTC(year, month - 1, 1)))
-  const outOfRange = (d: string) => (min !== undefined && d < min) || (max !== undefined && d > max)
+  const outOfRange = (d: string) => !inCalendarRange(d, min, max)
 
   useEffect(() => {
     gridRef.current?.querySelector<HTMLButtonElement>(`[data-date="${focused}"]`)?.focus()
@@ -260,7 +289,13 @@ function CalendarGrid({ value, locale, min, max, onSelect }: CalendarGridProps) 
           ))}
         </tbody>
       </table>
-      <Button variant="ghost" size="sm" className="w-full" onClick={() => onSelect(today)}>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full"
+        disabled={outOfRange(today)}
+        onClick={() => onSelect(today)}
+      >
         {t('date.today')}
       </Button>
     </div>

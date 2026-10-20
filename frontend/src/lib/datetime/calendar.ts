@@ -109,3 +109,17 @@ export function addDays(value: string, delta: number): string {
   const date = new Date(Date.UTC(year, month - 1, day + delta))
   return toCalendarDate(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate())
 }
+
+/** Form value of a date field whose typed text is not a usable date (malformed or out of range). */
+export const INVALID_DATE = '#invalid-date'
+
+export function inCalendarRange(value: string, min?: string, max?: string): boolean {
+  return (min === undefined || value >= min) && (max === undefined || value <= max)
+}
+
+/** Nearest date inside [min, max]; ISO calendar strings compare correctly as text. */
+export function clampCalendarDate(value: string, min?: string, max?: string): string {
+  if (min !== undefined && value < min) return min
+  if (max !== undefined && value > max) return max
+  return value
+}

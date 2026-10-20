@@ -57,6 +57,11 @@ export function sanitizeView(raw: unknown): SavedView {
   return view
 }
 
+/** Saved view snapshot outside React (list query hooks seed sort/page size from it). */
+export function readSavedView(key: string | null): SavedView {
+  return read(key)
+}
+
 function read(key: string | null): SavedView {
   if (!key) return EMPTY_VIEW
   try {
