@@ -59,3 +59,6 @@ function toInstant(value: Date | string): Date {
   if (Number.isNaN(date.getTime())) throw new RangeError(`Invalid instant: ${value}`)
   return date
 }
+
+export * from './calendar'
+export { intlLocale, useIntlLocale } from './locale'
