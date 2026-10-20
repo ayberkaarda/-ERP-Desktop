@@ -90,7 +90,7 @@ return [
             'driver' => 'pgsql',
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '5432'),
+            'port' => env('DB_PORT', '5433'),
             'database' => env('DB_DATABASE', 'keystone'),
             'username' => env('DB_USERNAME', 'keystone'),
             'password' => env('DB_PASSWORD', 'keystone'),
