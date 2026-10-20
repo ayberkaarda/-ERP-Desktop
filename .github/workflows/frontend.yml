@@ -5,6 +5,27 @@ on:
 jobs:
   frontend:
     runs-on: ubuntu-latest
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5433
+      DB_DATABASE: keystone_test
+      DB_USERNAME: keystone
+      DB_PASSWORD: keystone
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: keystone_test
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: keystone
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U keystone -d keystone_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -19,6 +40,12 @@ jobs:
         working-directory: backend
         run: composer install --no-interaction --prefer-dist
       - run: npm ci
+      - name: Prepare backend database
+        working-directory: backend
+        run: |
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan migrate --force
       - name: Generate OpenAPI schema
         working-directory: backend
         run: composer openapi
