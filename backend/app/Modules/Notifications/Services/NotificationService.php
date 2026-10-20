@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Notifications\Services;
 
+use App\Core\Company\CompanyContext;
+use App\Core\Company\MembershipChecker;
+use App\Core\Http\ApiException;
+use App\Core\Http\ErrorCode;
 use App\Modules\Notifications\Contracts\Notifier;
 use App\Modules\Notifications\Events\NotificationCreated;
 use App\Modules\Notifications\Models\Notification;
@@ -14,7 +18,11 @@ use InvalidArgumentException;
 
 final class NotificationService implements Notifier
 {
-    public function __construct(private readonly Dispatcher $events) {}
+    public function __construct(
+        private readonly Dispatcher $events,
+        private readonly MembershipChecker $membership,
+        private readonly CompanyContext $company,
+    ) {}
 
     /**
      * Stores a notification for a user of the active company and broadcasts it after commit.
@@ -31,6 +39,11 @@ final class NotificationService implements Notifier
 
         if (! is_string($data['title'] ?? null) || ! is_string($data['body'] ?? null)) {
             throw new InvalidArgumentException('Notification data needs string title and body.');
+        }
+
+        // A recipient outside the active company must never get its data or its broadcast.
+        if (! $this->membership->isMember($id, $this->company->id())) {
+            throw new ApiException(ErrorCode::CompanyForbidden);
         }
 
         $notification = Notification::query()->create(['user_id' => $id, 'type' => $type, 'data' => $data]);

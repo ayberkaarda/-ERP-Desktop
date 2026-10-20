@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Core\Company\MembershipChecker;
 use App\Core\Company\MissingCompanyContext;
+use App\Core\Http\ApiException;
 use App\Modules\Notifications\Contracts\Notifier;
 use App\Modules\Notifications\Events\NotificationCreated;
 use App\Modules\Notifications\Models\Notification;
@@ -125,4 +127,27 @@ it('requires authentication and a company', function (): void {
     Auth::forgetGuards();
     $this->getJson('/api/v1/notifications')->assertUnauthorized();
     $this->actingAs($this->me, 'web')->getJson('/api/v1/notifications')->assertStatus(400);
+});
+
+it('refuses recipients outside the active company', function (): void {
+    app()->instance(MembershipChecker::class, new class implements MembershipChecker
+    {
+        public function isMember(string $userId, string $companyId): bool
+        {
+            return false;
+        }
+    });
+    Event::fake([NotificationCreated::class]);
+
+    expect(fn () => app(Notifier::class)->notify($this->other->id, 't', ['title' => 'a', 'body' => 'b']))
+        ->toThrow(ApiException::class);
+
+    Event::assertNotDispatched(NotificationCreated::class);
+    expect(Notification::query()->count())->toBe(0);
+});
+
+it('broadcasts only the item', function (): void {
+    $event = new NotificationCreated('id', $this->company, $this->me->id, 't', ['title' => 'a', 'body' => 'b'], 'now');
+
+    expect(array_keys($event->broadcastWith()))->toBe(['id', 'type', 'data', 'read_at', 'created_at']);
 });
