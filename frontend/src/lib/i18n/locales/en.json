@@ -10,7 +10,8 @@
     "online": "Online",
     "offline": "Offline",
     "backHome": "Back to dashboard",
-    "close": "Close"
+    "close": "Close",
+    "cancel": "Cancel"
   },
   "nav": {
     "main": "Main menu",
@@ -30,11 +31,11 @@
   "topbar": {
     "company": "Company",
     "switchCompany": "Switch company",
-    "taxNumber": "Tax no. {{value}}",
     "userMenu": "User menu",
     "language": "Language",
     "signOut": "Sign out",
-    "switchCompanyCurrent": "Switch company, current: {{name}}"
+    "switchCompanyCurrent": "Switch company, current: {{name}}",
+    "security": "Security and sessions"
   },
   "theme": {
     "label": "Theme",
@@ -58,7 +59,6 @@
       "submit": "Sign in",
       "submitting": "Signing in…",
       "forgot": "Forgot password",
-      "pending": "Authentication is not connected yet; redirecting to the dashboard.",
       "heroTitle": "Every record meets at a single keystone.",
       "heroBody": "Accounting, inventory, sales and treasury: one consistent system of record for all your companies.",
       "footer": "© Keystone · All rights reserved"
@@ -66,11 +66,63 @@
     "validation": {
       "emailRequired": "Email is required.",
       "emailInvalid": "Enter a valid email address.",
-      "passwordMin": "Password must be at least {{count}} characters."
+      "passwordMin": "Password must be at least {{count}} characters.",
+      "codeFormat": "Enter the 6-digit code.",
+      "recoveryRequired": "Enter a recovery code.",
+      "currentRequired": "Enter your current password.",
+      "passwordMismatch": "The passwords do not match.",
+      "passwordSame": "The new password must differ from the current one."
     },
     "forgot": {
       "title": "Password reset",
       "body": "Reset links are sent by your company administrator. Self-service reset arrives with the identity module."
+    },
+    "errors": {
+      "tooManyAttempts": "Too many attempts. Please try again in a few minutes.",
+      "invalidCode": "The code is invalid or has expired.",
+      "deactivated": "Your account has been deactivated. Contact your company administrator.",
+      "invalidCredentials": "The email address or password is incorrect.",
+      "twoFactorRequired": "Two-step verification is required.",
+      "network": "The server cannot be reached. Check your connection.",
+      "server": "Something went wrong on the server. Please try again later.",
+      "generic": "The action could not be completed. Please try again.",
+      "sessionExpired": "Your session has ended. Please sign in again.",
+      "challengeExpired": "The verification step expired. Please sign in again."
+    },
+    "twoFactor": {
+      "title": "Two-step verification",
+      "subtitle": "Enter the code from your authenticator app for {{email}}.",
+      "recoverySubtitle": "Enter one of the recovery codes you saved during setup.",
+      "useRecovery": "Use a recovery code",
+      "useTotp": "Use the authenticator app",
+      "back": "Go back",
+      "code": "Verification code",
+      "recoveryCode": "Recovery code",
+      "codeHint": "The 6-digit code in the app refreshes every 30 seconds.",
+      "recoveryHint": "Each recovery code can be used only once.",
+      "verify": "Verify",
+      "verifying": "Verifying…"
+    },
+    "password": {
+      "title": "Change password",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "New password (again)",
+      "rule": "At least {{count}} characters.",
+      "submit": "Update password",
+      "saving": "Saving…",
+      "changed": "Your password has been updated.",
+      "forceTitle": "Set a new password",
+      "forceBody": "You need to set a new password for your account before continuing.",
+      "forceSubmit": "Set password and continue"
+    },
+    "session": {
+      "checking": "Checking your session…",
+      "failed": "Could not load your session. The server may be unreachable."
+    },
+    "forbidden": {
+      "title": "You do not have access to this page",
+      "body": "Your role in the selected company does not allow this. Ask your administrator if you need access."
     }
   },
   "dashboard": {
@@ -114,5 +166,76 @@
     "notFoundTitle": "Page not found",
     "notFoundBody": "The address you are looking for may have moved or never existed.",
     "reload": "Reload page"
+  },
+  "security": {
+    "title": "Security",
+    "subtitle": "Manage your password, two-step verification and open sessions.",
+    "passwordDescription": "Changing your password may sign out your other devices.",
+    "twoFactor": {
+      "title": "Two-step verification",
+      "description": "Signing in asks for a code from an authenticator app in addition to your password.",
+      "on": "On",
+      "off": "Off",
+      "enable": "Start setup",
+      "disable": "Turn off",
+      "qrAlt": "QR code to scan with an authenticator app",
+      "step1": "Scan the QR code with your authenticator app or enter the key manually.",
+      "step2": "Enter the 6-digit code shown by the app and confirm.",
+      "manualKey": "Manual entry key",
+      "confirm": "Confirm and turn on",
+      "recoveryTitle": "Recovery codes",
+      "recoveryOnce": "These codes are shown only now. Store them somewhere safe; you need them to sign in if you lose your phone.",
+      "copy": "Copy codes",
+      "copied": "Recovery codes copied to the clipboard.",
+      "copyFailed": "Could not copy; write the codes down manually.",
+      "saved": "I have saved them",
+      "disabled": "Two-step verification turned off.",
+      "disableTitle": "Turn off two-step verification?",
+      "disableBody": "Enter your current password to confirm. Your account will be protected by the password only."
+    },
+    "sessions": {
+      "title": "Open sessions",
+      "description": "Browsers and devices signed in to your account.",
+      "empty": "No other open sessions.",
+      "current": "This session",
+      "agent": "{{browser}} · {{os}}",
+      "unknownDevice": "Unknown device",
+      "meta": "IP {{ip}} · last active {{at}}",
+      "revoke": "Sign out",
+      "revokeLabel": "Sign out {{device}}",
+      "revoked": "Session signed out."
+    }
+  },
+  "company": {
+    "none": "No company",
+    "switched": "Switched to {{name}}.",
+    "switchTo": "Switch to company: {{name}}"
+  },
+  "notifications": {
+    "label": "Notifications",
+    "labelUnread": "Notifications, {{count}} unread",
+    "title": "Notifications",
+    "markAll": "Mark all as read",
+    "error": "Could not load notifications.",
+    "empty": "No new notifications.",
+    "untitled": "Notification",
+    "unread": " (unread)",
+    "offlineHint": "No live connection; notifications refresh every minute."
+  },
+  "palette": {
+    "title": "Command palette",
+    "open": "Open command palette",
+    "search": "Search or run a command",
+    "placeholder": "Search pages, commands or companies…",
+    "results": "Results",
+    "empty": "No matching commands.",
+    "theme": "Theme: {{name}}",
+    "language": "Language: {{name}}",
+    "group": {
+      "navigation": "Go to",
+      "actions": "Actions",
+      "company": "Company",
+      "preferences": "Preferences"
+    }
   }
 }

@@ -10,7 +10,8 @@
     "online": "En ligne",
     "offline": "Hors ligne",
     "backHome": "Retour au tableau de bord",
-    "close": "Fermer"
+    "close": "Fermer",
+    "cancel": "Annuler"
   },
   "nav": {
     "main": "Menu principal",
@@ -30,11 +31,11 @@
   "topbar": {
     "company": "Société",
     "switchCompany": "Changer de société",
-    "taxNumber": "N° fiscal {{value}}",
     "userMenu": "Menu utilisateur",
     "language": "Langue",
     "signOut": "Se déconnecter",
-    "switchCompanyCurrent": "Changer de société, société actuelle : {{name}}"
+    "switchCompanyCurrent": "Changer de société, société actuelle : {{name}}",
+    "security": "Sécurité et sessions"
   },
   "theme": {
     "label": "Thème",
@@ -58,7 +59,6 @@
       "submit": "Se connecter",
       "submitting": "Connexion…",
       "forgot": "Mot de passe oublié",
-      "pending": "L’authentification n’est pas encore branchée ; redirection vers le tableau de bord.",
       "heroTitle": "Chaque écriture se rejoint en une seule clé de voûte.",
       "heroBody": "Comptabilité, stocks, ventes et trésorerie : un système de référence unique pour toutes vos sociétés.",
       "footer": "© Keystone · Tous droits réservés"
@@ -66,11 +66,63 @@
     "validation": {
       "emailRequired": "L’e-mail est obligatoire.",
       "emailInvalid": "Saisissez une adresse e-mail valide.",
-      "passwordMin": "Le mot de passe doit contenir au moins {{count}} caractères."
+      "passwordMin": "Le mot de passe doit contenir au moins {{count}} caractères.",
+      "codeFormat": "Saisissez le code à 6 chiffres.",
+      "recoveryRequired": "Saisissez un code de récupération.",
+      "currentRequired": "Saisissez votre mot de passe actuel.",
+      "passwordMismatch": "Les mots de passe ne correspondent pas.",
+      "passwordSame": "Le nouveau mot de passe doit différer de l'actuel."
     },
     "forgot": {
       "title": "Réinitialisation du mot de passe",
       "body": "Les liens de réinitialisation sont envoyés par l’administrateur de votre société. La réinitialisation autonome arrivera avec le module d’identité."
+    },
+    "errors": {
+      "tooManyAttempts": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "invalidCode": "Le code est invalide ou a expiré.",
+      "deactivated": "Votre compte a été désactivé. Contactez votre administrateur.",
+      "invalidCredentials": "L'adresse e-mail ou le mot de passe est incorrect.",
+      "twoFactorRequired": "Une vérification en deux étapes est requise.",
+      "network": "Le serveur est injoignable. Vérifiez votre connexion.",
+      "server": "Une erreur est survenue sur le serveur. Réessayez plus tard.",
+      "generic": "L'action n'a pas pu aboutir. Veuillez réessayer.",
+      "sessionExpired": "Votre session a expiré. Veuillez vous reconnecter.",
+      "challengeExpired": "La vérification a expiré. Veuillez vous reconnecter."
+    },
+    "twoFactor": {
+      "title": "Vérification en deux étapes",
+      "subtitle": "Saisissez le code de votre application d'authentification pour {{email}}.",
+      "recoverySubtitle": "Saisissez l'un des codes de récupération enregistrés lors de la configuration.",
+      "useRecovery": "Utiliser un code de récupération",
+      "useTotp": "Utiliser l'application d'authentification",
+      "back": "Retour",
+      "code": "Code de vérification",
+      "recoveryCode": "Code de récupération",
+      "codeHint": "Le code à 6 chiffres de l'application change toutes les 30 secondes.",
+      "recoveryHint": "Chaque code de récupération ne peut servir qu’une fois.",
+      "verify": "Vérifier",
+      "verifying": "Vérification…"
+    },
+    "password": {
+      "title": "Changer le mot de passe",
+      "current": "Mot de passe actuel",
+      "new": "Nouveau mot de passe",
+      "confirm": "Nouveau mot de passe (confirmation)",
+      "rule": "Au moins {{count}} caractères.",
+      "submit": "Mettre à jour le mot de passe",
+      "saving": "Enregistrement…",
+      "changed": "Votre mot de passe a été mis à jour.",
+      "forceTitle": "Définir un nouveau mot de passe",
+      "forceBody": "Vous devez définir un nouveau mot de passe pour votre compte avant de continuer.",
+      "forceSubmit": "Définir le mot de passe et continuer"
+    },
+    "session": {
+      "checking": "Vérification de la session…",
+      "failed": "Impossible de charger la session. Le serveur est peut-être injoignable."
+    },
+    "forbidden": {
+      "title": "Vous n'avez pas accès à cette page",
+      "body": "Votre rôle dans la société sélectionnée ne le permet pas. Demandez l'accès à votre administrateur si nécessaire."
     }
   },
   "dashboard": {
@@ -114,5 +166,76 @@
     "notFoundTitle": "Page introuvable",
     "notFoundBody": "L’adresse recherchée a peut-être été déplacée ou n’a jamais existé.",
     "reload": "Recharger la page"
+  },
+  "security": {
+    "title": "Sécurité",
+    "subtitle": "Gérez votre mot de passe, la vérification en deux étapes et vos sessions ouvertes.",
+    "passwordDescription": "Changer de mot de passe peut déconnecter vos autres appareils.",
+    "twoFactor": {
+      "title": "Vérification en deux étapes",
+      "description": "À la connexion, un code d'application d'authentification est demandé en plus du mot de passe.",
+      "on": "Activée",
+      "off": "Désactivée",
+      "enable": "Commencer la configuration",
+      "disable": "Désactiver",
+      "qrAlt": "QR code à scanner avec une application d'authentification",
+      "step1": "Scannez le QR code avec votre application d'authentification ou saisissez la clé manuellement.",
+      "step2": "Saisissez le code à 6 chiffres affiché par l'application et confirmez.",
+      "manualKey": "Clé de saisie manuelle",
+      "confirm": "Confirmer et activer",
+      "recoveryTitle": "Codes de récupération",
+      "recoveryOnce": "Ces codes ne sont affichés qu’une seule fois. Conservez-les en lieu sûr ; ils servent à vous connecter si vous perdez votre téléphone.",
+      "copy": "Copier les codes",
+      "copied": "Codes de récupération copiés dans le presse-papiers.",
+      "copyFailed": "Copie impossible ; notez les codes manuellement.",
+      "saved": "Je les ai enregistrés",
+      "disabled": "Vérification en deux étapes désactivée.",
+      "disableTitle": "Désactiver la vérification en deux étapes ?",
+      "disableBody": "Saisissez votre mot de passe actuel pour confirmer. Votre compte ne sera plus protégé que par le mot de passe."
+    },
+    "sessions": {
+      "title": "Sessions ouvertes",
+      "description": "Navigateurs et appareils connectés à votre compte.",
+      "empty": "Aucune autre session ouverte.",
+      "current": "Cette session",
+      "agent": "{{browser}} · {{os}}",
+      "unknownDevice": "Appareil inconnu",
+      "meta": "IP {{ip}} · dernière activité {{at}}",
+      "revoke": "Déconnecter",
+      "revokeLabel": "Déconnecter {{device}}",
+      "revoked": "Session déconnectée."
+    }
+  },
+  "company": {
+    "none": "Aucune société",
+    "switched": "Société active : {{name}}.",
+    "switchTo": "Changer de société : {{name}}"
+  },
+  "notifications": {
+    "label": "Notifications",
+    "labelUnread": "Notifications, {{count}} non lues",
+    "title": "Notifications",
+    "markAll": "Tout marquer comme lu",
+    "error": "Impossible de charger les notifications.",
+    "empty": "Aucune nouvelle notification.",
+    "untitled": "Notification",
+    "unread": " (non lue)",
+    "offlineHint": "Pas de connexion en direct ; les notifications sont actualisées chaque minute."
+  },
+  "palette": {
+    "title": "Palette de commandes",
+    "open": "Ouvrir la palette de commandes",
+    "search": "Rechercher ou lancer une commande",
+    "placeholder": "Rechercher des pages, commandes ou sociétés…",
+    "results": "Résultats",
+    "empty": "Aucune commande correspondante.",
+    "theme": "Thème : {{name}}",
+    "language": "Langue : {{name}}",
+    "group": {
+      "navigation": "Aller à",
+      "actions": "Actions",
+      "company": "Société",
+      "preferences": "Préférences"
+    }
   }
 }

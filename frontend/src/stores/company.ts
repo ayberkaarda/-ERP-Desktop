@@ -5,38 +5,35 @@ import { safeJSONStorage } from '@/lib/storage'
 export interface CompanySummary {
   id: string
   name: string
-  taxNumber: string
-  currency: string
+  roleNames: string[]
+  /** Not served by /auth/me yet; screens fall back to TRY. */
+  currency?: string
 }
 
 interface CompanyState {
   companies: CompanySummary[]
   activeCompanyId: string | null
   setActiveCompany: (id: string) => void
+  /** Replaces memberships from /auth/me, keeping the remembered company when still allowed. */
+  setCompanies: (companies: CompanySummary[]) => void
+  clear: () => void
 }
-
-// Placeholder list until the Organization module serves /companies.
-const PLACEHOLDER: CompanySummary[] = [
-  {
-    id: '0192a000-0000-7000-8000-000000000001',
-    name: 'Anadolu Makina A.Ş.',
-    taxNumber: '1234567890',
-    currency: 'TRY',
-  },
-  {
-    id: '0192a000-0000-7000-8000-000000000002',
-    name: 'Ege Dış Ticaret Ltd. Şti.',
-    taxNumber: '9876543210',
-    currency: 'TRY',
-  },
-]
 
 export const useCompanyStore = create<CompanyState>()(
   persist(
-    (set) => ({
-      companies: PLACEHOLDER,
-      activeCompanyId: PLACEHOLDER[0]?.id ?? null,
-      setActiveCompany: (id) => set({ activeCompanyId: id }),
+    (set, get) => ({
+      companies: [],
+      activeCompanyId: null,
+      setActiveCompany: (id) => {
+        if (get().companies.some((c) => c.id === id)) set({ activeCompanyId: id })
+      },
+      setCompanies: (companies) => {
+        const current = get().activeCompanyId
+        const keep = companies.some((c) => c.id === current)
+        set({ companies, activeCompanyId: keep ? current : (companies[0]?.id ?? null) })
+      },
+      // The remembered company id survives logout so the next sign-in lands in the same place.
+      clear: () => set({ companies: [] }),
     }),
     {
       name: 'keystone.company',
