@@ -1,0 +1,116 @@
+{
+  "app": {
+    "name": "Keystone",
+    "tagline": "Progiciel de gestion intégré multi-sociétés"
+  },
+  "common": {
+    "retry": "Réessayer",
+    "loading": "Chargement…",
+    "comingSoon": "Bientôt",
+    "online": "En ligne",
+    "offline": "Hors ligne",
+    "backHome": "Retour au tableau de bord",
+    "close": "Fermer"
+  },
+  "nav": {
+    "main": "Menu principal",
+    "dashboard": "Tableau de bord",
+    "sales": "Ventes",
+    "purchasing": "Achats",
+    "inventory": "Stocks",
+    "accounting": "Comptabilité",
+    "treasury": "Trésorerie",
+    "hr": "Ressources humaines",
+    "system": "Système",
+    "health": "État du système",
+    "collapse": "Réduire le menu",
+    "expand": "Développer le menu"
+  },
+  "topbar": {
+    "company": "Société",
+    "switchCompany": "Changer de société",
+    "taxNumber": "N° fiscal {{value}}",
+    "userMenu": "Menu utilisateur",
+    "language": "Langue",
+    "signOut": "Se déconnecter"
+  },
+  "theme": {
+    "label": "Thème",
+    "light": "Clair",
+    "dark": "Sombre",
+    "system": "Système"
+  },
+  "language": {
+    "tr": "Türkçe",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "subtitle": "Continuez avec votre compte société.",
+      "email": "E-mail",
+      "password": "Mot de passe",
+      "remember": "Rester connecté sur cet appareil",
+      "submit": "Se connecter",
+      "submitting": "Connexion…",
+      "forgot": "Mot de passe oublié",
+      "pending": "L’authentification n’est pas encore branchée ; redirection vers le tableau de bord.",
+      "heroTitle": "Chaque écriture se rejoint en une seule clé de voûte.",
+      "heroBody": "Comptabilité, stocks, ventes et trésorerie : un système de référence unique pour toutes vos sociétés.",
+      "footer": "© Keystone · Tous droits réservés"
+    },
+    "validation": {
+      "emailRequired": "L’e-mail est obligatoire.",
+      "emailInvalid": "Saisissez une adresse e-mail valide.",
+      "passwordMin": "Le mot de passe doit contenir au moins {{count}} caractères."
+    },
+    "forgot": {
+      "title": "Réinitialisation du mot de passe",
+      "body": "Les liens de réinitialisation sont envoyés par l’administrateur de votre société. La réinitialisation autonome arrivera avec le module d’identité."
+    }
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "subtitle": "Synthèse pour {{company}}",
+    "sampleData": "Données d’exemple",
+    "kpi": {
+      "revenue": "Chiffre d’affaires mensuel",
+      "receivables": "Créances ouvertes",
+      "payables": "Dettes ouvertes",
+      "cash": "Caisse et banque"
+    },
+    "vsLastMonth": "vs mois dernier",
+    "chart": {
+      "cashflow": "Flux de trésorerie",
+      "cashflowHint": "6 derniers mois, encaissements et décaissements",
+      "inflow": "Encaissements",
+      "outflow": "Décaissements",
+      "byModule": "Volume de documents",
+      "byModuleHint": "Ce mois-ci, par type de document",
+      "invoices": "Factures",
+      "orders": "Commandes",
+      "waybills": "Bons de livraison",
+      "receipts": "Reçus"
+    }
+  },
+  "health": {
+    "title": "État du système",
+    "subtitle": "Vérifie la connexion à l’API et la réponse du serveur.",
+    "endpoint": "Point d’accès",
+    "status": "Statut",
+    "checkedAt": "Dernière vérification",
+    "ok": "Opérationnel",
+    "down": "Injoignable",
+    "checking": "Vérification",
+    "recheck": "Vérifier à nouveau"
+  },
+  "errors": {
+    "title": "Une erreur est survenue",
+    "body": "Une erreur inattendue s’est produite. Rechargez la page ou revenez au tableau de bord.",
+    "notFoundTitle": "Page introuvable",
+    "notFoundBody": "L’adresse recherchée a peut-être été déplacée ou n’a jamais existé.",
+    "reload": "Recharger la page"
+  }
+}

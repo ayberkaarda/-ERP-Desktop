@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans text-sm antialiased;
+    /* Figures align in columns everywhere: amounts, quantities, dates */
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 24%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 1ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility font-code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  letter-spacing: -0.01em;
+}
+
+/* Login backdrop: slow conic drift behind the arch illustration. */
+@property --ks-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 200deg;
+}
+
+@utility ks-backdrop {
+  background: conic-gradient(
+    from var(--ks-angle) at 70% 115%,
+    color-mix(in oklch, var(--primary) 60%, var(--sidebar)) 0deg,
+    var(--sidebar) 110deg,
+    color-mix(in oklch, var(--brand-accent) 22%, var(--sidebar)) 210deg,
+    var(--sidebar) 290deg,
+    color-mix(in oklch, var(--primary) 60%, var(--sidebar)) 360deg
+  );
+  animation: ks-drift 30s linear infinite;
+}
+
+@keyframes ks-drift {
+  to {
+    --ks-angle: 560deg;
+  }
+}
+
+[data-effects='off'] .ks-backdrop {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ks-backdrop {
+    animation: none;
+  }
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+}
