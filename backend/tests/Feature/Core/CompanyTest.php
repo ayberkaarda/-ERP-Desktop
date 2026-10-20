@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Core\Company\CompanyGuard;
 use App\Core\Company\MissingCompanyContext;
+use App\Core\Http\ApiException;
+use App\Core\Http\ErrorCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Spatie\Permission\PermissionRegistrar;
@@ -69,10 +72,41 @@ it('refuses to create a company row without an active company', function (): voi
     expect(fn () => FixtureDocument::create(['name' => 'orphan']))->toThrow(MissingCompanyContext::class);
 });
 
-it('keeps an explicit company_id', function (): void {
-    $doc = FixtureDocument::create(['name' => 'x', 'company_id' => $this->b]);
+it('accepts an explicit company_id equal to the active company', function (): void {
+    $doc = $this->ctx->runAs($this->a, fn () => FixtureDocument::create(['name' => 'x', 'company_id' => $this->a]));
 
-    expect($doc->company_id)->toBe($this->b);
+    expect($doc->company_id)->toBe($this->a);
+});
+
+it('refuses an explicit company_id of another company', function (): void {
+    $this->ctx->set($this->a);
+
+    expect(fn () => FixtureDocument::create(['name' => 'x', 'company_id' => $this->b]))
+        ->toThrow(fn (ApiException $e) => expect($e->errorCode)->toBe(ErrorCode::CompanyForbidden));
+    expect(FixtureDocument::withoutCompanyScope()->count())->toBe(0);
+});
+
+it('refuses an explicit company_id without an active company', function (): void {
+    expect(fn () => FixtureDocument::create(['name' => 'x', 'company_id' => $this->b]))
+        ->toThrow(MissingCompanyContext::class);
+});
+
+it('makes company_id immutable on update', function (): void {
+    $this->ctx->set($this->a);
+    $doc = FixtureDocument::create(['name' => 'x']);
+
+    expect(fn () => $doc->update(['company_id' => $this->b]))
+        ->toThrow(fn (ApiException $e) => expect($e->errorCode)->toBe(ErrorCode::CompanyForbidden));
+    expect(FixtureDocument::withoutCompanyScope()->where('company_id', $this->b)->count())->toBe(0);
+});
+
+it('lets privileged system code bypass the write rules explicitly', function (): void {
+    $doc = CompanyGuard::bypass(fn () => FixtureDocument::create(['name' => 'x', 'company_id' => $this->b]));
+    CompanyGuard::bypass(fn () => $doc->update(['company_id' => $this->a]));
+
+    expect(FixtureDocument::find($doc->id))->toBeNull() // scoped out: no active company
+        ->and(FixtureDocument::withoutCompanyScope()->findOrFail($doc->id)->company_id)->toBe($this->a)
+        ->and(CompanyGuard::bypassed())->toBeFalse();
 });
 
 it('uses uuidv7 string keys', function (): void {
