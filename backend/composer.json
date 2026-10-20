@@ -64,9 +64,8 @@
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ],
         "setup": [
-            "composer install",
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
-            "@php artisan key:generate",
+            "@php artisan key:ensure --ansi",
             "@php artisan migrate --force"
         ],
         "lint": [
@@ -80,6 +79,9 @@
         ],
         "openapi": [
             "@php artisan scramble:export --path=storage/api-docs/openapi.json"
+        ],
+        "install-windows": [
+            "@composer install --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix"
         ]
     },
     "extra": {
@@ -94,10 +96,6 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true,
             "php-http/discovery": true
-        },
-        "platform": {
-            "ext-pcntl": "8.4",
-            "ext-posix": "8.4"
         }
     },
     "minimum-stability": "stable",
@@ -108,6 +106,8 @@
         "format": "Fix code style",
         "analyse": "Run static analysis",
         "openapi": "Export the OpenAPI document",
-        "dev": "Run API, queue worker and Reverb"
+        "dev": "Run API, queue worker and Reverb",
+        "setup": "Create .env, generate APP_KEY if empty, migrate",
+        "install-windows": "Install on Windows, where Horizon pcntl/posix are unavailable"
     }
 }
