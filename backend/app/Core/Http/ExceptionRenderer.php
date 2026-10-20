@@ -34,6 +34,12 @@ final class ExceptionRenderer
         return match (true) {
             // The thrower already built the exact response it wants sent.
             $e instanceof HttpResponseException => $e->getResponse(),
+            $e instanceof ApiException => ApiResponse::error(
+                $e->errorCode,
+                $e->getMessage(),
+                $e->fields,
+                headers: $e->headers,
+            ),
             $e instanceof ValidationException => ApiResponse::error(
                 ErrorCode::ValidationError,
                 fields: $this->fields($e),
