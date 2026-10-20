@@ -31,11 +31,18 @@ final class UserController
 {
     use CurrentUser;
 
-    public function __construct(
-        private readonly CompanyContext $context,
-        private readonly CompanyDirectory $companies,
-        private readonly UserAdministration $users,
-    ) {}
+    // Request-scoped services are resolved per call: the router reuses controller instances.
+    public function __construct(private readonly CompanyDirectory $companies) {}
+
+    private function companyId(): string
+    {
+        return app(CompanyContext::class)->id();
+    }
+
+    private function users(): UserAdministration
+    {
+        return app(UserAdministration::class);
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -65,10 +72,10 @@ final class UserController
         $data = $request->validated();
 
         if (($data['roles'] ?? []) !== []) {
-            Gate::authorize('assignRoles', [new User, $this->context->id()]);
+            Gate::authorize('assignRoles', [new User, $this->companyId()]);
         }
 
-        $user = $this->users->create($data, $this->context->id());
+        $user = $this->users()->create($data, $this->companyId());
 
         return ApiResponse::created((new UserResource($user->load('roles')))->resolve($request));
     }
@@ -80,7 +87,7 @@ final class UserController
 
         /** @var array{name?: string, email?: string, locale?: string, is_super_admin?: bool} $data */
         $data = $request->validated();
-        $this->users->update($this->currentUser($request), $user, $data);
+        $this->users()->update($this->currentUser($request), $user, $data);
 
         return $this->single($user, $request);
     }
@@ -90,7 +97,7 @@ final class UserController
         $user = $this->member($id);
         Gate::authorize('updateStatus', $user);
 
-        $this->users->setStatus($this->currentUser($request), $user, $request->boolean('is_active'));
+        $this->users()->setStatus($this->currentUser($request), $user, $request->boolean('is_active'));
 
         return $this->single($user, $request);
     }
@@ -104,7 +111,7 @@ final class UserController
             'password' => [new StrongPassword($user->email, $user->name)],
         ])->validate();
 
-        $this->users->resetPassword($this->currentUser($request), $user, (string) $password['password']);
+        $this->users()->resetPassword($this->currentUser($request), $user, (string) $password['password']);
 
         return ApiResponse::noContent();
     }
@@ -114,7 +121,7 @@ final class UserController
         $user = $this->member($id);
         Gate::authorize('delete', $user);
 
-        $this->users->delete($this->currentUser($request), $user);
+        $this->users()->delete($this->currentUser($request), $user);
 
         return ApiResponse::noContent();
     }
@@ -131,7 +138,7 @@ final class UserController
 
         /** @var list<string> $roles */
         $roles = $request->validated('roles');
-        $names = $this->users->syncRoles($user, $companyId, $roles);
+        $names = $this->users()->syncRoles($user, $companyId, $roles);
 
         return ApiResponse::success(['company_id' => $companyId, 'roles' => $names]);
     }
@@ -142,7 +149,7 @@ final class UserController
     private function members(): Builder
     {
         $query = User::query();
-        $this->companies->constrainToMembers($query, $this->context->id(), 'id');
+        $this->companies->constrainToMembers($query, $this->companyId(), 'id');
 
         return $query;
     }

@@ -19,7 +19,11 @@ use Illuminate\Support\Facades\Gate;
  */
 final class RoleController
 {
-    public function __construct(private readonly RoleAdministration $roles) {}
+    // Resolved per call: the router reuses controller instances and the service holds request state.
+    private function roles(): RoleAdministration
+    {
+        return app(RoleAdministration::class);
+    }
 
     public function index(Request $request): JsonResponse
     {
@@ -44,7 +48,7 @@ final class RoleController
 
         /** @var array{name: string, description?: string|null, permissions?: list<string>} $data */
         $data = $request->validated();
-        $role = $this->roles->create($data);
+        $role = $this->roles()->create($data);
 
         return ApiResponse::created((new RoleResource($role->load('permissions')))->resolve($request));
     }
@@ -55,7 +59,7 @@ final class RoleController
 
         /** @var array{name?: string, description?: string|null, permissions?: list<string>} $data */
         $data = $request->validated();
-        $this->roles->update($role, $data);
+        $this->roles()->update($role, $data);
 
         return ApiResponse::success((new RoleResource($role->load('permissions')))->resolve($request));
     }
@@ -64,7 +68,7 @@ final class RoleController
     {
         Gate::authorize('delete', $role);
 
-        $this->roles->delete($role);
+        $this->roles()->delete($role);
 
         return ApiResponse::noContent();
     }

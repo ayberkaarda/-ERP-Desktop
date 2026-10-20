@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Identity\Models\UserSession;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\Identity;
 
 uses(RefreshDatabase::class);
@@ -15,7 +16,7 @@ beforeEach(function (): void {
     $this->user = Identity::member($this->company, ['Admin'], ['email' => 'selin.kaya@example.com', 'name' => 'Selin Kaya']);
 });
 
-function changePassword(array $payload): Illuminate\Testing\TestResponse
+function changePassword(array $payload): TestResponse
 {
     return test()->actingAs(test()->user)->postJson('/api/v1/auth/password/change', array_merge([
         'current_password' => Identity::PASSWORD,

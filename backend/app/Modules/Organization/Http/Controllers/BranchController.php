@@ -21,7 +21,11 @@ use Illuminate\Support\Facades\Gate;
  */
 final class BranchController
 {
-    public function __construct(private readonly CompanyContext $context) {}
+    // The company context is per request; the router reuses controller instances.
+    private function context(): CompanyContext
+    {
+        return app(CompanyContext::class);
+    }
 
     public function index(Request $request, string $company): JsonResponse
     {
@@ -74,7 +78,7 @@ final class BranchController
 
     private function samePath(string $company): void
     {
-        if ($company !== $this->context->id()) {
+        if ($company !== $this->context()->id()) {
             throw new ApiException(ErrorCode::NotFound);
         }
     }

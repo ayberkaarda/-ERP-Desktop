@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\Company\CompanyContext;
 use App\Models\User;
 use App\Modules\Identity\Events\SessionRevoked;
 use App\Modules\Identity\Models\Activity;
@@ -201,7 +202,7 @@ it('assigns roles per company and isolates role ids between companies', function
     as_($this->memberA)->getJson('/api/v1/auth/me', Identity::headers())
         ->assertJsonPath('data.companies.0.role_names', ['HR', 'Sales']);
 
-    $roleOfB = app(App\Core\Company\CompanyContext::class)->runAs($this->b->id, fn () => Role::query()->where('name', 'Admin')->firstOrFail());
+    $roleOfB = app(CompanyContext::class)->runAs($this->b->id, fn () => Role::query()->where('name', 'Admin')->firstOrFail());
     as_($this->adminA)->putJson("/api/v1/users/{$this->memberA->id}/roles", ['company_id' => $this->a->id, 'roles' => [$roleOfB->id]], Identity::headers())
         ->assertStatus(422);
     as_($this->adminA)->putJson("/api/v1/users/{$this->memberA->id}/roles", ['company_id' => $this->a->id, 'roles' => ['Nope']], Identity::headers())
