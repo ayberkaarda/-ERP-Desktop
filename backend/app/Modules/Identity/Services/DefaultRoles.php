@@ -11,26 +11,12 @@ use Spatie\Permission\PermissionRegistrar;
 
 /**
  * Standard roles every company starts with. Admin always holds the full catalog
- * (except deleting the company itself); the others get a fixed baseline that admins may edit.
+ * (except super-admin-only ones); the others get the baseline the modules declare, which admins may edit.
  */
 final class DefaultRoles
 {
-    private const array BASELINE = [
-        'companies.view', 'branches.view', 'departments.view', 'notifications.view', 'files.view', 'files.create',
-    ];
-
-    /** @var array<string, list<string>> */
-    private const array ROLES = [
-        'Accountant' => ['settings.view', 'users.view'],
-        'Sales' => [],
-        'Purchasing' => [],
-        'Warehouse' => [],
-        'HR' => ['users.view', 'users.create', 'users.update', 'departments.create', 'departments.update'],
-        'Viewer' => [],
-    ];
-
-    /** Never granted by default, even to Admin. */
-    private const array ADMIN_EXCLUDED = PermissionCatalog::SUPER_ADMIN_ONLY;
+    /** Non-Admin default roles; what each holds is declared by the modules permissions.php files. */
+    private const array ROLES = ['Accountant', 'Sales', 'Purchasing', 'Warehouse', 'HR', 'Viewer'];
 
     public function __construct(
         private readonly PermissionCatalog $catalog,
@@ -47,13 +33,13 @@ final class DefaultRoles
 
         $this->context->runAs($companyId, function (): void {
             $admin = $this->role(Role::ADMIN);
-            $admin->givePermissionTo($this->permissions(array_values(array_diff($this->catalog->all(), self::ADMIN_EXCLUDED))));
+            $admin->givePermissionTo($this->permissions(array_values(array_diff($this->catalog->all(), $this->catalog->superAdminOnly()))));
 
-            foreach (self::ROLES as $name => $extra) {
+            foreach (self::ROLES as $name) {
                 $role = $this->role($name);
 
                 if ($role->wasRecentlyCreated) {
-                    $role->givePermissionTo($this->permissions([...self::BASELINE, ...$extra]));
+                    $role->givePermissionTo($this->permissions($this->catalog->grantsFor($name)));
                 }
             }
         });
@@ -66,7 +52,7 @@ final class DefaultRoles
      */
     public static function names(): array
     {
-        return [Role::ADMIN, ...array_keys(self::ROLES)];
+        return [Role::ADMIN, ...self::ROLES];
     }
 
     private function role(string $name): Role
