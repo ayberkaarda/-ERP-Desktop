@@ -53,9 +53,9 @@ final class FixtureDocument extends Model implements HasStatus
         ];
     }
 
-    public static function createTable(): void
+    public static function createTable(?string $connection = null): void
     {
-        Schema::create('fixture_documents', function (Blueprint $table): void {
+        Schema::connection($connection)->create('fixture_documents', function (Blueprint $table): void {
             $table->uuid('id')->primary()->default(DB::raw('uuidv7()'));
             $table->uuid('company_id')->index();
             $table->string('number')->nullable();

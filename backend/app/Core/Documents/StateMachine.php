@@ -7,7 +7,7 @@ namespace App\Core\Documents;
 use BackedEnum;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
  * Central place for document status changes: lock, validate, persist, then announce after commit.
@@ -46,8 +46,8 @@ abstract class StateMachine
     {
         $to = self::value($to);
 
-        return DB::transaction(function () use ($model, $to, $actor): Model {
-            $from = $this->lockedStatus($model);
+        return $model->getConnection()->transaction(function () use ($model, $to, $actor): Model {
+            $from = $this->lockAndReload($model);
 
             if (! $this->can($from, $to)) {
                 throw new InvalidStateTransition($from, $to);
@@ -80,29 +80,44 @@ abstract class StateMachine
     protected function afterTransition(Model&HasStatus $model, string $from, string $to, ?Authenticatable $actor): void {}
 
     /**
-     * Re-reads the status under a row lock so two concurrent transitions serialize.
+     * Re-reads the full row under a row lock through the scoped query, so two transitions
+     * serialize, a row of another company is invisible, and guards never see stale fields.
+     *
+     * @throws ModelNotFoundException<Model>
+     * @throws VersionConflictException
      */
-    private function lockedStatus(Model&HasStatus $model): string
+    private function lockAndReload(Model&HasStatus $model): string
     {
         if (! $model->exists) {
             return $model->currentStatus();
         }
 
-        $column = $model->statusColumn();
-        $raw = $model->newQueryWithoutScopes()
-            ->whereKey($model->getKey())
-            ->lockForUpdate()
-            ->toBase()
-            ->value($column);
+        $locked = $model->newQuery()->whereKey($model->getKey())->lockForUpdate()->first();
 
-        $current = is_scalar($raw) ? (string) $raw : $model->currentStatus();
-
-        if ($current !== $model->currentStatus()) {
-            $model->applyStatus($current);
-            $model->syncOriginalAttribute($column);
+        if (! $locked instanceof Model) {
+            throw (new ModelNotFoundException)->setModel($model::class, [$model->getKey()]);
         }
 
-        return $current;
+        if (in_array(HasVersion::class, class_uses_recursive($model), true)) {
+            $loaded = $model->getOriginal('version');
+            $current = $locked->getAttributes()['version'] ?? null;
+            $loaded = is_numeric($loaded) ? (int) $loaded : 0;
+            $current = is_numeric($current) ? (int) $current : 0;
+
+            if ($loaded !== $current) {
+                throw new VersionConflictException($loaded, $current);
+            }
+        }
+
+        // Keep the caller's pending edits, but never its status or version.
+        $pending = array_diff_key($model->getDirty(), [$model->statusColumn() => true, 'version' => true]);
+        $model->setRawAttributes($locked->getAttributes(), true);
+
+        if ($pending !== []) {
+            $model->setRawAttributes(array_merge($model->getAttributes(), $pending));
+        }
+
+        return $model->currentStatus();
     }
 
     private static function value(string|BackedEnum $status): string

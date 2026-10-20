@@ -7,6 +7,7 @@ use App\Core\Documents\DocumentTransitioned;
 use App\Core\Documents\InvalidStateTransition;
 use App\Core\Documents\VersionConflictException;
 use Illuminate\Auth\GenericUser;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -94,16 +95,53 @@ it('rejects transitions outside the map with 422', function (): void {
     $this->getJson('/api/v1/_probe/transition')->assertStatus(422)->assertJsonPath('errors.code', 'INVALID_STATE_TRANSITION');
 });
 
-it('validates against the locked database status, not a stale copy', function (): void {
+it('rejects a stale copy before guards run and never resets the version', function (): void {
     $stale = FixtureDocument::findOrFail($this->doc->id);
     $this->machine->transition($this->doc, 'submitted');
     $this->machine->transition($this->doc, 'approved');
+    $this->machine->calls = [];
 
-    // The stale copy still says draft; from the real status (approved) submitting is invalid.
-    expect(fn () => $this->machine->transition($stale, 'submitted'))->toThrow(InvalidStateTransition::class);
-    $this->machine->transition($stale, 'cancelled');
+    expect(fn () => $this->machine->transition($stale, 'cancelled'))->toThrow(VersionConflictException::class);
+    expect($this->machine->calls)->toBe([])
+        ->and($this->doc->fresh()?->status)->toBe(FixtureStatus::Approved)
+        ->and($this->doc->fresh()?->version)->toBe(3);
+});
 
-    expect($this->doc->fresh()?->status)->toBe(FixtureStatus::Cancelled);
+it('gives guards the full locked row, keeping only the caller pending edits', function (): void {
+    $copy = FixtureDocument::findOrFail($this->doc->id);
+    DB::table('fixture_documents')->where('id', $this->doc->id)->update(['number' => 'N-1']);
+    $copy->name = 'edited';
+    $seen = [];
+    $this->machine->onBefore = function ($model) use (&$seen): void {
+        $seen = [$model->number, $model->name];
+    };
+
+    $this->machine->transition($copy, 'submitted');
+
+    expect($seen)->toBe(['N-1', 'edited'])
+        ->and(FixtureDocument::findOrFail($this->doc->id)->only(['number', 'name', 'version']))
+        ->toBe(['number' => 'N-1', 'name' => 'edited', 'version' => 2]);
+});
+
+it('cannot transition a retained model of another company', function (): void {
+    app(CompanyContext::class)->set((string) Str::uuid7());
+
+    expect(fn () => $this->machine->transition($this->doc, 'submitted'))->toThrow(ModelNotFoundException::class);
+    expect(FixtureDocument::withoutCompanyScope()->findOrFail($this->doc->id)->status)->toBe(FixtureStatus::Draft)
+        ->and($this->machine->calls)->toBe([]);
+});
+
+it('detects a concurrent save atomically instead of overwriting it', function (): void {
+    $first = FixtureDocument::findOrFail($this->doc->id);
+    $second = FixtureDocument::findOrFail($this->doc->id);
+
+    $first->assertVersion(1);
+    $second->assertVersion(1);
+    $first->update(['name' => 'first']);
+
+    expect(fn () => $second->update(['name' => 'second']))->toThrow(VersionConflictException::class);
+    expect(FixtureDocument::findOrFail($this->doc->id)->only(['name', 'version']))->toBe(['name' => 'first', 'version' => 2])
+        ->and($second->version)->toBe(1);
 });
 
 it('casts money and decimals as BigDecimal strings, never floats', function (): void {
