@@ -11,6 +11,7 @@ import {
 import { useAuthStore, type SessionUser } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 import { authApi } from './api/auth'
+import { errorMessage } from './errors'
 import type { ApiUser, MeResponse } from './api/types'
 
 export function toSessionUser(u: ApiUser): SessionUser {
@@ -97,6 +98,49 @@ export async function refreshPermissions(): Promise<void> {
     }
     throw error
   }
+}
+
+/**
+ * The server revoked the user's last role in a company (membership.revoked). Drops that
+ * company locally first so no request goes out under a company the user can no longer use,
+ * then re-reads /auth/me. If it was the active company the user lands in another one they
+ * still belong to; with none left the shell shows an access-revoked state.
+ */
+export async function handleMembershipRevoked(companyId: string): Promise<void> {
+  const { companies, activeCompanyId, setCompanies, setAccessRevoked } = useCompanyStore.getState()
+  const wasActive = activeCompanyId === companyId
+  if (wasActive) await queryClient.cancelQueries()
+  if (companies.some((c) => c.id === companyId)) {
+    setCompanies(companies.filter((c) => c.id !== companyId))
+    if (useCompanyStore.getState().companies.length === 0) setAccessRevoked(true)
+  }
+  if (wasActive) {
+    queryClient.removeQueries({ type: 'inactive' })
+    void queryClient.resetQueries()
+  }
+  try {
+    await refreshPermissions()
+    const after = useCompanyStore.getState()
+    if (after.companies.length === 0) {
+      after.setAccessRevoked(true)
+    } else if (wasActive) {
+      const next = after.companies.find((c) => c.id === after.activeCompanyId)
+      if (next) platform.notify.info(i18n.t('company.revokedSwitched', { name: next.name }))
+    }
+  } catch (error) {
+    if (useAuthStore.getState().status === 'authenticated') {
+      platform.notify.error(i18n.t('company.refreshFailed'), {
+        description: errorMessage(error, i18n.t),
+      })
+    }
+  }
+}
+
+/** session.revoked: the server ended this session (deactivation, password reset, ...). */
+export function handleSessionRevoked() {
+  if (useAuthStore.getState().status !== 'authenticated') return
+  platform.notify.info(i18n.t('auth.errors.sessionExpired'))
+  endSession()
 }
 
 /** Drops every trace of the signed-in user from memory. */

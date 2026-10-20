@@ -201,6 +201,10 @@
       "saved": "I have saved them",
       "disabled": "Two-step verification turned off.",
       "disableTitle": "Turn off two-step verification?",
+      "passwordHint": "For your security the password is asked again and is never stored.",
+      "startTitle": "Enter your password to continue",
+      "startBody": "Confirm your current password to start two-step verification setup.",
+      "startAction": "Continue",
       "disableBody": "Enter your current password to confirm. Your account will be protected by the password only."
     },
     "sessions": {
@@ -220,7 +224,10 @@
     "none": "No company",
     "switched": "Switched to {{name}}.",
     "switchTo": "Switch to company: {{name}}",
-    "refreshFailed": "Could not refresh company permissions."
+    "refreshFailed": "Could not refresh company permissions.",
+    "revokedSwitched": "Your access to a company was revoked; switched to {{name}}.",
+    "revokedTitle": "Company access revoked",
+    "revokedBody": "You no longer have access to any company. Contact your administrator to regain access."
   },
   "notifications": {
     "label": "Notifications",

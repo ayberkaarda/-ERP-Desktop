@@ -174,6 +174,10 @@ export function feaHandlers(db: FeaDb) {
 
     http.post('*/api/v1/auth/two-factor/setup', async ({ request }) => {
       await record(request)
+      const setupBody = await readJson(request)
+      if (setupBody.password !== db.password) {
+        return error(422, 'VALIDATION_ERROR', 'Parola hatalı.', { password: ['Parola hatalı.'] })
+      }
       return HttpResponse.json({
         data: {
           secret: 'JBSWY3DPEHPK3PXP',
@@ -187,6 +191,9 @@ export function feaHandlers(db: FeaDb) {
     http.post('*/api/v1/auth/two-factor/confirm', async ({ request }) => {
       await record(request)
       const body = await readJson(request)
+      if (body.password !== db.password) {
+        return error(422, 'VALIDATION_ERROR', 'Parola hatalı.', { password: ['Parola hatalı.'] })
+      }
       if (body.code !== VALID_TOTP) return error(422, 'INVALID_TWO_FACTOR_CODE', 'Invalid code.')
       db.user = { ...db.user, two_factor_enabled: true }
       return HttpResponse.json({ data: { recovery_codes: [VALID_RECOVERY, 'klmno-pqrst'] } })
