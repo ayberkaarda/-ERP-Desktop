@@ -4,6 +4,9 @@
   "workspaces": [
     "frontend"
   ],
+  "scripts": {
+    "gen:api": "composer --working-dir=backend openapi && npm run gen:api --workspace frontend"
+  },
   "overrides": {
     "openapi-typescript": {
       "typescript": "6.0.3"
