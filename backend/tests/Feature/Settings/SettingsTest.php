@@ -9,6 +9,7 @@ use App\Modules\Settings\Enums\SettingType;
 use App\Modules\Settings\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\Svc\SvcActors;
 
 uses(RefreshDatabase::class);
@@ -142,4 +143,41 @@ it('lets modules register settings with their own permissions', function (): voi
         ->assertJsonFragment(['key' => 'accounting.hidden', 'value' => ['a' => 1]]);
 
     ($this->api)($accountant)->patchJson('/api/v1/settings', ['settings' => ['accounting.lock_day' => 40]])->assertStatus(422);
+});
+
+it('does not return values to a writer who cannot view them', function (): void {
+    $writer = SvcActors::user(['settings.update']);
+
+    ($this->api)($writer)->patchJson('/api/v1/settings', ['settings' => ['general.default_locale' => 'en']])
+        ->assertNoContent();
+
+    SvcActors::activate($this->company);
+    expect(app(SettingsReader::class)->get('general.default_locale'))->toBe('en');
+});
+
+it('audits updates and resets with sensitive values redacted', function (): void {
+    app(SettingsRegistrar::class)->register(new SettingDefinition(
+        'mail.smtp_password', SettingType::String, '', 'mail', sensitive: true,
+    ));
+
+    ($this->api)()->patchJson('/api/v1/settings', ['settings' => ['general.default_locale' => 'en', 'mail.smtp_password' => 'hunter2']])->assertOk();
+    ($this->api)()->patchJson('/api/v1/settings', ['settings' => ['general.default_locale' => 'de']])->assertOk();
+    ($this->api)()->patchJson('/api/v1/settings', ['settings' => ['general.default_locale' => null, 'mail.smtp_password' => 'other']])->assertOk();
+
+    $rows = DB::table('settings_audit')->where('key', 'general.default_locale')->orderBy('id')->get();
+    expect($rows->pluck('action')->all())->toBe(['update', 'update', 'reset'])
+        ->and(json_decode((string) $rows[1]->old_value_redacted))->toBe('en')
+        ->and(json_decode((string) $rows[1]->new_value_redacted))->toBe('de')
+        ->and($rows[2]->new_value_redacted)->toBeNull()
+        ->and($rows[0]->actor_id)->toBe($this->admin->id)
+        ->and($rows[0]->company_id)->toBe($this->company);
+
+    $secret = DB::table('settings_audit')->where('key', 'mail.smtp_password')->orderBy('id')->get();
+    expect($secret)->toHaveCount(2)
+        ->and(json_encode($secret))->not->toContain('hunter2')->not->toContain('other')
+        ->and(json_decode((string) $secret[0]->new_value_redacted))->toBe('[redacted]');
+
+    // Resetting a key that has no stored value leaves no trail.
+    ($this->api)()->patchJson('/api/v1/settings', ['settings' => ['general.timezone' => null]])->assertOk();
+    expect(DB::table('settings_audit')->where('key', 'general.timezone')->count())->toBe(0);
 });

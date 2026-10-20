@@ -18,6 +18,7 @@ final readonly class SettingDefinition
      * @param  list<string>  $options  allowed values for enum settings
      * @param  string|null  $readPermission  extra permission on top of settings.view
      * @param  string|null  $updatePermission  extra permission on top of settings.update
+     * @param  bool  $sensitive  values are redacted in the audit trail
      */
     public function __construct(
         public string $key,
@@ -28,6 +29,7 @@ final readonly class SettingDefinition
         public array $options = [],
         public ?string $readPermission = null,
         public ?string $updatePermission = null,
+        public bool $sensitive = false,
     ) {
         if ($type === SettingType::Enum && $options === []) {
             throw new InvalidArgumentException("Enum setting [{$key}] needs options.");

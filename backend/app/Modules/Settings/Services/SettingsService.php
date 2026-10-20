@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 final class SettingsService implements SettingsReader
@@ -125,20 +126,48 @@ final class SettingsService implements SettingsReader
         $actorId = $actor->getAuthIdentifier();
         $updatedBy = is_string($actorId) ? $actorId : null;
 
-        $this->db->transaction(function () use ($clean, $updatedBy): void {
+        $companyId = $this->company->id();
+
+        $this->db->transaction(function () use ($clean, $updatedBy, $companyId): void {
             foreach ($clean as $key => $value) {
+                $definition = $this->registry->findOrFail($key);
+                $existing = Setting::query()->where('key', $key)->first();
+
                 if ($value === null) {
-                    Setting::query()->where('key', $key)->get()->each->delete();
+                    if ($existing === null) {
+                        continue;
+                    }
+
+                    $existing->delete();
+                    $this->audit($companyId, $definition, $updatedBy, 'reset', $existing->value, null);
 
                     continue;
                 }
 
-                $setting = Setting::query()->firstOrNew(['key' => $key]);
+                $old = $existing?->value;
+                $setting = $existing ?? new Setting(['key' => $key]);
                 $setting->value = $value;
                 $setting->updated_by = $updatedBy;
                 $setting->save();
+                $this->audit($companyId, $definition, $updatedBy, 'update', $old, $value);
             }
         });
+    }
+
+    private function audit(string $companyId, SettingDefinition $definition, ?string $actorId, string $action, mixed $old, mixed $new): void
+    {
+        $redact = static fn (mixed $v): ?string => $v === null ? null : json_encode($definition->sensitive ? '[redacted]' : $v, JSON_THROW_ON_ERROR);
+
+        $this->db->table('settings_audit')->insert([
+            'id' => (string) Str::uuid7(),
+            'company_id' => $companyId,
+            'key' => $definition->key,
+            'actor_id' => $actorId,
+            'action' => $action,
+            'old_value_redacted' => $redact($old),
+            'new_value_redacted' => $redact($new),
+            'created_at' => now(),
+        ]);
     }
 
     public function can(Authenticatable $actor, string $permission): bool

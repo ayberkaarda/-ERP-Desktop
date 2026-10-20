@@ -35,6 +35,11 @@ final class SettingController extends Controller
         $actor = $this->actor($request);
         $this->settings->update($request->changes(), $actor);
 
+        // Writing is not reading: values come back only to users who may view them.
+        if (! Gate::forUser($actor)->allows('viewAny', Setting::class)) {
+            return ApiResponse::noContent();
+        }
+
         return ApiResponse::success($this->resources($actor, null));
     }
 
