@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Organization;
 
 use App\Core\Modules\ModuleServiceProvider;
-use App\Modules\Identity\Contracts\PermissionRegistry;
 use App\Modules\Organization\Contracts\CompanyDirectory;
 use App\Modules\Organization\Models\Branch;
 use App\Modules\Organization\Models\Company;
@@ -19,19 +18,10 @@ use Illuminate\Support\Facades\Gate;
 
 final class OrganizationServiceProvider extends ModuleServiceProvider
 {
-    public const array PERMISSIONS = [
-        'companies.view', 'companies.update', 'companies.delete',
-        'branches.view', 'branches.create', 'branches.update', 'branches.delete',
-        'departments.view', 'departments.create', 'departments.update', 'departments.delete',
-    ];
-
     public function register(): void
     {
         $this->app->singleton(CompanyDirectory::class, DatabaseCompanyDirectory::class);
 
-        $this->callAfterResolving(PermissionRegistry::class, static function (PermissionRegistry $registry): void {
-            $registry->register('organization', self::PERMISSIONS);
-        });
     }
 
     public function boot(): void

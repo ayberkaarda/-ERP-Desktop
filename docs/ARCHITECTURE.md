@@ -23,3 +23,23 @@ Dağıtım biçimi ve veri kimliği kararları `docs/adr/` altında kayıtlıdı
 Aynı geliştirme Postgres'inde şerit için veritabanı açın: `createdb -h 127.0.0.1 -p 5433 -U keystone keystone_test_<serit>`.
 Testleri `KEYSTONE_TEST_DB=keystone_test_x vendor/bin/pest` ile çalıştırın (port için `KEYSTONE_TEST_DB_PORT`, varsayılan 5433).
 Yalnızca `keystone_test` ve `keystone_test_<a-z0-9>` adları kabul edilir; başka ad testleri durdurur.
+
+## Modül izinleri
+
+Her modül izinlerini kendi `backend/app/Modules/<Ad>/permissions.php` dosyasında bildirir; ortak katalog dosyası düzenlenmez. `PermissionCatalog` ve `DefaultRoles` bu dosyaları `ModuleLoader` gibi otomatik keşfeder.
+
+```php
+return [
+    'group' => 'sales',                       // GET /permissions çıktısındaki modül anahtarı
+    'permissions' => [
+        'invoices.view' => ['roles' => ['Admin', 'Sales', 'Accountant']],  // varsayılan rol atamaları
+        'invoices.create' => ['roles' => ['Sales']],
+        'invoices.delete' => [],                                            // yalnızca Admin
+        'companies.delete' => ['super_admin_only' => true],                 // Admin'e bile verilmez
+    ],
+];
+```
+
+- İzin adı `<kaynak>.<eylem>` biçimindedir ve tüm modüller arasında tekil olmalıdır; çakışma testi açık hata verir.
+- Geçerli roller: Admin, Accountant, Sales, Purchasing, Warehouse, HR, Viewer; `'*'` tüm varsayılan rolleri kapsar. Admin kataloğun tamamını (super admin'e özel olanlar hariç) zaten alır.
+- Yeni izinlerin mevcut şirketlere yansıması için `IdentitySeeder` yeniden çalıştırılır (idempotent).

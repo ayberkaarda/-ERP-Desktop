@@ -106,7 +106,7 @@ final class RoleAdministration
 
         $held = $this->authorizer->permissionsByCompany($actor)[$role->company_id] ?? [];
 
-        if (array_intersect($added, PermissionCatalog::SUPER_ADMIN_ONLY) !== [] || array_diff($added, $held) !== []) {
+        if (array_intersect($added, app(PermissionCatalog::class)->superAdminOnly()) !== [] || array_diff($added, $held) !== []) {
             throw new ApiException(ErrorCode::Forbidden, __('identity::roles.permission_not_delegable'));
         }
     }
