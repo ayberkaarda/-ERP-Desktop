@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Models\Permission;
+use App\Modules\Identity\Models\Role;
 use Spatie\Permission\DefaultTeamResolver;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 
 return [
 
@@ -94,8 +94,8 @@ return [
         /*
          * Change this if you want to name the related pivots other than defaults
          */
-        'role_pivot_key' => null, // default 'role_id',
-        'permission_pivot_key' => null, // default 'permission_id',
+        'role_pivot_key' => 'role_id',
+        'permission_pivot_key' => 'permission_id',
 
         /*
          * Change this if you want to name the related model primary key other than
