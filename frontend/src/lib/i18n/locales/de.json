@@ -123,6 +123,16 @@
     "forbidden": {
       "title": "Kein Zugriff auf diese Seite",
       "body": "Ihre Rolle im ausgewählten Unternehmen erlaubt dies nicht. Bitten Sie bei Bedarf Ihren Administrator um Zugriff."
+    },
+    "signOut": {
+      "failedTitle": "Abmelden fehlgeschlagen",
+      "failedBody": "Der Server hat die Abmeldung nicht bestätigt. Sie können es erneut versuchen.",
+      "localWarning": "Wenn Sie sich nur auf diesem Gerät abmelden, bleibt die Sitzung auf dem Server möglicherweise aktiv und kann mit den Cookies dieses Browsers wiederverwendet werden.",
+      "local": "Nur auf diesem Gerät abmelden"
+    },
+    "permissions": {
+      "refreshing": "Ihre Berechtigungen für das ausgewählte Unternehmen werden geladen…",
+      "failed": "Ihre Berechtigungen für das ausgewählte Unternehmen konnten nicht geladen werden."
     }
   },
   "dashboard": {
@@ -209,7 +219,8 @@
   "company": {
     "none": "Kein Unternehmen",
     "switched": "Zu {{name}} gewechselt.",
-    "switchTo": "Unternehmen wechseln: {{name}}"
+    "switchTo": "Unternehmen wechseln: {{name}}",
+    "refreshFailed": "Unternehmensberechtigungen konnten nicht aktualisiert werden."
   },
   "notifications": {
     "label": "Benachrichtigungen",

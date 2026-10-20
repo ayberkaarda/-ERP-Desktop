@@ -1,4 +1,4 @@
-import type { Realtime, RealtimeState } from '../types'
+import type { Realtime, RealtimeState, SubscriptionStatus } from '../types'
 
 interface ChannelAuthorizationData {
   auth: string
@@ -22,12 +22,15 @@ interface Listener {
   channel: string
   event: string
   handler: (payload: unknown) => void
+  onStatus?: ((status: SubscriptionStatus) => void) | undefined
 }
 
 interface EchoLike {
   private(channel: string): {
     listen(event: string, cb: (payload: unknown) => void): unknown
     stopListening(event: string, cb?: (payload: unknown) => void): unknown
+    subscribed(cb: () => void): unknown
+    error(cb: (error: unknown) => void): unknown
   }
   leave(channel: string): void
   disconnect(): void
@@ -67,7 +70,16 @@ export function createWebRealtime(options: WebRealtimeOptions): Realtime {
   }
 
   function attach(l: Listener) {
-    echo?.private(l.channel).listen(l.event, l.handler)
+    if (!echo) return
+    const channel = echo.private(l.channel)
+    channel.listen(l.event, l.handler)
+    // Fires again after pusher resubscribes on reconnect.
+    channel.subscribed(() => {
+      if (listeners.has(l)) l.onStatus?.('subscribed')
+    })
+    channel.error(() => {
+      if (listeners.has(l)) l.onStatus?.('error')
+    })
   }
 
   async function open(config: ReverbConfig, gen: number) {
@@ -124,8 +136,8 @@ export function createWebRealtime(options: WebRealtimeOptions): Realtime {
       echo = null
       if (options.config) setState('idle')
     },
-    listenPrivate(channel, event, handler) {
-      const l: Listener = { channel, event, handler }
+    listenPrivate(channel, event, handler, onStatus) {
+      const l: Listener = { channel, event, handler, onStatus }
       listeners.add(l)
       attach(l)
       return () => {

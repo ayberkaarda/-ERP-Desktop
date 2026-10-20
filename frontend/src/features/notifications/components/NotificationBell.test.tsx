@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { platform } from '@/platform'
+import { platform, type SubscriptionStatus } from '@/platform'
 import { renderRoutes, setupFea, signIn } from '@/test/handlers/feaRender'
 import { NOTIFICATION_EVENT } from '../useNotifications'
 import { NotificationBell } from './NotificationBell'
@@ -61,6 +61,7 @@ describe('NotificationBell', () => {
       `user.${db.user.id}`,
       NOTIFICATION_EVENT,
       expect.any(Function),
+      expect.any(Function),
     )
 
     db.notifications.unshift({
@@ -88,5 +89,31 @@ describe('NotificationBell', () => {
     renderBell()
     await user.click(await screen.findByRole('button', { name: 'Bildirimler, 1 okunmamış' }))
     expect(await screen.findByText(/Canlı bağlantı yok/)).toBeInTheDocument()
+  })
+
+  it('keeps polling until the private channel subscription succeeds', async () => {
+    const db = setupFea()
+    signIn(db)
+    let report: ((s: SubscriptionStatus) => void) | undefined
+    const listen = vi
+      .spyOn(platform.realtime, 'listenPrivate')
+      .mockImplementation((_c, _e, _h, onStatus) => {
+        report = onStatus
+        return () => undefined
+      })
+    const state = vi.spyOn(platform.realtime, 'state').mockReturnValue('connected')
+    const user = userEvent.setup()
+    renderBell()
+    await user.click(await screen.findByRole('button', { name: 'Bildirimler, 1 okunmamış' }))
+    // Socket is up but the channel is not authorized yet: still polling.
+    expect(await screen.findByText(/Canlı bağlantı yok/)).toBeInTheDocument()
+
+    act(() => report?.('subscribed'))
+    await waitFor(() => expect(screen.queryByText(/Canlı bağlantı yok/)).not.toBeInTheDocument())
+
+    act(() => report?.('error'))
+    expect(await screen.findByText(/Canlı bağlantı yok/)).toBeInTheDocument()
+    listen.mockRestore()
+    state.mockRestore()
   })
 })

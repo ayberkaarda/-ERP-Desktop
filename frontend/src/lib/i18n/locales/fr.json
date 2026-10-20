@@ -123,6 +123,16 @@
     "forbidden": {
       "title": "Vous n'avez pas accès à cette page",
       "body": "Votre rôle dans la société sélectionnée ne le permet pas. Demandez l'accès à votre administrateur si nécessaire."
+    },
+    "signOut": {
+      "failedTitle": "Déconnexion impossible",
+      "failedBody": "Le serveur n'a pas confirmé la déconnexion. Vous pouvez réessayer.",
+      "localWarning": "Une déconnexion limitée à cet appareil peut laisser la session active sur le serveur, réutilisable avec les cookies de ce navigateur.",
+      "local": "Me déconnecter sur cet appareil uniquement"
+    },
+    "permissions": {
+      "refreshing": "Chargement de vos droits pour la société sélectionnée…",
+      "failed": "Impossible de charger vos droits pour la société sélectionnée."
     }
   },
   "dashboard": {
@@ -209,7 +219,8 @@
   "company": {
     "none": "Aucune société",
     "switched": "Société active : {{name}}.",
-    "switchTo": "Changer de société : {{name}}"
+    "switchTo": "Changer de société : {{name}}",
+    "refreshFailed": "Impossible d'actualiser les droits de la société."
   },
   "notifications": {
     "label": "Notifications",

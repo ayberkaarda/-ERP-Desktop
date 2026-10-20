@@ -8,6 +8,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useAuthStore } from '@/stores/auth'
 import { useActiveCompany, useCompanyStore } from '@/stores/company'
 import { useCompanyCommands } from '../useCompanyCommands'
 import { useSwitchCompany } from '../useSwitchCompany'
@@ -17,13 +18,14 @@ export function CompanySwitcher() {
   const companies = useCompanyStore((s) => s.companies)
   const active = useActiveCompany()
   const switchCompany = useSwitchCompany()
+  const refreshing = useAuthStore((s) => s.permissionsState === 'refreshing')
   useCompanyCommands()
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         className="flex h-9 w-full max-w-72 min-w-0 items-center gap-2.5 rounded-md border border-border bg-surface px-2.5 text-left shadow-xs hover:bg-surface-sunken disabled:cursor-default disabled:hover:bg-surface"
-        disabled={companies.length === 0}
+        disabled={companies.length === 0 || refreshing}
         aria-label={
           active
             ? t('topbar.switchCompanyCurrent', { name: active.name })
@@ -43,7 +45,10 @@ export function CompanySwitcher() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
         <DropdownMenuLabel>{t('topbar.switchCompany')}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={active?.id ?? ''} onValueChange={switchCompany}>
+        <DropdownMenuRadioGroup
+          value={active?.id ?? ''}
+          onValueChange={(id) => void switchCompany(id)}
+        >
           {companies.map((c) => (
             <DropdownMenuRadioItem key={c.id} value={c.id} className="h-auto py-1.5">
               <span className="min-w-0">

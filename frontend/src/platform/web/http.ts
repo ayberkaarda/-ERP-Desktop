@@ -5,6 +5,9 @@ declare module 'axios' {
   interface AxiosRequestConfig {
     skipAuthHandling?: boolean
     csrfRetried?: boolean
+    csrfRefresh?: boolean
+    sentCompanyId?: string | null
+    sentGeneration?: number
   }
 }
 
@@ -14,7 +17,16 @@ export interface WebHttpOptions {
   csrfPath?: string
   getCompanyId?: () => string | null
   getLocale?: () => string
+  /** Bumped on every sign-in/sign-out; a replay from an older session is refused. */
+  getSessionGeneration?: () => number
   onAuthFailure?: (failure: AuthFailure) => void
+}
+
+export const STALE_REQUEST = 'REQUEST_STALE'
+
+/** A request dropped because the company or session changed before its CSRF replay. */
+export function isStaleRequest(error: unknown): boolean {
+  return error instanceof ApiError && error.code === STALE_REQUEST
 }
 
 // Scheme ("https:", "javascript:") or protocol-relative ("//host") targets leave the API origin.
@@ -108,7 +120,7 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
   // Concurrent 419s share one cookie refresh.
   function refreshCsrf(): Promise<void> {
     csrfInFlight ??= instance
-      .get(csrfPath, { baseURL: '/', skipAuthHandling: true })
+      .get(csrfPath, { baseURL: '/', skipAuthHandling: true, csrfRefresh: true })
       .then(() => undefined)
       .finally(() => {
         csrfInFlight = null
@@ -116,8 +128,16 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
     return csrfInFlight
   }
 
+  const currentCompany = () => options.getCompanyId?.() ?? null
+  const currentGeneration = () => options.getSessionGeneration?.() ?? 0
+
   instance.interceptors.request.use((config) => {
-    const companyId = options.getCompanyId?.()
+    const companyId = currentCompany()
+    // Remember the context of the first send; a replay must happen in the same one.
+    if (!config.csrfRetried) {
+      config.sentCompanyId = companyId
+      config.sentGeneration = currentGeneration()
+    }
     if (companyId) config.headers.set('X-Company-Id', companyId)
     const locale = options.getLocale?.()
     if (locale) config.headers.set('Accept-Language', locale)
@@ -130,9 +150,17 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
     const status = error.response?.status ?? 0
 
     // Expired CSRF token: refresh the cookie and replay the original request exactly once.
-    if (status === 419 && !config.csrfRetried) {
+    // The refresh itself and self-handled requests never recover (a 419 there would wait on
+    // its own refresh).
+    if (status === 419 && !config.csrfRetried && !config.csrfRefresh && !config.skipAuthHandling) {
       config.csrfRetried = true
       await refreshCsrf()
+      if (
+        currentCompany() !== (config.sentCompanyId ?? null) ||
+        currentGeneration() !== config.sentGeneration
+      ) {
+        throw new ApiError(0, STALE_REQUEST, 'Company or session changed; request not replayed.')
+      }
       return instance.request(config)
     }
 

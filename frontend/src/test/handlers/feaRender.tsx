@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider, type RouteObject } from 'react-rout
 import { Providers } from '@/app/providers'
 import { usePaletteStore } from '@/features/command-palette/store'
 import { applyMe, bindAuthFailures } from '@/features/auth/session'
+import { useSignOutStore } from '@/features/auth/signOut'
 import { createQueryClient } from '@/lib/queryClient'
 import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
@@ -13,7 +14,8 @@ import { createFeaDb, feaHandlers, type FeaDb } from './fea'
 export function setupFea(overrides: Partial<FeaDb> = {}): FeaDb {
   useAuthStore.setState({ status: 'unknown', user: null, permissions: {} })
   useCompanyStore.setState({ companies: [], activeCompanyId: null })
-  usePaletteStore.setState({ open: false })
+  usePaletteStore.setState({ open: false, opener: null })
+  useSignOutStore.setState({ failed: false, pending: false })
   const db = createFeaDb(overrides)
   server.use(...feaHandlers(db))
   return db

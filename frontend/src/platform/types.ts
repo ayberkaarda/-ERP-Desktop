@@ -25,6 +25,8 @@ export interface HttpClient {
 /** Session failures the HTTP layer reports upward; the auth feature decides what to do. */
 export type AuthFailure = 'unauthenticated' | 'deactivated' | 'passwordChangeRequired'
 
+export type SubscriptionStatus = 'subscribed' | 'error'
+
 export type RealtimeState = 'disabled' | 'idle' | 'connecting' | 'connected' | 'unavailable'
 
 export interface Realtime {
@@ -32,7 +34,13 @@ export interface Realtime {
   connect(): void
   disconnect(): void
   /** Listens on a private channel; the returned function stops listening. */
-  listenPrivate(channel: string, event: string, handler: (payload: unknown) => void): () => void
+  listenPrivate(
+    channel: string,
+    event: string,
+    handler: (payload: unknown) => void,
+    /** Reports whether the channel subscription (incl. authorization) succeeded. */
+    onStatus?: (status: SubscriptionStatus) => void,
+  ): () => void
   state(): RealtimeState
   subscribe(listener: (state: RealtimeState) => void): () => void
 }

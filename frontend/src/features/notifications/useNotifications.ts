@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useSyncExternalStore } from 'react'
-import { platform, type RealtimeState } from '@/platform'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { platform, type RealtimeState, type SubscriptionStatus } from '@/platform'
 import { useAuthStore } from '@/stores/auth'
 import {
   normalizeNotification,
@@ -35,18 +35,12 @@ export function useNotifications() {
   const queryClient = useQueryClient()
   const realtime = useRealtimeState()
   const key = notificationKeys.feed(userId ?? 'anonymous')
+  const [subscribed, setSubscribed] = useState(false)
+  const live = subscribed && realtime === 'connected'
 
-  const feed = useQuery({
-    queryKey: key,
-    queryFn: async ({ signal }) => toFeed(await notificationsApi.list(signal)),
-    enabled: userId !== null,
-    refetchInterval: realtime === 'connected' ? false : POLL_MS,
-  })
-
-  useEffect(() => {
-    if (!userId) return
-    return platform.realtime.listenPrivate(`user.${userId}`, NOTIFICATION_EVENT, (payload) => {
-      const k = notificationKeys.feed(userId)
+  const onPush = useCallback(
+    (uid: string, payload: unknown) => {
+      const k = notificationKeys.feed(uid)
       if (isNotification(payload)) {
         const item = normalizeNotification({
           ...payload,
@@ -62,8 +56,35 @@ export function useNotifications() {
           platform.notify.info(item.title, item.body ? { description: item.body } : {})
       }
       void queryClient.invalidateQueries({ queryKey: k })
+    },
+    [queryClient],
+  )
+
+  const feed = useQuery({
+    queryKey: key,
+    queryFn: async ({ signal }) => toFeed(await notificationsApi.list(signal)),
+    enabled: userId !== null,
+    // Polling stops only once the private channel is actually subscribed.
+    refetchInterval: live ? false : POLL_MS,
+  })
+
+  useEffect(() => {
+    if (!userId) return
+    const stopState = platform.realtime.subscribe((state) => {
+      if (state !== 'connected') setSubscribed(false)
     })
-  }, [userId, queryClient])
+    const onStatus = (status: SubscriptionStatus) => setSubscribed(status === 'subscribed')
+    const stopListening = platform.realtime.listenPrivate(
+      `user.${userId}`,
+      NOTIFICATION_EVENT,
+      (payload) => onPush(userId, payload),
+      onStatus,
+    )
+    return () => {
+      stopState()
+      stopListening()
+    }
+  }, [userId, onPush])
 
   const markRead = useMutation({
     mutationFn: notificationsApi.markRead,
@@ -93,5 +114,5 @@ export function useNotifications() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: key }),
   })
 
-  return { feed, realtime, markRead, markAllRead }
+  return { feed, realtime, live, markRead, markAllRead }
 }

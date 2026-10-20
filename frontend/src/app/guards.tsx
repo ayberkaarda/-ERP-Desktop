@@ -4,7 +4,7 @@ import { Navigate, Outlet, useLocation } from 'react-router'
 import { KeystoneMark } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { useSessionProbe } from '@/features/auth/hooks/useSessionProbe'
-import { PASSWORD_CHANGE_PATH } from '@/features/auth/session'
+import { PASSWORD_CHANGE_PATH, refreshPermissions } from '@/features/auth/session'
 import { usePermission, type PermissionRequirement } from '@/lib/permissions'
 import { useAuthStore } from '@/stores/auth'
 
@@ -21,6 +21,7 @@ export function RequireAuth({ permission, allowPasswordChange, children }: Requi
   const { status, failed, retry } = useSessionProbe()
   const user = useAuthStore((s) => s.user)
   const allowed = usePermission(permission)
+  const permissionsState = useAuthStore((s) => s.permissionsState)
 
   if (status === 'unknown') return <SessionSplash failed={failed} onRetry={retry} />
   if (status === 'anonymous' || !user) {
@@ -30,6 +31,9 @@ export function RequireAuth({ permission, allowPasswordChange, children }: Requi
     return <Navigate to={PASSWORD_CHANGE_PATH} replace />
   }
   if (!user.mustChangePassword && allowPasswordChange) return <Navigate to="/" replace />
+  if (!allowed && permission !== undefined && permissionsState !== 'fresh') {
+    return <PermissionsPending failed={permissionsState === 'failed'} />
+  }
   if (!allowed) return <Forbidden />
   return children ?? <Outlet />
 }
@@ -72,6 +76,26 @@ export function Forbidden() {
     <div role="alert" className="mx-auto max-w-md px-6 py-16 text-center">
       <h1 className="text-lg font-semibold">{t('auth.forbidden.title')}</h1>
       <p className="mt-1.5 text-sm text-muted-foreground">{t('auth.forbidden.body')}</p>
+    </div>
+  )
+}
+
+/** Between a company switch and its fresh /auth/me: no gated content, no false "forbidden". */
+function PermissionsPending({ failed }: { failed: boolean }) {
+  const { t } = useTranslation()
+  if (!failed) {
+    return (
+      <p role="status" className="px-6 py-16 text-center text-sm text-muted-foreground">
+        {t('auth.permissions.refreshing')}
+      </p>
+    )
+  }
+  return (
+    <div role="alert" className="mx-auto max-w-md space-y-3 px-6 py-16 text-center">
+      <p className="text-sm text-muted-foreground">{t('auth.permissions.failed')}</p>
+      <Button variant="secondary" onClick={() => void refreshPermissions().catch(() => undefined)}>
+        {t('common.retry')}
+      </Button>
     </div>
   )
 }

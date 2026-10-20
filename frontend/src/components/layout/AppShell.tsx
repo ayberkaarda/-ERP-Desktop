@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SignOutFailedDialog } from '@/features/auth/components/SignOutFailedDialog'
 import { UserMenu } from '@/features/auth/components/UserMenu'
 import { CommandPalette } from '@/features/command-palette/CommandPalette'
 import { PaletteTrigger } from '@/features/command-palette/PaletteTrigger'
@@ -93,6 +94,7 @@ export function AppShell() {
         </main>
       </div>
       <CommandPalette />
+      <SignOutFailedDialog />
     </div>
   )
 }

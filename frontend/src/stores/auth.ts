@@ -16,13 +16,18 @@ export interface SessionUser {
  */
 export type AuthStatus = 'unknown' | 'anonymous' | 'authenticated'
 
+/** 'refreshing' / 'failed' deny every permission until a fresh /auth/me arrives. */
+export type PermissionsState = 'fresh' | 'refreshing' | 'failed'
+
 interface AuthState {
   status: AuthStatus
   user: SessionUser | null
   /** Permission names per company id, as served by /auth/me. */
   permissions: Record<string, string[]>
+  permissionsState: PermissionsState
   setSession: (user: SessionUser, permissions: Record<string, string[]>) => void
   updateUser: (patch: Partial<SessionUser>) => void
+  setPermissionsState: (state: PermissionsState) => void
   clear: () => void
 }
 
@@ -30,7 +35,10 @@ export const useAuthStore = create<AuthState>()((set) => ({
   status: 'unknown',
   user: null,
   permissions: {},
-  setSession: (user, permissions) => set({ status: 'authenticated', user, permissions }),
+  permissionsState: 'fresh',
+  setSession: (user, permissions) =>
+    set({ status: 'authenticated', user, permissions, permissionsState: 'fresh' }),
   updateUser: (patch) => set((s) => (s.user ? { user: { ...s.user, ...patch } } : {})),
-  clear: () => set({ status: 'anonymous', user: null, permissions: {} }),
+  setPermissionsState: (permissionsState) => set({ permissionsState }),
+  clear: () => set({ status: 'anonymous', user: null, permissions: {}, permissionsState: 'fresh' }),
 }))

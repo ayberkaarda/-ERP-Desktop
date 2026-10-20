@@ -8,6 +8,8 @@ const echo = vi.hoisted(() => {
   const disconnect = vi.fn()
   let onStatus: ((s: string) => void) | null = null
   const options: unknown[] = []
+  const subscribedCbs: (() => void)[] = []
+  const errorCbs: (() => void)[] = []
   class FakeEcho {
     connector = {
       onConnectionChange: (cb: (s: string) => void) => {
@@ -19,7 +21,12 @@ const echo = vi.hoisted(() => {
       options.push(o)
     }
     private() {
-      return { listen, stopListening }
+      return {
+        listen,
+        stopListening,
+        subscribed: (cb: () => void) => subscribedCbs.push(cb),
+        error: (cb: () => void) => errorCbs.push(cb),
+      }
     }
     leave = leave
     disconnect = disconnect
@@ -32,6 +39,8 @@ const echo = vi.hoisted(() => {
     disconnect,
     options,
     status: (s: string) => onStatus?.(s),
+    subscribedCbs,
+    errorCbs,
   }
 })
 
@@ -113,5 +122,24 @@ describe('web realtime', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(echo.listen).not.toHaveBeenCalled()
     expect(rt.state()).toBe('idle')
+  })
+
+  it('reports channel subscription success and failure to the listener', async () => {
+    echo.subscribedCbs.length = 0
+    echo.errorCbs.length = 0
+    const rt = createWebRealtime({ config, authorize: vi.fn() })
+    const onStatus = vi.fn()
+    const stop = rt.listenPrivate('user.1', '.x', vi.fn(), onStatus)
+    rt.connect()
+    await waitFor(() => expect(echo.subscribedCbs.length).toBe(1))
+    echo.subscribedCbs[0]?.()
+    expect(onStatus).toHaveBeenLastCalledWith('subscribed')
+    echo.errorCbs[0]?.()
+    expect(onStatus).toHaveBeenLastCalledWith('error')
+
+    stop()
+    echo.subscribedCbs[0]?.()
+    expect(onStatus).toHaveBeenCalledTimes(2)
+    rt.disconnect()
   })
 })

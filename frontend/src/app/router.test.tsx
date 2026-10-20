@@ -57,4 +57,47 @@ describe('app routes', () => {
     expect(db.authenticated).toBe(false)
     expect(useAuthStore.getState().status).toBe('anonymous')
   })
+
+  it('offers retry or a warned local sign-out when the server logout fails', async () => {
+    const db = setupFea()
+    db.authenticated = true
+    let fail = true
+    server.use(
+      http.post('*/api/v1/auth/logout', () =>
+        fail
+          ? HttpResponse.json({ errors: { message: 'x', code: 'SERVER_ERROR' } }, { status: 500 })
+          : new HttpResponse(null, { status: 204 }),
+      ),
+    )
+    const user = userEvent.setup()
+    const { router } = renderRoutes(routes, '/system/health')
+    await user.click(await screen.findByRole('button', { name: 'Kullanıcı menüsü' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Oturumu kapat' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Oturum kapatılamadı' })
+    expect(dialog).toHaveTextContent('oturum sunucuda açık kalabilir')
+    expect(router.state.location.pathname).toBe('/system/health')
+    expect(useAuthStore.getState().status).toBe('authenticated')
+
+    await user.click(screen.getByRole('button', { name: 'Tekrar dene' }))
+    expect(await screen.findByRole('dialog', { name: 'Oturum kapatılamadı' })).toBeInTheDocument()
+
+    fail = false
+    await user.click(screen.getByRole('button', { name: 'Tekrar dene' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(useAuthStore.getState().status).toBe('anonymous')
+  })
+
+  it('signs out locally only on explicit request', async () => {
+    const db = setupFea()
+    db.authenticated = true
+    server.use(http.post('*/api/v1/auth/logout', () => HttpResponse.json({}, { status: 503 })))
+    const user = userEvent.setup()
+    const { router } = renderRoutes(routes, '/system/health')
+    await user.click(await screen.findByRole('button', { name: 'Kullanıcı menüsü' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Oturumu kapat' }))
+    await user.click(await screen.findByRole('button', { name: 'Yalnızca bu cihazda kapat' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
+    expect(useAuthStore.getState().status).toBe('anonymous')
+  })
 })

@@ -111,4 +111,28 @@ describe('CommandPalette', () => {
     await user.type(await screen.findByRole('combobox'), 'qqqqqq')
     expect(screen.getByText('Eşleşen komut yok.')).toBeInTheDocument()
   })
+
+  it('returns focus to the element that opened it', async () => {
+    const db = setupFea()
+    signIn(db)
+    const user = userEvent.setup()
+    renderRoutes([
+      {
+        path: '/',
+        element: (
+          <>
+            <button type="button">Opener</button>
+            <CommandPalette />
+          </>
+        ),
+      },
+    ])
+    const opener = screen.getByRole('button', { name: 'Opener' })
+    opener.focus()
+    await user.keyboard('{Control>}k{/Control}')
+    expect(await screen.findByRole('combobox')).toHaveFocus()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(opener).toHaveFocus()
+  })
 })

@@ -97,4 +97,20 @@ describe('route guards', () => {
     act(() => useAuthStore.getState().updateUser({ mustChangePassword: false }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/'))
   })
+
+  it('shows a pending state instead of "forbidden" while permissions refresh', async () => {
+    const db = setupFea()
+    signIn(db)
+    act(() => useAuthStore.getState().setPermissionsState('refreshing'))
+    renderRoutes(routes, '/users')
+    expect(
+      await screen.findByText('Seçili şirketteki yetkileriniz yükleniyor…'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Bu sayfaya erişiminiz yok')).not.toBeInTheDocument()
+
+    act(() => useAuthStore.getState().setPermissionsState('failed'))
+    await userEvent.setup().click(await screen.findByRole('button', { name: 'Tekrar dene' }))
+    act(() => useCompanyStore.getState().setActiveCompany(COMPANY_B))
+    expect(await screen.findByText('users')).toBeInTheDocument()
+  })
 })

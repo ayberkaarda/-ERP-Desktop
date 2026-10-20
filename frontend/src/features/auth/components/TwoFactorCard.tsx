@@ -215,13 +215,18 @@ function DisableDialog({
     defaultValues: { password: '' },
   })
 
+  // Every way out (Cancel, Esc, overlay, close button, success) clears the typed password.
+  function close() {
+    reset()
+    onOpenChange(false)
+  }
+
   const onSubmit = handleSubmit(async ({ password }) => {
     try {
       await authApi.disableTwoFactor(password)
-      reset()
       useAuthStore.getState().updateUser({ twoFactorEnabled: false })
       platform.notify.success(t('security.twoFactor.disabled'))
-      onOpenChange(false)
+      close()
     } catch (error) {
       setError('password', { type: 'server', message: errorMessage(error, t) })
     }
@@ -231,8 +236,8 @@ function DisableDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) reset()
-        onOpenChange(next)
+        if (next) onOpenChange(true)
+        else close()
       }}
     >
       <DialogContent closeLabel={t('common.close')}>
@@ -250,7 +255,7 @@ function DisableDialog({
             {...register('password')}
           />
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="ghost" onClick={close}>
               {t('common.cancel')}
             </Button>
             <Button type="submit" variant="danger" disabled={isSubmitting}>

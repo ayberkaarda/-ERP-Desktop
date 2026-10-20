@@ -41,6 +41,13 @@ export function CommandPalette() {
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-overlay data-[state=open]:animate-fade-in" />
         <DialogPrimitive.Content
           aria-describedby={undefined}
+          onCloseAutoFocus={(e) => {
+            const opener = usePaletteStore.getState().opener
+            if (opener?.isConnected) {
+              e.preventDefault()
+              opener.focus()
+            }
+          }}
           className="fixed top-[12vh] left-1/2 z-50 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 overflow-hidden rounded-lg border border-border bg-surface-raised shadow-lg outline-none data-[state=open]:animate-pop-in"
         >
           {open && <PaletteBody onDone={() => setOpen(false)} />}

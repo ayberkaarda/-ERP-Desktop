@@ -123,6 +123,16 @@
     "forbidden": {
       "title": "Bu sayfaya erişiminiz yok",
       "body": "Seçili şirketteki rolünüz bu işlem için yetki vermiyor. Gerekirse yöneticinizden yetki isteyin."
+    },
+    "signOut": {
+      "failedTitle": "Oturum kapatılamadı",
+      "failedBody": "Sunucu oturumu kapattığını doğrulamadı. Yeniden deneyebilirsiniz.",
+      "localWarning": "Yalnızca bu cihazda kapatırsanız oturum sunucuda açık kalabilir ve bu tarayıcının çerezleriyle yeniden kullanılabilir.",
+      "local": "Yalnızca bu cihazda kapat"
+    },
+    "permissions": {
+      "refreshing": "Seçili şirketteki yetkileriniz yükleniyor…",
+      "failed": "Seçili şirketteki yetkileriniz yüklenemedi."
     }
   },
   "dashboard": {
@@ -209,7 +219,8 @@
   "company": {
     "none": "Şirket yok",
     "switched": "{{name}} şirketine geçildi.",
-    "switchTo": "Şirkete geç: {{name}}"
+    "switchTo": "Şirkete geç: {{name}}",
+    "refreshFailed": "Şirket yetkileri yenilenemedi."
   },
   "notifications": {
     "label": "Bildirimler",

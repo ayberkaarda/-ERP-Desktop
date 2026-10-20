@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth'
 import { AuthFrame } from '../components/AuthFrame'
 import { ChangePasswordForm } from '../components/ChangePasswordForm'
-import { logout } from '../session'
+import { SignOutFailedDialog } from '../components/SignOutFailedDialog'
+import { signOut } from '../signOut'
 
 /** Shown while the account carries must_change_password; every other route redirects here. */
 export function ForcePasswordChangePage() {
@@ -28,11 +29,12 @@ export function ForcePasswordChangePage() {
         variant="link"
         className="mt-6 self-start text-xs"
         onClick={() => {
-          void logout().then(() => navigate('/login', { replace: true }))
+          void signOut((to) => navigate(to, { replace: true }))
         }}
       >
         {t('topbar.signOut')}
       </Button>
+      <SignOutFailedDialog />
     </AuthFrame>
   )
 }

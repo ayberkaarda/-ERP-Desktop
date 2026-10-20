@@ -1,25 +1,34 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { errorMessage } from '@/features/auth/errors'
+import { refreshPermissions } from '@/features/auth/session'
 import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 
 /**
- * Switches the active company. Every cached query was fetched with the previous X-Company-Id,
- * so inactive ones are dropped and active ones refetched under the new header.
+ * Switches the active company. In-flight requests carry the previous X-Company-Id, so they
+ * are cancelled and every cached result is reset before anything renders under the new
+ * company. Permissions stay denied until a fresh /auth/me confirms them.
  */
 export function useSwitchCompany() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   return useCallback(
-    (id: string) => {
+    async (id: string) => {
       const { activeCompanyId, companies, setActiveCompany } = useCompanyStore.getState()
       const next = companies.find((c) => c.id === id)
       if (!next || id === activeCompanyId) return
+      await queryClient.cancelQueries()
       setActiveCompany(id)
       queryClient.removeQueries({ type: 'inactive' })
-      void queryClient.invalidateQueries()
-      platform.notify.info(t('company.switched', { name: next.name }))
+      void queryClient.resetQueries()
+      try {
+        await refreshPermissions()
+        platform.notify.info(t('company.switched', { name: next.name }))
+      } catch (error) {
+        platform.notify.error(t('company.refreshFailed'), { description: errorMessage(error, t) })
+      }
     },
     [queryClient, t],
   )

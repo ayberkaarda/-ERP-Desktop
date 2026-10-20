@@ -123,6 +123,16 @@
     "forbidden": {
       "title": "You do not have access to this page",
       "body": "Your role in the selected company does not allow this. Ask your administrator if you need access."
+    },
+    "signOut": {
+      "failedTitle": "Could not sign out",
+      "failedBody": "The server did not confirm the sign-out. You can try again.",
+      "localWarning": "Signing out on this device only may leave the session active on the server, where this browser’s cookies could reuse it.",
+      "local": "Sign out on this device only"
+    },
+    "permissions": {
+      "refreshing": "Loading your permissions for the selected company…",
+      "failed": "Could not load your permissions for the selected company."
     }
   },
   "dashboard": {
@@ -209,7 +219,8 @@
   "company": {
     "none": "No company",
     "switched": "Switched to {{name}}.",
-    "switchTo": "Switch to company: {{name}}"
+    "switchTo": "Switch to company: {{name}}",
+    "refreshFailed": "Could not refresh company permissions."
   },
   "notifications": {
     "label": "Notifications",

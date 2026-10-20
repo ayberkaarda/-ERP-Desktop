@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/msw/server'
 import { ApiError } from '../types'
-import { createWebHttp, withIdempotency } from './http'
+import { createWebHttp, isStaleRequest, STALE_REQUEST, withIdempotency } from './http'
 
 const client = createWebHttp({ getCompanyId: () => 'company-1' })
 
@@ -174,5 +174,57 @@ describe('session handling', () => {
       params: { x: 1 },
       idempotencyKey: 'same',
     })
+  })
+})
+
+describe('CSRF replay guards', () => {
+  it('does not hang when the CSRF refresh itself answers 419', async () => {
+    server.use(
+      http.get('*/sanctum/csrf-cookie', () => HttpResponse.json({}, { status: 419 })),
+      http.post('*/api/v1/orders', () => HttpResponse.json({}, { status: 419 })),
+    )
+    const error = await rejection(client.post('/orders', {}))
+    expect(error.status).toBe(419)
+    await expect(client.prepareSession()).rejects.toMatchObject({ status: 419 })
+  })
+
+  it('leaves 419 to requests that handle auth themselves', async () => {
+    let csrf = 0
+    server.use(
+      http.get('*/sanctum/csrf-cookie', () => {
+        csrf += 1
+        return new HttpResponse(null, { status: 204 })
+      }),
+      http.post('*/api/v1/auth/login', () => HttpResponse.json({}, { status: 419 })),
+    )
+    const error = await rejection(client.post('/auth/login', {}, { skipAuthHandling: true }))
+    expect(error.status).toBe(419)
+    expect(csrf).toBe(0)
+  })
+
+  it.each([
+    ['company', { company: 'B', generation: 1 }],
+    ['session', { company: 'A', generation: 2 }],
+  ])('refuses to replay when the %s changed during the refresh', async (_label, after) => {
+    const ctx = { company: 'A', generation: 1 }
+    const c = createWebHttp({
+      getCompanyId: () => ctx.company,
+      getSessionGeneration: () => ctx.generation,
+    })
+    let posts = 0
+    server.use(
+      http.get('*/sanctum/csrf-cookie', () => {
+        Object.assign(ctx, after)
+        return new HttpResponse(null, { status: 204 })
+      }),
+      http.post('*/api/v1/orders', () => {
+        posts += 1
+        return HttpResponse.json({}, { status: 419 })
+      }),
+    )
+    const error = await rejection(c.post('/orders', {}))
+    expect(error.code).toBe(STALE_REQUEST)
+    expect(isStaleRequest(error)).toBe(true)
+    expect(posts).toBe(1)
   })
 })

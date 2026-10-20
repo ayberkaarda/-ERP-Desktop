@@ -13,7 +13,7 @@ export function NotificationBell() {
   const { t, i18n } = useTranslation()
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
-  const { feed, realtime, markRead, markAllRead } = useNotifications()
+  const { feed, live, markRead, markAllRead } = useNotifications()
   const unread = feed.data?.unread ?? 0
   const badge = unread > 99 ? '99+' : String(unread)
   const fmt = new Intl.DateTimeFormat(i18n.resolvedLanguage ?? 'tr', {
@@ -132,7 +132,7 @@ export function NotificationBell() {
             )}
           </div>
 
-          {(realtime === 'unavailable' || realtime === 'disabled') && (
+          {!live && (
             <p className="border-t border-border px-3 py-1.5 text-2xs text-muted-foreground">
               {t('notifications.offlineHint')}
             </p>

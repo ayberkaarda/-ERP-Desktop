@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { changeTheme } from '@/app/theme'
 import i18n, { SUPPORTED_LANGUAGES } from '@/lib/i18n'
-import { logout } from '@/features/auth/session'
+import { signOut } from '@/features/auth/signOut'
 import type { Command } from './registry'
 
 /** Navigation for existing routes plus theme, language and sign-out. */
@@ -63,8 +63,7 @@ export function coreCommands(): Command[] {
       title: (t) => t('topbar.signOut'),
       keywords: () => ['logout', 'sign out', 'çıkış'],
       run: async ({ navigate }) => {
-        await logout()
-        navigate('/login')
+        await signOut(navigate)
       },
     },
   ]

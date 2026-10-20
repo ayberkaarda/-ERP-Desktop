@@ -97,6 +97,24 @@ describe('SecurityPage', () => {
     await user.click(screen.getByRole('button', { name: 'Parolayı güncelle' }))
     await waitFor(() => expect(db.password).toBe('brand-new-pass'))
   })
+
+  it('clears the typed password when the disable dialog is cancelled', async () => {
+    const db = setupFea()
+    db.user.two_factor_enabled = true
+    signIn(db)
+    const user = userEvent.setup()
+    renderSecurity()
+
+    await user.click(screen.getByRole('button', { name: 'Devre dışı bırak' }))
+    let dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Geçerli parola'), 'secret-typed')
+    await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: 'Devre dışı bırak' }))
+    dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText('Geçerli parola')).toHaveValue('')
+  })
 })
 
 describe('ForcePasswordChangePage', () => {

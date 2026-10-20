@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SUPPORTED_LANGUAGES } from '@/lib/i18n'
 import { useAuthStore } from '@/stores/auth'
-import { logout } from '../session'
+import { signOut } from '../signOut'
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
@@ -71,7 +71,7 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onSelect={() => {
-            void logout().then(() => navigate('/login', { replace: true }))
+            void signOut((to) => navigate(to, { replace: true }))
           }}
         >
           <LogOut />
