@@ -13,6 +13,9 @@ function renderSecurity() {
   )
 }
 
+// The change-password form on the same page shares the visible label.
+const setupPassword = () => screen.getByLabelText('Geçerli parola', { selector: '#setup-password' })
+
 describe('SecurityPage', () => {
   it('sets up two-factor: QR as an image, confirm, recovery codes shown once', async () => {
     const db = setupFea()
@@ -21,16 +24,34 @@ describe('SecurityPage', () => {
     renderSecurity()
 
     await user.click(screen.getByRole('button', { name: 'Kurulumu başlat' }))
+    const start = await screen.findByRole('dialog')
+    const startPassword = within(start).getByLabelText('Geçerli parola')
+    expect(startPassword).toHaveAttribute('autocomplete', 'current-password')
+    await user.type(startPassword, 'nope')
+    await user.click(within(start).getByRole('button', { name: 'Devam et' }))
+    expect(await within(start).findByText('Parola hatalı.')).toBeInTheDocument()
+    expect(startPassword).toHaveValue('')
+    await user.type(startPassword, VALID_PASSWORD)
+    await user.click(within(start).getByRole('button', { name: 'Devam et' }))
     const qr = await screen.findByRole('img', { name: 'Doğrulama uygulamasıyla taranacak QR kodu' })
     expect(qr.getAttribute('src')).toMatch(/^data:image\/svg\+xml/)
     expect(screen.getByText('JBSWY3DPEHPK3PXP')).toBeInTheDocument()
 
+    expect(setupPassword()).toHaveAttribute('autocomplete', 'current-password')
     await user.type(screen.getByLabelText('Doğrulama kodu'), '111111')
+    await user.type(setupPassword(), 'nope')
+    await user.click(screen.getByRole('button', { name: 'Onayla ve aç' }))
+    expect(await screen.findByText('Parola hatalı.')).toBeInTheDocument()
+    expect(setupPassword()).toHaveValue('')
+
+    await user.type(setupPassword(), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Onayla ve aç' }))
     expect(await screen.findByText('Kod geçersiz ya da süresi dolmuş.')).toBeInTheDocument()
+    expect(setupPassword()).toHaveValue('')
 
     await user.clear(screen.getByLabelText('Doğrulama kodu'))
     await user.type(screen.getByLabelText('Doğrulama kodu'), VALID_TOTP)
+    await user.type(setupPassword(), VALID_PASSWORD)
     await user.click(screen.getByRole('button', { name: 'Onayla ve aç' }))
 
     const codes = await screen.findByRole('list', { name: 'Kurtarma kodları' })
@@ -40,6 +61,22 @@ describe('SecurityPage', () => {
     await user.click(screen.getByRole('button', { name: 'Kaydettim' }))
     expect(screen.queryByRole('list', { name: 'Kurtarma kodları' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Devre dışı bırak' })).toBeInTheDocument()
+  })
+
+  it('clears the typed password when the setup dialog is cancelled', async () => {
+    const db = setupFea()
+    signIn(db)
+    const user = userEvent.setup()
+    renderSecurity()
+
+    await user.click(screen.getByRole('button', { name: 'Kurulumu başlat' }))
+    let dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText('Geçerli parola'), 'secret')
+    await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }))
+    await user.click(screen.getByRole('button', { name: 'Kurulumu başlat' }))
+    dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText('Geçerli parola')).toHaveValue('')
+    expect(db.calls.some((c) => c.path.endsWith('/two-factor/setup'))).toBe(false)
   })
 
   it('turns two-factor off after password confirmation', async () => {

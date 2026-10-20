@@ -201,6 +201,10 @@
       "saved": "Kaydettim",
       "disabled": "İki adımlı doğrulama kapatıldı.",
       "disableTitle": "İki adımlı doğrulama kapatılsın mı?",
+      "passwordHint": "Güvenlik için parolanız yeniden istenir; saklanmaz.",
+      "startTitle": "Kurulum için parolanızı girin",
+      "startBody": "İki adımlı doğrulamayı başlatmak için geçerli parolanızı doğrulayın.",
+      "startAction": "Devam et",
       "disableBody": "Onaylamak için geçerli parolanızı girin. Hesabınız yalnızca parolayla korunur."
     },
     "sessions": {
@@ -220,7 +224,10 @@
     "none": "Şirket yok",
     "switched": "{{name}} şirketine geçildi.",
     "switchTo": "Şirkete geç: {{name}}",
-    "refreshFailed": "Şirket yetkileri yenilenemedi."
+    "refreshFailed": "Şirket yetkileri yenilenemedi.",
+    "revokedSwitched": "Şirket erişiminiz kaldırıldı; {{name}} şirketine geçildi.",
+    "revokedTitle": "Şirket erişimi kaldırıldı",
+    "revokedBody": "Artık hiçbir şirkete erişiminiz yok. Erişim için yöneticinizle iletişime geçin."
   },
   "notifications": {
     "label": "Bildirimler",

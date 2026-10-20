@@ -201,6 +201,10 @@
       "saved": "Je les ai enregistrés",
       "disabled": "Vérification en deux étapes désactivée.",
       "disableTitle": "Désactiver la vérification en deux étapes ?",
+      "passwordHint": "Par sécurité, le mot de passe est redemandé et jamais conservé.",
+      "startTitle": "Saisissez votre mot de passe pour continuer",
+      "startBody": "Confirmez votre mot de passe actuel pour démarrer la configuration de la vérification en deux étapes.",
+      "startAction": "Continuer",
       "disableBody": "Saisissez votre mot de passe actuel pour confirmer. Votre compte ne sera plus protégé que par le mot de passe."
     },
     "sessions": {
@@ -220,7 +224,10 @@
     "none": "Aucune société",
     "switched": "Société active : {{name}}.",
     "switchTo": "Changer de société : {{name}}",
-    "refreshFailed": "Impossible d'actualiser les droits de la société."
+    "refreshFailed": "Impossible d'actualiser les droits de la société.",
+    "revokedSwitched": "Votre accès à une société a été révoqué ; passage à {{name}}.",
+    "revokedTitle": "Accès à la société révoqué",
+    "revokedBody": "Vous n'avez plus accès à aucune société. Contactez votre administrateur pour retrouver l'accès."
   },
   "notifications": {
     "label": "Notifications",

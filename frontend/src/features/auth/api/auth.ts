@@ -24,10 +24,12 @@ export const authApi = {
   me: (signal?: AbortSignal) => platform.http.get<MeResponse>('/auth/me', { ...own, signal }),
   changePassword: (body: ChangePasswordRequest) =>
     platform.http.post<unknown>('/auth/password/change', body),
-  setupTwoFactor: () => platform.http.post<ApiSuccess<TwoFactorSetup>>('/auth/two-factor/setup'),
-  confirmTwoFactor: (code: string) =>
+  setupTwoFactor: (password: string) =>
+    platform.http.post<ApiSuccess<TwoFactorSetup>>('/auth/two-factor/setup', { password }),
+  confirmTwoFactor: (code: string, password: string) =>
     platform.http.post<ApiSuccess<{ recovery_codes: string[] }>>('/auth/two-factor/confirm', {
       code,
+      password,
     }),
   disableTwoFactor: (password: string) =>
     platform.http.delete<unknown>('/auth/two-factor', { body: { password } }),

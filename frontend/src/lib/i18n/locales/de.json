@@ -201,6 +201,10 @@
       "saved": "Ich habe sie gespeichert",
       "disabled": "Zwei-Faktor-Bestätigung deaktiviert.",
       "disableTitle": "Zwei-Faktor-Bestätigung deaktivieren?",
+      "passwordHint": "Zur Sicherheit wird das Passwort erneut abgefragt und nie gespeichert.",
+      "startTitle": "Passwort zum Fortfahren eingeben",
+      "startBody": "Bestätigen Sie Ihr aktuelles Passwort, um die Einrichtung der Zwei-Faktor-Bestätigung zu starten.",
+      "startAction": "Weiter",
       "disableBody": "Geben Sie zur Bestätigung Ihr aktuelles Passwort ein. Ihr Konto ist dann nur noch durch das Passwort geschützt."
     },
     "sessions": {
@@ -220,7 +224,10 @@
     "none": "Kein Unternehmen",
     "switched": "Zu {{name}} gewechselt.",
     "switchTo": "Unternehmen wechseln: {{name}}",
-    "refreshFailed": "Unternehmensberechtigungen konnten nicht aktualisiert werden."
+    "refreshFailed": "Unternehmensberechtigungen konnten nicht aktualisiert werden.",
+    "revokedSwitched": "Ihr Zugriff auf ein Unternehmen wurde entzogen; zu {{name}} gewechselt.",
+    "revokedTitle": "Unternehmenszugriff entzogen",
+    "revokedBody": "Sie haben keinen Zugriff mehr auf ein Unternehmen. Wenden Sie sich an Ihre Administration."
   },
   "notifications": {
     "label": "Benachrichtigungen",

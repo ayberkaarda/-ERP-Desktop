@@ -6,11 +6,14 @@ import { Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SignOutFailedDialog } from '@/features/auth/components/SignOutFailedDialog'
+import { useAccountRealtime } from '@/features/auth/hooks/useAccountRealtime'
 import { UserMenu } from '@/features/auth/components/UserMenu'
 import { CommandPalette } from '@/features/command-palette/CommandPalette'
 import { PaletteTrigger } from '@/features/command-palette/PaletteTrigger'
+import { AccessRevoked } from '@/features/company/components/AccessRevoked'
 import { CompanySwitcher } from '@/features/company/components/CompanySwitcher'
 import { NotificationBell } from '@/features/notifications/components/NotificationBell'
+import { useCompanyStore } from '@/stores/company'
 import { useUiStore } from '@/stores/ui'
 import { ConnectivityBadge } from './ConnectivityBadge'
 import { Sidebar } from './Sidebar'
@@ -22,6 +25,8 @@ export function AppShell() {
   const collapsed = useUiStore((s) => s.sidebarCollapsed)
   const toggle = useUiStore((s) => s.toggleSidebar)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const accessRevoked = useCompanyStore((s) => s.accessRevoked)
+  useAccountRealtime()
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -89,7 +94,7 @@ export function AppShell() {
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">
           <Suspense fallback={<PageSkeleton />}>
-            <Outlet />
+            {accessRevoked ? <AccessRevoked /> : <Outlet />}
           </Suspense>
         </main>
       </div>

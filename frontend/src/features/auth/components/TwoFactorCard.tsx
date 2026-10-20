@@ -1,5 +1,4 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
 import { Copy, ShieldCheck, ShieldOff } from 'lucide-react'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -20,10 +19,10 @@ import { isApiError, platform } from '@/platform'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '../api/auth'
 import type { TwoFactorSetup } from '../api/types'
-import { errorMessage } from '../errors'
+import { errorMessage, serverFieldErrors } from '../errors'
 import { qrImageSrc } from '../qr'
 import { useFieldError } from '../hooks/useFieldError'
-import { totpSchema, type TwoFactorValues } from '../schemas/twoFactor'
+import { totpSchema } from '../schemas/twoFactor'
 import { FormAlert } from './AuthFrame'
 import { FormField } from './FormField'
 
@@ -34,11 +33,7 @@ export function TwoFactorCard() {
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null)
   const [disableOpen, setDisableOpen] = useState(false)
 
-  const start = useMutation({
-    mutationFn: authApi.setupTwoFactor,
-    onSuccess: (r) => setSetup(r.data),
-    onError: (e) => platform.notify.error(errorMessage(e, t)),
-  })
+  const [startOpen, setStartOpen] = useState(false)
 
   return (
     <Card>
@@ -70,11 +65,10 @@ export function TwoFactorCard() {
             {t('security.twoFactor.disable')}
           </Button>
         ) : (
-          <Button onClick={() => start.mutate()} disabled={start.isPending}>
-            {start.isPending ? t('common.loading') : t('security.twoFactor.enable')}
-          </Button>
+          <Button onClick={() => setStartOpen(true)}>{t('security.twoFactor.enable')}</Button>
         )}
       </CardContent>
+      <StartDialog open={startOpen} onOpenChange={setStartOpen} onStarted={setSetup} />
       <DisableDialog open={disableOpen} onOpenChange={setDisableOpen} />
     </Card>
   )
@@ -96,20 +90,25 @@ function SetupStep({
     register,
     handleSubmit,
     setError,
+    resetField,
     formState: { errors, isSubmitting },
-  } = useForm<TwoFactorValues>({
-    resolver: zodResolver(totpSchema),
-    defaultValues: { code: '' },
+  } = useForm<ConfirmValues>({
+    resolver: zodResolver(confirmSchema),
+    defaultValues: { code: '', password: '' },
   })
 
-  const onSubmit = handleSubmit(async ({ code }) => {
+  const onSubmit = handleSubmit(async ({ code, password }) => {
     setFormError(null)
     try {
-      const r = await authApi.confirmTwoFactor(code)
+      const r = await authApi.confirmTwoFactor(code, password)
       onConfirmed(r.data.recovery_codes)
     } catch (error) {
+      // The password is never kept: any failure empties it so it must be typed again.
+      resetField('password')
       const message = errorMessage(error, t)
-      if (isApiError(error) && error.status === 422) {
+      const fields = serverFieldErrors(error)
+      if (fields.password) setError('password', { type: 'server', message: fields.password })
+      else if (isApiError(error) && error.status === 422) {
         setError('code', { type: 'server', message })
       } else setFormError(message)
     }
@@ -145,6 +144,15 @@ function SetupStep({
             error={fieldError(errors.code)}
             {...register('code')}
           />
+          <FormField
+            id="setup-password"
+            type="password"
+            label={t('auth.password.current')}
+            autoComplete="current-password"
+            hint={t('security.twoFactor.passwordHint')}
+            error={fieldError(errors.password)}
+            {...register('password')}
+          />
           <div className="flex gap-2">
             <Button type="submit" disabled={isSubmitting}>
               {t('security.twoFactor.confirm')}
@@ -156,6 +164,88 @@ function SetupStep({
         </form>
       </div>
     </div>
+  )
+}
+
+const confirmSchema = totpSchema.extend({
+  password: z.string().min(1, 'auth.validation.currentRequired'),
+})
+type ConfirmValues = z.infer<typeof confirmSchema>
+
+function StartDialog({
+  open,
+  onOpenChange,
+  onStarted,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onStarted: (setup: TwoFactorSetup) => void
+}) {
+  const { t } = useTranslation()
+  const fieldError = useFieldError()
+  const {
+    register,
+    handleSubmit,
+    setError,
+    reset,
+    resetField,
+    formState: { errors, isSubmitting },
+  } = useForm<z.infer<typeof disableSchema>>({
+    resolver: zodResolver(disableSchema),
+    defaultValues: { password: '' },
+  })
+
+  // Every way out (Cancel, Esc, overlay, close button, success) clears the typed password.
+  function close() {
+    reset()
+    onOpenChange(false)
+  }
+
+  const onSubmit = handleSubmit(async ({ password }) => {
+    try {
+      const r = await authApi.setupTwoFactor(password)
+      onStarted(r.data)
+      close()
+    } catch (error) {
+      resetField('password')
+      const fields = serverFieldErrors(error)
+      setError('password', { type: 'server', message: fields.password ?? errorMessage(error, t) })
+    }
+  })
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) onOpenChange(true)
+        else close()
+      }}
+    >
+      <DialogContent closeLabel={t('common.close')}>
+        <form noValidate onSubmit={(e) => void onSubmit(e)} className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>{t('security.twoFactor.startTitle')}</DialogTitle>
+            <DialogDescription>{t('security.twoFactor.startBody')}</DialogDescription>
+          </DialogHeader>
+          <FormField
+            id="setup-start-password"
+            type="password"
+            label={t('auth.password.current')}
+            autoComplete="current-password"
+            error={fieldError(errors.password)}
+            {...register('password')}
+          />
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={close}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {t('security.twoFactor.startAction')}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -228,6 +318,7 @@ function DisableDialog({
       platform.notify.success(t('security.twoFactor.disabled'))
       close()
     } catch (error) {
+      reset()
       setError('password', { type: 'server', message: errorMessage(error, t) })
     }
   })

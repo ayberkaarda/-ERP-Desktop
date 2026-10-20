@@ -13,6 +13,9 @@ export interface CompanySummary {
 interface CompanyState {
   companies: CompanySummary[]
   activeCompanyId: string | null
+  /** True once the last membership was revoked while signed in. */
+  accessRevoked: boolean
+  setAccessRevoked: (revoked: boolean) => void
   setActiveCompany: (id: string) => void
   /** Replaces memberships from /auth/me, keeping the remembered company when still allowed. */
   setCompanies: (companies: CompanySummary[]) => void
@@ -24,16 +27,22 @@ export const useCompanyStore = create<CompanyState>()(
     (set, get) => ({
       companies: [],
       activeCompanyId: null,
+      accessRevoked: false,
+      setAccessRevoked: (accessRevoked) => set({ accessRevoked }),
       setActiveCompany: (id) => {
         if (get().companies.some((c) => c.id === id)) set({ activeCompanyId: id })
       },
       setCompanies: (companies) => {
         const current = get().activeCompanyId
         const keep = companies.some((c) => c.id === current)
-        set({ companies, activeCompanyId: keep ? current : (companies[0]?.id ?? null) })
+        set({
+          companies,
+          activeCompanyId: keep ? current : (companies[0]?.id ?? null),
+          ...(companies.length > 0 ? { accessRevoked: false } : {}),
+        })
       },
       // The remembered company id survives logout so the next sign-in lands in the same place.
-      clear: () => set({ companies: [] }),
+      clear: () => set({ companies: [], accessRevoked: false }),
     }),
     {
       name: 'keystone.company',
