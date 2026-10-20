@@ -1,0 +1,118 @@
+{
+  "app": {
+    "name": "Keystone",
+    "tagline": "Multi-company enterprise resource planning"
+  },
+  "common": {
+    "retry": "Try again",
+    "loading": "Loading…",
+    "comingSoon": "Soon",
+    "online": "Online",
+    "offline": "Offline",
+    "backHome": "Back to dashboard",
+    "close": "Close"
+  },
+  "nav": {
+    "main": "Main menu",
+    "dashboard": "Dashboard",
+    "sales": "Sales",
+    "purchasing": "Purchasing",
+    "inventory": "Inventory",
+    "accounting": "Accounting",
+    "treasury": "Treasury",
+    "hr": "Human resources",
+    "system": "System",
+    "health": "System status",
+    "collapse": "Collapse menu",
+    "expand": "Expand menu",
+    "open": "Open menu"
+  },
+  "topbar": {
+    "company": "Company",
+    "switchCompany": "Switch company",
+    "taxNumber": "Tax no. {{value}}",
+    "userMenu": "User menu",
+    "language": "Language",
+    "signOut": "Sign out",
+    "switchCompanyCurrent": "Switch company, current: {{name}}"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "language": {
+    "tr": "Türkçe",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Continue with your company account.",
+      "email": "Email",
+      "password": "Password",
+      "remember": "Keep me signed in on this device",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "forgot": "Forgot password",
+      "pending": "Authentication is not connected yet; redirecting to the dashboard.",
+      "heroTitle": "Every record meets at a single keystone.",
+      "heroBody": "Accounting, inventory, sales and treasury: one consistent system of record for all your companies.",
+      "footer": "© Keystone · All rights reserved"
+    },
+    "validation": {
+      "emailRequired": "Email is required.",
+      "emailInvalid": "Enter a valid email address.",
+      "passwordMin": "Password must be at least {{count}} characters."
+    },
+    "forgot": {
+      "title": "Password reset",
+      "body": "Reset links are sent by your company administrator. Self-service reset arrives with the identity module."
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Overview for {{company}}",
+    "sampleData": "Sample data",
+    "kpi": {
+      "revenue": "Monthly revenue",
+      "receivables": "Open receivables",
+      "payables": "Open payables",
+      "cash": "Cash and bank"
+    },
+    "vsLastMonth": "vs last month",
+    "chart": {
+      "cashflow": "Cash flow",
+      "cashflowHint": "Last 6 months, receipts and payments",
+      "inflow": "Receipts",
+      "outflow": "Payments",
+      "byModule": "Document volume",
+      "byModuleHint": "This month, by document type",
+      "invoices": "Invoices",
+      "orders": "Orders",
+      "waybills": "Waybills",
+      "receipts": "Receipts"
+    }
+  },
+  "health": {
+    "title": "System status",
+    "subtitle": "Checks the API connection and server response.",
+    "endpoint": "Endpoint",
+    "status": "Status",
+    "checkedAt": "Last checked",
+    "ok": "Operational",
+    "down": "Unreachable",
+    "checking": "Checking",
+    "recheck": "Check again"
+  },
+  "errors": {
+    "title": "Something went wrong",
+    "body": "An unexpected error occurred. You can reload the page or go back to the dashboard.",
+    "notFoundTitle": "Page not found",
+    "notFoundBody": "The address you are looking for may have moved or never existed.",
+    "reload": "Reload page"
+  }
+}

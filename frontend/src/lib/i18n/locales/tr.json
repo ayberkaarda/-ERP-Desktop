@@ -1,0 +1,118 @@
+{
+  "app": {
+    "name": "Keystone",
+    "tagline": "Çok şirketli kurumsal kaynak planlama"
+  },
+  "common": {
+    "retry": "Tekrar dene",
+    "loading": "Yükleniyor…",
+    "comingSoon": "Yakında",
+    "online": "Çevrimiçi",
+    "offline": "Çevrimdışı",
+    "backHome": "Panele dön",
+    "close": "Kapat"
+  },
+  "nav": {
+    "main": "Ana menü",
+    "dashboard": "Panel",
+    "sales": "Satış",
+    "purchasing": "Satın alma",
+    "inventory": "Stok",
+    "accounting": "Muhasebe",
+    "treasury": "Finans",
+    "hr": "İnsan kaynakları",
+    "system": "Sistem",
+    "health": "Sistem durumu",
+    "collapse": "Menüyü daralt",
+    "expand": "Menüyü genişlet",
+    "open": "Menüyü aç"
+  },
+  "topbar": {
+    "company": "Şirket",
+    "switchCompany": "Şirket değiştir",
+    "taxNumber": "VKN {{value}}",
+    "userMenu": "Kullanıcı menüsü",
+    "language": "Dil",
+    "signOut": "Oturumu kapat",
+    "switchCompanyCurrent": "Şirket değiştir, geçerli şirket: {{name}}"
+  },
+  "theme": {
+    "label": "Tema",
+    "light": "Açık",
+    "dark": "Koyu",
+    "system": "Sistem"
+  },
+  "language": {
+    "tr": "Türkçe",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "auth": {
+    "login": {
+      "title": "Oturum açın",
+      "subtitle": "Şirket hesabınızla devam edin.",
+      "email": "E-posta",
+      "password": "Parola",
+      "remember": "Bu cihazda oturumu açık tut",
+      "submit": "Oturum aç",
+      "submitting": "Oturum açılıyor…",
+      "forgot": "Parolamı unuttum",
+      "pending": "Kimlik doğrulama sunucuya henüz bağlı değil; panele yönlendiriliyorsunuz.",
+      "heroTitle": "Her kayıt, tek bir kilit taşında birleşir.",
+      "heroBody": "Muhasebe, stok, satış ve finans; tüm şirketleriniz için tek, tutarlı bir kayıt sistemi.",
+      "footer": "© Keystone · Tüm hakları saklıdır"
+    },
+    "validation": {
+      "emailRequired": "E-posta adresi gerekli.",
+      "emailInvalid": "Geçerli bir e-posta adresi girin.",
+      "passwordMin": "Parola en az {{count}} karakter olmalı."
+    },
+    "forgot": {
+      "title": "Parola sıfırlama",
+      "body": "Parola sıfırlama bağlantısı şirket yöneticiniz tarafından gönderilir. Kendi kendine sıfırlama, kimlik modülüyle birlikte açılacak."
+    }
+  },
+  "dashboard": {
+    "title": "Panel",
+    "subtitle": "{{company}} için özet görünüm",
+    "sampleData": "Örnek veri",
+    "kpi": {
+      "revenue": "Aylık ciro",
+      "receivables": "Açık alacak",
+      "payables": "Açık borç",
+      "cash": "Nakit ve banka"
+    },
+    "vsLastMonth": "geçen aya göre",
+    "chart": {
+      "cashflow": "Nakit akışı",
+      "cashflowHint": "Son 6 ay, tahsilat ve ödemeler",
+      "inflow": "Tahsilat",
+      "outflow": "Ödeme",
+      "byModule": "Belge hacmi",
+      "byModuleHint": "Bu ay, belge türüne göre",
+      "invoices": "Fatura",
+      "orders": "Sipariş",
+      "waybills": "İrsaliye",
+      "receipts": "Tahsilat makbuzu"
+    }
+  },
+  "health": {
+    "title": "Sistem durumu",
+    "subtitle": "API bağlantısını ve sunucu yanıtını denetler.",
+    "endpoint": "Uç nokta",
+    "status": "Durum",
+    "checkedAt": "Son denetim",
+    "ok": "Çalışıyor",
+    "down": "Erişilemiyor",
+    "checking": "Denetleniyor",
+    "recheck": "Yeniden denetle"
+  },
+  "errors": {
+    "title": "Bir şeyler ters gitti",
+    "body": "Beklenmeyen bir hata oluştu. Sayfayı yenileyebilir ya da panele dönebilirsiniz.",
+    "notFoundTitle": "Sayfa bulunamadı",
+    "notFoundBody": "Aradığınız adres taşınmış ya da hiç var olmamış olabilir.",
+    "reload": "Sayfayı yenile"
+  }
+}

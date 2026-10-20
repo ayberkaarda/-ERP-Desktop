@@ -1,0 +1,118 @@
+{
+  "app": {
+    "name": "Keystone",
+    "tagline": "Ressourcenplanung für mehrere Unternehmen"
+  },
+  "common": {
+    "retry": "Erneut versuchen",
+    "loading": "Wird geladen…",
+    "comingSoon": "Bald",
+    "online": "Online",
+    "offline": "Offline",
+    "backHome": "Zurück zur Übersicht",
+    "close": "Schließen"
+  },
+  "nav": {
+    "main": "Hauptmenü",
+    "dashboard": "Übersicht",
+    "sales": "Vertrieb",
+    "purchasing": "Einkauf",
+    "inventory": "Lager",
+    "accounting": "Buchhaltung",
+    "treasury": "Finanzen",
+    "hr": "Personal",
+    "system": "System",
+    "health": "Systemstatus",
+    "collapse": "Menü einklappen",
+    "expand": "Menü ausklappen",
+    "open": "Menü öffnen"
+  },
+  "topbar": {
+    "company": "Unternehmen",
+    "switchCompany": "Unternehmen wechseln",
+    "taxNumber": "Steuernr. {{value}}",
+    "userMenu": "Benutzermenü",
+    "language": "Sprache",
+    "signOut": "Abmelden",
+    "switchCompanyCurrent": "Unternehmen wechseln, aktuell: {{name}}"
+  },
+  "theme": {
+    "label": "Design",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  },
+  "language": {
+    "tr": "Türkçe",
+    "en": "English",
+    "de": "Deutsch",
+    "fr": "Français"
+  },
+  "auth": {
+    "login": {
+      "title": "Anmelden",
+      "subtitle": "Mit Ihrem Unternehmenskonto fortfahren.",
+      "email": "E-Mail",
+      "password": "Passwort",
+      "remember": "Auf diesem Gerät angemeldet bleiben",
+      "submit": "Anmelden",
+      "submitting": "Anmeldung läuft…",
+      "forgot": "Passwort vergessen",
+      "pending": "Die Anmeldung ist noch nicht angebunden; Weiterleitung zur Übersicht.",
+      "heroTitle": "Jeder Datensatz trifft sich in einem Schlussstein.",
+      "heroBody": "Buchhaltung, Lager, Vertrieb und Finanzen: ein einheitliches System für alle Ihre Unternehmen.",
+      "footer": "© Keystone · Alle Rechte vorbehalten"
+    },
+    "validation": {
+      "emailRequired": "E-Mail ist erforderlich.",
+      "emailInvalid": "Geben Sie eine gültige E-Mail-Adresse ein.",
+      "passwordMin": "Das Passwort muss mindestens {{count}} Zeichen lang sein."
+    },
+    "forgot": {
+      "title": "Passwort zurücksetzen",
+      "body": "Links zum Zurücksetzen versendet Ihr Unternehmensadministrator. Die Selbstbedienung folgt mit dem Identitätsmodul."
+    }
+  },
+  "dashboard": {
+    "title": "Übersicht",
+    "subtitle": "Zusammenfassung für {{company}}",
+    "sampleData": "Beispieldaten",
+    "kpi": {
+      "revenue": "Monatsumsatz",
+      "receivables": "Offene Forderungen",
+      "payables": "Offene Verbindlichkeiten",
+      "cash": "Kasse und Bank"
+    },
+    "vsLastMonth": "ggü. Vormonat",
+    "chart": {
+      "cashflow": "Cashflow",
+      "cashflowHint": "Letzte 6 Monate, Ein- und Auszahlungen",
+      "inflow": "Einzahlungen",
+      "outflow": "Auszahlungen",
+      "byModule": "Belegvolumen",
+      "byModuleHint": "Dieser Monat, nach Belegart",
+      "invoices": "Rechnungen",
+      "orders": "Aufträge",
+      "waybills": "Lieferscheine",
+      "receipts": "Quittungen"
+    }
+  },
+  "health": {
+    "title": "Systemstatus",
+    "subtitle": "Prüft die API-Verbindung und die Serverantwort.",
+    "endpoint": "Endpunkt",
+    "status": "Status",
+    "checkedAt": "Zuletzt geprüft",
+    "ok": "In Betrieb",
+    "down": "Nicht erreichbar",
+    "checking": "Wird geprüft",
+    "recheck": "Erneut prüfen"
+  },
+  "errors": {
+    "title": "Etwas ist schiefgelaufen",
+    "body": "Ein unerwarteter Fehler ist aufgetreten. Laden Sie die Seite neu oder kehren Sie zur Übersicht zurück.",
+    "notFoundTitle": "Seite nicht gefunden",
+    "notFoundBody": "Die gesuchte Adresse wurde verschoben oder existiert nicht.",
+    "reload": "Seite neu laden"
+  }
+}
