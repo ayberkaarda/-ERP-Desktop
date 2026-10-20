@@ -34,8 +34,9 @@ final class Identity
             app()->forgetInstance('encrypter');
         }
 
-        // A persistent store, so fresh() can drop the in-memory session between requests.
-        config(['session.driver' => 'database']);
+        // A persistent store, so fresh() can drop the in-memory session between requests; and a
+        // stateful SPA origin independent of any local .env.
+        config(['session.driver' => 'database', 'sanctum.stateful' => ['localhost'], 'session.domain' => null, 'session.secure' => false]);
         app('session')->forgetDrivers();
         app()->forgetInstance('session.store');
 

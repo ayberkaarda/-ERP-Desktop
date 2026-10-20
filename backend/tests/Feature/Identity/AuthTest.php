@@ -137,3 +137,20 @@ it('validates the login payload', function (): void {
         ->assertStatus(422)
         ->assertJsonValidationErrors(['email', 'password'], 'errors.fields');
 });
+
+it('refuses a live session of a user deactivated behind its back and ends it', function (): void {
+    $cookie = Identity::sessionCookie(login('ayse@example.com', Identity::PASSWORD));
+    $this->user->forceFill(['is_active' => false])->save();
+
+    Identity::fresh();
+    $this->withCredentials()->withCookie((string) config('session.cookie'), $cookie)
+        ->getJson('/api/v1/departments', Identity::headers($this->company))
+        ->assertStatus(403)
+        ->assertJsonPath('errors.code', 'USER_DEACTIVATED');
+
+    $this->user->forceFill(['is_active' => true])->save();
+    Identity::fresh();
+    $this->withCredentials()->withCookie((string) config('session.cookie'), $cookie)
+        ->getJson('/api/v1/auth/me', Identity::headers())
+        ->assertStatus(401);
+});

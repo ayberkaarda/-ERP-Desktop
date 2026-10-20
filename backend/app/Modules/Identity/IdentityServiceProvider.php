@@ -36,6 +36,7 @@ use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
+use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Laravel\Sanctum\Sanctum;
 use PragmaRX\Google2FA\Google2FA;
 
@@ -77,10 +78,12 @@ final class IdentityServiceProvider extends ModuleServiceProvider
         $this->app->make(Router::class)->aliasMiddleware('password.changed', EnsurePasswordChanged::class);
 
         // The HTTP kernel singleton owns the middleware groups and re-syncs them to the router.
-        // First in priority so a deactivated account gets USER_DEACTIVATED before auth or company checks run.
+        // Right after the SPA session starts and before auth/company checks, so a deactivated account
+        // gets USER_DEACTIVATED (not COMPANY_FORBIDDEN) whichever module serves the route.
         $kernel = $this->app->make(HttpKernelContract::class);
         $kernel->appendMiddlewareToGroup('api', EnforceAccountState::class);
-        $kernel->prependToMiddlewarePriority(EnforceAccountState::class);
+        $kernel->prependToMiddlewarePriority(EnsureFrontendRequestsAreStateful::class);
+        $kernel->addToMiddlewarePriorityAfter(EnsureFrontendRequestsAreStateful::class, EnforceAccountState::class);
 
         $this->bootBroadcasting();
     }
