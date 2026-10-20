@@ -77,7 +77,10 @@ final class IdentityServiceProvider extends ModuleServiceProvider
         $this->app->make(Router::class)->aliasMiddleware('password.changed', EnsurePasswordChanged::class);
 
         // The HTTP kernel singleton owns the middleware groups and re-syncs them to the router.
-        $this->app->make(HttpKernelContract::class)->appendMiddlewareToGroup('api', EnforceAccountState::class);
+        // First in priority so a deactivated account gets USER_DEACTIVATED before auth or company checks run.
+        $kernel = $this->app->make(HttpKernelContract::class);
+        $kernel->appendMiddlewareToGroup('api', EnforceAccountState::class);
+        $kernel->prependToMiddlewarePriority(EnforceAccountState::class);
 
         $this->bootBroadcasting();
     }
