@@ -1,0 +1,26 @@
+name: OpenAPI drift
+on:
+  push:
+  pull_request:
+jobs:
+  openapi-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist
+      - run: npm ci
+      - name: Generate OpenAPI schema
+        working-directory: backend
+        run: composer openapi
+      - name: Generate frontend API types
+        run: npm run gen:api --workspace frontend
+      - name: Check generated files
+        run: git diff --exit-code -- backend/storage/api-docs/openapi.json frontend/src/lib/api/schema.d.ts

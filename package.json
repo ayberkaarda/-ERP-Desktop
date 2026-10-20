@@ -1,0 +1,5 @@
+{
+  "name": "keystone-erp",
+  "private": true,
+  "workspaces": ["frontend"]
+}
