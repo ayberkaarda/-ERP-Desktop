@@ -14,7 +14,7 @@ function renderSecurity() {
 }
 
 // The change-password form on the same page shares the visible label.
-const setupPassword = () => document.getElementById('setup-password')!
+const setupPassword = () => screen.getByLabelText('Geçerli parola', { selector: '#setup-password' })
 
 describe('SecurityPage', () => {
   it('sets up two-factor: QR as an image, confirm, recovery codes shown once', async () => {
