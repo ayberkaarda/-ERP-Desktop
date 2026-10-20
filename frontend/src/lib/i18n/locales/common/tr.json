@@ -1,0 +1,204 @@
+{
+  "actions": {
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "confirm": "Onayla",
+    "delete": "Sil",
+    "add": "Ekle",
+    "close": "Kapat",
+    "retry": "Tekrar dene",
+    "clear": "Temizle",
+    "reset": "Sıfırla",
+    "open": "Aç",
+    "back": "Geri"
+  },
+  "states": {
+    "loading": "Yükleniyor…",
+    "saving": "Kaydediliyor…",
+    "errorTitle": "Bir sorun oluştu",
+    "errorBody": "Veriler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin."
+  },
+  "validation": {
+    "required": "Bu alan zorunludur.",
+    "number": "Geçerli bir sayı girin.",
+    "scale": "Ondalık basamak sayısı çok fazla.",
+    "positive": "Değer sıfırdan büyük olmalıdır.",
+    "nonNegative": "Değer negatif olamaz.",
+    "min": "Değer izin verilen en düşük değerin altında.",
+    "max": "Değer izin verilen en yüksek değerin üstünde.",
+    "date": "Geçerli bir tarih girin.",
+    "invalid": "Geçersiz değer."
+  },
+  "dataTable": {
+    "search": "Listede ara",
+    "searchPlaceholder": "Ara…",
+    "columns": "Sütunlar",
+    "density": "Satır yoğunluğu",
+    "densityComfortable": "Rahat",
+    "densityCompact": "Sıkışık",
+    "resetView": "Görünümü sıfırla",
+    "sortedAsc": "Artan sıralı",
+    "sortedDesc": "Azalan sıralı",
+    "sortBy": "{{column}} sütununa göre sırala",
+    "selectPage": "Sayfadaki tüm satırları seç",
+    "selectRow": "Satırı seç",
+    "selected_one": "{{count}} kayıt seçildi",
+    "selected_other": "{{count}} kayıt seçildi",
+    "clearSelection": "Seçimi temizle",
+    "bulkActions": "Toplu işlemler",
+    "emptyTitle": "Kayıt bulunamadı",
+    "emptyBody": "Arama ya da filtreleri değiştirip tekrar deneyin.",
+    "errorTitle": "Liste yüklenemedi",
+    "loading": "Kayıtlar yükleniyor…",
+    "range": "{{from}}–{{to}} / {{total}}",
+    "perPage": "Sayfa başına kayıt",
+    "page": "Sayfa {{page}} / {{pages}}",
+    "pagination": "Sayfalama",
+    "firstPage": "İlk sayfa",
+    "prevPage": "Önceki sayfa",
+    "nextPage": "Sonraki sayfa",
+    "lastPage": "Son sayfa",
+    "filterAll": "Tümü",
+    "clearFilters": "Filtreleri temizle",
+    "resizeColumn": "{{column}} sütun genişliği",
+    "keyboardHint": "Ok tuşlarıyla satırlar arasında gezinin; Enter açar, Boşluk seçer."
+  },
+  "form": {
+    "errorSummaryTitle": "Kayıt tamamlanamadı",
+    "errorSummaryBody": "Lütfen aşağıdaki alanları düzeltin.",
+    "optional": "isteğe bağlı",
+    "required": "zorunlu"
+  },
+  "combobox": {
+    "placeholder": "Seçin…",
+    "noResults": "Sonuç bulunamadı",
+    "searching": "Aranıyor…",
+    "typeToSearch": "Aramak için yazmaya başlayın",
+    "loadFailed": "Seçenekler yüklenemedi",
+    "clear": "Seçimi temizle",
+    "toggle": "Seçenekleri göster"
+  },
+  "date": {
+    "openCalendar": "Takvimi aç",
+    "calendar": "Takvim",
+    "prevMonth": "Önceki ay",
+    "nextMonth": "Sonraki ay",
+    "today": "Bugün"
+  },
+  "lines": {
+    "title": "Belge satırları",
+    "add": "Satır ekle",
+    "remove": "{{index}}. satırı sil",
+    "lineNo": "Sıra",
+    "row": "{{index}}. satır",
+    "empty": "Henüz satır yok. Eklemek için “Satır ekle”yi kullanın.",
+    "hint": "Enter sonraki hücreye geçer, son hücrede yeni satır açar. Ctrl+Delete satırı siler.",
+    "actions": "İşlem"
+  },
+  "status": {
+    "draft": "Taslak",
+    "pending": "Beklemede",
+    "pending_approval": "Onay bekliyor",
+    "approved": "Onaylandı",
+    "rejected": "Reddedildi",
+    "cancelled": "İptal edildi",
+    "posted": "Kayda alındı",
+    "completed": "Tamamlandı",
+    "closed": "Kapandı",
+    "active": "Aktif",
+    "inactive": "Pasif"
+  },
+  "approval": {
+    "title": "Onay süreci",
+    "step": "{{order}}. adım",
+    "approvers": "Onaylayabilecekler: {{names}}",
+    "threshold": "Tutar eşiği: {{amount}}",
+    "approvedBy": "{{name}} onayladı",
+    "rejectedBy": "{{name}} reddetti",
+    "state": {
+      "waiting": "Sırada",
+      "pending": "Karar bekliyor",
+      "approved": "Onaylandı",
+      "rejected": "Reddedildi",
+      "skipped": "Atlandı"
+    },
+    "empty": "Bu belge için onay süreci başlatılmadı."
+  },
+  "attachments": {
+    "title": "Ekler",
+    "drop": "Dosyaları buraya bırakın",
+    "choose": "Dosya seç",
+    "hint": "Dosya başına en fazla {{size}}",
+    "uploading": "{{name}} yükleniyor…",
+    "empty": "Henüz ek yok.",
+    "tooLarge": "{{name}} çok büyük (en fazla {{size}}).",
+    "unsupported": "{{name}} dosya türü desteklenmiyor.",
+    "uploadFailed": "{{name}} yüklenemedi.",
+    "loadFailed": "Ekler yüklenemedi.",
+    "download": "{{name}} dosyasını indir",
+    "remove": "{{name}} dosyasını sil",
+    "removeTitle": "Ek silinsin mi?",
+    "removeBody": "{{name}} kalıcı olarak silinecek."
+  },
+  "audit": {
+    "title": "Değişiklik geçmişi",
+    "empty": "Bu kayıt için geçmiş yok.",
+    "system": "Sistem",
+    "event": {
+      "created": "oluşturdu",
+      "updated": "güncelledi",
+      "deleted": "sildi",
+      "other": "işlem yaptı"
+    },
+    "field": "Alan",
+    "before": "Önce",
+    "after": "Sonra",
+    "emptyValue": "(boş)",
+    "loadMore": "Daha fazla göster"
+  },
+  "confirm": {
+    "title": "Emin misiniz?",
+    "confirm": "Onayla",
+    "cancel": "Vazgeç"
+  },
+  "empty": {
+    "title": "Burada henüz bir şey yok"
+  },
+  "pageHeader": {
+    "breadcrumbs": "Sayfa yolu"
+  },
+  "showcase": {
+    "title": "Bileşen vitrini",
+    "description": "Paylaşılan ERP bileşenleri, örnek verilerle.",
+    "dataTable": "Veri tablosu",
+    "form": "Form takımı",
+    "lines": "Belge satırları",
+    "status": "Durum rozetleri",
+    "approval": "Onay zaman çizelgesi",
+    "attachments": "Ek paneli",
+    "audit": "Değişiklik geçmişi",
+    "dialogs": "Onay penceresi ve boş durum",
+    "submit": "Gönder",
+    "simulateServerError": "Sunucu hatasını dene",
+    "deleteSelected": "Seçilenleri sil",
+    "openConfirm": "Silme onayını aç",
+    "fields": {
+      "customer": "Müşteri",
+      "account": "Hesap",
+      "amount": "Tutar",
+      "quantity": "Miktar",
+      "date": "Belge tarihi",
+      "note": "Açıklama",
+      "product": "Ürün",
+      "unitPrice": "Birim fiyat",
+      "lineTotal": "Satır tutarı",
+      "code": "Kod",
+      "name": "Ad",
+      "status": "Durum",
+      "balance": "Bakiye",
+      "createdAt": "Oluşturulma"
+    },
+    "total": "Toplam",
+    "submitted": "Form geçerli, gönderildi."
+  }
+}
