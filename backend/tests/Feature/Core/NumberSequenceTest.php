@@ -5,12 +5,12 @@ declare(strict_types=1);
 use App\Core\Numbering\NumberSequenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Tests\Support\Companies;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    $this->company = (string) Str::uuid7();
+    $this->company = Companies::make();
     $this->numbers = app(NumberSequenceService::class);
 });
 
@@ -20,7 +20,7 @@ it('issues e-invoice shaped numbers by default', function (): void {
 });
 
 it('keeps separate counters per company, type, series and fiscal year', function (): void {
-    $other = (string) Str::uuid7();
+    $other = Companies::make();
 
     $this->numbers->next($this->company, 'sales_invoice', 'ABC', 2026);
 

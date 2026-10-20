@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
+use Tests\Support\Companies;
 
 uses(RefreshDatabase::class);
 
@@ -39,7 +40,7 @@ beforeEach(function (): void {
         Route::post('/writes/{outcome}', function (string $outcome) {
             $this->calls++;
             DB::table('number_sequences')->insert([
-                'company_id' => (string) Str::uuid7(),
+                'company_id' => Companies::make(),
                 'doc_type' => 'probe',
                 'fiscal_year' => 2026,
                 'last_value' => $this->calls,
@@ -113,7 +114,7 @@ it('keeps server errors retryable', function (): void {
 });
 
 it('scopes keys per user and company', function (): void {
-    $company = (string) Str::uuid7();
+    $company = Companies::make();
     $other = new GenericUser(['id' => (string) Str::uuid7()]);
     $headers = ['Idempotency-Key' => 'shared'];
 
@@ -127,7 +128,7 @@ it('scopes keys per user and company', function (): void {
 });
 
 it('runs after the company middleware so the company is part of the scope', function (): void {
-    $company = (string) Str::uuid7();
+    $company = Companies::make();
     app()->instance(MembershipChecker::class, new class implements MembershipChecker
     {
         public function isMember(string $userId, string $companyId): bool

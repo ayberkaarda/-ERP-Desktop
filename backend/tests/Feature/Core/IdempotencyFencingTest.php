@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Tests\Support\Companies;
 
 /*
  * A second connection plays the retry that takes over an expired lease while the original
@@ -21,7 +22,7 @@ beforeEach(function (): void {
 
     config(['database.connections.pgsql_retry' => config('database.connections.pgsql')]);
     $this->key = 'fence-'.Str::uuid7();
-    $this->company = (string) Str::uuid7();
+    $this->company = Companies::make();
 
     Route::post('/api/v1/_probe/slow', function () {
         DB::table('number_sequences')->insert([
@@ -48,6 +49,7 @@ beforeEach(function (): void {
 afterEach(function (): void {
     DB::table('idempotency_keys')->where('key', $this->key)->delete();
     DB::table('number_sequences')->where('company_id', $this->company)->delete();
+    Companies::remove($this->company);
     DB::purge('pgsql_retry');
 });
 
