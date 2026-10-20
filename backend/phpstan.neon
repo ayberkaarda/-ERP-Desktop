@@ -9,4 +9,5 @@ parameters:
         - config
         - routes
         - database
+        - tests/Fixtures
     tmpDir: storage/framework/cache/phpstan

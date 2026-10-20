@@ -7,11 +7,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
+      - name: Install backend dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist
       - run: npm ci
+      - name: Generate OpenAPI schema
+        working-directory: backend
+        run: composer openapi
+      - name: Generate frontend API types
+        run: npm run gen:api --workspace frontend
       - run: npm run lint --workspace frontend
       - run: npm run typecheck --workspace frontend
       - run: npm run test --workspace frontend

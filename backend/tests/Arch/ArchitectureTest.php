@@ -49,3 +49,15 @@ test('modules do not reach into other modules models or repositories', function 
 
     expect($modules)->toBeArray();
 });
+
+arch('core does not depend on app models owned by modules')
+    ->expect('App\Core')
+    ->not->toUse('App\Models');
+
+arch('core domain exceptions render through the error envelope')
+    ->expect([
+        'App\Core\Company\MissingCompanyContext',
+        'App\Core\Documents\InvalidStateTransition',
+        'App\Core\Documents\VersionConflictException',
+    ])
+    ->toExtend('App\Core\Http\ApiException');
