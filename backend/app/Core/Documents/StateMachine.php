@@ -92,6 +92,7 @@ abstract class StateMachine
         $raw = $model->newQueryWithoutScopes()
             ->whereKey($model->getKey())
             ->lockForUpdate()
+            ->toBase()
             ->value($column);
 
         $current = is_scalar($raw) ? (string) $raw : $model->currentStatus();
