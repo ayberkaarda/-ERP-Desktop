@@ -11,6 +11,7 @@ use App\Core\Documents\InteractsWithStatus;
 use App\Core\Money\DecimalCast;
 use App\Core\Money\MoneyCast;
 use App\Core\Support\HasUuid7;
+use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,15 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Exercises every Core model primitive at once.
+ *
+ * @property string $id
+ * @property string $company_id
+ * @property string $name
+ * @property FixtureStatus $status
+ * @property BigDecimal|null $total
+ * @property BigDecimal|null $quantity
+ * @property BigDecimal|null $rate
+ * @property int $version
  */
 final class FixtureDocument extends Model implements HasStatus
 {
