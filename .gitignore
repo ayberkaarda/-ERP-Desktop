@@ -10,3 +10,5 @@ storage/*.key
 /backend/storage/logs/*
 /frontend/dist/
 .DS_Store
+/backend/storage/api-docs/openapi.json
+/frontend/src/lib/api/schema.d.ts
