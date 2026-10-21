@@ -1,0 +1,225 @@
+{
+  "actions": {
+    "editNamed": "Edit {{name}}",
+    "deleteNamed": "Delete {{name}}",
+    "deleteTitle": "Delete this record?",
+    "deleteBody": "{{name}} will be deleted. If it is used elsewhere the deletion is refused; deactivate it instead.",
+    "delete": "Delete",
+    "retry": "Try again",
+    "save": "Save"
+  },
+  "errors": {
+    "generic": "The action could not be completed. Please try again.",
+    "load": "The data could not be loaded."
+  },
+  "states": {
+    "loading": "Loading…"
+  },
+  "conflict": {
+    "title": "This record was changed by someone else",
+    "body": "Load the latest version and apply your change again.",
+    "reload": "Reload"
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Name",
+    "active": "Active",
+    "inactive": "Inactive",
+    "status": "Status",
+    "actions": "Actions"
+  },
+  "nav": {
+    "title": "Reference data",
+    "currencies": "Currencies",
+    "exchangeRates": "Exchange rates",
+    "taxCodes": "Tax codes",
+    "paymentTerms": "Payment terms",
+    "warehouses": "Warehouses",
+    "costCenters": "Cost centers",
+    "projects": "Projects",
+    "settings": "Settings"
+  },
+  "tree": {
+    "collapse": "Collapse {{name}}",
+    "expand": "Expand {{name}}",
+    "noParent": "No parent (root)"
+  },
+  "currencies": {
+    "title": "Currencies",
+    "subtitle": "Activate the currencies your company uses.",
+    "base": "Base currency",
+    "symbol": "Symbol",
+    "decimals": "Decimals",
+    "activeForCompany": "Used by company",
+    "toggle": "Activate {{code}} for this company"
+  },
+  "rates": {
+    "title": "Exchange rates",
+    "subtitle": "TCMB rates are fetched every day; enter a rate manually when needed.",
+    "manualAction": "Enter rate manually",
+    "manualTitle": "Manual rate entry",
+    "manualHint": "Rates take up to 6 decimal places. A manual rate is stored with the source “Manual”.",
+    "latest": "Latest rates",
+    "history": "Rate history",
+    "currency": "Currency",
+    "date": "Date",
+    "forexBuying": "Forex buying",
+    "forexSelling": "Forex selling",
+    "banknoteBuying": "Banknote buying",
+    "banknoteSelling": "Banknote selling",
+    "source": "Source",
+    "sources": {
+      "tcmb": "TCMB",
+      "manual": "Manual"
+    },
+    "allCurrencies": "All currencies",
+    "from": "From date",
+    "to": "To date",
+    "emptyLatest": "No exchange rates yet",
+    "latestCaption": "Latest rates against {{base}}",
+    "status": {
+      "never": "No rates have been fetched yet. Enter rates manually until TCMB rates arrive.",
+      "fresh": "Rates were last updated on {{date}}.",
+      "stale": "Rates are out of date: last update {{date}} ({{days}} days ago). Consider entering a rate manually."
+    }
+  },
+  "taxCodes": {
+    "title": "Tax codes",
+    "subtitle": "Global codes are read-only; you can add company-specific codes.",
+    "new": "Custom tax code",
+    "edit": "Edit tax code",
+    "customHint": "A custom code is valid for this company only.",
+    "type": "Type",
+    "types": {
+      "vat": "VAT",
+      "withholding": "Withholding",
+      "excise": "Excise",
+      "exemption": "Exemption",
+      "other": "Other"
+    },
+    "rate": "Rate",
+    "numerator": "Numerator",
+    "denominator": "Denominator",
+    "effectiveFrom": "Effective from",
+    "effectiveTo": "Effective to",
+    "search": "Search by code or name",
+    "asOf": "Effective on",
+    "onlyEffective": "Only codes effective on this date",
+    "empty": "No tax codes match",
+    "global": "Global code (read-only)",
+    "globalHint": "Global code: cannot be changed",
+    "period": "Effective period",
+    "noPeriod": "Open-ended",
+    "validity": {
+      "active": "Effective",
+      "upcoming": "Upcoming",
+      "expired": "Expired",
+      "inactive": "Inactive"
+    }
+  },
+  "paymentTerms": {
+    "title": "Payment terms",
+    "subtitle": "Due dates and early-payment discount terms.",
+    "new": "New payment term",
+    "edit": "Edit payment term",
+    "dueDays": "Due (days)",
+    "discountPercent": "Discount rate",
+    "discountDays": "Discount days"
+  },
+  "warehouses": {
+    "title": "Warehouses",
+    "subtitle": "Warehouses and their storage locations.",
+    "new": "New warehouse",
+    "edit": "Edit warehouse",
+    "negativeStock": "Negative stock policy",
+    "policies": {
+      "allow": "Allow",
+      "warn": "Warn",
+      "block": "Block"
+    },
+    "default": "Default",
+    "locations": "Locations",
+    "address": {
+      "title": "Address",
+      "line1": "Address line 1",
+      "line2": "Address line 2",
+      "district": "District",
+      "city": "City",
+      "postalCode": "Postal code",
+      "country": "Country (2 letters)"
+    }
+  },
+  "locations": {
+    "title": "Warehouse locations",
+    "new": "New location",
+    "edit": "Edit location",
+    "type": "Type",
+    "types": {
+      "aisle": "Aisle",
+      "rack": "Rack",
+      "shelf": "Shelf",
+      "bin": "Bin"
+    },
+    "parent": "Parent location",
+    "newParent": "New parent location",
+    "barcode": "Barcode",
+    "empty": "This warehouse has no locations yet",
+    "emptyHint": "Add aisles, racks, shelves and bins to organise the warehouse as a tree.",
+    "addChild": "Add a location under {{name}}",
+    "moveNamed": "Move {{name}}",
+    "moveTitle": "Move {{name}}",
+    "move": "Move",
+    "deactivateNamed": "Deactivate {{name}}",
+    "activateNamed": "Activate {{name}}"
+  },
+  "costCenters": {
+    "title": "Cost centers",
+    "subtitle": "Manage cost centers as a tree.",
+    "new": "New cost center",
+    "edit": "Edit cost center",
+    "parent": "Parent cost center",
+    "empty": "No cost centers yet",
+    "addChild": "Add a cost center under {{name}}",
+    "deactivateNamed": "Deactivate {{name}}",
+    "activateNamed": "Activate {{name}}"
+  },
+  "projects": {
+    "title": "Projects",
+    "subtitle": "Projects for cost tracking.",
+    "new": "New project",
+    "edit": "Edit project",
+    "status": "Status",
+    "statuses": {
+      "planned": "Planned",
+      "active": "Active",
+      "on_hold": "On hold",
+      "closed": "Closed"
+    },
+    "startDate": "Start",
+    "endDate": "End",
+    "costCenter": "Cost center"
+  },
+  "settings": {
+    "title": "Reference settings",
+    "subtitle": "Reference data settings such as the company base currency.",
+    "saved": "Setting saved.",
+    "readOnly": "You are not allowed to change this setting.",
+    "baseCurrency": {
+      "title": "Base currency",
+      "description": "The currency used for reporting and exchange rate conversions.",
+      "label": "Base currency",
+      "hint": "Only currencies activated for the company can be chosen."
+    }
+  },
+  "commands": {
+    "currencies": "Currencies",
+    "exchangeRates": "Exchange rates",
+    "taxCodes": "Tax codes",
+    "paymentTerms": "Payment terms",
+    "warehouses": "Warehouses",
+    "costCenters": "Cost centers",
+    "projects": "Projects",
+    "settings": "Reference settings",
+    "rateEntry": "Enter exchange rate manually"
+  }
+}

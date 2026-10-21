@@ -1,0 +1,225 @@
+{
+  "actions": {
+    "editNamed": "{{name}} kaydını düzenle",
+    "deleteNamed": "{{name}} kaydını sil",
+    "deleteTitle": "Kayıt silinsin mi?",
+    "deleteBody": "{{name}} kaydı silinecek. Başka kayıtlarda kullanılıyorsa silme reddedilir; bu durumda pasif yapın.",
+    "delete": "Sil",
+    "retry": "Tekrar dene",
+    "save": "Kaydet"
+  },
+  "errors": {
+    "generic": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
+    "load": "Veriler yüklenemedi."
+  },
+  "states": {
+    "loading": "Yükleniyor…"
+  },
+  "conflict": {
+    "title": "Kayıt başka biri tarafından değiştirildi",
+    "body": "Kaydın yeni sürümünü yükleyip değişikliğinizi yeniden uygulayın.",
+    "reload": "Yeniden yükle"
+  },
+  "fields": {
+    "code": "Kod",
+    "name": "Ad",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "status": "Durum",
+    "actions": "İşlemler"
+  },
+  "nav": {
+    "title": "Referans veriler",
+    "currencies": "Para birimleri",
+    "exchangeRates": "Döviz kurları",
+    "taxCodes": "Vergi kodları",
+    "paymentTerms": "Ödeme koşulları",
+    "warehouses": "Depolar",
+    "costCenters": "Masraf merkezleri",
+    "projects": "Projeler",
+    "settings": "Ayarlar"
+  },
+  "tree": {
+    "collapse": "{{name}} altını daralt",
+    "expand": "{{name}} altını genişlet",
+    "noParent": "Üst kayıt yok (kök)"
+  },
+  "currencies": {
+    "title": "Para birimleri",
+    "subtitle": "Şirketinizin kullanacağı para birimlerini etkinleştirin.",
+    "base": "Ana para birimi",
+    "symbol": "Simge",
+    "decimals": "Ondalık",
+    "activeForCompany": "Şirkette kullanım",
+    "toggle": "{{code}} para birimini şirkette etkinleştir"
+  },
+  "rates": {
+    "title": "Döviz kurları",
+    "subtitle": "TCMB kurları her gün otomatik alınır; gerekirse elle kur girebilirsiniz.",
+    "manualAction": "Elle kur gir",
+    "manualTitle": "Elle kur girişi",
+    "manualHint": "Kurlar en fazla 6 ondalık basamakla girilir. Elle girilen kur kaynak olarak “Elle” işaretlenir.",
+    "latest": "Güncel kurlar",
+    "history": "Kur geçmişi",
+    "currency": "Para birimi",
+    "date": "Tarih",
+    "forexBuying": "Döviz alış",
+    "forexSelling": "Döviz satış",
+    "banknoteBuying": "Efektif alış",
+    "banknoteSelling": "Efektif satış",
+    "source": "Kaynak",
+    "sources": {
+      "tcmb": "TCMB",
+      "manual": "Elle"
+    },
+    "allCurrencies": "Tüm para birimleri",
+    "from": "Başlangıç tarihi",
+    "to": "Bitiş tarihi",
+    "emptyLatest": "Henüz kur kaydı yok",
+    "latestCaption": "{{base}} karşılığı güncel kurlar",
+    "status": {
+      "never": "Henüz hiç kur alınmadı. TCMB kurları alınana kadar elle kur girebilirsiniz.",
+      "fresh": "Kurlar en son {{date}} tarihinde güncellendi.",
+      "stale": "Kurlar güncel değil: son güncelleme {{date}} ({{days}} gün önce). Elle kur girmeyi düşünün."
+    }
+  },
+  "taxCodes": {
+    "title": "Vergi kodları",
+    "subtitle": "Genel kodlar salt okunurdur; şirkete özel kodlar ekleyebilirsiniz.",
+    "new": "Özel vergi kodu",
+    "edit": "Vergi kodunu düzenle",
+    "customHint": "Şirkete özel kod yalnızca bu şirkette geçerlidir.",
+    "type": "Tür",
+    "types": {
+      "vat": "KDV",
+      "withholding": "Tevkifat",
+      "excise": "ÖTV",
+      "exemption": "İstisna",
+      "other": "Diğer"
+    },
+    "rate": "Oran",
+    "numerator": "Pay",
+    "denominator": "Payda",
+    "effectiveFrom": "Geçerlilik başlangıcı",
+    "effectiveTo": "Geçerlilik bitişi",
+    "search": "Kod ya da ad ara",
+    "asOf": "Geçerlilik tarihi",
+    "onlyEffective": "Yalnızca bu tarihte geçerli olanlar",
+    "empty": "Kriterlere uyan vergi kodu yok",
+    "global": "Genel kod (salt okunur)",
+    "globalHint": "Genel kod: değiştirilemez",
+    "period": "Geçerlilik dönemi",
+    "noPeriod": "Süresiz",
+    "validity": {
+      "active": "Geçerli",
+      "upcoming": "Yakında",
+      "expired": "Süresi doldu",
+      "inactive": "Pasif"
+    }
+  },
+  "paymentTerms": {
+    "title": "Ödeme koşulları",
+    "subtitle": "Vade ve peşin iskonto koşulları.",
+    "new": "Yeni ödeme koşulu",
+    "edit": "Ödeme koşulunu düzenle",
+    "dueDays": "Vade (gün)",
+    "discountPercent": "İskonto oranı",
+    "discountDays": "İskonto günü"
+  },
+  "warehouses": {
+    "title": "Depolar",
+    "subtitle": "Depolar ve raf/göz lokasyonları.",
+    "new": "Yeni depo",
+    "edit": "Depoyu düzenle",
+    "negativeStock": "Eksi stok politikası",
+    "policies": {
+      "allow": "İzin ver",
+      "warn": "Uyar",
+      "block": "Engelle"
+    },
+    "default": "Varsayılan",
+    "locations": "Lokasyonlar",
+    "address": {
+      "title": "Adres",
+      "line1": "Adres satırı 1",
+      "line2": "Adres satırı 2",
+      "district": "İlçe",
+      "city": "İl",
+      "postalCode": "Posta kodu",
+      "country": "Ülke (2 harf)"
+    }
+  },
+  "locations": {
+    "title": "Depo lokasyonları",
+    "new": "Yeni lokasyon",
+    "edit": "Lokasyonu düzenle",
+    "type": "Tür",
+    "types": {
+      "aisle": "Koridor",
+      "rack": "Raf",
+      "shelf": "Kat",
+      "bin": "Göz"
+    },
+    "parent": "Üst lokasyon",
+    "newParent": "Yeni üst lokasyon",
+    "barcode": "Barkod",
+    "empty": "Bu depoda henüz lokasyon yok",
+    "emptyHint": "Koridor, raf, kat ve göz ekleyerek depoyu ağaç olarak düzenleyin.",
+    "addChild": "{{name}} altına lokasyon ekle",
+    "moveNamed": "{{name}} lokasyonunu taşı",
+    "moveTitle": "{{name}} lokasyonunu taşı",
+    "move": "Taşı",
+    "deactivateNamed": "{{name}} lokasyonunu pasif yap",
+    "activateNamed": "{{name}} lokasyonunu aktif yap"
+  },
+  "costCenters": {
+    "title": "Masraf merkezleri",
+    "subtitle": "Masraf merkezlerini ağaç yapısında yönetin.",
+    "new": "Yeni masraf merkezi",
+    "edit": "Masraf merkezini düzenle",
+    "parent": "Üst masraf merkezi",
+    "empty": "Henüz masraf merkezi yok",
+    "addChild": "{{name}} altına masraf merkezi ekle",
+    "deactivateNamed": "{{name}} masraf merkezini pasif yap",
+    "activateNamed": "{{name}} masraf merkezini aktif yap"
+  },
+  "projects": {
+    "title": "Projeler",
+    "subtitle": "Maliyet takibi için projeler.",
+    "new": "Yeni proje",
+    "edit": "Projeyi düzenle",
+    "status": "Durum",
+    "statuses": {
+      "planned": "Planlandı",
+      "active": "Devam ediyor",
+      "on_hold": "Beklemede",
+      "closed": "Kapandı"
+    },
+    "startDate": "Başlangıç",
+    "endDate": "Bitiş",
+    "costCenter": "Masraf merkezi"
+  },
+  "settings": {
+    "title": "Referans ayarları",
+    "subtitle": "Şirketin ana para birimi gibi referans veri ayarları.",
+    "saved": "Ayar kaydedildi.",
+    "readOnly": "Bu ayarı değiştirme yetkiniz yok.",
+    "baseCurrency": {
+      "title": "Ana para birimi",
+      "description": "Raporlama ve kur dönüşümlerinde esas alınan para birimi.",
+      "label": "Ana para birimi",
+      "hint": "Yalnızca şirkette etkin para birimleri seçilebilir."
+    }
+  },
+  "commands": {
+    "currencies": "Para birimleri",
+    "exchangeRates": "Döviz kurları",
+    "taxCodes": "Vergi kodları",
+    "paymentTerms": "Ödeme koşulları",
+    "warehouses": "Depolar",
+    "costCenters": "Masraf merkezleri",
+    "projects": "Projeler",
+    "settings": "Referans ayarları",
+    "rateEntry": "Elle kur gir"
+  }
+}

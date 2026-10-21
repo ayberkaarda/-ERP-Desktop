@@ -1,0 +1,225 @@
+{
+  "actions": {
+    "editNamed": "{{name}} bearbeiten",
+    "deleteNamed": "{{name}} löschen",
+    "deleteTitle": "Datensatz löschen?",
+    "deleteBody": "{{name}} wird gelöscht. Wird der Datensatz anderswo verwendet, wird das Löschen abgelehnt; deaktivieren Sie ihn dann.",
+    "delete": "Löschen",
+    "retry": "Erneut versuchen",
+    "save": "Speichern"
+  },
+  "errors": {
+    "generic": "Die Aktion konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
+    "load": "Die Daten konnten nicht geladen werden."
+  },
+  "states": {
+    "loading": "Wird geladen…"
+  },
+  "conflict": {
+    "title": "Der Datensatz wurde von jemand anderem geändert",
+    "body": "Laden Sie die aktuelle Version und wenden Sie Ihre Änderung erneut an.",
+    "reload": "Neu laden"
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Name",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "status": "Status",
+    "actions": "Aktionen"
+  },
+  "nav": {
+    "title": "Stammdaten",
+    "currencies": "Währungen",
+    "exchangeRates": "Wechselkurse",
+    "taxCodes": "Steuercodes",
+    "paymentTerms": "Zahlungsbedingungen",
+    "warehouses": "Lager",
+    "costCenters": "Kostenstellen",
+    "projects": "Projekte",
+    "settings": "Einstellungen"
+  },
+  "tree": {
+    "collapse": "{{name}} einklappen",
+    "expand": "{{name}} ausklappen",
+    "noParent": "Kein übergeordneter Eintrag (Wurzel)"
+  },
+  "currencies": {
+    "title": "Währungen",
+    "subtitle": "Aktivieren Sie die Währungen, die Ihr Unternehmen verwendet.",
+    "base": "Basiswährung",
+    "symbol": "Symbol",
+    "decimals": "Dezimalstellen",
+    "activeForCompany": "Im Unternehmen genutzt",
+    "toggle": "{{code}} für dieses Unternehmen aktivieren"
+  },
+  "rates": {
+    "title": "Wechselkurse",
+    "subtitle": "Die TCMB-Kurse werden täglich abgerufen; bei Bedarf können Sie einen Kurs manuell erfassen.",
+    "manualAction": "Kurs manuell erfassen",
+    "manualTitle": "Manuelle Kurserfassung",
+    "manualHint": "Kurse haben bis zu 6 Nachkommastellen. Ein manueller Kurs wird mit der Quelle „Manuell“ gespeichert.",
+    "latest": "Aktuelle Kurse",
+    "history": "Kursverlauf",
+    "currency": "Währung",
+    "date": "Datum",
+    "forexBuying": "Devisen Ankauf",
+    "forexSelling": "Devisen Verkauf",
+    "banknoteBuying": "Sorten Ankauf",
+    "banknoteSelling": "Sorten Verkauf",
+    "source": "Quelle",
+    "sources": {
+      "tcmb": "TCMB",
+      "manual": "Manuell"
+    },
+    "allCurrencies": "Alle Währungen",
+    "from": "Von Datum",
+    "to": "Bis Datum",
+    "emptyLatest": "Noch keine Wechselkurse",
+    "latestCaption": "Aktuelle Kurse gegenüber {{base}}",
+    "status": {
+      "never": "Es wurden noch keine Kurse abgerufen. Erfassen Sie Kurse manuell, bis die TCMB-Kurse eintreffen.",
+      "fresh": "Die Kurse wurden zuletzt am {{date}} aktualisiert.",
+      "stale": "Die Kurse sind veraltet: letzte Aktualisierung {{date}} (vor {{days}} Tagen). Erfassen Sie ggf. einen Kurs manuell."
+    }
+  },
+  "taxCodes": {
+    "title": "Steuercodes",
+    "subtitle": "Globale Codes sind schreibgeschützt; Sie können unternehmensspezifische Codes hinzufügen.",
+    "new": "Eigener Steuercode",
+    "edit": "Steuercode bearbeiten",
+    "customHint": "Ein eigener Code gilt nur für dieses Unternehmen.",
+    "type": "Art",
+    "types": {
+      "vat": "MwSt.",
+      "withholding": "Quellensteuer",
+      "excise": "Verbrauchsteuer",
+      "exemption": "Befreiung",
+      "other": "Sonstige"
+    },
+    "rate": "Satz",
+    "numerator": "Zähler",
+    "denominator": "Nenner",
+    "effectiveFrom": "Gültig ab",
+    "effectiveTo": "Gültig bis",
+    "search": "Nach Code oder Name suchen",
+    "asOf": "Gültig am",
+    "onlyEffective": "Nur an diesem Datum gültige Codes",
+    "empty": "Keine passenden Steuercodes",
+    "global": "Globaler Code (schreibgeschützt)",
+    "globalHint": "Globaler Code: nicht änderbar",
+    "period": "Gültigkeitszeitraum",
+    "noPeriod": "Unbefristet",
+    "validity": {
+      "active": "Gültig",
+      "upcoming": "Bevorstehend",
+      "expired": "Abgelaufen",
+      "inactive": "Inaktiv"
+    }
+  },
+  "paymentTerms": {
+    "title": "Zahlungsbedingungen",
+    "subtitle": "Fälligkeiten und Skontobedingungen.",
+    "new": "Neue Zahlungsbedingung",
+    "edit": "Zahlungsbedingung bearbeiten",
+    "dueDays": "Fällig (Tage)",
+    "discountPercent": "Skontosatz",
+    "discountDays": "Skontotage"
+  },
+  "warehouses": {
+    "title": "Lager",
+    "subtitle": "Lager und ihre Lagerplätze.",
+    "new": "Neues Lager",
+    "edit": "Lager bearbeiten",
+    "negativeStock": "Regel für negativen Bestand",
+    "policies": {
+      "allow": "Erlauben",
+      "warn": "Warnen",
+      "block": "Sperren"
+    },
+    "default": "Standard",
+    "locations": "Lagerplätze",
+    "address": {
+      "title": "Adresse",
+      "line1": "Adresszeile 1",
+      "line2": "Adresszeile 2",
+      "district": "Bezirk",
+      "city": "Ort",
+      "postalCode": "Postleitzahl",
+      "country": "Land (2 Buchstaben)"
+    }
+  },
+  "locations": {
+    "title": "Lagerplätze",
+    "new": "Neuer Lagerplatz",
+    "edit": "Lagerplatz bearbeiten",
+    "type": "Art",
+    "types": {
+      "aisle": "Gang",
+      "rack": "Regal",
+      "shelf": "Fachboden",
+      "bin": "Fach"
+    },
+    "parent": "Übergeordneter Lagerplatz",
+    "newParent": "Neuer übergeordneter Lagerplatz",
+    "barcode": "Barcode",
+    "empty": "Dieses Lager hat noch keine Lagerplätze",
+    "emptyHint": "Fügen Sie Gänge, Regale, Fachböden und Fächer hinzu, um das Lager als Baum zu gliedern.",
+    "addChild": "Lagerplatz unter {{name}} hinzufügen",
+    "moveNamed": "{{name}} verschieben",
+    "moveTitle": "{{name}} verschieben",
+    "move": "Verschieben",
+    "deactivateNamed": "{{name}} deaktivieren",
+    "activateNamed": "{{name}} aktivieren"
+  },
+  "costCenters": {
+    "title": "Kostenstellen",
+    "subtitle": "Kostenstellen als Baum verwalten.",
+    "new": "Neue Kostenstelle",
+    "edit": "Kostenstelle bearbeiten",
+    "parent": "Übergeordnete Kostenstelle",
+    "empty": "Noch keine Kostenstellen",
+    "addChild": "Kostenstelle unter {{name}} hinzufügen",
+    "deactivateNamed": "{{name}} deaktivieren",
+    "activateNamed": "{{name}} aktivieren"
+  },
+  "projects": {
+    "title": "Projekte",
+    "subtitle": "Projekte für die Kostenverfolgung.",
+    "new": "Neues Projekt",
+    "edit": "Projekt bearbeiten",
+    "status": "Status",
+    "statuses": {
+      "planned": "Geplant",
+      "active": "Aktiv",
+      "on_hold": "Pausiert",
+      "closed": "Abgeschlossen"
+    },
+    "startDate": "Beginn",
+    "endDate": "Ende",
+    "costCenter": "Kostenstelle"
+  },
+  "settings": {
+    "title": "Stammdaten-Einstellungen",
+    "subtitle": "Einstellungen wie die Basiswährung des Unternehmens.",
+    "saved": "Einstellung gespeichert.",
+    "readOnly": "Sie dürfen diese Einstellung nicht ändern.",
+    "baseCurrency": {
+      "title": "Basiswährung",
+      "description": "Die Währung für Berichte und Wechselkursumrechnungen.",
+      "label": "Basiswährung",
+      "hint": "Es können nur für das Unternehmen aktivierte Währungen gewählt werden."
+    }
+  },
+  "commands": {
+    "currencies": "Währungen",
+    "exchangeRates": "Wechselkurse",
+    "taxCodes": "Steuercodes",
+    "paymentTerms": "Zahlungsbedingungen",
+    "warehouses": "Lager",
+    "costCenters": "Kostenstellen",
+    "projects": "Projekte",
+    "settings": "Stammdaten-Einstellungen",
+    "rateEntry": "Wechselkurs manuell erfassen"
+  }
+}
