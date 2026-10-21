@@ -4,11 +4,18 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Requests;
 
+use App\Modules\Catalog\Models\DiscountRule;
+
 /**
  * GET /pricing/resolve query: unit defaults to the base unit of the item, date to today (UTC).
  */
 final class ResolvePriceRequest extends CatalogRequest
 {
+    protected function gate(): array
+    {
+        return ['resolve', DiscountRule::class];
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

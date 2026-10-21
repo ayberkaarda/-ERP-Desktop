@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Catalog\Services\UnitGraph;
 use Brick\Math\BigDecimal;
 use Brick\Math\BigRational;
+use Brick\Math\RoundingMode;
 
 function unitGraphFixture(): UnitGraph
 {
@@ -31,7 +32,7 @@ it('multiplies factors over multi-hop paths without rounding', function (): void
         ->and((string) $back)->toBe('1/480')
         ->and($toPcs?->multipliedBy($back ?? BigRational::zero())->isEqualTo(1))->toBeTrue()
         // 1/480 is not a terminating decimal: callers choose the scale.
-        ->and((string) $back?->toScale(6, Brick\Math\RoundingMode::HalfUp))->toBe('0.002083');
+        ->and((string) $back?->toScale(6, RoundingMode::HalfUp))->toBe('0.002083');
 });
 
 it('returns null between unconnected units', function (): void {

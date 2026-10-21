@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Requests;
 
+use App\Modules\Catalog\Models\Item;
+
 final class ItemVariantRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->parentGate(Item::class, 'item');
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

@@ -17,6 +17,11 @@ use Illuminate\Validation\Validator;
 
 final class DiscountRuleRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->recordGate(DiscountRule::class);
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

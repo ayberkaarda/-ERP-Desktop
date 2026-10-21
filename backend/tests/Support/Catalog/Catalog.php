@@ -17,6 +17,7 @@ use App\Modules\Catalog\Models\UnitConversion;
 use App\Modules\Catalog\Services\CategoryTree;
 use App\Modules\Catalog\Services\ReferenceGuards;
 use Closure;
+use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -118,7 +119,7 @@ final class Catalog
         app()->instance(ReferenceGuards::class, new class(app(), $lists) extends ReferenceGuards
         {
             /** @param array<string, string> $lists */
-            public function __construct(\Illuminate\Contracts\Container\Container $app, private readonly array $lists)
+            public function __construct(Container $app, private readonly array $lists)
             {
                 parent::__construct($app);
             }

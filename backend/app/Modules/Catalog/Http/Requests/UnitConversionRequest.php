@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Requests;
 
+use App\Modules\Catalog\Models\Unit;
+use App\Modules\Catalog\Models\UnitConversion;
 use Brick\Math\BigDecimal;
 use Illuminate\Validation\Validator;
 
@@ -12,6 +14,11 @@ use Illuminate\Validation\Validator;
  */
 final class UnitConversionRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->creating() ? ['create', Unit::class] : $this->recordGate(UnitConversion::class);
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

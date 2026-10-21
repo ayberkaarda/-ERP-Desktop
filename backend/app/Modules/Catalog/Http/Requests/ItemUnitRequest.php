@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Requests;
 
+use App\Modules\Catalog\Models\Item;
 use Brick\Math\BigDecimal;
 use Illuminate\Validation\Validator;
 
@@ -12,6 +13,11 @@ use Illuminate\Validation\Validator;
  */
 final class ItemUnitRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->parentGate(Item::class, 'item');
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

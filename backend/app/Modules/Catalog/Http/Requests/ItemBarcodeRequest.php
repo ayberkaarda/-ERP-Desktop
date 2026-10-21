@@ -19,6 +19,11 @@ use Illuminate\Validation\Validator;
  */
 final class ItemBarcodeRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->parentGate(Item::class, 'item');
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

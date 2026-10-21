@@ -11,6 +11,11 @@ use Illuminate\Validation\Validator;
 
 final class PriceListRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->recordGate(PriceList::class);
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

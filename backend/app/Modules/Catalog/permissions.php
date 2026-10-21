@@ -20,7 +20,7 @@ declare(strict_types=1);
 return [
     'group' => 'catalog',
     'permissions' => [
-        'items.view' => ['roles' => ['Accountant', 'Purchasing', 'Warehouse', 'Viewer']],
+        'items.view' => ['roles' => ['Accountant', 'Purchasing', 'Warehouse']],
         'items.create' => ['roles' => ['Purchasing', 'Warehouse']],
         'items.update' => ['roles' => ['Purchasing', 'Warehouse']],
         'items.delete' => [],

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Requests;
 
+use App\Modules\Catalog\Models\PriceList;
 use App\Modules\Catalog\Services\CatalogRules;
 use App\Modules\Catalog\Services\PriceLineRules;
 use App\Modules\Catalog\Services\PriceListService;
@@ -15,6 +16,11 @@ use Illuminate\Validation\Validator;
  */
 final class BulkPriceListLinesRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->parentGate(PriceList::class, 'priceList');
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

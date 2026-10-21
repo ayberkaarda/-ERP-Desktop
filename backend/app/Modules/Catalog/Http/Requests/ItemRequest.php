@@ -14,6 +14,11 @@ use Illuminate\Validation\Validator;
 
 final class ItemRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->recordGate(Item::class);
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

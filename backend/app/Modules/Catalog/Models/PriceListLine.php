@@ -33,6 +33,9 @@ class PriceListLine extends CatalogModel
     /** @var list<string> */
     protected $fillable = ['item_id', 'variant_id', 'unit_id', 'min_qty', 'price', 'valid_from', 'valid_to'];
 
+    /** @var array<string, mixed> */
+    protected $attributes = ['min_qty' => '0.000000'];
+
     public function getMorphClass(): string
     {
         return 'price_list_line';

@@ -4,8 +4,15 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Requests;
 
+use App\Modules\Catalog\Models\Unit;
+
 final class UnitRequest extends CatalogRequest
 {
+    protected function gate(): ?array
+    {
+        return $this->recordGate(Unit::class);
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

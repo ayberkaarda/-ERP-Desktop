@@ -45,7 +45,7 @@ class DiscountRule extends CatalogModel
     protected $fillable = self::FIELDS;
 
     /** @var array<string, mixed> */
-    protected $attributes = ['is_active' => true, 'stackable' => false, 'priority' => 0];
+    protected $attributes = ['is_active' => true, 'stackable' => false, 'priority' => 0, 'min_qty' => '0.000000'];
 
     public function getMorphClass(): string
     {
