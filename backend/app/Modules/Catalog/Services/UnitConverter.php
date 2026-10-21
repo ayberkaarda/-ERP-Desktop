@@ -142,7 +142,29 @@ final class UnitConverter
             return BigRational::one();
         }
 
-        return $item['units'][$unit] ?? $this->graph()->factor($unit, $item['base']);
+        if (isset($item['units'][$unit])) {
+            return $item['units'][$unit];
+        }
+
+        $direct = $this->graph()->factor($unit, $item['base']);
+
+        if ($direct !== null) {
+            return $direct;
+        }
+
+        // A graph-only unit may reach the base through one of the alternate units of the item.
+        $alternates = $item['units'];
+        ksort($alternates);
+
+        foreach ($alternates as $alternate => $toBase) {
+            $factor = $this->graph()->factor($unit, (string) $alternate);
+
+            if ($factor !== null) {
+                return $factor->multipliedBy($toBase);
+            }
+        }
+
+        return null;
     }
 
     /**

@@ -24,7 +24,6 @@ final class ItemService
     public const array INDEXES = ['items_company_code_unique' => 'code'];
 
     public function __construct(
-        private readonly CompanyContext $context,
         private readonly NumberSequenceService $numbers,
         private readonly ItemUsageChecker $usage,
     ) {}
@@ -101,7 +100,8 @@ final class ItemService
 
     private function nextCode(): string
     {
-        $company = $this->context->id();
+        // Resolved per call: the router keeps controller (and so service) instances across requests.
+        $company = app(CompanyContext::class)->id();
         $year = (int) now()->utc()->format('Y');
 
         // Skip numbers already taken by manually coded items.
