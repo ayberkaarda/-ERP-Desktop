@@ -32,6 +32,14 @@ import referenceDe from './locales/reference/de.json'
 import referenceEn from './locales/reference/en.json'
 import referenceFr from './locales/reference/fr.json'
 import referenceTr from './locales/reference/tr.json'
+import salesDocsDe from './locales/sales-docs/de.json'
+import salesDocsEn from './locales/sales-docs/en.json'
+import salesDocsFr from './locales/sales-docs/fr.json'
+import salesDocsTr from './locales/sales-docs/tr.json'
+import salesReportsDe from './locales/sales-reports/de.json'
+import salesReportsEn from './locales/sales-reports/en.json'
+import salesReportsFr from './locales/sales-reports/fr.json'
+import salesReportsTr from './locales/sales-reports/tr.json'
 import salesSharedDe from './locales/sales-shared/de.json'
 import salesSharedEn from './locales/sales-shared/en.json'
 import salesSharedFr from './locales/sales-shared/fr.json'
@@ -75,6 +83,8 @@ void i18n.use(initReactI18next).init({
       accountingJournal: accountingJournalTr,
       inventoryDocs: inventoryDocsTr,
       'inventory-stock': inventoryStockTr,
+      'sales-docs': salesDocsTr,
+      'sales-reports': salesReportsTr,
       'sales-shared': salesSharedTr,
       'sales-quotes': salesQuotesTr,
       'sales-orders': salesOrdersTr,
@@ -89,6 +99,8 @@ void i18n.use(initReactI18next).init({
       accountingJournal: accountingJournalEn,
       inventoryDocs: inventoryDocsEn,
       'inventory-stock': inventoryStockEn,
+      'sales-docs': salesDocsEn,
+      'sales-reports': salesReportsEn,
       'sales-shared': salesSharedEn,
       'sales-quotes': salesQuotesEn,
       'sales-orders': salesOrdersEn,
@@ -103,6 +115,8 @@ void i18n.use(initReactI18next).init({
       accountingJournal: accountingJournalDe,
       inventoryDocs: inventoryDocsDe,
       'inventory-stock': inventoryStockDe,
+      'sales-docs': salesDocsDe,
+      'sales-reports': salesReportsDe,
       'sales-shared': salesSharedDe,
       'sales-quotes': salesQuotesDe,
       'sales-orders': salesOrdersDe,
@@ -117,6 +131,8 @@ void i18n.use(initReactI18next).init({
       accountingJournal: accountingJournalFr,
       inventoryDocs: inventoryDocsFr,
       'inventory-stock': inventoryStockFr,
+      'sales-docs': salesDocsFr,
+      'sales-reports': salesReportsFr,
       'sales-shared': salesSharedFr,
       'sales-quotes': salesQuotesFr,
       'sales-orders': salesOrdersFr,
@@ -132,6 +148,8 @@ void i18n.use(initReactI18next).init({
     'reference',
     'inventoryDocs',
     'inventory-stock',
+    'sales-docs',
+    'sales-reports',
     'sales-shared',
     'sales-quotes',
     'sales-orders',
