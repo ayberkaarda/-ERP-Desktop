@@ -13,11 +13,13 @@
     "confirm": "Confirmer",
     "revise": "Réviser",
     "cancel": "Annuler la commande",
+    "close": "Clôturer la commande",
     "createDelivery": "Créer un bon de livraison",
     "createInvoice": "Créer une facture",
     "confirmed": "Commande confirmée.",
     "sentForApproval": "Commande envoyée pour approbation.",
     "cancelled": "Commande annulée.",
+    "closed": "Commande clôturée.",
     "failed": "L'opération n'a pas pu aboutir."
   },
   "confirm": {
@@ -26,8 +28,11 @@
   },
   "cancel": {
     "title": "Annuler la commande ?",
-    "body": "Les réservations sont libérées. L'annulation est définitive.",
-    "reason": "Motif d'annulation"
+    "body": "Les réservations sont libérées. L'annulation est définitive."
+  },
+  "closeOrder": {
+    "title": "Clôturer la commande ?",
+    "body": "Les quantités restantes ne seront ni livrées ni facturées ; les réservations ouvertes sont libérées."
   },
   "approval": {
     "tab": "Approbation",

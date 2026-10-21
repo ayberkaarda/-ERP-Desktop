@@ -22,7 +22,7 @@ export function quoteActions(status: QuoteStatus): QuoteAction[] {
 }
 
 export type OrderAction =
-  'edit' | 'delete' | 'confirm' | 'revise' | 'cancel' | 'createDelivery' | 'createInvoice'
+  'edit' | 'delete' | 'confirm' | 'revise' | 'cancel' | 'close' | 'createDelivery' | 'createInvoice'
 
 const FULFILLING: readonly OrderStatus[] = [
   'confirmed',
@@ -40,9 +40,10 @@ export function hasInvoices(lines: readonly SalesOrderLine[]): boolean {
 }
 
 /**
- * Actions of an order: revise only before any delivery; cancel while nothing was delivered or
- * invoiced; delivery while some quantity is left to deliver; invoice while something is left to
- * invoice (service lines and deliver-on-invoice are checked in the wizard).
+ * Actions of an order (OrderService): revise and cancel only while confirmed and before any
+ * delivery or invoice; close while confirmed, in progress or invoiced; delivery while some stock
+ * quantity is left to deliver; invoice while something is left to invoice (service lines and
+ * deliver-on-invoice are checked in the wizard).
  */
 export function orderActions(order: {
   status: OrderStatus
@@ -55,15 +56,16 @@ export function orderActions(order: {
   if (status === 'pending_approval') return ['cancel']
   // A fully invoiced order may still hold delivered quantity beyond the order (tolerance).
   if (status === 'invoiced')
-    return lines.some((l) => invoiceableQuantity(l).gt(0)) ? ['createInvoice'] : []
+    return lines.some((l) => invoiceableQuantity(l).gt(0)) ? ['createInvoice', 'close'] : ['close']
   if (!FULFILLING.includes(status)) return []
   const out: OrderAction[] = []
   const delivered = hasDeliveries(lines)
-  if (status === 'confirmed' && !delivered) out.push('revise')
-  if (!delivered && !hasInvoices(lines)) out.push('cancel')
+  const untouched = status === 'confirmed' && !delivered && !hasInvoices(lines)
+  if (untouched) out.push('revise', 'cancel')
   // Same bounds as the wizard: tolerance for deliveries, delivered or deliver-on-invoice for invoices.
   if (lines.some((l) => deliverableQuantity(l, over).gt(0))) out.push('createDelivery')
   if (lines.some((l) => invoiceableQuantity(l).gt(0) || invoiceableQuantity(l, true).gt(0)))
     out.push('createInvoice')
+  out.push('close')
   return out
 }

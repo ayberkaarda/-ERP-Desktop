@@ -84,7 +84,8 @@ function WizardBody({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const company = useCompanyStore((s) => s.activeCompanyId)
-  const overPercent = order.over_delivery_percent ?? '0'
+  // null: the tolerance setting is not readable here, the server bounds the delivery.
+  const overPercent = order.over_delivery_percent ?? null
   const offerDeliverOnInvoice = mode === 'invoice' && needsDeliverOnInvoice(order.lines)
   const [deliverOnInvoice, setDeliverOnInvoice] = useState(false)
   const bound = (line: SalesOrder['lines'][number], doi = deliverOnInvoice) =>
@@ -191,7 +192,7 @@ function WizardBody({
               </span>
             </label>
           )}
-          {mode === 'delivery' && Number(overPercent) > 0 && (
+          {mode === 'delivery' && overPercent !== null && Number(overPercent) > 0 && (
             <p className="text-xs text-muted-foreground">
               {t('wizard.tolerance', { percent: overPercent })}
             </p>
@@ -239,6 +240,8 @@ function WizardBody({
               <tbody>
                 {order.lines.map((l) => {
                   const max = bound(l)
+                  // Unknown tolerance: show what is left of the order, the server checks the rest.
+                  const left = max.isFinite() ? max : remainingFor(mode, l)
                   const problem = problems[l.id]
                   const error =
                     serverErrors[l.id] ??
@@ -265,7 +268,7 @@ function WizardBody({
                       </td>
                       <td className={tdr}>{qty(l.delivered_quantity)}</td>
                       <td className={tdr}>{qty(l.invoiced_quantity)}</td>
-                      <td className={tdr}>{qty(max.toString())}</td>
+                      <td className={tdr}>{qty(left.toString())}</td>
                       <td className={tdr}>
                         <QuantityInput
                           id={id}
@@ -274,7 +277,7 @@ function WizardBody({
                           aria-describedby={error ? `${id}-error` : undefined}
                           scale={6}
                           value={quantities[l.id] ?? ''}
-                          disabled={max.isZero() && !(quantities[l.id] ?? '')}
+                          disabled={left.isZero() && max.isZero() && !(quantities[l.id] ?? '')}
                           className="h-control-sm text-right"
                           onChange={(v) => {
                             setQuantities((prev) => ({ ...prev, [l.id]: v }))

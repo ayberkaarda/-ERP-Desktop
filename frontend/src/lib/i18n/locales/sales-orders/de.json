@@ -13,11 +13,13 @@
     "confirm": "Bestätigen",
     "revise": "Revidieren",
     "cancel": "Auftrag stornieren",
+    "close": "Auftrag abschließen",
     "createDelivery": "Lieferschein erstellen",
     "createInvoice": "Rechnung erstellen",
     "confirmed": "Auftrag bestätigt.",
     "sentForApproval": "Auftrag zur Freigabe gesendet.",
     "cancelled": "Auftrag storniert.",
+    "closed": "Auftrag abgeschlossen.",
     "failed": "Der Vorgang konnte nicht abgeschlossen werden."
   },
   "confirm": {
@@ -26,8 +28,11 @@
   },
   "cancel": {
     "title": "Auftrag stornieren?",
-    "body": "Reservierungen werden freigegeben. Die Stornierung kann nicht rückgängig gemacht werden.",
-    "reason": "Stornierungsgrund"
+    "body": "Reservierungen werden freigegeben. Die Stornierung kann nicht rückgängig gemacht werden."
+  },
+  "closeOrder": {
+    "title": "Auftrag abschließen?",
+    "body": "Offene Mengen werden weder geliefert noch berechnet; offene Reservierungen werden freigegeben."
   },
   "approval": {
     "tab": "Freigabe",
