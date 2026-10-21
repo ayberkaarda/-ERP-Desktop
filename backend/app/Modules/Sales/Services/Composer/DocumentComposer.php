@@ -242,7 +242,7 @@ final class DocumentComposer
 
         if (($line['_fixed'] ?? false) === true) {
             $price = $given ?? '0';
-            $source = 'source';
+            $source = self::str($line['_price_source'] ?? null) ?? 'source';
         } else {
             $quote = $this->prices->resolve($item->id, $variant, $party->id, $qty, $unit, $day, $currency);
             $resolved = $quote->toArray();

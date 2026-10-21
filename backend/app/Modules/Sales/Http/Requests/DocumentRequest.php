@@ -122,6 +122,11 @@ final class DocumentRequest extends SalesRequest
             'lines.*.warehouse_id' => ['sometimes', 'nullable', 'uuid'],
         ];
 
+        if (in_array($form, ['quote', 'order'], true)) {
+            // Id of a stored line of the edited draft (keeps its identity and provenance).
+            $rules['lines.*.id'] = ['sometimes', 'nullable', 'uuid', 'distinct'];
+        }
+
         if ($sourced && $form === 'invoice') {
             $rules['lines.*.delivery_line_id'] = ['sometimes', 'nullable', 'uuid'];
             $rules['lines.*.order_line_id'] = ['sometimes', 'nullable', 'uuid'];

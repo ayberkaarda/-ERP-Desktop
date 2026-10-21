@@ -38,6 +38,7 @@ return [
     'invoice_unknown' => 'The invoice does not exist.',
     'item_inactive' => 'Item :item is inactive.',
     'item_unknown' => 'The item does not exist.',
+    'line_unknown' => 'The line does not belong to this document.',
     'journal_credit_note' => 'Sales credit note :number - :party',
     'journal_invoice' => 'Sales invoice :number - :party',
     'line_amount_negative' => 'The discount exceeds the line amount.',

@@ -38,6 +38,7 @@ return [
     'invoice_unknown' => 'Die Rechnung existiert nicht.',
     'item_inactive' => 'Artikel :item ist inaktiv.',
     'item_unknown' => 'Der Artikel existiert nicht.',
+    'line_unknown' => 'Die Zeile gehört nicht zu diesem Beleg.',
     'journal_credit_note' => 'Verkaufsgutschrift :number - :party',
     'journal_invoice' => 'Verkaufsrechnung :number - :party',
     'line_amount_negative' => 'Der Rabatt übersteigt den Positionsbetrag.',

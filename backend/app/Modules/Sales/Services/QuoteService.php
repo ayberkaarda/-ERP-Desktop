@@ -59,9 +59,10 @@ final class QuoteService extends DocumentService
         return Sales::transaction(function () use ($quote, $data, $lines, $version, $actor, $canOverridePrice): SalesQuote {
             $quote = $this->lock($quote, $version);
             $this->assertDraft($quote);
-            $composed = $this->compose($this->mergedHeader($quote, $data), $lines ?? $this->storedLines($quote->lines), $canOverridePrice);
+            [$inputs, $kept] = $this->editedLines($quote->lines, $lines);
+            $composed = $this->compose($this->mergedHeader($quote, $data), $inputs, $canOverridePrice);
             $extra = array_key_exists('valid_until', $data) ? ['valid_until' => $data['valid_until']] : [];
-            $this->store->replace($quote, $composed, $extra);
+            $this->store->replace($quote, $composed, $extra, $kept);
             $this->logOverrides($quote, $composed, $actor);
 
             return $quote;

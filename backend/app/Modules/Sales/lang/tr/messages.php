@@ -38,6 +38,7 @@ return [
     'invoice_unknown' => 'Fatura bulunamadı.',
     'item_inactive' => ':item stok kartı pasif.',
     'item_unknown' => 'Stok kartı bulunamadı.',
+    'line_unknown' => 'Satır bu belgeye ait değil.',
     'journal_credit_note' => 'Satış iade faturası :number - :party',
     'journal_invoice' => 'Satış faturası :number - :party',
     'line_amount_negative' => 'İndirim satır tutarını aşıyor.',

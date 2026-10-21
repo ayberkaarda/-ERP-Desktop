@@ -38,6 +38,7 @@ return [
     'invoice_unknown' => 'La facture n\'existe pas.',
     'item_inactive' => 'L\'article :item est inactif.',
     'item_unknown' => 'L\'article n\'existe pas.',
+    'line_unknown' => 'La ligne n\'appartient pas à ce document.',
     'journal_credit_note' => 'Avoir de vente :number - :party',
     'journal_invoice' => 'Facture de vente :number - :party',
     'line_amount_negative' => 'La remise dépasse le montant de la ligne.',

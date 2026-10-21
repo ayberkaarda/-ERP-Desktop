@@ -69,9 +69,10 @@ final class OrderService extends DocumentService
         return Sales::transaction(function () use ($order, $data, $lines, $version, $actor, $canOverridePrice): SalesOrder {
             $order = $this->lock($order, $version);
             $this->assertDraft($order);
-            $composed = $this->compose($this->mergedHeader($order, $data), $lines ?? $this->storedLines($order->lines), $canOverridePrice);
+            [$inputs, $kept] = $this->editedLines($order->lines, $lines);
+            $composed = $this->compose($this->mergedHeader($order, $data), $inputs, $canOverridePrice);
             $extra = array_key_exists('requested_delivery_date', $data) ? ['requested_delivery_date' => $data['requested_delivery_date']] : [];
-            $this->store->replace($order, $composed, $extra);
+            $this->store->replace($order, $composed, $extra, $kept);
             $this->logOverrides($order, $composed, $actor);
 
             return $order;
@@ -118,14 +119,15 @@ final class OrderService extends DocumentService
             $this->assertStatus($order, [OrderStatus::Confirmed, OrderStatus::PendingApproval], 'revised');
             $this->assertNoDocuments($order);
             $this->reservations->release($order);
-            $composed = $this->compose($this->mergedHeader($order, $data), $lines ?? $this->storedLines($order->lines), $canOverridePrice);
+            [$inputs, $kept] = $this->editedLines($order->lines, $lines);
+            $composed = $this->compose($this->mergedHeader($order, $data), $inputs, $canOverridePrice);
             $extra = ['revision' => $order->revision + 1];
 
             if (array_key_exists('requested_delivery_date', $data)) {
                 $extra['requested_delivery_date'] = $data['requested_delivery_date'];
             }
 
-            $this->store->replace($order, $composed, $extra);
+            $this->store->replace($order, $composed, $extra, $kept);
             $this->logOverrides($order, $composed, $actor);
 
             return $this->submit($order, $overrideReason, $canOverride, $actor);

@@ -164,3 +164,49 @@ it('rechecks the limit when an invoice of order value confirmed without an overr
     SalesKit::post($approver, $this->w->company, "sales-invoices/{$invoice['id']}/issue", ['credit_override_reason' => 'Collateral received'])
         ->assertOk()->assertJsonPath('data.status', 'issued')->assertJsonPath('data.credit_override_reason', 'Collateral received');
 });
+
+/** A draft order converted from a quote of one manually priced widget line (no price list). */
+function salesConvertedDraft(object $w): array
+{
+    $quote = SalesKit::post($w->user, $w->company, 'sales-quotes', [
+        'party_id' => $w->party->id, 'document_date' => '2027-06-10',
+        'lines' => [['item_id' => $w->item->id, 'quantity' => '2', 'unit_price' => '75', 'discount_percent' => '10']],
+    ])->assertCreated()->json('data');
+
+    return SalesKit::post($w->user, $w->company, "sales-quotes/{$quote['id']}/convert")->assertCreated()->json('data');
+}
+
+it('keeps line identity, provenance and copied prices when a converted draft order is saved', function (): void {
+    $order = salesConvertedDraft($this->w);
+    $line = $order['lines'][0];
+    expect($line['source_line_id'])->not->toBeNull()->and($line['price_source'])->toBe('source');
+
+    // Header-only save.
+    $saved = SalesKit::patch($this->w->user, $this->w->company, "sales-orders/{$order['id']}", ['notes' => 'n', 'version' => $order['version']])
+        ->assertOk()->json('data');
+    expect($saved['lines'][0])->toMatchArray(['id' => $line['id'], 'source_line_id' => $line['source_line_id'], 'price_source' => 'source', 'unit_price' => $line['unit_price']]);
+
+    // Quantity edit of the kept line (no price sent) plus a new line.
+    $edited = SalesKit::patch($this->w->user, $this->w->company, "sales-orders/{$order['id']}", ['version' => $saved['version'], 'lines' => [
+        ['id' => $line['id'], 'item_id' => $this->w->item->id, 'quantity' => '3', 'unit_price' => null, 'discount_percent' => '10'],
+        ['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '20'],
+    ]])->assertOk()->json('data');
+    expect($edited['lines'][0])->toMatchArray(['id' => $line['id'], 'source_line_id' => $line['source_line_id'], 'price_source' => 'source', 'unit_price' => $line['unit_price'], 'quantity' => '3.000000'])
+        ->and($edited['lines'][1]['id'])->not->toBe($line['id'])
+        ->and($edited['lines'][1]['source_line_id'])->toBeNull();
+
+    // Another item on the kept line drops the provenance.
+    $swapped = SalesKit::patch($this->w->user, $this->w->company, "sales-orders/{$order['id']}", ['version' => $edited['version'], 'lines' => [
+        ['id' => $line['id'], 'item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '30'],
+    ]])->assertOk()->json('data');
+    expect($swapped['lines'][0]['source_line_id'])->toBeNull()->and($swapped['lines'][0]['price_source'])->toBe('manual');
+});
+
+it('refuses a line id that is not a line of the edited document', function (): void {
+    $order = salesConvertedDraft($this->w);
+    $other = salesConvertedDraft($this->w);
+
+    SalesKit::patch($this->w->user, $this->w->company, "sales-orders/{$order['id']}", ['version' => $order['version'], 'lines' => [
+        ['id' => $other['lines'][0]['id'], 'item_id' => $this->w->item->id, 'quantity' => '1'],
+    ]])->assertStatus(422)->assertJsonValidationErrors(['lines.0.id'], 'errors.fields');
+});

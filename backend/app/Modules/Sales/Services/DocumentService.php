@@ -116,10 +116,82 @@ abstract class DocumentService
         $out = [];
 
         foreach ($lines as $line) {
-            $out[] = $this->fixedLine($line, (string) $line->quantity);
+            $out[] = $this->keptLine($line, (string) $line->quantity);
         }
 
         return $out;
+    }
+
+    /**
+     * Composer input and line ids for a draft edit. Without lines the stored lines stay as they are.
+     * A line carrying the id of a stored line keeps that row and, while its item, variant and unit
+     * stay, its provenance; with no price or the stored price it also keeps the stored price and
+     * price source. Lines without an id are new.
+     *
+     * @param  iterable<SalesLine>  $stored
+     * @param  list<array<string, mixed>>|null  $lines
+     * @return array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>} composer lines and per-line extras (id)
+     */
+    protected function editedLines(iterable $stored, ?array $lines): array
+    {
+        $byId = [];
+
+        foreach ($stored as $line) {
+            $byId[$line->id] = $line;
+        }
+
+        if ($lines === null) {
+            return [$this->storedLines($byId), array_map(static fn (SalesLine $l): array => ['id' => $l->id], array_values($byId))];
+        }
+
+        $inputs = [];
+        $extras = [];
+
+        foreach ($lines as $i => $line) {
+            $id = is_string($line['id'] ?? null) ? $line['id'] : null;
+            unset($line['id']);
+
+            if ($id === null) {
+                $inputs[] = $line;
+                $extras[] = [];
+
+                continue;
+            }
+
+            $old = $byId[$id] ?? Messages::fail("lines.{$i}.id", 'line_unknown');
+            $same = ($line['item_id'] ?? null) === $old->item_id
+                && ($line['variant_id'] ?? $old->variant_id) === $old->variant_id
+                && ($line['unit_id'] ?? $old->unit_id) === $old->unit_id;
+            $price = is_string($line['unit_price'] ?? null) ? $line['unit_price'] : null;
+
+            if ($same && ($price === null || Sales::dec($price)->isEqualTo($old->unit_price))) {
+                $kept = $this->keptLine($old, is_string($line['quantity'] ?? null) ? $line['quantity'] : (string) $old->quantity);
+
+                foreach (['discount_percent', 'discount_amount', 'tax_code_id', 'tax_inclusive', 'description', 'warehouse_id'] as $key) {
+                    if (array_key_exists($key, $line)) {
+                        $kept[$key] = $line[$key];
+                    }
+                }
+
+                $inputs[] = $kept;
+            } else {
+                $inputs[] = $same ? [...$line, 'source_line_id' => $old->source_line_id] : $line;
+            }
+
+            $extras[] = ['id' => $id];
+        }
+
+        return [$inputs, $extras];
+    }
+
+    /**
+     * A stored line as composer input: its price, discount, provenance and price source kept.
+     *
+     * @return array<string, mixed>
+     */
+    protected function keptLine(SalesLine $line, string $quantity): array
+    {
+        return [...$this->fixedLine($line, $quantity), 'source_line_id' => $line->source_line_id, '_price_source' => $line->price_source];
     }
 
     /**
