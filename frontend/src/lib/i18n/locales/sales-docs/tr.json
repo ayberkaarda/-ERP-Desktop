@@ -1,0 +1,371 @@
+{
+  "nav": {
+    "sales": "Satış",
+    "deliveries": "Sevk irsaliyeleri",
+    "invoices": "Satış faturaları",
+    "returns": "Satış iadeleri"
+  },
+  "palette": {
+    "newDelivery": "Yeni sevk irsaliyesi",
+    "newInvoice": "Yeni satış faturası"
+  },
+  "actions": {
+    "close": "Kapat",
+    "cancel": "Vazgeç",
+    "apply": "Uygula",
+    "ok": "Tamam",
+    "save": "Kaydet",
+    "retry": "Tekrar dene"
+  },
+  "conflict": {
+    "title": "Belge başka biri tarafından değiştirildi",
+    "body": "Kaydedilmemiş değişiklikleriniz birleştirilmez. Güncel sürümü yükleyip yeniden deneyin.",
+    "reload": "Güncel sürümü yükle"
+  },
+  "export": {
+    "label": "Dışa aktar",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Dışa aktarma başarısız oldu."
+  },
+  "presets": {
+    "views": "Kayıtlı görünümler",
+    "empty": "Henüz kayıtlı görünüm yok.",
+    "remove": "{{name}} görünümünü sil",
+    "saveCurrent": "Geçerli filtreleri kaydet",
+    "saveTitle": "Görünümü kaydet",
+    "saveBody": "Filtreler bu tarayıcıda, kullanıcınız ve şirketiniz için saklanır.",
+    "name": "Ad"
+  },
+  "errors": {
+    "generic": "İşlem tamamlanamadı.",
+    "loadFailed": "Belge yüklenemedi."
+  },
+  "list": {
+    "filters": "Filtreler"
+  },
+  "filters": {
+    "dateFrom": "Başlangıç",
+    "dateTo": "Bitiş",
+    "customer": "Müşteri",
+    "number": "Belge no",
+    "item": "Stok kartı",
+    "clear": "Filtreleri temizle",
+    "openOnly": "Yalnız açık bakiyeli"
+  },
+  "fields": {
+    "number": "Belge no",
+    "documentDate": "Belge tarihi",
+    "dueDate": "Vade tarihi",
+    "fxRate": "Kur",
+    "item": "Stok / hizmet",
+    "quantity": "Miktar",
+    "lotSerial": "Lot / seri",
+    "unitPrice": "Birim fiyat",
+    "discountPercent": "İskonto %",
+    "taxRate": "KDV %",
+    "netAmount": "Net tutar",
+    "taxCode": "Vergi kodu",
+    "taxBase": "Matrah",
+    "taxAmount": "Vergi",
+    "notes": "Açıklama",
+    "customer": "Müşteri",
+    "warehouse": "Depo",
+    "lineCount": "Satır",
+    "status": "Durum",
+    "unit": "Birim",
+    "lot": "Lot",
+    "serials": "Seri numaraları",
+    "unitCost": "Birim maliyet",
+    "invoicedQuantity": "Faturalanan",
+    "postedAt": "Kayıt zamanı",
+    "stockDocument": "Stok fişi",
+    "cogsEntry": "SMM yevmiyesi",
+    "invoicedState": "Faturalama",
+    "cancelReason": "İptal nedeni",
+    "cancelDate": "İptal tarihi",
+    "reason": "Neden",
+    "description": "Açıklama",
+    "lineTotal": "Satır toplamı",
+    "currency": "Para birimi",
+    "paymentTerm": "Ödeme vadesi",
+    "internalNotes": "İç not",
+    "invoiceType": "Fatura türü",
+    "taxNumber": "Vergi dairesi / no",
+    "issuedAt": "Kesilme zamanı",
+    "journalEntry": "Yevmiye kaydı",
+    "reversalEntry": "Ters kayıt",
+    "reversalReason": "Ters kayıt nedeni",
+    "total": "Toplam",
+    "balanceDue": "Kalan bakiye",
+    "returnWarehouse": "İade deposu",
+    "returnable": "İade edilebilir",
+    "returnQuantity": "İade miktarı",
+    "lineReason": "Satır nedeni",
+    "receivedAt": "Teslim alma",
+    "postingDate": "Kayıt tarihi"
+  },
+  "deliveryStatus": {
+    "draft": "Taslak",
+    "posted": "Sevk edildi",
+    "cancelled": "İptal"
+  },
+  "invoiceStatus": {
+    "draft": "Taslak",
+    "pending_approval": "Onay bekliyor",
+    "issued": "Kesildi",
+    "partially_paid": "Kısmen ödendi",
+    "paid": "Ödendi",
+    "cancelled": "İptal",
+    "reversed": "Ters kayıtlı"
+  },
+  "returnStatus": {
+    "draft": "Taslak",
+    "approved": "Onaylandı",
+    "received": "Teslim alındı",
+    "credited": "İade faturası kesildi",
+    "cancelled": "İptal"
+  },
+  "invoiceType": {
+    "sale": "Satış faturası",
+    "return": "İade faturası"
+  },
+  "invoicedState": {
+    "none": "Faturalanmadı",
+    "partial": "Kısmen faturalandı",
+    "full": "Faturalandı"
+  },
+  "balance": {
+    "settled": "Kapandı",
+    "partial": "Kısmi tahsilat",
+    "open": "Açık"
+  },
+  "links": {
+    "title": "Belge zinciri",
+    "unnumbered": "(numarasız)"
+  },
+  "linkType": {
+    "sales_quote": "Teklif",
+    "sales_order": "Sipariş",
+    "sales_delivery": "İrsaliye",
+    "sales_invoice": "Fatura",
+    "sales_return": "İade",
+    "stock_document": "Stok fişi",
+    "journal_entry": "Yevmiye"
+  },
+  "print": {
+    "open": "Yazdır",
+    "back": "Belgeye dön",
+    "print": "Yazdır",
+    "taxInfo": "{{office}} V.D. · {{number}}",
+    "seller": "Satıcı",
+    "buyer": "Alıcı",
+    "draft": "TASLAK",
+    "deliveryAddress": "Teslimat adresi"
+  },
+  "totals": {
+    "title": "Toplamlar",
+    "subtotal": "Ara toplam",
+    "discount": "İskonto",
+    "tax": "Vergi",
+    "total": "Genel toplam",
+    "totalLocal": "Yerel para toplamı",
+    "paid": "Tahsil edilen",
+    "balanceDue": "Kalan bakiye",
+    "calculating": "Hesaplanıyor",
+    "estimate": "Tahmini"
+  },
+  "numbered": {
+    "body": "Belgeye {{number}} numarası verildi."
+  },
+  "editor": {
+    "header": "Belge başlığı",
+    "saveDraft": "Taslağı kaydet",
+    "saved": "Taslak kaydedildi.",
+    "delete": "Taslağı sil",
+    "deleted": "Taslak silindi.",
+    "deleteTitle": "Taslak silinsin mi?",
+    "deleteBody": "Taslak kalıcı olarak silinir. Bu işlem geri alınamaz.",
+    "readOnly": "Bu belgeyi düzenleme yetkiniz yok."
+  },
+  "view": {
+    "open": "Aç",
+    "journalEntry": "Kaydı aç",
+    "posted": "Kaydedildi"
+  },
+  "lines": {
+    "maxReached": "Bir belgede en fazla {{max}} satır olabilir."
+  },
+  "validation": {
+    "party": "Müşteri seçin.",
+    "warehouse": "Depo seçin.",
+    "date": "Tarih girin.",
+    "minLines": "En az bir satır girin.",
+    "maxLines": "Bir belgede en fazla {{max}} satır olabilir.",
+    "tooLong": "Metin çok uzun.",
+    "quantity": "Geçerli bir miktar girin.",
+    "quantityPositive": "Miktar sıfırdan büyük olmalı.",
+    "lot": "Lot takipli stok için lot girin.",
+    "serialCount": "{{quantity}} seri gerekli, {{count}} girildi.",
+    "serialInteger": "Seri takipli stokta miktar tam sayı olmalı.",
+    "serialDuplicate": "{{serial}} seri numarası birden fazla kez girildi.",
+    "overRemaining": "Sipariş kalanını aşıyor.",
+    "reason": "En az 3 karakterlik bir neden yazın.",
+    "currency": "Para birimi seçin.",
+    "fxRate": "Kur sıfırdan büyük olmalı.",
+    "dueBeforeDate": "Vade, belge tarihinden önce olamaz.",
+    "item": "Stok kartı seçin ya da açıklama yazın.",
+    "unit": "Birim seçin.",
+    "price": "Geçerli bir fiyat girin.",
+    "discount": "İskonto 0 ile 100 arasında olmalı.",
+    "taxCode": "Vergi kodu seçin.",
+    "selectLines": "İade edilecek en az bir satır seçin.",
+    "overReturnable": "İade edilebilir miktarı aşıyor."
+  },
+  "fefo": {
+    "suggest": "{{index}}. satır için ilk son kullanma tarihli lotları öner",
+    "hint": "İlk son kullanma tarihi ilk çıkar (FEFO)",
+    "none": "Bu depoda kullanılabilir lot bulunamadı.",
+    "applied": "Miktar {{count}} lota dağıtıldı.",
+    "shortage": "Lotlar yetmedi; {{quantity}} lotsuz kaldı.",
+    "skippedExpired": "Son kullanma tarihi geçmiş {{count}} lot atlandı.",
+    "failed": "Lotlar okunamadı."
+  },
+  "delivery": {
+    "listTitle": "Sevk irsaliyeleri",
+    "listDescription": "Siparişlerden ya da doğrudan yapılan sevkiyatlar.",
+    "new": "Yeni",
+    "newDirect": "Doğrudan sevk",
+    "newTitle": "Yeni sevk irsaliyesi",
+    "editTitle": "Sevk irsaliyesi (taslak)",
+    "editorDescription": "Miktarları, lotları ve seri numaralarını girin; kaydettikten sonra sevk edin.",
+    "viewTitle": "Sevk irsaliyesi {{number}}",
+    "lines": "İrsaliye satırları",
+    "order": "Sipariş",
+    "direct": "Doğrudan",
+    "fromOrder": "Kaynak sipariş:",
+    "remaining": "Kalan {{quantity}}",
+    "overRemaining": "Kalan {{quantity}} aşılıyor",
+    "partialHint": "Sevk edilmeyecek satırların miktarını 0 bırakın; kalan miktar siparişte açık kalır.",
+    "footer": "{{count}} satır sevk edilecek",
+    "serialButton": "{{count}} / {{quantity}} seri",
+    "serialsTitle": "Seri numaraları · {{item}}",
+    "serialsBody": "Her satıra bir seri numarası yazın ya da okutun.",
+    "serialCount": "{{count}} / {{quantity}} seri girildi",
+    "post": "Sevk et",
+    "postTitle": "İrsaliye sevk edilsin mi?",
+    "postBody": "Stok çıkışı ve satılan malın maliyeti kaydı oluşturulur; sevk edilen irsaliye değiştirilemez.",
+    "postSummary": "{{date}} · {{count}} satır",
+    "postedTitle": "İrsaliye sevk edildi",
+    "cancel": "İptal et",
+    "cancelTitle": "{{number}} irsaliyesi iptal edilsin mi?",
+    "cancelBody": "Stok çıkışı ve maliyet kaydı ters çevrilir, sipariş miktarları geri açılır.",
+    "cancelConfirm": "İrsaliyeyi iptal et",
+    "cancelled": "İrsaliye iptal edildi.",
+    "createInvoice": "Fatura oluştur",
+    "invoiceCreated": "Fatura taslağı oluşturuldu."
+  },
+  "invoice": {
+    "listTitle": "Satış faturaları",
+    "listDescription": "Satış ve iade faturaları, kalan bakiyeleriyle.",
+    "new": "Yeni fatura",
+    "newTitle": "Yeni satış faturası",
+    "editTitle": "{{type}} (taslak)",
+    "editorDescription": "Fiyatı boş bırakılan satırlar fiyat listesinden çözülür; toplamları sunucu hesaplar.",
+    "viewTitle": "{{type}} {{number}}",
+    "lines": "Fatura satırları",
+    "autoPrice": "Otomatik",
+    "autoRate": "Günün kuru",
+    "priceSource": "Kaynak: {{source}}",
+    "issue": "Faturayı kes",
+    "issuedTitle": "Fatura kesildi",
+    "approvalStarted": "Tutar onay sınırını aştığı için fatura onaya gönderildi.",
+    "pendingApproval": "Fatura onay bekliyor; onaylanınca numara alır ve kaydedilir.",
+    "deliverOnInvoice": "Faturayla birlikte sevk et",
+    "deliverOnInvoiceHint": "İrsaliyesiz {{count}} stok satırı var; kesilirken otomatik sevk irsaliyesi oluşturulur.",
+    "createReturn": "İade başlat",
+    "reverse": "Ters kayıt",
+    "overdue": "(vadesi geçti)"
+  },
+  "issue": {
+    "title": "Fatura kesilsin mi?",
+    "body": "{{party}} · {{date}} · {{total}}. Kesilen fatura numara alır, yevmiyeye kaydedilir ve değiştirilemez.",
+    "confirm": "Faturayı kes",
+    "blocked": "Müşterinin risk limiti aşılıyor.",
+    "overrideReason": "Limit aşımı gerekçesi",
+    "noOverride": "Limiti aşma yetkiniz yok; yetkili bir kullanıcıya başvurun.",
+    "override": "Limiti aşarak kes"
+  },
+  "exposure": {
+    "limit": "Risk limiti",
+    "unlimited": "Limitsiz",
+    "openInvoices": "Açık faturalar",
+    "openOrders": "Faturalanmamış siparişler",
+    "thisDocument": "Bu fatura",
+    "availableAfter": "Kesildikten sonra kalan",
+    "available": "Kullanılabilir {{amount}} / {{limit}}",
+    "over": "Limit {{amount}} aşılmış"
+  },
+  "reverse": {
+    "title": "{{number}} faturasına ters kayıt",
+    "body": "Yevmiye kaydı ters çevrilir ve fatura ters kayıtlı olur. Düzeltme için iade faturası da kullanılabilir.",
+    "date": "Ters kayıt tarihi",
+    "stock": "Stok hareketlerini de ters çevir",
+    "stockHint": "Yalnız faturayla oluşan sevkiyatlar ve envanterin izin verdiği durumlarda uygulanır.",
+    "confirm": "Ters kaydı oluştur",
+    "done": "Ters kayıt oluşturuldu."
+  },
+  "return": {
+    "listTitle": "Satış iadeleri",
+    "listDescription": "Faturadan başlatılan iadeler: onay, teslim alma ve iade faturası.",
+    "new": "Yeni iade",
+    "newTitle": "Yeni satış iadesi",
+    "newDescription": "{{number}} faturasından iade edilecek satırları ve miktarları seçin.",
+    "backToInvoice": "Faturaya dön",
+    "pickInvoice": "İade, kesilmiş bir faturanın sayfasından başlatılır.",
+    "notReturnable": "Bu faturadan iade başlatılamaz.",
+    "pickLines": "Fatura satırları",
+    "select": "Seç",
+    "selectLine": "{{item}} satırını seç",
+    "quantityFor": "{{item}} iade miktarı",
+    "reasonFor": "{{item}} iade nedeni",
+    "summary": "{{count}} satır seçildi · {{amount}} (KDV hariç)",
+    "create": "İade taslağı oluştur",
+    "created": "İade taslağı oluşturuldu.",
+    "viewTitle": "Satış iadesi {{number}}",
+    "invoice": "Fatura",
+    "creditNote": "İade faturası",
+    "steps": "İade adımları",
+    "lines": "İade satırları"
+  },
+  "returnAction": {
+    "approve": {
+      "button": "Onayla",
+      "title": "İade onaylansın mı?",
+      "body": "Onaylanan iade için mal teslim alınabilir.",
+      "confirm": "Onayla",
+      "done": "İade onaylandı."
+    },
+    "receive": {
+      "button": "Teslim al",
+      "title": "İade edilen mal teslim alınsın mı?",
+      "body": "Mallar orijinal sevk maliyetiyle iade deposuna girer.",
+      "confirm": "Teslim al",
+      "done": "Mallar teslim alındı."
+    },
+    "credit": {
+      "button": "İade faturası kes",
+      "title": "İade faturası kesilsin mi?",
+      "body": "İade faturası oluşturulur, alacak ve satılan malın maliyeti ters çevrilir.",
+      "confirm": "İade faturasını kes",
+      "done": "İade faturası kesildi."
+    },
+    "cancel": {
+      "button": "İadeyi iptal et",
+      "title": "İade iptal edilsin mi?",
+      "body": "İptal edilen iade için işlem yapılamaz.",
+      "confirm": "İadeyi iptal et",
+      "done": "İade iptal edildi."
+    }
+  }
+}

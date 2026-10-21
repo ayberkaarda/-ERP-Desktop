@@ -1,0 +1,371 @@
+{
+  "nav": {
+    "sales": "Verkauf",
+    "deliveries": "Lieferscheine",
+    "invoices": "Ausgangsrechnungen",
+    "returns": "Retouren"
+  },
+  "palette": {
+    "newDelivery": "Neuer Lieferschein",
+    "newInvoice": "Neue Ausgangsrechnung"
+  },
+  "actions": {
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "apply": "Übernehmen",
+    "ok": "OK",
+    "save": "Speichern",
+    "retry": "Erneut versuchen"
+  },
+  "conflict": {
+    "title": "Jemand anderes hat dieses Dokument geändert",
+    "body": "Ihre ungespeicherten Änderungen werden nicht zusammengeführt. Laden Sie die aktuelle Version und versuchen Sie es erneut.",
+    "reload": "Aktuelle Version laden"
+  },
+  "export": {
+    "label": "Exportieren",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Export fehlgeschlagen."
+  },
+  "presets": {
+    "views": "Gespeicherte Ansichten",
+    "empty": "Noch keine gespeicherten Ansichten.",
+    "remove": "Ansicht {{name}} löschen",
+    "saveCurrent": "Aktuelle Filter speichern",
+    "saveTitle": "Ansicht speichern",
+    "saveBody": "Filter werden in diesem Browser für Ihren Benutzer und Ihre Firma gespeichert.",
+    "name": "Name"
+  },
+  "errors": {
+    "generic": "Die Aktion konnte nicht abgeschlossen werden.",
+    "loadFailed": "Das Dokument konnte nicht geladen werden."
+  },
+  "list": {
+    "filters": "Filter"
+  },
+  "filters": {
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "customer": "Kunde",
+    "number": "Belegnr.",
+    "item": "Artikel",
+    "clear": "Filter zurücksetzen",
+    "openOnly": "Nur offene Salden"
+  },
+  "fields": {
+    "number": "Belegnr.",
+    "documentDate": "Belegdatum",
+    "dueDate": "Fälligkeit",
+    "fxRate": "Wechselkurs",
+    "item": "Artikel / Leistung",
+    "quantity": "Menge",
+    "lotSerial": "Charge / Serie",
+    "unitPrice": "Einzelpreis",
+    "discountPercent": "Rabatt %",
+    "taxRate": "USt. %",
+    "netAmount": "Nettobetrag",
+    "taxCode": "Steuerschlüssel",
+    "taxBase": "Bemessungsgrundlage",
+    "taxAmount": "Steuer",
+    "notes": "Bemerkung",
+    "customer": "Kunde",
+    "warehouse": "Lager",
+    "lineCount": "Positionen",
+    "status": "Status",
+    "unit": "Einheit",
+    "lot": "Charge",
+    "serials": "Seriennummern",
+    "unitCost": "Stückkosten",
+    "invoicedQuantity": "Fakturiert",
+    "postedAt": "Gebucht am",
+    "stockDocument": "Lagerbeleg",
+    "cogsEntry": "Wareneinsatzbuchung",
+    "invoicedState": "Fakturierung",
+    "cancelReason": "Stornogrund",
+    "cancelDate": "Stornodatum",
+    "reason": "Grund",
+    "description": "Beschreibung",
+    "lineTotal": "Positionssumme",
+    "currency": "Währung",
+    "paymentTerm": "Zahlungsziel",
+    "internalNotes": "Interne Notiz",
+    "invoiceType": "Rechnungsart",
+    "taxNumber": "Finanzamt / Steuernr.",
+    "issuedAt": "Ausgestellt am",
+    "journalEntry": "Journalbuchung",
+    "reversalEntry": "Stornobuchung",
+    "reversalReason": "Stornogrund",
+    "total": "Summe",
+    "balanceDue": "Offener Betrag",
+    "returnWarehouse": "Retourenlager",
+    "returnable": "Retournierbar",
+    "returnQuantity": "Retourmenge",
+    "lineReason": "Positionsgrund",
+    "receivedAt": "Eingegangen am",
+    "postingDate": "Buchungsdatum"
+  },
+  "deliveryStatus": {
+    "draft": "Entwurf",
+    "posted": "Versandt",
+    "cancelled": "Storniert"
+  },
+  "invoiceStatus": {
+    "draft": "Entwurf",
+    "pending_approval": "Wartet auf Freigabe",
+    "issued": "Ausgestellt",
+    "partially_paid": "Teilweise bezahlt",
+    "paid": "Bezahlt",
+    "cancelled": "Storniert",
+    "reversed": "Storniert gebucht"
+  },
+  "returnStatus": {
+    "draft": "Entwurf",
+    "approved": "Freigegeben",
+    "received": "Eingegangen",
+    "credited": "Gutgeschrieben",
+    "cancelled": "Storniert"
+  },
+  "invoiceType": {
+    "sale": "Ausgangsrechnung",
+    "return": "Gutschrift"
+  },
+  "invoicedState": {
+    "none": "Nicht fakturiert",
+    "partial": "Teilweise fakturiert",
+    "full": "Fakturiert"
+  },
+  "balance": {
+    "settled": "Ausgeglichen",
+    "partial": "Teilweise bezahlt",
+    "open": "Offen"
+  },
+  "links": {
+    "title": "Belegkette",
+    "unnumbered": "(ohne Nummer)"
+  },
+  "linkType": {
+    "sales_quote": "Angebot",
+    "sales_order": "Auftrag",
+    "sales_delivery": "Lieferschein",
+    "sales_invoice": "Rechnung",
+    "sales_return": "Retoure",
+    "stock_document": "Lagerbeleg",
+    "journal_entry": "Journalbuchung"
+  },
+  "print": {
+    "open": "Drucken",
+    "back": "Zurück zum Beleg",
+    "print": "Drucken",
+    "taxInfo": "Finanzamt {{office}} · {{number}}",
+    "seller": "Verkäufer",
+    "buyer": "Käufer",
+    "draft": "ENTWURF",
+    "deliveryAddress": "Lieferadresse"
+  },
+  "totals": {
+    "title": "Summen",
+    "subtotal": "Zwischensumme",
+    "discount": "Rabatt",
+    "tax": "Steuer",
+    "total": "Gesamtbetrag",
+    "totalLocal": "Summe in Hauswährung",
+    "paid": "Bezahlt",
+    "balanceDue": "Offener Betrag",
+    "calculating": "Wird berechnet",
+    "estimate": "Schätzung"
+  },
+  "numbered": {
+    "body": "Der Beleg hat die Nummer {{number}} erhalten."
+  },
+  "editor": {
+    "header": "Belegkopf",
+    "saveDraft": "Entwurf speichern",
+    "saved": "Entwurf gespeichert.",
+    "delete": "Entwurf löschen",
+    "deleted": "Entwurf gelöscht.",
+    "deleteTitle": "Diesen Entwurf löschen?",
+    "deleteBody": "Der Entwurf wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.",
+    "readOnly": "Sie dürfen diesen Beleg nicht bearbeiten."
+  },
+  "view": {
+    "open": "Öffnen",
+    "journalEntry": "Buchung öffnen",
+    "posted": "Gebucht"
+  },
+  "lines": {
+    "maxReached": "Ein Beleg kann höchstens {{max}} Positionen haben."
+  },
+  "validation": {
+    "party": "Kunden wählen.",
+    "warehouse": "Lager wählen.",
+    "date": "Datum eingeben.",
+    "minLines": "Mindestens eine Position eingeben.",
+    "maxLines": "Ein Beleg kann höchstens {{max}} Positionen haben.",
+    "tooLong": "Der Text ist zu lang.",
+    "quantity": "Gültige Menge eingeben.",
+    "quantityPositive": "Die Menge muss größer als null sein.",
+    "lot": "Für chargengeführte Artikel eine Charge eingeben.",
+    "serialCount": "{{quantity}} Seriennummern erforderlich, {{count}} eingegeben.",
+    "serialInteger": "Bei seriengeführten Artikeln muss die Menge ganzzahlig sein.",
+    "serialDuplicate": "Seriennummer {{serial}} wurde mehrfach eingegeben.",
+    "overRemaining": "Übersteigt die offene Auftragsmenge.",
+    "reason": "Geben Sie einen Grund mit mindestens 3 Zeichen an.",
+    "currency": "Währung wählen.",
+    "fxRate": "Der Wechselkurs muss größer als null sein.",
+    "dueBeforeDate": "Die Fälligkeit darf nicht vor dem Belegdatum liegen.",
+    "item": "Artikel wählen oder Beschreibung eingeben.",
+    "unit": "Einheit wählen.",
+    "price": "Gültigen Preis eingeben.",
+    "discount": "Der Rabatt muss zwischen 0 und 100 liegen.",
+    "taxCode": "Steuerschlüssel wählen.",
+    "selectLines": "Mindestens eine Position für die Retoure wählen.",
+    "overReturnable": "Übersteigt die retournierbare Menge."
+  },
+  "fefo": {
+    "suggest": "Früheste Chargen für Position {{index}} vorschlagen",
+    "hint": "First expired, first out (FEFO)",
+    "none": "Keine verwendbare Charge in diesem Lager.",
+    "applied": "Menge auf {{count}} Chargen verteilt.",
+    "shortage": "Chargen reichten nicht; {{quantity}} ohne Charge.",
+    "skippedExpired": "{{count}} abgelaufene Chargen übersprungen.",
+    "failed": "Chargen konnten nicht gelesen werden."
+  },
+  "delivery": {
+    "listTitle": "Lieferscheine",
+    "listDescription": "Lieferungen aus Aufträgen oder direkte Lieferungen.",
+    "new": "Neu",
+    "newDirect": "Direktlieferung",
+    "newTitle": "Neuer Lieferschein",
+    "editTitle": "Lieferschein (Entwurf)",
+    "editorDescription": "Mengen, Chargen und Seriennummern erfassen; nach dem Speichern versenden.",
+    "viewTitle": "Lieferschein {{number}}",
+    "lines": "Lieferpositionen",
+    "order": "Auftrag",
+    "direct": "Direkt",
+    "fromOrder": "Quellauftrag:",
+    "remaining": "Offen {{quantity}}",
+    "overRemaining": "Übersteigt offen {{quantity}}",
+    "partialHint": "Für jetzt nicht gelieferte Positionen die Menge auf 0 lassen; der Rest bleibt im Auftrag offen.",
+    "footer": "{{count}} Positionen werden geliefert",
+    "serialButton": "{{count}} / {{quantity}} Seriennr.",
+    "serialsTitle": "Seriennummern · {{item}}",
+    "serialsBody": "Eine Seriennummer pro Zeile eingeben oder scannen.",
+    "serialCount": "{{count}} / {{quantity}} Seriennummern erfasst",
+    "post": "Versenden",
+    "postTitle": "Diesen Lieferschein versenden?",
+    "postBody": "Ein Lagerabgang und eine Wareneinsatzbuchung werden erzeugt; ein versandter Lieferschein ist unveränderlich.",
+    "postSummary": "{{date}} · {{count}} Positionen",
+    "postedTitle": "Lieferschein versandt",
+    "cancel": "Stornieren",
+    "cancelTitle": "Lieferschein {{number}} stornieren?",
+    "cancelBody": "Lagerabgang und Kostenbuchung werden storniert, die Auftragsmengen wieder geöffnet.",
+    "cancelConfirm": "Lieferschein stornieren",
+    "cancelled": "Lieferschein storniert.",
+    "createInvoice": "Rechnung erstellen",
+    "invoiceCreated": "Rechnungsentwurf erstellt."
+  },
+  "invoice": {
+    "listTitle": "Ausgangsrechnungen",
+    "listDescription": "Rechnungen und Gutschriften mit offenen Beträgen.",
+    "new": "Neue Rechnung",
+    "newTitle": "Neue Ausgangsrechnung",
+    "editTitle": "{{type}} (Entwurf)",
+    "editorDescription": "Positionen ohne Preis werden aus der Preisliste bepreist; die Summen berechnet der Server.",
+    "viewTitle": "{{type}} {{number}}",
+    "lines": "Rechnungspositionen",
+    "autoPrice": "Automatisch",
+    "autoRate": "Tageskurs",
+    "priceSource": "Quelle: {{source}}",
+    "issue": "Rechnung ausstellen",
+    "issuedTitle": "Rechnung ausgestellt",
+    "approvalStarted": "Der Betrag übersteigt die Freigabegrenze; die Rechnung wurde zur Freigabe gesendet.",
+    "pendingApproval": "Die Rechnung wartet auf Freigabe; danach erhält sie ihre Nummer und wird gebucht.",
+    "deliverOnInvoice": "Mit der Rechnung liefern",
+    "deliverOnInvoiceHint": "{{count}} Lagerpositionen ohne Lieferung; beim Ausstellen wird automatisch ein Lieferschein erstellt.",
+    "createReturn": "Retoure starten",
+    "reverse": "Stornieren",
+    "overdue": "(überfällig)"
+  },
+  "issue": {
+    "title": "Diese Rechnung ausstellen?",
+    "body": "{{party}} · {{date}} · {{total}}. Eine ausgestellte Rechnung erhält ihre Nummer, wird gebucht und ist unveränderlich.",
+    "confirm": "Rechnung ausstellen",
+    "blocked": "Das Kreditlimit des Kunden wird überschritten.",
+    "overrideReason": "Begründung für die Limitüberschreitung",
+    "noOverride": "Sie dürfen das Limit nicht überschreiten; wenden Sie sich an eine berechtigte Person.",
+    "override": "Über dem Limit ausstellen"
+  },
+  "exposure": {
+    "limit": "Kreditlimit",
+    "unlimited": "Unbegrenzt",
+    "openInvoices": "Offene Rechnungen",
+    "openOrders": "Nicht fakturierte Aufträge",
+    "thisDocument": "Diese Rechnung",
+    "availableAfter": "Verfügbar nach Ausstellung",
+    "available": "Verfügbar {{amount}} / {{limit}}",
+    "over": "Limit um {{amount}} überschritten"
+  },
+  "reverse": {
+    "title": "Rechnung {{number}} stornieren",
+    "body": "Die Journalbuchung wird storniert und die Rechnung als storniert markiert. Für Korrekturen ist auch eine Gutschrift möglich.",
+    "date": "Stornodatum",
+    "stock": "Lagerbewegungen ebenfalls stornieren",
+    "stockHint": "Gilt nur für mit der Rechnung erzeugte Lieferungen und wenn das Lager es erlaubt.",
+    "confirm": "Storno erstellen",
+    "done": "Storno erstellt."
+  },
+  "return": {
+    "listTitle": "Retouren",
+    "listDescription": "Aus Rechnungen gestartete Retouren: Freigabe, Wareneingang und Gutschrift.",
+    "new": "Neue Retoure",
+    "newTitle": "Neue Retoure",
+    "newDescription": "Positionen und Mengen aus Rechnung {{number}} zur Retoure wählen.",
+    "backToInvoice": "Zurück zur Rechnung",
+    "pickInvoice": "Eine Retoure wird auf der Seite einer ausgestellten Rechnung gestartet.",
+    "notReturnable": "Aus dieser Rechnung kann keine Retoure gestartet werden.",
+    "pickLines": "Rechnungspositionen",
+    "select": "Auswählen",
+    "selectLine": "Position {{item}} auswählen",
+    "quantityFor": "Retourmenge von {{item}}",
+    "reasonFor": "Retourgrund von {{item}}",
+    "summary": "{{count}} Positionen gewählt · {{amount}} (ohne USt.)",
+    "create": "Retourenentwurf erstellen",
+    "created": "Retourenentwurf erstellt.",
+    "viewTitle": "Retoure {{number}}",
+    "invoice": "Rechnung",
+    "creditNote": "Gutschrift",
+    "steps": "Retourenschritte",
+    "lines": "Retourenpositionen"
+  },
+  "returnAction": {
+    "approve": {
+      "button": "Freigeben",
+      "title": "Diese Retoure freigeben?",
+      "body": "Die Ware einer freigegebenen Retoure kann angenommen werden.",
+      "confirm": "Freigeben",
+      "done": "Retoure freigegeben."
+    },
+    "receive": {
+      "button": "Annehmen",
+      "title": "Retournierte Ware annehmen?",
+      "body": "Die Ware geht zu den ursprünglichen Lieferkosten ins Retourenlager.",
+      "confirm": "Annehmen",
+      "done": "Ware angenommen."
+    },
+    "credit": {
+      "button": "Gutschrift ausstellen",
+      "title": "Gutschrift ausstellen?",
+      "body": "Eine Gutschrift wird erstellt; Forderung und Wareneinsatz werden storniert.",
+      "confirm": "Gutschrift ausstellen",
+      "done": "Gutschrift ausgestellt."
+    },
+    "cancel": {
+      "button": "Retoure stornieren",
+      "title": "Diese Retoure stornieren?",
+      "body": "Für eine stornierte Retoure sind keine weiteren Schritte möglich.",
+      "confirm": "Retoure stornieren",
+      "done": "Retoure storniert."
+    }
+  }
+}
