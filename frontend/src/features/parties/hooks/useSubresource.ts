@@ -5,7 +5,7 @@ import { useCompanyId } from './useParties'
 
 export interface SubRow {
   id: string
-  version?: number
+  version: number
 }
 
 export interface DefaultRule<T> {
@@ -64,8 +64,9 @@ export function useSubresource<T extends SubRow>(
   })
 
   const remove = useMutation({
-    mutationFn: (id: string) => subresourceApi.remove(partyId, kind, id),
-    onSuccess: (_d, id) => {
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      subresourceApi.remove(partyId, kind, id, version),
+    onSuccess: (_d, { id }) => {
       queryClient.setQueryData<T[]>(key, (old) => (old ?? []).filter((r) => r.id !== id))
       void queryClient.invalidateQueries({ queryKey: key })
     },

@@ -6,9 +6,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router'
 import { ErrorBoundary } from './app/ErrorBoundary'
+import { registerFeatureCommands } from './app/featureCommands'
 import { Providers } from './app/providers'
 import { createRouter } from './app/router'
 
+registerFeatureCommands()
 const router = createRouter()
 const root = document.getElementById('root')
 if (!root) throw new Error('#root missing')

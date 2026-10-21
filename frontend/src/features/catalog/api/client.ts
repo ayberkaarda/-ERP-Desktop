@@ -20,6 +20,7 @@ import type {
   PriceList,
   PriceListInput,
   PriceListLine,
+  PriceListLineInput,
   PricingQuery,
   PricingResult,
   TaxCodeRef,
@@ -56,8 +57,8 @@ export async function fetchAll<T>(
       params: { ...params, page, per_page: 100 },
       signal,
     })
-    total = res.meta.total
-    const last = res.meta.last_page ?? Math.ceil(total / 100)
+    total = res.meta.pagination.total
+    const last = res.meta.pagination.last_page
     if (last > maxPages) {
       throw new ApiError(0, LIMIT_EXCEEDED, `More than ${maxPages * 100} rows.`)
     }
@@ -70,6 +71,12 @@ export async function fetchAll<T>(
 
 function list<T>(url: string, query: ListQueryState, signal?: AbortSignal) {
   return http().get<Paginated<T>>(url, { params: toListParams(query), signal })
+}
+
+/** Laravel encodes an empty json object as `[]` (or null); the UI always wants a record. */
+function withAttributes<T extends { attributes: unknown }>(row: T): T {
+  const a = row.attributes
+  return a !== null && typeof a === 'object' && !Array.isArray(a) ? row : { ...row, attributes: {} }
 }
 
 /** Create/update/delete for one flat resource; creates carry an Idempotency-Key. */
@@ -115,21 +122,52 @@ export const conversionsApi = crud<UnitConversion, Omit<UnitConversion, 'id' | '
   '/unit-conversions',
 )
 export const categoriesApi = crud<ItemCategory, ItemCategoryInput>('/item-categories')
-export const itemsApi = crud<Item, ItemInput>('/items')
-export const variantsApi = itemChild<ItemVariant, ItemVariantInput>('variants')
+const rawItems = crud<Item, ItemInput>('/items')
+export const itemsApi = {
+  ...rawItems,
+  list: (query: ListQueryState, signal?: AbortSignal) =>
+    rawItems.list(query, signal).then((r) => ({ ...r, data: r.data.map(withAttributes) })),
+  get: (id: string, signal?: AbortSignal) => rawItems.get(id, signal).then(withAttributes),
+  create: (input: ItemInput, idempotencyKey?: string) =>
+    rawItems.create(input, idempotencyKey).then(withAttributes),
+  update: (id: string, input: Partial<ItemInput> & { version: number }) =>
+    rawItems.update(id, input).then(withAttributes),
+}
+const rawVariants = itemChild<ItemVariant, ItemVariantInput>('variants')
+export const variantsApi = {
+  ...rawVariants,
+  list: (itemId: string, signal?: AbortSignal) =>
+    rawVariants.list(itemId, signal).then((rows) => rows.map(withAttributes)),
+}
 export const barcodesApi = itemChild<ItemBarcode, ItemBarcodeInput>('barcodes')
 export const itemUnitsApi = itemChild<ItemUnit, ItemUnitInput>('units')
 export const priceListsApi = {
   ...crud<PriceList, PriceListInput>('/price-lists'),
   lines: (id: string, signal?: AbortSignal) =>
     fetchAll<PriceListLine>(`/price-lists/${seg(id)}/lines`, {}, signal),
-  /** Replaces all lines in one request; per-line errors come back as `lines.N.field`. */
-  saveLines: (id: string, lines: PriceListLine[]) =>
-    http()
-      .put<Paginated<PriceListLine> | Envelope<PriceListLine[]>>(`/price-lists/${seg(id)}/lines`, {
-        lines,
+  /**
+   * PUT upserts `lines` by natural key in one all-or-nothing request (per-line errors come back
+   * as `lines.N.field`, N = index in `lines`); it never deletes, so lines the user removed are
+   * deleted one by one afterwards (with their version). Returns the saved lines.
+   */
+  saveLines: async (
+    id: string,
+    lines: PriceListLineInput[],
+    removed: readonly { id: string; version?: number }[] = [],
+  ) => {
+    const saved =
+      lines.length > 0
+        ? await http()
+            .put<Envelope<PriceListLine[]>>(`/price-lists/${seg(id)}/lines`, { lines })
+            .then((r) => r.data)
+        : []
+    for (const line of removed) {
+      await http().delete<unknown>(`/price-lists/${seg(id)}/lines/${seg(line.id)}`, {
+        params: line.version === undefined ? {} : { version: line.version },
       })
-      .then((r) => r.data),
+    }
+    return saved
+  },
 }
 export const discountRulesApi = crud<DiscountRule, DiscountRuleInput>('/discount-rules')
 

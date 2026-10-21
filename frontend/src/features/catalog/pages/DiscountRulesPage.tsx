@@ -87,7 +87,6 @@ export function DiscountRulesPage() {
       }),
       col.accessor('discount_percent', {
         header: t('fields.discountPercent'),
-        enableSorting: true,
         meta: { label: t('fields.discountPercent'), align: 'right' },
         cell: (c) =>
           `%${formatDecimalDisplay(c.getValue(), { locale, minFraction: 0, maxFraction: 4 })}`,
@@ -98,7 +97,9 @@ export function DiscountRulesPage() {
         meta: { label: t('fields.minQty'), align: 'right' },
         cell: (c) => {
           const v = c.getValue()
-          return v ? formatDecimalDisplay(v, { locale, minFraction: 0, maxFraction: 6 }) : '—'
+          return v && !/^0*(?:\.0*)?$/.test(v)
+            ? formatDecimalDisplay(v, { locale, minFraction: 0, maxFraction: 6 })
+            : '—'
         },
         size: 100,
       }),
@@ -181,7 +182,7 @@ export function DiscountRulesPage() {
         label={t('discounts.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta.total ?? 0}
+        total={list.data?.meta.pagination.total ?? 0}
         loading={list.isPending}
         error={list.isError}
         onRetry={() => void list.refetch()}

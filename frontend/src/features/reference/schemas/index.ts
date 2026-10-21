@@ -43,7 +43,6 @@ export function toExchangeRateInput(v: ExchangeRateFormValues): ExchangeRateInpu
     forex_selling: v.forex_selling,
     ...(v.banknote_buying ? { banknote_buying: v.banknote_buying } : {}),
     ...(v.banknote_selling ? { banknote_selling: v.banknote_selling } : {}),
-    source: 'manual',
   }
 }
 
@@ -57,7 +56,8 @@ export const taxCodeSchema = z
     rate: optionalDecimal({ scale: 4, nonNegative: true, max: '100' }),
     numerator: optionalDigits,
     denominator: optionalDigits,
-    effective_from: optionalDate,
+    // Required by the backend (tax_codes.effective_from is NOT NULL).
+    effective_from: calendarDate(),
     effective_to: optionalDate,
     is_active: z.boolean(),
   })
@@ -90,7 +90,7 @@ export function toTaxCodeInput(v: TaxCodeFormValues): TaxCodeInput {
     rate: v.rate === '' ? null : v.rate,
     numerator: withholding && v.numerator !== '' ? Number(v.numerator) : null,
     denominator: withholding && v.denominator !== '' ? Number(v.denominator) : null,
-    effective_from: v.effective_from || null,
+    effective_from: v.effective_from,
     effective_to: v.effective_to || null,
     is_active: v.is_active,
   }
@@ -123,8 +123,9 @@ export function toPaymentTermInput(v: PaymentTermFormValues): PaymentTermInput {
     code: v.code.trim(),
     name: v.name.trim(),
     due_days: Number(v.due_days),
-    discount_percent: v.discount_percent === '' ? null : v.discount_percent,
-    discount_days: v.discount_days === '' ? null : Number(v.discount_days),
+    // The backend columns are NOT NULL (default 0) and reject null; empty means no discount.
+    discount_percent: v.discount_percent === '' ? '0' : v.discount_percent,
+    discount_days: v.discount_days === '' ? 0 : Number(v.discount_days),
     is_active: v.is_active,
   }
 }

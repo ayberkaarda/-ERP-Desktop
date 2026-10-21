@@ -86,7 +86,6 @@ export function PriceListListPage() {
       }),
       col.accessor('valid_to', {
         header: t('fields.validTo'),
-        enableSorting: true,
         meta: { label: t('fields.validTo') },
         cell: (c) => date(c.getValue()),
         size: 120,
@@ -129,7 +128,7 @@ export function PriceListListPage() {
         label={t('priceLists.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta.total ?? 0}
+        total={list.data?.meta.pagination.total ?? 0}
         loading={list.isPending}
         error={list.isError}
         onRetry={() => void list.refetch()}

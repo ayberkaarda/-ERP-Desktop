@@ -23,7 +23,8 @@ const dateCell = (value: string | null, locale: string) => (value ? formatDate(v
 export function ProjectsPage() {
   const t = useRefT()
   const locale = useIntlLocale()
-  const canManage = usePermission(REF_PERMISSIONS.projects.manage)
+  const canUpdate = usePermission(REF_PERMISSIONS.projects.update)
+  const canDelete = usePermission(REF_PERMISSIONS.projects.delete)
   const editor = useEditor<Project>()
   const remove = useRemoveProject()
   const { query, setQuery } = useUrlListQuery(
@@ -72,21 +73,20 @@ export function ProjectsPage() {
         ),
         size: 130,
       }),
+      // Dates are not sortable: the backend sorts projects by code, name and created_at only.
       col.accessor('start_date', {
         header: t('projects.startDate'),
-        enableSorting: true,
         meta: { label: t('projects.startDate') },
         cell: (c) => dateCell(c.getValue(), locale),
         size: 120,
       }),
       col.accessor('end_date', {
         header: t('projects.endDate'),
-        enableSorting: true,
         meta: { label: t('projects.endDate') },
         cell: (c) => dateCell(c.getValue(), locale),
         size: 120,
       }),
-      ...(canManage
+      ...(canUpdate || canDelete
         ? [
             col.display({
               id: 'actions',
@@ -96,8 +96,16 @@ export function ProjectsPage() {
               cell: (c) => (
                 <RowActions
                   name={c.row.original.code}
-                  onEdit={() => editor.openEdit(c.row.original)}
-                  onDelete={() => remove.mutateAsync(c.row.original.id)}
+                  onEdit={canUpdate ? () => editor.openEdit(c.row.original) : undefined}
+                  onDelete={
+                    canDelete
+                      ? () =>
+                          remove.mutateAsync({
+                            id: c.row.original.id,
+                            version: c.row.original.version,
+                          })
+                      : undefined
+                  }
                 />
               ),
               size: 100,
@@ -107,7 +115,7 @@ export function ProjectsPage() {
     ],
     // editor and remove are stable for the lifetime of the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, locale, canManage],
+    [t, locale, canUpdate, canDelete],
   )
 
   return (
@@ -115,7 +123,7 @@ export function ProjectsPage() {
       title={t('projects.title')}
       description={t('projects.subtitle')}
       actions={
-        <Can permission={REF_PERMISSIONS.projects.manage}>
+        <Can permission={REF_PERMISSIONS.projects.create}>
           <Button onClick={editor.openNew}>
             <Plus aria-hidden="true" />
             {t('projects.new')}
@@ -127,7 +135,7 @@ export function ProjectsPage() {
         label={t('projects.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta?.total ?? list.data?.data.length ?? 0}
+        total={list.data?.meta?.pagination?.total ?? list.data?.data.length ?? 0}
         loading={list.isLoading}
         error={list.isError}
         onRetry={() => void list.refetch()}
@@ -135,7 +143,7 @@ export function ProjectsPage() {
         onQueryChange={setQuery}
         getRowId={(r) => r.id}
         viewKey="reference.projects"
-        onRowActivate={canManage ? editor.openEdit : undefined}
+        onRowActivate={canUpdate ? editor.openEdit : undefined}
       />
       {editor.target.mode !== 'closed' && (
         <ProjectDialog

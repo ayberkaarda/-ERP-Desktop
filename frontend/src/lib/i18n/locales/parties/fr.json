@@ -116,6 +116,7 @@
     "deleted": "Tiers supprimé.",
     "activated": "Tiers activé.",
     "deactivated": "Tiers désactivé.",
+    "deactivatedInUse": "Le tiers est utilisé ; il a été désactivé au lieu d’être supprimé.",
     "summary": "Résumé",
     "loadFailed": "Impossible de charger le tiers.",
     "notFound": "Tiers introuvable.",

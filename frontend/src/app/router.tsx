@@ -1,6 +1,9 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
 import { bindAuthFailures } from '@/features/auth/session'
+import { catalogRoutes } from '@/features/catalog/routes'
+import { partyRoutes } from '@/features/parties/routes'
+import { referenceRoutes } from '@/features/reference/routes'
 import { GuestOnly, RequireAuth } from './guards'
 import { RouteError } from './RouteError'
 
@@ -70,6 +73,9 @@ export const routes: RouteObject[] = [
               Component: (await import('@/features/auth/pages/SecurityPage')).SecurityPage,
             }),
           },
+          ...partyRoutes,
+          ...catalogRoutes,
+          ...referenceRoutes,
           ...devRoutes,
           {
             path: '*',

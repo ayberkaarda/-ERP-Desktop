@@ -16,7 +16,7 @@ const col = createColumnHelper<Currency>()
 
 export function CurrenciesPage() {
   const t = useRefT()
-  const canManage = usePermission(REF_PERMISSIONS.currencies.manage)
+  const canManage = usePermission(REF_PERMISSIONS.currencies.update)
   const { query, setQuery } = useUrlListQuery(
     { sort: [{ id: 'code', desc: false }] },
     { viewKey: 'reference.currencies' },
@@ -27,7 +27,7 @@ export function CurrenciesPage() {
 
   const toggle = (currency: Currency, isActive: boolean) =>
     setActive.mutate(
-      { code: currency.code, isActive },
+      { currency, isActive },
       {
         onError: (error) => platform.notify.error(error.message),
       },
@@ -63,35 +63,27 @@ export function CurrenciesPage() {
         meta: { label: t('currencies.decimals'), align: 'right' },
         size: 110,
       }),
-      col.accessor('is_active', {
+      // No filter: the backend's filter[is_active] is the global flag, not the company activation.
+      col.accessor('company_is_active', {
         header: t('currencies.activeForCompany'),
-        meta: {
-          label: t('currencies.activeForCompany'),
-          filter: {
-            key: 'is_active',
-            options: [
-              { value: '1', label: t('fields.active') },
-              { value: '0', label: t('fields.inactive') },
-            ],
-          },
-        },
+        meta: { label: t('currencies.activeForCompany') },
         cell: (c) => {
           const currency = c.row.original
           return canManage ? (
             <label className="inline-flex items-center gap-2">
               <Checkbox
-                checked={currency.is_active}
+                checked={currency.company_is_active}
                 // The base currency must stay active.
                 disabled={setActive.isPending || currency.code === base}
                 aria-label={t('currencies.toggle', { code: currency.code })}
                 onChange={(e) => toggle(currency, e.target.checked)}
               />
               <span className="text-xs text-muted-foreground">
-                {currency.is_active ? t('fields.active') : t('fields.inactive')}
+                {currency.company_is_active ? t('fields.active') : t('fields.inactive')}
               </span>
             </label>
           ) : (
-            <StatusBadge status={currency.is_active ? 'active' : 'inactive'} />
+            <StatusBadge status={currency.company_is_active ? 'active' : 'inactive'} />
           )
         },
         size: 180,
@@ -108,7 +100,7 @@ export function CurrenciesPage() {
         label={t('currencies.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta?.total ?? list.data?.data.length ?? 0}
+        total={list.data?.meta?.pagination?.total ?? list.data?.data.length ?? 0}
         loading={list.isLoading}
         error={list.isError}
         onRetry={() => void list.refetch()}

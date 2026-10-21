@@ -42,7 +42,7 @@ export function createCrudHooks<T, I>(name: string, api: CrudApi<T, I>) {
   function useRemove() {
     const qc = useQueryClient()
     return useMutation({
-      mutationFn: (id: string) => api.remove(id),
+      mutationFn: ({ id, version }: { id: string; version: number }) => api.remove(id, version),
       onSuccess: () => qc.invalidateQueries({ queryKey: refKeys.resource(name) }),
     })
   }

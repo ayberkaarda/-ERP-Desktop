@@ -27,8 +27,13 @@ export interface Party {
   notes: string | null
   tags: string[]
   version: number
+  company_id?: string
   created_at?: string
   updated_at?: string
+  /** Only on GET /parties/{id} (the detail loads its sub-resources eagerly). */
+  addresses?: PartyAddress[]
+  contacts?: PartyContact[]
+  bank_accounts?: PartyBankAccount[]
 }
 
 /** Writable party fields (code is assigned by the server's number sequence). */
@@ -63,11 +68,13 @@ export interface PartyAddress {
   line1: string
   line2: string | null
   district: string | null
-  city: string
+  /** Optional on the server; the form still asks for it. */
+  city: string | null
   postal_code: string | null
   country: string
   is_default: boolean
-  version?: number
+  version: number
+  updated_at?: string | null
 }
 
 export interface PartyContact {
@@ -78,7 +85,8 @@ export interface PartyContact {
   email: string | null
   phone: string | null
   is_primary: boolean
-  version?: number
+  version: number
+  updated_at?: string | null
 }
 
 export interface PartyBankAccount {
@@ -89,22 +97,37 @@ export interface PartyBankAccount {
   swift: string | null
   currency_code: string | null
   is_default: boolean
-  version?: number
+  version: number
+  updated_at?: string | null
 }
 
-export type AddressInput = Omit<PartyAddress, 'id' | 'party_id' | 'version'>
-export type ContactInput = Omit<PartyContact, 'id' | 'party_id' | 'version'>
-export type BankAccountInput = Omit<PartyBankAccount, 'id' | 'party_id' | 'version'>
+type ServerOwned = 'id' | 'party_id' | 'version' | 'updated_at'
+export type AddressInput = Omit<PartyAddress, ServerOwned>
+export type ContactInput = Omit<PartyContact, ServerOwned>
+export type BankAccountInput = Omit<PartyBankAccount, ServerOwned>
 
-/** One hit of GET /parties/duplicates. */
+export type DuplicateReason = 'tax_number' | 'name'
+
+/** One hit of GET /parties/duplicates (DuplicateResource; inactive parties included). */
 export interface PartyDuplicate {
   id: string
   code: string
   name: string
+  legal_name: string | null
+  type: PartyType
+  roles: PartyRole[]
   tax_number: string | null
   is_active: boolean
-  /** Which input matched; absent on older payloads. */
-  match?: 'tax_number' | 'name'
+  /** Which inputs matched, tax number first. */
+  reasons: DuplicateReason[]
+  /** pg_trgm name similarity 0..1 (0 when only the tax number was sent). */
+  similarity: number
+}
+
+/** DELETE /parties/{id}: 204, or 200 with the party when it is in use and got deactivated. */
+export interface PartyDeleteResult {
+  deactivated: Party | null
+  message?: string
 }
 
 export interface Pagination {

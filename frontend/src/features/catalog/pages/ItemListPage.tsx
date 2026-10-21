@@ -77,7 +77,8 @@ export function ItemListPage() {
         header: t('fields.category'),
         meta: {
           label: t('fields.category'),
-          filter: { options: categoryOptions },
+          // The API filters by `category` (the category and its whole subtree).
+          filter: { key: 'category', options: categoryOptions },
         },
         cell: (c) => {
           const id = c.getValue()
@@ -151,7 +152,7 @@ export function ItemListPage() {
         label={t('items.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta.total ?? 0}
+        total={list.data?.meta.pagination.total ?? 0}
         loading={list.isPending}
         error={list.isError}
         onRetry={() => void list.refetch()}

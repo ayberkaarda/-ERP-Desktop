@@ -277,7 +277,7 @@ export function SubresourceEditor<T extends SubRow, V extends FieldValues>(
         onConfirm={async () => {
           if (!pendingDelete) return
           try {
-            await remove.mutateAsync(pendingDelete.id)
+            await remove.mutateAsync({ id: pendingDelete.id, version: pendingDelete.version })
             platform.notify.success(t('sub.deleted'))
             setPendingDelete(null)
           } catch (error) {

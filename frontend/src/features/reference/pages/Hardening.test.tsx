@@ -147,13 +147,28 @@ describe('fetchAll', () => {
       http.get('*/api/v1/things', () =>
         HttpResponse.json({
           data: Array.from({ length: 100 }, (_, i) => ({ id: i })),
-          meta: { last_page: 9 },
+          meta: { pagination: { last_page: 9 } },
         }),
       ),
     )
     await expect(fetchAll('/things', {}, undefined, 2)).rejects.toMatchObject({
       code: 'LIMIT_EXCEEDED',
     })
+  })
+
+  it('reads last_page from meta.pagination and stops there', async () => {
+    let calls = 0
+    server.use(
+      http.get('*/api/v1/things', () => {
+        calls += 1
+        return HttpResponse.json({
+          data: Array.from({ length: 100 }, (_, i) => ({ id: `${calls}-${i}` })),
+          meta: { pagination: { current_page: calls, per_page: 100, total: 200, last_page: 2 } },
+        })
+      }),
+    )
+    expect(await fetchAll('/things')).toHaveLength(200)
+    expect(calls).toBe(2)
   })
 
   it('keeps paging when the API sends no paging meta', async () => {

@@ -42,6 +42,9 @@ describe('party create form', () => {
     const box = must(warning.closest<HTMLElement>('[role="status"]'))
     expect(within(box).getByRole('link', { name: /Anadolu Makina/ })).toBeInTheDocument()
     expect(within(box).getByText('(aynı vergi no)')).toBeInTheDocument()
+    // The server normalizes the tax number by country, so the lookup sends it along.
+    const lookup = db.calls.findLast((c) => c.path.endsWith('/parties/duplicates'))
+    expect(new URLSearchParams(lookup?.search).get('country')).toBe('TR')
 
     // The warning does not block: the server still refuses the duplicate and the error lands on the field.
     await user.type(name, 'Yeni Firma')

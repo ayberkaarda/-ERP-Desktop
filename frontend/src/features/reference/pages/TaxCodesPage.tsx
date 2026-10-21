@@ -35,13 +35,15 @@ const VALIDITY_TONE: Record<TaxValidity, NonNullable<BadgeProps['tone']>> = {
 function TaxRow({
   code,
   today,
-  canManage,
+  canUpdate,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   code: TaxCode
   today: string
-  canManage: boolean
+  canUpdate: boolean
+  canDelete: boolean
   onEdit: (code: TaxCode) => void
   onDelete: (code: TaxCode) => Promise<unknown>
 }) {
@@ -75,40 +77,44 @@ function TaxRow({
         <Badge tone={VALIDITY_TONE[validity]}>{t(`taxCodes.validity.${validity}`)}</Badge>
       </td>
       <td className="px-3 py-2">
-        {!global && canManage && (
+        {!global && (canUpdate || canDelete) && (
           <div className="flex justify-end gap-1">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('actions.editNamed', { name: code.code })}
-              onClick={() => onEdit(code)}
-            >
-              <Pencil aria-hidden="true" />
-            </Button>
-            <ConfirmDialog
-              title={t('actions.deleteTitle')}
-              description={t('actions.deleteBody', { name: code.code })}
-              confirmLabel={t('actions.delete')}
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('actions.deleteNamed', { name: code.code })}
-                >
-                  <Trash2 aria-hidden="true" />
-                </Button>
-              }
-              onConfirm={async () => {
-                try {
-                  await onDelete(code)
-                } catch (error) {
-                  platform.notify.error(
-                    error instanceof Error ? error.message : t('errors.generic'),
-                  )
-                  throw error
+            {canUpdate && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('actions.editNamed', { name: code.code })}
+                onClick={() => onEdit(code)}
+              >
+                <Pencil aria-hidden="true" />
+              </Button>
+            )}
+            {canDelete && (
+              <ConfirmDialog
+                title={t('actions.deleteTitle')}
+                description={t('actions.deleteBody', { name: code.code })}
+                confirmLabel={t('actions.delete')}
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('actions.deleteNamed', { name: code.code })}
+                  >
+                    <Trash2 aria-hidden="true" />
+                  </Button>
                 }
-              }}
-            />
+                onConfirm={async () => {
+                  try {
+                    await onDelete(code)
+                  } catch (error) {
+                    platform.notify.error(
+                      error instanceof Error ? error.message : t('errors.generic'),
+                    )
+                    throw error
+                  }
+                }}
+              />
+            )}
           </div>
         )}
       </td>
@@ -118,7 +124,8 @@ function TaxRow({
 
 export function TaxCodesPage() {
   const t = useRefT()
-  const canManage = usePermission(REF_PERMISSIONS.taxCodes.manage)
+  const canUpdate = usePermission(REF_PERMISSIONS.taxCodes.update)
+  const canDelete = usePermission(REF_PERMISSIONS.taxCodes.delete)
   const editor = useEditor<TaxCode>()
   const remove = useRemoveTaxCode()
   const [asOf, setAsOf] = useState(() => toIsoDate(new Date()))
@@ -144,7 +151,7 @@ export function TaxCodesPage() {
       title={t('taxCodes.title')}
       description={t('taxCodes.subtitle')}
       actions={
-        <Can permission={REF_PERMISSIONS.taxCodes.manage}>
+        <Can permission={REF_PERMISSIONS.taxCodes.create}>
           <Button onClick={editor.openNew}>
             <Plus aria-hidden="true" />
             {t('taxCodes.new')}
@@ -219,9 +226,10 @@ export function TaxCodesPage() {
                       key={code.id}
                       code={code}
                       today={asOf}
-                      canManage={canManage}
+                      canUpdate={canUpdate}
+                      canDelete={canDelete}
                       onEdit={editor.openEdit}
-                      onDelete={(c) => remove.mutateAsync(c.id)}
+                      onDelete={(c) => remove.mutateAsync({ id: c.id, version: c.version })}
                     />
                   ))}
                 </tbody>

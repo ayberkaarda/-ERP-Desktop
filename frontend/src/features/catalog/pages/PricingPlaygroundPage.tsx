@@ -34,7 +34,7 @@ import {
 import { playgroundSchema, type PlaygroundValues } from '../schemas'
 import type { PricingQuery, PricingResult } from '../types'
 
-const NO_QUERY: PricingQuery = { item_id: '', qty: '', date: '' }
+const NO_QUERY: PricingQuery = { item_id: '', qty: '', date: '', currency: '' }
 
 function toQuery(v: PlaygroundValues): PricingQuery {
   return {
@@ -44,7 +44,7 @@ function toQuery(v: PlaygroundValues): PricingQuery {
     qty: v.qty,
     unit_id: v.unit_id || undefined,
     date: v.date,
-    currency: v.currency || undefined,
+    currency: v.currency,
   }
 }
 
@@ -60,7 +60,8 @@ export function PricingPlaygroundPage() {
       qty: '1',
       unit_id: '',
       date: toIsoDate(new Date()),
-      currency: '',
+      // The resolver needs a currency; TRY is the default base currency.
+      currency: 'TRY',
     },
   })
   const itemId = useWatch({ control: form.control, name: 'item_id' })
@@ -197,6 +198,7 @@ export function PricingPlaygroundPage() {
               <FormField<PlaygroundValues, 'currency'>
                 name="currency"
                 label={t('fields.currency')}
+                required
                 render={({ field, control }) => (
                   <CurrencySelect
                     {...control}
@@ -204,7 +206,6 @@ export function PricingPlaygroundPage() {
                     value={field.value || null}
                     onChange={(v) => field.onChange(v ?? '')}
                     onBlur={field.onBlur}
-                    clearable
                   />
                 )}
               />
@@ -242,7 +243,7 @@ function ResultView({ result, query }: { result: PricingResult; query: PricingQu
   const locale = useIntlLocale()
   const fmt = (v: string, min = 2, max = 6) =>
     formatDecimalDisplay(v, { locale, minFraction: min, maxFraction: max })
-  const net = netUnitPrice(result.unit_price, result.discount_percent)
+  const net = result.net_unit_price ?? netUnitPrice(result.unit_price, result.discount_percent)
   const total = lineTotal(net, query.qty)
   const list = useQuery({
     queryKey: catalogKeys.priceList(result.price_list_id ?? ''),

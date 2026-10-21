@@ -27,7 +27,7 @@ function formatAddress(w: Warehouse): string {
 export function WarehouseDetailPage() {
   const t = useRefT()
   const { id = '' } = useParams()
-  const canManage = usePermission(REF_PERMISSIONS.warehouses.manage)
+  const canManage = usePermission(REF_PERMISSIONS.warehouses.update)
   const warehouse = useWarehouse(id)
   const editor = useEditor<Warehouse>()
   const w = warehouse.data

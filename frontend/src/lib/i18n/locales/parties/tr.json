@@ -116,6 +116,7 @@
     "deleted": "Cari silindi.",
     "activated": "Cari aktifleştirildi.",
     "deactivated": "Cari pasifleştirildi.",
+    "deactivatedInUse": "Cari belgelerde kullanıldığı için silinmedi, pasifleştirildi.",
     "summary": "Özet",
     "loadFailed": "Cari yüklenemedi.",
     "notFound": "Cari bulunamadı.",

@@ -26,10 +26,8 @@ describe('CurrenciesPage', () => {
     await user.click(euro)
     await waitFor(() =>
       expect(
-        db.calls.find((c) => c.method === 'PATCH' && c.path === '/currencies/EUR')?.body,
-      ).toEqual({
-        is_active: true,
-      }),
+        db.calls.find((c) => c.method === 'PATCH' && c.path === '/currencies/c-eur')?.body,
+      ).toEqual({ is_active: true, version: 1 }),
     )
     await waitFor(() =>
       expect(
@@ -38,7 +36,7 @@ describe('CurrenciesPage', () => {
     )
   })
 
-  it('is read-only without currencies.manage', async () => {
+  it('is read-only without currencies.update', async () => {
     setupReference({ permissions: ['currencies.view'] })
     renderReference(<CurrenciesPage />)
     await screen.findByText('Euro')
@@ -116,7 +114,20 @@ describe('PaymentTermsPage', () => {
     expect(db.calls.some((c) => c.method === 'DELETE')).toBe(false)
     await user.click(within(confirm).getByRole('button', { name: 'Sil' }))
     await waitFor(() => expect(db.calls.some((c) => c.method === 'DELETE')).toBe(true))
+    // The backend requires the lock version on DELETE.
+    const del = db.calls.find((c) => c.method === 'DELETE')
+    expect(del?.path).toBe('/payment-terms/pt1')
+    expect(del?.query.get('version')).toBe('1')
     await waitFor(() => expect(screen.queryByText('NET30')).not.toBeInTheDocument())
+  })
+
+  it('gates create, edit and delete on the separate backend permissions', async () => {
+    setupReference({ permissions: ['payment_terms.view', 'payment_terms.update'] })
+    renderReference(<PaymentTermsPage />)
+
+    expect(await screen.findByRole('button', { name: 'NET30 kaydını düzenle' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'NET30 kaydını sil' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Yeni ödeme koşulu' })).not.toBeInTheDocument()
   })
 })
 
