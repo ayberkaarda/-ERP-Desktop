@@ -313,6 +313,29 @@ describe('order fulfilment', () => {
     })
   })
 
+  it('lets an approver without the update permission revise', async () => {
+    const db = setupSales({
+      db: { creditMode: 'off' },
+      permissions: without('sales.orders.update'),
+    })
+    const order = db.orders.find((o) => o.id === ORDER_DRAFT)
+    if (order) order.status = 'confirmed'
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_DRAFT}`)
+    await screen.findByRole('heading', { name: 'Sipariş SIP2026000001' })
+    await user.click(screen.getByRole('button', { name: 'Revize et' }))
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    const qty = within(table).getByLabelText('Miktar, 1. satır')
+    expect(qty).toBeEnabled()
+    await user.click(qty)
+    await user.keyboard('{Control>}a{/Control}8')
+    await user.click(screen.getByRole('button', { name: 'Revizyonu kaydet' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Sipariş SIP2026000001' }),
+    ).toBeInTheDocument()
+    expect(db.calls.some((c) => c.path === `/sales-orders/${ORDER_DRAFT}/revise`)).toBe(true)
+  })
+
   it('closes an order in progress with the version only', async () => {
     const db = setupSales()
     const user = userEvent.setup()

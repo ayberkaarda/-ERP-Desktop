@@ -93,8 +93,10 @@ export function SalesDocumentEditor<T extends SalesDoc>({
   const canCreate = usePermission(perms.create)
   const canUpdate = usePermission(perms.update)
   const canDelete = usePermission(perms.delete)
-  const canEdit = document ? canUpdate : canCreate
+  // The revise endpoint is authorised by approve (OrderPolicy), not by update.
+  const canApprove = usePermission(SALES_PERMS.orders.approve)
   const revising = mode === 'revise'
+  const canEdit = revising ? canApprove : document ? canUpdate : canCreate
   const [base, setBase] = useState<T | null>(document)
   const [conflict, setConflict] = useState(false)
   const [creditError, setCreditError] = useState<unknown>(null)
