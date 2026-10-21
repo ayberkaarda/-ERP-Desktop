@@ -101,6 +101,10 @@ export function ReturnCreate({
       const c = started ?? 'none'
       queryClient.setQueryData(salesDocsKeys.detail('returns', ret.id, c), ret)
       void queryClient.invalidateQueries({ queryKey: salesDocsKeys.branch('returns', c) })
+      // The source invoice's links bound the next return.
+      void queryClient.invalidateQueries({
+        queryKey: salesDocsKeys.detail('invoices', invoice.id, c),
+      })
       keyFor.reset()
       if (useCompanyStore.getState().activeCompanyId !== started) return
       platform.notify.success(t('return.created'))

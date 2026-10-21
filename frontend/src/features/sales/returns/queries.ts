@@ -26,8 +26,13 @@ export function useReturn(id: string | undefined) {
 /** Quantities per invoice line already on the invoice's other returns (bounds a new return). */
 export function useReturnedPerLine(invoice: Invoice | undefined) {
   useCompanyStore((s) => s.activeCompanyId)
+  // The invoice's return links (ids and statuses) are part of the key: a refreshed invoice refetches.
+  const links = (invoice?.links ?? [])
+    .filter((l) => l.type === 'sales_return')
+    .map((l) => `${l.id}:${l.status ?? ''}`)
+    .sort()
   return useQuery({
-    queryKey: [...salesDocsKeys.branch('returns'), 'returned', invoice?.id ?? ''],
+    queryKey: [...salesDocsKeys.branch('returns'), 'returned', invoice?.id ?? '', links],
     queryFn: ({ signal }) => returnedPerLine(invoice?.links ?? [], signal),
     enabled: invoice !== undefined,
   })

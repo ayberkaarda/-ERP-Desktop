@@ -36,7 +36,14 @@ export function ReturnPage() {
       const inv = invoice.data
       if (inv.invoice_type !== 'sale' || !POSTED_STATUSES.includes(inv.status))
         return wrap(<EmptyState description={t('return.notReturnable')} />)
-      if (returned.data) return <ReturnCreate invoice={inv} returned={returned.data} />
+      if (returned.data)
+        return (
+          <ReturnCreate
+            key={JSON.stringify(returned.data)}
+            invoice={inv}
+            returned={returned.data}
+          />
+        )
       if (returned.isError)
         return wrap(<LoadError error={returned.error} onRetry={() => void returned.refetch()} />)
       return <Loading />

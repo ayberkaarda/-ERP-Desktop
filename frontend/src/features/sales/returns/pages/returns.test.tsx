@@ -52,6 +52,31 @@ describe('return from an invoice', () => {
     expect((call?.body as ReturnInput).warehouse_id).toBe('wh-main')
   })
 
+  it('bounds a second return right after the first by what the first holds', async () => {
+    setupSales()
+    const user = userEvent.setup()
+    const { router } = renderSales(`/sales/returns/new?invoice=${INVOICE_ISSUED}`)
+    await screen.findByRole('heading', { name: 'Yeni satış iadesi' })
+    const table = screen.getByRole('table', { name: 'Fatura satırları' })
+    await user.click(within(table).getByLabelText('BOLT · Cıvata M8 satırını seç'))
+    const qty = within(table).getByLabelText('BOLT · Cıvata M8 iade miktarı')
+    await user.clear(qty)
+    await user.type(qty, '2')
+    await user.tab()
+    await user.click(screen.getByRole('button', { name: 'İade taslağı oluştur' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales/returns/return-1'))
+
+    // 10 invoiced − 3 on the older draft − 2 on the return just created.
+    await router.navigate(`/sales/returns/new?invoice=${INVOICE_ISSUED}`)
+    await screen.findByRole('heading', { name: 'Yeni satış iadesi' })
+    await waitFor(() => {
+      const row = within(screen.getByRole('table', { name: 'Fatura satırları' }))
+        .getByLabelText('BOLT · Cıvata M8 satırını seç')
+        .closest('tr')
+      expect(row && within(row).queryByText('5')).toBeInTheDocument()
+    })
+  })
+
   it('explains that returns start from an invoice', async () => {
     setupSales()
     renderSales('/sales/returns/new')
