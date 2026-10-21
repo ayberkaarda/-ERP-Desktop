@@ -1,4 +1,4 @@
-import { platform, withIdempotency } from '@/platform'
+import { ApiError, platform, withIdempotency } from '@/platform'
 import type {
   CostCenter,
   CostCenterInput,
@@ -38,13 +38,19 @@ export const currenciesApi = {
       signal,
     }),
   all: (signal?: AbortSignal) => fetchAll<Currency>('/currencies', {}, signal),
-  /** Activation is per company; currency rows themselves are global. */
-  setActive: async (code: string, isActive: boolean) =>
+  /** Activation is per company (PATCH /currencies/{uuid} {is_active, version}); rows are global. */
+  setActive: async (currency: Pick<Currency, 'id' | 'version'>, isActive: boolean) =>
     (
-      await platform.http.patch<ItemResponse<Currency>>(`/currencies/${encodeURIComponent(code)}`, {
-        is_active: isActive,
-      })
+      await platform.http.patch<ItemResponse<Currency>>(
+        `/currencies/${encodeURIComponent(currency.id)}`,
+        { is_active: isActive, version: currency.version },
+      )
     ).data,
+}
+
+/** True for a 404, which /exchange-rates/latest answers when a currency has no rate yet. */
+function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404
 }
 
 export const exchangeRatesApi = {
@@ -53,9 +59,25 @@ export const exchangeRatesApi = {
       params: toListParams(query),
       signal,
     }),
-  latest: async (signal?: AbortSignal) =>
-    (await platform.http.get<ListResponse<ExchangeRate>>('/exchange-rates/latest', { signal }))
-      .data,
+  /** GET /exchange-rates/latest?currency=XXX: one rate (manual wins on the same day), 404 if none. */
+  latestFor: async (currency: string, signal?: AbortSignal): Promise<ExchangeRate | null> => {
+    try {
+      return (
+        await platform.http.get<ItemResponse<ExchangeRate>>('/exchange-rates/latest', {
+          params: { currency },
+          signal,
+        })
+      ).data
+    } catch (error) {
+      if (isNotFound(error)) return null
+      throw error
+    }
+  },
+  /** Latest rate of each given currency, skipping those without one. */
+  latest: async (currencies: readonly string[], signal?: AbortSignal) => {
+    const rows = await Promise.all(currencies.map((c) => exchangeRatesApi.latestFor(c, signal)))
+    return rows.filter((r): r is ExchangeRate => r !== null)
+  },
   status: async (signal?: AbortSignal) =>
     (await platform.http.get<ItemResponse<RateStatus>>('/exchange-rates/status', { signal })).data,
   create: async (input: ExchangeRateInput, key?: string) =>

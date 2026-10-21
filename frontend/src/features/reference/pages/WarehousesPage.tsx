@@ -14,14 +14,15 @@ import { WarehouseDialog } from '../components/WarehouseDialog'
 import { useRemoveWarehouse, useWarehouseList } from '../hooks/useReference'
 import { useRefT } from '../i18n'
 import { REF_PERMISSIONS } from '../permissions'
-import { NEGATIVE_STOCK_POLICIES, type Warehouse } from '../types'
+import type { Warehouse } from '../types'
 
 const col = createColumnHelper<Warehouse>()
 
 export function WarehousesPage() {
   const t = useRefT()
   const navigate = useNavigate()
-  const canManage = usePermission(REF_PERMISSIONS.warehouses.manage)
+  const canUpdate = usePermission(REF_PERMISSIONS.warehouses.update)
+  const canDelete = usePermission(REF_PERMISSIONS.warehouses.delete)
   const editor = useEditor<Warehouse>()
   const remove = useRemoveWarehouse()
   const { query, setQuery } = useUrlListQuery(
@@ -52,16 +53,8 @@ export function WarehousesPage() {
       }),
       col.accessor('negative_stock_policy', {
         header: t('warehouses.negativeStock'),
-        meta: {
-          label: t('warehouses.negativeStock'),
-          filter: {
-            key: 'negative_stock_policy',
-            options: NEGATIVE_STOCK_POLICIES.map((p) => ({
-              value: p,
-              label: t(`warehouses.policies.${p}`),
-            })),
-          },
-        },
+        // No filter: the backend filters warehouses by is_active only.
+        meta: { label: t('warehouses.negativeStock') },
         cell: (c) => t(`warehouses.policies.${c.getValue()}`),
         size: 160,
       }),
@@ -88,8 +81,13 @@ export function WarehousesPage() {
         cell: (c) => (
           <RowActions
             name={c.row.original.code}
-            onEdit={canManage ? () => editor.openEdit(c.row.original) : undefined}
-            onDelete={canManage ? () => remove.mutateAsync(c.row.original.id) : undefined}
+            onEdit={canUpdate ? () => editor.openEdit(c.row.original) : undefined}
+            onDelete={
+              canDelete
+                ? () =>
+                    remove.mutateAsync({ id: c.row.original.id, version: c.row.original.version })
+                : undefined
+            }
             extra={
               <Button
                 variant="ghost"
@@ -106,7 +104,7 @@ export function WarehousesPage() {
     ],
     // editor, remove and navigate are stable for the lifetime of the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, canManage],
+    [t, canUpdate, canDelete],
   )
 
   return (
@@ -114,7 +112,7 @@ export function WarehousesPage() {
       title={t('warehouses.title')}
       description={t('warehouses.subtitle')}
       actions={
-        <Can permission={REF_PERMISSIONS.warehouses.manage}>
+        <Can permission={REF_PERMISSIONS.warehouses.create}>
           <Button onClick={editor.openNew}>
             <Plus aria-hidden="true" />
             {t('warehouses.new')}
@@ -126,7 +124,7 @@ export function WarehousesPage() {
         label={t('warehouses.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta?.total ?? list.data?.data.length ?? 0}
+        total={list.data?.meta?.pagination?.total ?? list.data?.data.length ?? 0}
         loading={list.isLoading}
         error={list.isError}
         onRetry={() => void list.refetch()}

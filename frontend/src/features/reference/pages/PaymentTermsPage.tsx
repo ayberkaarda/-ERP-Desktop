@@ -21,7 +21,8 @@ const col = createColumnHelper<PaymentTerm>()
 export function PaymentTermsPage() {
   const t = useRefT()
   const locale = useIntlLocale()
-  const canManage = usePermission(REF_PERMISSIONS.paymentTerms.manage)
+  const canUpdate = usePermission(REF_PERMISSIONS.paymentTerms.update)
+  const canDelete = usePermission(REF_PERMISSIONS.paymentTerms.delete)
   const editor = useEditor<PaymentTerm>()
   const remove = useRemovePaymentTerm()
   const { query, setQuery } = useUrlListQuery(
@@ -45,9 +46,9 @@ export function PaymentTermsPage() {
         meta: { label: t('fields.name') },
         size: 240,
       }),
+      // Not sortable: the backend sorts payment terms by code, name and created_at only.
       col.accessor('due_days', {
         header: t('paymentTerms.dueDays'),
-        enableSorting: true,
         meta: { label: t('paymentTerms.dueDays'), align: 'right' },
         size: 110,
       }),
@@ -81,7 +82,7 @@ export function PaymentTermsPage() {
         cell: (c) => <StatusBadge status={c.getValue() ? 'active' : 'inactive'} />,
         size: 110,
       }),
-      ...(canManage
+      ...(canUpdate || canDelete
         ? [
             col.display({
               id: 'actions',
@@ -91,8 +92,16 @@ export function PaymentTermsPage() {
               cell: (c) => (
                 <RowActions
                   name={c.row.original.code}
-                  onEdit={() => editor.openEdit(c.row.original)}
-                  onDelete={() => remove.mutateAsync(c.row.original.id)}
+                  onEdit={canUpdate ? () => editor.openEdit(c.row.original) : undefined}
+                  onDelete={
+                    canDelete
+                      ? () =>
+                          remove.mutateAsync({
+                            id: c.row.original.id,
+                            version: c.row.original.version,
+                          })
+                      : undefined
+                  }
                 />
               ),
               size: 100,
@@ -102,7 +111,7 @@ export function PaymentTermsPage() {
     ],
     // editor and remove are stable for the lifetime of the page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, locale, canManage],
+    [t, locale, canUpdate, canDelete],
   )
 
   return (
@@ -110,7 +119,7 @@ export function PaymentTermsPage() {
       title={t('paymentTerms.title')}
       description={t('paymentTerms.subtitle')}
       actions={
-        <Can permission={REF_PERMISSIONS.paymentTerms.manage}>
+        <Can permission={REF_PERMISSIONS.paymentTerms.create}>
           <Button onClick={editor.openNew}>
             <Plus aria-hidden="true" />
             {t('paymentTerms.new')}
@@ -122,7 +131,7 @@ export function PaymentTermsPage() {
         label={t('paymentTerms.title')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta?.total ?? list.data?.data.length ?? 0}
+        total={list.data?.meta?.pagination?.total ?? list.data?.data.length ?? 0}
         loading={list.isLoading}
         error={list.isError}
         onRetry={() => void list.refetch()}
@@ -130,7 +139,7 @@ export function PaymentTermsPage() {
         onQueryChange={setQuery}
         getRowId={(r) => r.id}
         viewKey="reference.payment-terms"
-        onRowActivate={canManage ? editor.openEdit : undefined}
+        onRowActivate={canUpdate ? editor.openEdit : undefined}
       />
       {editor.target.mode !== 'closed' && (
         <PaymentTermDialog

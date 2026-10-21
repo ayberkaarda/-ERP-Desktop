@@ -8,22 +8,31 @@ export interface ListMeta {
   last_page: number
 }
 
+/** Core ApiResponse::paginated: paging lives under meta.pagination. */
 export interface ListResponse<T> {
   data: T[]
-  meta?: Partial<ListMeta>
+  meta?: { pagination?: Partial<ListMeta> }
 }
 
 export interface ItemResponse<T> {
   data: T
 }
 
-/** Global currency row; `is_active` is the activation for the active company. */
+/**
+ * Global currency row. `is_active` is the global flag; `company_is_active` is the activation for
+ * the active company (false until the company activates it). `version` mirrors `company_version`
+ * (the activation row's lock version; 1 before the first activation) and goes with PATCH.
+ */
 export interface Currency {
+  id: string
   code: string
   name: string
   symbol: string
   decimals: number
   is_active: boolean
+  company_is_active: boolean
+  company_version: number
+  version: number
 }
 
 export type RateSource = 'tcmb' | 'manual'
@@ -37,6 +46,8 @@ export interface ExchangeRate {
   banknote_buying: string | null
   banknote_selling: string | null
   source: RateSource
+  /** null for global TCMB fixings, the company id for its manual rates. */
+  company_id?: string | null
 }
 
 export interface ExchangeRateInput {
@@ -46,7 +57,6 @@ export interface ExchangeRateInput {
   forex_selling: string
   banknote_buying?: string
   banknote_selling?: string
-  source: 'manual'
 }
 
 export interface RateStatus {
@@ -82,7 +92,7 @@ export interface TaxCodeInput {
   rate: string | null
   numerator: number | null
   denominator: number | null
-  effective_from: string | null
+  effective_from: string
   effective_to: string | null
   is_active: boolean
 }
@@ -102,8 +112,8 @@ export interface PaymentTermInput {
   code: string
   name: string
   due_days: number
-  discount_percent: string | null
-  discount_days: number | null
+  discount_percent: string
+  discount_days: number
   is_active: boolean
 }
 

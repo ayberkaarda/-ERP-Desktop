@@ -24,7 +24,8 @@ type Action =
 /** Tree editor of a warehouse's storage locations: add (also as child), edit, move, deactivate. */
 export function LocationsEditor({ warehouseId }: { warehouseId: string }) {
   const t = useRefT()
-  const canManage = usePermission(REF_PERMISSIONS.warehouses.manage)
+  // Every location write is authorised by warehouses.update on the backend.
+  const canManage = usePermission(REF_PERMISSIONS.warehouses.update)
   const locations = useLocations(warehouseId)
   const { update } = useLocationMutations(warehouseId)
   const editor = useEditor<Action>()

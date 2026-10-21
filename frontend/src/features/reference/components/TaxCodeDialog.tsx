@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch } from 'react-hook-form'
+import { toIsoDate } from '@/lib/datetime'
 import { taxCodesApi } from '../api/resources'
 import { useCreateTaxCode, useUpdateTaxCode } from '../hooks/useReference'
 import { useRefT } from '../i18n'
@@ -16,7 +17,8 @@ const toValues = (c: TaxCode | null): TaxCodeFormValues => ({
   rate: c?.rate ?? '',
   numerator: c?.numerator != null ? String(c.numerator) : '',
   denominator: c?.denominator != null ? String(c.denominator) : '',
-  effective_from: c?.effective_from ?? '',
+  // Required by the backend; a new code starts today unless the user picks another date.
+  effective_from: c?.effective_from ?? toIsoDate(new Date()),
   effective_to: c?.effective_to ?? '',
   is_active: c?.is_active ?? true,
 })
