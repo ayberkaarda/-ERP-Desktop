@@ -54,6 +54,34 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Sistem durumu' })).toBeInTheDocument()
   })
 
+  it('shows the accounting section entries the company grants', () => {
+    signInWith(['accounting.entries.view', 'accounting.reports.view'])
+    renderSidebar()
+
+    const accounting = screen.getByRole('group', { name: 'Muhasebe' })
+    expect(within(accounting).getByRole('link', { name: 'Yevmiye fişleri' })).toHaveAttribute(
+      'href',
+      '/accounting/journal-entries',
+    )
+    for (const name of ['Mizan', 'Büyük defter', 'Yevmiye defteri']) {
+      expect(within(accounting).getByRole('link', { name })).toBeInTheDocument()
+    }
+    expect(within(accounting).queryByRole('link', { name: 'Hesap planı' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Hesap belirleme' })).not.toBeInTheDocument()
+  })
+
+  it('lists every accounting entry for a super admin', () => {
+    signInWith([], true)
+    renderSidebar()
+
+    const accounting = screen.getByRole('group', { name: 'Muhasebe' })
+    expect(within(accounting).getAllByRole('link')).toHaveLength(8)
+    expect(within(accounting).getByRole('link', { name: 'Hesap planı' })).toHaveAttribute(
+      'href',
+      '/accounting/accounts',
+    )
+  })
+
   it('lists every master data and reference entry for a super admin', () => {
     signInWith([], true)
     renderSidebar()

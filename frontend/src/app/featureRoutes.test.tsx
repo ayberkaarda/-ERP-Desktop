@@ -23,17 +23,27 @@ describe('feature routes in the app shell', () => {
     expect(within(nav).queryByRole('link', { name: 'Stok kartları' })).not.toBeInTheDocument()
   })
 
-  it.each(['/catalog/items', '/reference/currencies', '/parties/new'])(
-    'shows the forbidden state on %s without the permission',
-    async (path) => {
-      const db = setupFea({ permissions: { [COMPANY_A]: ['parties.view'], [COMPANY_B]: [] } })
-      server.use(...partiesHandlers(createPartiesDb()))
-      signIn(db)
-      renderRoutes(routes, path)
+  it.each([
+    '/catalog/items',
+    '/reference/currencies',
+    '/parties/new',
+    '/accounting/accounts',
+    '/accounting/fiscal-years',
+    '/accounting/periods',
+    '/accounting/determination',
+    '/accounting/journal-entries',
+    '/accounting/journal-entries/new',
+    '/accounting/reports/trial-balance',
+    '/accounting/reports/general-ledger',
+    '/accounting/reports/journal-book',
+  ])('shows the forbidden state on %s without the permission', async (path) => {
+    const db = setupFea({ permissions: { [COMPANY_A]: ['parties.view'], [COMPANY_B]: [] } })
+    server.use(...partiesHandlers(createPartiesDb()))
+    signIn(db)
+    renderRoutes(routes, path)
 
-      expect(
-        await screen.findByRole('heading', { name: 'Bu sayfaya erişiminiz yok' }),
-      ).toBeInTheDocument()
-    },
-  )
+    expect(
+      await screen.findByRole('heading', { name: 'Bu sayfaya erişiminiz yok' }),
+    ).toBeInTheDocument()
+  })
 })

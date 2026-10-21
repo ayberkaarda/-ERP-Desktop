@@ -2,6 +2,13 @@ import {
   Activity,
   Banknote,
   BookOpenText,
+  BookText,
+  CalendarDays,
+  CalendarRange,
+  FileSpreadsheet,
+  GitBranch,
+  ListTree,
+  NotebookPen,
   Boxes,
   Calculator,
   CalendarClock,
@@ -24,6 +31,7 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react'
+import { ACC_PERMISSIONS } from '@/features/accounting/shared/permissions'
 import { REF_PERMISSIONS } from '@/features/reference/permissions'
 // Permission names mirror each feature's routes.tsx guards.
 import type { PermissionRequirement } from '@/lib/permissions'
@@ -33,7 +41,6 @@ export type NavKey =
   | 'sales'
   | 'purchasing'
   | 'inventory'
-  | 'accounting'
   | 'treasury'
   | 'hr'
   | 'health'
@@ -52,8 +59,16 @@ export type NavKey =
   | 'costCenters'
   | 'projects'
   | 'referenceSettings'
+  | 'journalEntries'
+  | 'chartOfAccounts'
+  | 'trialBalance'
+  | 'generalLedger'
+  | 'journalBook'
+  | 'fiscalYears'
+  | 'accountingPeriods'
+  | 'accountDetermination'
 
-export type NavSectionKey = 'main' | 'masterData' | 'reference' | 'system'
+export type NavSectionKey = 'main' | 'masterData' | 'accounting' | 'reference' | 'system'
 
 export interface NavItem {
   key: NavKey
@@ -77,7 +92,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'sales', icon: ReceiptText },
       { key: 'purchasing', icon: ShoppingBasket },
       { key: 'inventory', icon: Boxes },
-      { key: 'accounting', icon: BookOpenText },
       { key: 'treasury', icon: WalletCards },
       { key: 'hr', icon: UsersRound },
     ],
@@ -121,6 +135,59 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Calculator,
         to: '/catalog/pricing',
         permission: 'pricing.view',
+      },
+    ],
+  },
+  {
+    key: 'accounting',
+    items: [
+      {
+        key: 'journalEntries',
+        icon: NotebookPen,
+        to: '/accounting/journal-entries',
+        permission: 'accounting.entries.view',
+      },
+      {
+        key: 'chartOfAccounts',
+        icon: ListTree,
+        to: '/accounting/accounts',
+        permission: ACC_PERMISSIONS.accounts.view,
+      },
+      {
+        key: 'trialBalance',
+        icon: FileSpreadsheet,
+        to: '/accounting/reports/trial-balance',
+        permission: 'accounting.reports.view',
+      },
+      {
+        key: 'generalLedger',
+        icon: BookOpenText,
+        to: '/accounting/reports/general-ledger',
+        permission: 'accounting.reports.view',
+      },
+      {
+        key: 'journalBook',
+        icon: BookText,
+        to: '/accounting/reports/journal-book',
+        permission: 'accounting.reports.view',
+      },
+      {
+        key: 'fiscalYears',
+        icon: CalendarRange,
+        to: '/accounting/fiscal-years',
+        permission: ACC_PERMISSIONS.periods.view,
+      },
+      {
+        key: 'accountingPeriods',
+        icon: CalendarDays,
+        to: '/accounting/periods',
+        permission: ACC_PERMISSIONS.periods.view,
+      },
+      {
+        key: 'accountDetermination',
+        icon: GitBranch,
+        to: '/accounting/determination',
+        permission: ACC_PERMISSIONS.determination.manage,
       },
     ],
   },
