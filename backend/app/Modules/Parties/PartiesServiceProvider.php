@@ -25,12 +25,15 @@ use Illuminate\Support\Facades\Gate;
  * - Codes: Core NumberSequenceService, doc type `party`, series `P`, format numbering.formats.party
  *   (default `{series}{seq:6}`), drawn inside the creating transaction.
  * - Tax numbers: VKN for Turkish companies, TCKN for Turkish persons, free form abroad; unique per
- *   company among active, non-deleted parties (partial unique index), 422 on field tax_number.
+ *   company among active, non-deleted parties on the canonical form (tax_number_canonical: upper
+ *   case, no spaces, dots, hyphens or slashes; partial unique index), 422 on field tax_number.
  * - Foreign references (default_currency_code, risk_currency_code, payment_term_id, price_list_id,
  *   bank account currency_code) are plain columns without foreign keys. Support\ReferenceGuards
  *   checks them through Reference\Contracts\CurrencyLookup / PaymentTermLookup and
- *   Catalog\Contracts\PriceListLookup (`exists()`), but only when the interface exists and is
- *   bound; until then the values are accepted as format-checked opaque codes/uuids.
+ *   Catalog\Contracts\PriceListLookup (`exists()`, in the active company). A reference that cannot
+ *   be verified (module not installed) is a validation error unless config
+ *   parties.allow_unverified_references is on (config/parties.php, default off).
+ * - Audit: bank account IBANs are masked (country + last 4) in activity log entries.
  * - Deletion: soft delete when no PartyUsageChecker reports the party in use, otherwise the party
  *   is deactivated (is_active = false). Modules that reference parties tag their checker with
  *   PartyUsageChecker::TAG.
@@ -41,6 +44,7 @@ final class PartiesServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__.'/config/parties.php', 'parties');
         $this->app->bind(PartyLookup::class, EloquentPartyLookup::class);
         $this->app->bind(PartyUsageChecker::class, TaggedPartyUsageChecker::class);
         $this->app->bind(ReferenceGuards::class, static fn ($app): ReferenceGuards => new ReferenceGuards($app));

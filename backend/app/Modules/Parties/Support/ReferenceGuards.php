@@ -4,12 +4,18 @@ declare(strict_types=1);
 
 namespace App\Modules\Parties\Support;
 
+use App\Core\Company\CompanyContext;
+use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Container\Container;
 
 /**
- * Existence checks for ids owned by other modules, through those modules' Contracts when they are
- * installed. Until a providing module exists (interface missing or not bound), the value is
- * accepted as an opaque, format-checked identifier.
+ * Existence checks for ids owned by other modules, through those modules' Contracts. The lookups
+ * answer for the active company (a company scoped record of another company does not exist for
+ * them) and are always called inside it; without an active company nothing is verified.
+ *
+ * When a providing module is not installed (interface missing or not bound) the reference cannot
+ * be verified and is rejected, unless config `parties.allow_unverified_references` is on (meant
+ * only for the period before Reference / Catalog exist); then the format-checked value is kept.
  */
 final class ReferenceGuards
 {
@@ -40,20 +46,32 @@ final class ReferenceGuards
     }
 
     /**
-     * True when the providing module confirms the value, or cannot be asked yet.
+     * True only when the providing module confirms the value in the active company, or when
+     * unverified references are explicitly allowed and the module cannot be asked.
      */
     public function check(string $contract, string $value): bool
     {
+        $company = $this->container->make(CompanyContext::class)->idOrNull();
+
+        if ($company === null) {
+            return false;
+        }
+
         if (! interface_exists($contract) || ! $this->container->bound($contract)) {
-            return true;
+            return $this->allowUnverified();
         }
 
         $lookup = $this->container->make($contract);
 
         if (! is_object($lookup) || ! method_exists($lookup, 'exists')) {
-            return true;
+            return $this->allowUnverified();
         }
 
-        return $lookup->exists($value) === true;
+        return $this->container->make(CompanyContext::class)->runAs($company, static fn (): bool => $lookup->exists($value) === true);
+    }
+
+    private function allowUnverified(): bool
+    {
+        return $this->container->make(Repository::class)->get('parties.allow_unverified_references') === true;
     }
 }

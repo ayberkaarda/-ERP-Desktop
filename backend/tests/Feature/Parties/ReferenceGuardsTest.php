@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\Company\CompanyContext;
 use App\Models\User;
 use App\Modules\Parties\Support\ReferenceGuards;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,9 +29,11 @@ interface PartiesTestUnboundLookup
 }
 
 beforeEach(function (): void {
+    $this->other = Actors::company();
     $this->company = Actors::company();
     $this->manager = Actors::user(['parties.view', 'parties.create', 'parties.update']);
     $this->term = (string) Str::uuid7();
+    $this->foreignTerm = (string) Str::uuid7();
 });
 
 function guardedParties(): void
@@ -47,14 +50,18 @@ function guardedParties(): void
             return in_array($code, ['TRY', 'EUR'], true);
         }
     });
-    $term = test()->term;
-    app()->instance(PartiesTestPaymentTermLookup::class, new class($term) implements PartiesTestPaymentTermLookup
+    // Company scoped like the real lookup: each term exists in its own company only.
+    $terms = [test()->company => test()->term, test()->other => test()->foreignTerm];
+    app()->instance(PartiesTestPaymentTermLookup::class, new class($terms) implements PartiesTestPaymentTermLookup
     {
-        public function __construct(private readonly string $term) {}
+        /** @param array<string, string> $terms */
+        public function __construct(private readonly array $terms) {}
 
         public function exists(string $id): bool
         {
-            return $id === $this->term;
+            $company = app(CompanyContext::class)->idOrNull();
+
+            return $company !== null && ($this->terms[$company] ?? null) === $id;
         }
     });
 }
@@ -68,15 +75,28 @@ function guardedPost(User $user, string $company, array $payload): TestResponse
     ], ['Accept' => 'application/json', 'X-Company-Id' => $company, 'Idempotency-Key' => (string) Str::uuid7()]);
 }
 
-it('accepts opaque values while the providing modules are not installed', function (): void {
+it('rejects unverifiable references unless explicitly allowed', function (): void {
     $guards = app(ReferenceGuards::class);
+    app(CompanyContext::class)->set($this->company);
 
     expect(interface_exists(ReferenceGuards::CURRENCY) && app()->bound(ReferenceGuards::CURRENCY))->toBeFalse()
-        ->and($guards->currencyExists('XYZ'))->toBeTrue()
-        ->and($guards->paymentTermExists((string) Str::uuid7()))->toBeTrue()
-        ->and($guards->priceListExists((string) Str::uuid7()))->toBeTrue();
+        ->and(config('parties.allow_unverified_references'))->toBeFalse()
+        ->and($guards->currencyExists('TRY'))->toBeFalse()
+        ->and($guards->paymentTermExists((string) Str::uuid7()))->toBeFalse()
+        ->and($guards->priceListExists((string) Str::uuid7()))->toBeFalse();
 
+    guardedPost($this->manager, $this->company, ['default_currency_code' => 'TRY'])
+        ->assertStatus(422)->assertJsonValidationErrors(['default_currency_code'], 'errors.fields');
+    guardedPost($this->manager, $this->company, ['price_list_id' => (string) Str::uuid7()])
+        ->assertStatus(422)->assertJsonValidationErrors(['price_list_id'], 'errors.fields');
+
+    config(['parties.allow_unverified_references' => true]);
+    expect($guards->currencyExists('XYZ'))->toBeTrue();
     guardedPost($this->manager, $this->company, ['default_currency_code' => 'XYZ', 'price_list_id' => (string) Str::uuid7()])->assertCreated();
+
+    // Without an active company nothing is verified, even when allowed.
+    app(CompanyContext::class)->clear();
+    expect($guards->currencyExists('XYZ'))->toBeFalse();
 });
 
 it('validates references through the providing module contracts once they are bound', function (): void {
@@ -88,11 +108,15 @@ it('validates references through the providing module contracts once they are bo
         ->assertStatus(422)->assertJsonValidationErrors(['risk_currency_code'], 'errors.fields');
     guardedPost($this->manager, $this->company, ['payment_term_id' => (string) Str::uuid7()])
         ->assertStatus(422)->assertJsonValidationErrors(['payment_term_id'], 'errors.fields');
+    // A payment term of another company does not exist here.
+    guardedPost($this->manager, $this->company, ['payment_term_id' => $this->foreignTerm])
+        ->assertStatus(422)->assertJsonValidationErrors(['payment_term_id'], 'errors.fields');
+    // Interface exists but nothing is bound: unverifiable, so rejected by default.
+    guardedPost($this->manager, $this->company, ['price_list_id' => (string) Str::uuid7()])
+        ->assertStatus(422)->assertJsonValidationErrors(['price_list_id'], 'errors.fields');
 
-    // Interface exists but nothing is bound: still opaque.
     guardedPost($this->manager, $this->company, [
-        'default_currency_code' => 'EUR', 'risk_limit' => '10', 'risk_currency_code' => 'TRY',
-        'payment_term_id' => $this->term, 'price_list_id' => (string) Str::uuid7(),
+        'default_currency_code' => 'EUR', 'risk_limit' => '10', 'risk_currency_code' => 'TRY', 'payment_term_id' => $this->term,
     ])->assertCreated()->assertJsonPath('data.payment_term_id', $this->term);
 });
 
