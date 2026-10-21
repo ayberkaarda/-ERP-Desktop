@@ -6,7 +6,7 @@ return [
     'conversion_missing' => 'Bu birimler arasında dönüşüm tanımlı değil.',
     'factor_positive' => 'Çarpan sıfırdan büyük olmalıdır.',
     'conversion_cycle' => 'Bu birimler zaten birbirine dönüştürülebiliyor; yeni bir dönüşüm döngü oluşturur.',
-    'conversion_inconsistent' => 'Çarpan, şirketin birim dönüşümleriyle çelişiyor (beklenen :factor).',
+    'conversion_inconsistent' => 'Çarpan, bu stoğun diğer birimleri için şirketin birim dönüşümleriyle çelişiyor.',
     'conversion_conflicts_item' => 'Dönüşüm, :item stoğunun alternatif birim çarpanıyla çelişiyor.',
     'unit_in_use' => 'Birim kullanımda; silmek yerine pasife alın.',
     'category_depth' => 'Kategoriler en fazla :max seviye iç içe olabilir.',
@@ -35,4 +35,8 @@ return [
     'line_not_found' => 'Eşleşen satır yok; oluşturmak için sürümü göndermeyin.',
     'line_version' => 'Satır başka biri tarafından değiştirildi (güncel sürüm :version).',
     'qty_positive' => 'Miktar sıfırdan büyük olmalıdır.',
+    'unit_missing' => 'Birim bulunamadı.',
+    'category_missing' => 'Kategori bulunamadı.',
+    'reference_gone' => 'Başvurulan kayıt bu arada silindi.',
+    'line_version_required' => 'Bu satır zaten var; üzerine yazmak için sürümünü gönderin (güncel :version).',
 ];

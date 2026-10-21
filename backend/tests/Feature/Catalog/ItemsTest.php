@@ -32,7 +32,7 @@ it('generates gapless codes from the item number sequence and accepts manual cod
     $second = Catalog::post($this->admin, $this->company, 'items', ['name' => 'Nut', 'type' => 'stock', 'base_unit_id' => $this->pcs->id])
         ->assertCreated()->json('data.code');
 
-    expect($first)->toBe("ITM{$this->year}000000001")->and($second)->toBe("ITM{$this->year}000000002");
+    expect($first)->toBe("ITM{$this->year}000001")->and($second)->toBe("ITM{$this->year}000002");
 
     Catalog::post($this->admin, $this->company, 'items', ['code' => 'MANUAL-1', 'name' => 'Washer', 'type' => 'stock', 'base_unit_id' => $this->pcs->id])
         ->assertCreated()->assertJsonPath('data.code', 'MANUAL-1');
@@ -40,15 +40,15 @@ it('generates gapless codes from the item number sequence and accepts manual cod
         ->assertStatus(422)->assertJsonValidationErrors(['code'], 'errors.fields');
 
     // A manual code that collides with the next generated one is skipped.
-    Catalog::item($this->company, $this->pcs, ['code' => "ITM{$this->year}000000003"]);
+    Catalog::item($this->company, $this->pcs, ['code' => "ITM{$this->year}000003"]);
     Catalog::post($this->admin, $this->company, 'items', ['name' => 'Pin', 'type' => 'stock', 'base_unit_id' => $this->pcs->id])
-        ->assertCreated()->assertJsonPath('data.code', "ITM{$this->year}000000004");
+        ->assertCreated()->assertJsonPath('data.code', "ITM{$this->year}000004");
 
     // Sequences are per company.
     $otherAdmin = Actors::user(['items.create'], $this->other);
     $otherPcs = Catalog::unit($this->other, 'PCS');
     Catalog::post($otherAdmin, $this->other, 'items', ['name' => 'Bolt', 'type' => 'stock', 'base_unit_id' => $otherPcs->id])
-        ->assertCreated()->assertJsonPath('data.code', "ITM{$this->year}000000001");
+        ->assertCreated()->assertJsonPath('data.code', "ITM{$this->year}000001");
 });
 
 it('stores decimals and json attributes as given and audits changes', function (): void {

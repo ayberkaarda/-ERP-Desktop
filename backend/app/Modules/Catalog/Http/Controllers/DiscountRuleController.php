@@ -9,14 +9,14 @@ use App\Core\Http\ListQuery;
 use App\Modules\Catalog\Http\Requests\DiscountRuleRequest;
 use App\Modules\Catalog\Http\Resources\DiscountRuleResource;
 use App\Modules\Catalog\Models\DiscountRule;
-use App\Modules\Catalog\Services\CatalogRules;
+use App\Modules\Catalog\Services\DiscountRuleService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 
 final class DiscountRuleController extends CatalogController
 {
-    public const array INDEXES = ['discount_rules_company_code_unique' => 'code'];
+    public function __construct(private readonly DiscountRuleService $rules) {}
 
     public function index(Request $request): JsonResponse
     {
@@ -35,13 +35,14 @@ final class DiscountRuleController extends CatalogController
     public function store(DiscountRuleRequest $request): JsonResponse
     {
         Gate::authorize('create', DiscountRule::class);
-        $rule = CatalogRules::transaction(fn (): DiscountRule => DiscountRule::query()->create($request->validated()), self::INDEXES);
+        $rule = $this->rules->create($request->validated());
 
         return ApiResponse::created($this->resolve(new DiscountRuleResource($rule), $request));
     }
 
     public function show(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', DiscountRule::class);
         $rule = DiscountRule::query()->findOrFail($id);
         Gate::authorize('view', $rule);
 
@@ -50,23 +51,21 @@ final class DiscountRuleController extends CatalogController
 
     public function update(DiscountRuleRequest $request, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', DiscountRule::class);
         $rule = DiscountRule::query()->findOrFail($id);
         Gate::authorize('update', $rule);
 
-        CatalogRules::transaction(function () use ($rule, $request): void {
-            $rule->assertVersion($request->integer('version'));
-            $rule->fill(collect($request->validated())->except('version')->all())->save();
-        }, self::INDEXES);
+        $rule = $this->rules->update($rule, collect($request->validated())->except('version')->all(), $request->integer('version'));
 
         return ApiResponse::success($this->resolve(new DiscountRuleResource($rule), $request));
     }
 
     public function destroy(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('deleteAny', DiscountRule::class);
         $rule = DiscountRule::query()->findOrFail($id);
         Gate::authorize('delete', $rule);
-        $this->assertDeleteVersion($request, $rule);
-        $rule->delete();
+        $this->rules->delete($rule, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }

@@ -19,7 +19,7 @@ use Illuminate\Validation\Validator;
  */
 final class ItemBarcodeRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->parentGate(Item::class, 'item');
     }

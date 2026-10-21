@@ -54,6 +54,7 @@ final class UnitConversionController extends CatalogController
 
     public function show(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', UnitConversion::class);
         $conversion = UnitConversion::query()->with(['fromUnit', 'toUnit'])->findOrFail($id);
         Gate::authorize('view', $conversion);
 
@@ -62,6 +63,7 @@ final class UnitConversionController extends CatalogController
 
     public function update(UnitConversionRequest $request, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', UnitConversion::class);
         $conversion = UnitConversion::query()->findOrFail($id);
         Gate::authorize('update', $conversion);
         $this->units->updateConversion($conversion, (string) $request->string('factor'), $request->integer('version'));
@@ -71,10 +73,10 @@ final class UnitConversionController extends CatalogController
 
     public function destroy(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('deleteAny', UnitConversion::class);
         $conversion = UnitConversion::query()->findOrFail($id);
         Gate::authorize('delete', $conversion);
-        $this->assertDeleteVersion($request, $conversion);
-        $this->units->deleteConversion($conversion);
+        $this->units->deleteConversion($conversion, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }

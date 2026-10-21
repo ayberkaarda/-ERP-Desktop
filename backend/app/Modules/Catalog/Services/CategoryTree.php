@@ -68,10 +68,11 @@ final class CategoryTree
         }, self::INDEXES);
     }
 
-    public function delete(ItemCategory $category): void
+    public function delete(ItemCategory $category, ?int $version = null): void
     {
-        DB::transaction(function () use ($category): void {
+        DB::transaction(function () use ($category, $version): void {
             CatalogRules::lock('item_categories');
+            $category = CatalogRules::lockVersion($category, $version);
 
             if (ItemCategory::query()->where('parent_id', $category->id)->exists()) {
                 CatalogRules::fail('category', 'category_has_children');
@@ -121,7 +122,7 @@ final class CategoryTree
 
         // Descendants keep their own suffix; soft-deleted ones move too so paths stay consistent.
         DB::update(
-            'update item_categories set path = ? || substr(path, ?), depth = depth + ? where company_id = ? and path like ? and id <> ?',
+            'update item_categories set path = ? || substr(path, ?), depth = depth + ?, version = version + 1, updated_at = now() where company_id = ? and path like ? and id <> ?',
             [$newPath, strlen($oldPath) + 1, $delta, $category->company_id, $like, $category->id],
         );
 

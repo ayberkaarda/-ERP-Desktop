@@ -16,7 +16,7 @@ use Illuminate\Validation\Validator;
  */
 final class BulkPriceListLinesRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->parentGate(PriceList::class, 'priceList');
     }

@@ -8,7 +8,6 @@ use App\Modules\Catalog\Contracts\PriceListLookup;
 use App\Modules\Catalog\Contracts\PriceResolver;
 use App\Modules\Catalog\Contracts\UnitLookup;
 use App\Modules\Catalog\Models\ItemBarcode;
-use App\Modules\Catalog\Services\ReferenceGuards;
 use App\Modules\Identity\Services\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -82,15 +81,6 @@ it('exposes price lists to other modules', function (): void {
     expect(Catalog::in($this->company, fn () => app(PriceListLookup::class)->currency($list->id)))->toBe('EUR')
         ->and(Catalog::in($this->other, fn () => app(PriceListLookup::class)->exists($list->id)))->toBeFalse()
         ->and(Catalog::in($this->company, fn () => app(PriceListLookup::class)->exists('x')))->toBeFalse();
-});
-
-it('accepts opaque foreign ids while the providing modules are absent', function (): void {
-    $guards = app(ReferenceGuards::class);
-    $absent = ! interface_exists(ReferenceGuards::PARTIES) && ! interface_exists(ReferenceGuards::TAX_CODES);
-
-    expect($absent ? $guards->partyExists((string) Str::uuid7()) : true)->toBeTrue()
-        ->and($absent ? $guards->taxCodeExists((string) Str::uuid7()) : true)->toBeTrue()
-        ->and($absent ? $guards->partyPriceListId((string) Str::uuid7()) : null)->toBeNull();
 });
 
 it('declares its permissions with default role grants', function (): void {

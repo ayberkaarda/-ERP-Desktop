@@ -54,6 +54,7 @@ final class ItemCategoryController extends CatalogController
 
     public function show(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', ItemCategory::class);
         $category = ItemCategory::query()->findOrFail($id);
         Gate::authorize('view', $category);
 
@@ -62,6 +63,7 @@ final class ItemCategoryController extends CatalogController
 
     public function update(ItemCategoryRequest $request, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', ItemCategory::class);
         $category = ItemCategory::query()->findOrFail($id);
         Gate::authorize('update', $category);
         $category = $this->tree->update($category, collect($request->validated())->except('version')->all(), $request->integer('version'));
@@ -71,10 +73,10 @@ final class ItemCategoryController extends CatalogController
 
     public function destroy(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('deleteAny', ItemCategory::class);
         $category = ItemCategory::query()->findOrFail($id);
         Gate::authorize('delete', $category);
-        $this->assertDeleteVersion($request, $category);
-        $this->tree->delete($category);
+        $this->tree->delete($category, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }

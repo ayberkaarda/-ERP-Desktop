@@ -14,7 +14,7 @@ use Illuminate\Validation\Validator;
  */
 final class UnitConversionRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->creating() ? ['create', Unit::class] : $this->recordGate(UnitConversion::class);
     }

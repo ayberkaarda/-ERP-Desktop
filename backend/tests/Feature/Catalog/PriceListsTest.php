@@ -92,7 +92,7 @@ it('upserts lines in bulk by natural key', function (): void {
 
     $response = ($this->put)([
         ['item_id' => $this->item->id, 'unit_id' => $this->pcs->id, 'min_qty' => '10.000', 'price' => '8.5', 'version' => 1],
-        ['item_id' => $this->item->id, 'unit_id' => $this->pcs->id, 'price' => '10'],
+        ['item_id' => $this->item->id, 'unit_id' => $this->pcs->id, 'price' => '10', 'version' => 1],
         ['item_id' => $this->item->id, 'unit_id' => $this->pcs->id, 'min_qty' => '100', 'price' => '8'],
     ])->assertOk()->assertJsonPath('meta', ['created' => 1, 'updated' => 1, 'unchanged' => 1]);
 
@@ -123,6 +123,8 @@ it('reports errors per line and writes nothing when any line fails', function ()
 
     // A stale or unknown version fails its line and rolls back the whole batch.
     ($this->put)([$good])->assertOk();
+    // Overwriting an existing line without its version would silently drop a newer price.
+    ($this->put)([[...$good, 'price' => '11']])->assertStatus(422)->assertJsonValidationErrors(['lines.0.version'], 'errors.fields');
     ($this->put)([
         ['item_id' => $this->item->id, 'unit_id' => $this->pcs->id, 'min_qty' => '50', 'price' => '5'],
         [...$good, 'price' => '12', 'version' => 9],

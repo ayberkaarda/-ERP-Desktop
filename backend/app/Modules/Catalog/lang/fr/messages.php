@@ -6,7 +6,7 @@ return [
     'conversion_missing' => 'Aucune conversion n’est définie entre ces unités.',
     'factor_positive' => 'Le facteur doit être supérieur à zéro.',
     'conversion_cycle' => 'Ces unités sont déjà convertibles ; une autre conversion créerait un cycle.',
-    'conversion_inconsistent' => 'Le facteur contredit les conversions d’unités de la société (attendu :factor).',
+    'conversion_inconsistent' => 'Le facteur contredit les conversions d’unités de la société pour les autres unités de cet article.',
     'conversion_conflicts_item' => 'La conversion contredit le facteur de l’unité alternative de l’article :item.',
     'unit_in_use' => 'L’unité est utilisée ; désactivez-la plutôt.',
     'category_depth' => 'Les catégories peuvent être imbriquées sur :max niveaux au maximum.',
@@ -35,4 +35,8 @@ return [
     'line_not_found' => 'Aucune ligne existante ne correspond ; omettez la version pour la créer.',
     'line_version' => 'La ligne a été modifiée par quelqu’un d’autre (version actuelle :version).',
     'qty_positive' => 'La quantité doit être supérieure à zéro.',
+    'unit_missing' => 'L’unité n’existe pas.',
+    'category_missing' => 'La catégorie n’existe pas.',
+    'reference_gone' => 'L’enregistrement référencé a été supprimé entre-temps.',
+    'line_version_required' => 'Cette ligne existe déjà ; envoyez sa version (actuelle :version) pour l’écraser.',
 ];

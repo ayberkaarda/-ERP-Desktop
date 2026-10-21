@@ -30,6 +30,7 @@ use App\Modules\Catalog\Services\DatabaseItemLookup;
 use App\Modules\Catalog\Services\DatabasePriceListLookup;
 use App\Modules\Catalog\Services\DatabasePriceResolver;
 use App\Modules\Catalog\Services\DatabaseUnitLookup;
+use App\Modules\Catalog\Services\ItemService;
 use App\Modules\Catalog\Services\PriceListItemUsage;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
@@ -44,6 +45,11 @@ final class CatalogServiceProvider extends ModuleServiceProvider
         $this->app->bind(PriceResolver::class, DatabasePriceResolver::class);
         $this->app->bind(ItemUsageChecker::class, CompositeItemUsageChecker::class);
         $this->app->tag([PriceListItemUsage::class], ItemUsageChecker::TAG);
+
+        // Item codes: ITM + year + 6 digits, unless the deployment configured its own format.
+        if (config('numbering.formats.'.ItemService::DOC_TYPE) === null) {
+            config(['numbering.formats.'.ItemService::DOC_TYPE => ItemService::FORMAT]);
+        }
     }
 
     public function boot(): void

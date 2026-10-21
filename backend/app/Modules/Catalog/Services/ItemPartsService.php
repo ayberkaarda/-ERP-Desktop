@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Services;
 
-use App\Core\Money\RoundingPolicy;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\ItemBarcode;
 use App\Modules\Catalog\Models\ItemUnit;
 use App\Modules\Catalog\Models\ItemVariant;
 use App\Modules\Catalog\Models\PriceListLine;
+use App\Modules\Catalog\Models\Unit;
 use Brick\Math\BigRational;
 
 /**
@@ -18,6 +18,8 @@ use Brick\Math\BigRational;
  */
 final class ItemPartsService
 {
+    public const int SKU_LENGTH = 64;
+
     public const array VARIANT_INDEXES = ['item_variants_company_sku_unique' => 'sku'];
 
     public const array BARCODE_INDEXES = ['item_barcodes_company_id_barcode_unique' => 'barcode', 'item_barcodes_primary_unique' => 'is_primary'];
@@ -57,10 +59,11 @@ final class ItemPartsService
         }, self::VARIANT_INDEXES);
     }
 
-    public function deleteVariant(Item $item, ItemVariant $variant): void
+    public function deleteVariant(Item $item, ItemVariant $variant, ?int $version = null): void
     {
-        CatalogRules::transaction(function () use ($item, $variant): void {
+        CatalogRules::transaction(function () use ($item, $variant, $version): void {
             $this->lock($item);
+            $variant = CatalogRules::lockVersion($variant, $version);
 
             if (PriceListLine::query()->where('variant_id', $variant->id)->exists()) {
                 CatalogRules::fail('variant', 'variant_in_use');
@@ -80,6 +83,7 @@ final class ItemPartsService
             $locked = $this->lock($item);
             $barcode = new ItemBarcode(collect($data)->only(['barcode', 'type', 'unit_id', 'variant_id', 'is_primary'])->all());
             $barcode->item_id = $locked->id;
+            $this->assertBarcodeRefs($data);
             $hasPrimary = ItemBarcode::query()->where('item_id', $locked->id)->where('is_primary', true)->exists();
 
             // The first barcode of an item is its primary one.
@@ -102,6 +106,7 @@ final class ItemPartsService
         return CatalogRules::transaction(function () use ($item, $barcode, $data, $version): ItemBarcode {
             $locked = $this->lock($item);
             $barcode->assertVersion($version);
+            $this->assertBarcodeRefs($data);
 
             if (($data['is_primary'] ?? null) === true && ! $barcode->is_primary) {
                 $this->clearPrimary($locked);
@@ -113,10 +118,11 @@ final class ItemPartsService
         }, self::BARCODE_INDEXES);
     }
 
-    public function deleteBarcode(Item $item, ItemBarcode $barcode): void
+    public function deleteBarcode(Item $item, ItemBarcode $barcode, ?int $version = null): void
     {
-        CatalogRules::transaction(function () use ($item, $barcode): void {
+        CatalogRules::transaction(function () use ($item, $barcode, $version): void {
             $locked = $this->lock($item);
+            $barcode = CatalogRules::lockVersion($barcode, $version);
             $wasPrimary = $barcode->is_primary;
             $barcode->delete();
 
@@ -140,7 +146,8 @@ final class ItemPartsService
                 CatalogRules::fail('unit_id', 'item_unit_is_base');
             }
 
-            $this->assertConsistent($data['unit_id'], $locked->base_unit_id, $data['factor'], $converter);
+            CatalogRules::sharedExists(Unit::class, [$data['unit_id']]) || CatalogRules::fail('unit_id', 'unit_missing');
+            $this->assertConsistent($locked, $data['unit_id'], $data['factor'], $converter);
 
             $unit = new ItemUnit(['unit_id' => $data['unit_id'], 'factor' => $data['factor']]);
             $unit->item_id = $locked->id;
@@ -155,18 +162,20 @@ final class ItemPartsService
         return CatalogRules::transaction(function () use ($item, $unit, $factor, $version, $converter): ItemUnit {
             $locked = $this->lock($item);
             CatalogRules::lock('units');
-            $unit->assertVersion($version);
-            $this->assertConsistent($unit->unit_id, $locked->base_unit_id, $factor, $converter);
-            $unit->fill(['factor' => $factor])->save();
+            $fresh = ItemUnit::query()->whereKey($unit->id)->lockForUpdate()->firstOrFail();
+            $fresh->assertVersion($version);
+            $this->assertConsistent($locked, $fresh->unit_id, $factor, $converter);
+            $fresh->fill(['factor' => $factor])->save();
 
-            return $unit;
+            return $fresh;
         });
     }
 
-    public function deleteUnit(Item $item, ItemUnit $unit): void
+    public function deleteUnit(Item $item, ItemUnit $unit, ?int $version = null): void
     {
-        CatalogRules::transaction(function () use ($item, $unit): void {
+        CatalogRules::transaction(function () use ($item, $unit, $version): void {
             $this->lock($item);
+            $unit = CatalogRules::lockVersion($unit, $version);
 
             if (ItemBarcode::query()->where('item_id', $item->id)->where('unit_id', $unit->unit_id)->exists()
                 || PriceListLine::query()->where('item_id', $item->id)->where('unit_id', $unit->unit_id)->exists()) {
@@ -178,14 +187,40 @@ final class ItemPartsService
     }
 
     /**
-     * When the company graph already converts the unit to the base unit, the item factor must agree.
+     * Every pair of units of the item (base = 1, alternates = their factor, with the written one
+     * replaced) that the company graph connects must have exactly the graph ratio, along any path.
      */
-    private function assertConsistent(string $unitId, string $baseUnitId, string $factor, UnitConverter $converter): void
+    private function assertConsistent(Item $item, string $unitId, string $factor, UnitConverter $converter): void
     {
-        $global = $converter->graph()->factor($unitId, $baseUnitId);
+        $factors = [$item->base_unit_id => BigRational::one()];
 
-        if ($global !== null && ! $global->isEqualTo(BigRational::of($factor))) {
-            CatalogRules::fail('factor', 'conversion_inconsistent', ['factor' => (string) $global->toScale(RoundingPolicy::DECIMAL_SCALE, RoundingPolicy::MODE)]);
+        foreach (ItemUnit::query()->where('item_id', $item->id)->get(['unit_id', 'factor']) as $alternate) {
+            $factors[$alternate->unit_id] = BigRational::of($alternate->factor);
+        }
+
+        $factors[$unitId] = BigRational::of($factor);
+
+        if ($converter->graph()->conflict($factors) !== null) {
+            CatalogRules::fail('factor', 'conversion_inconsistent');
+        }
+    }
+
+    /**
+     * Re-checked under the item lock (variant deletes take it too); the unit is share locked.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function assertBarcodeRefs(array $data): void
+    {
+        $unit = $data['unit_id'] ?? null;
+        $variant = $data['variant_id'] ?? null;
+
+        if (is_string($unit) && ! CatalogRules::sharedExists(Unit::class, [$unit])) {
+            CatalogRules::fail('unit_id', 'reference_gone');
+        }
+
+        if (is_string($variant) && ! CatalogRules::sharedExists(ItemVariant::class, [$variant])) {
+            CatalogRules::fail('variant_id', 'reference_gone');
         }
     }
 
@@ -200,7 +235,9 @@ final class ItemPartsService
         $n = ItemVariant::withTrashed()->where('item_id', $item->id)->count();
 
         do {
-            $sku = sprintf('%s-%03d', $item->code, ++$n);
+            $suffix = sprintf('-%03d', ++$n);
+            // The SKU column is as long as the item code; keep room for the suffix.
+            $sku = mb_substr($item->code, 0, self::SKU_LENGTH - strlen($suffix)).$suffix;
         } while (ItemVariant::query()->where('sku', $sku)->exists());
 
         return $sku;

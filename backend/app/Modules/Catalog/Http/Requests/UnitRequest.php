@@ -8,7 +8,7 @@ use App\Modules\Catalog\Models\Unit;
 
 final class UnitRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->recordGate(Unit::class);
     }

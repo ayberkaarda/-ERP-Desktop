@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Http\Controllers;
 
-use App\Core\Documents\HasVersion;
-use App\Modules\Catalog\Models\CatalogModel;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -93,19 +91,21 @@ abstract class CatalogController
     }
 
     /**
-     * DELETE may carry the version the client saw; a stale one is a conflict.
+     * DELETE may carry the version the client saw; services re-check it on the locked row.
      */
-    protected function assertDeleteVersion(Request $request, CatalogModel $model): void
+    protected function deleteVersion(Request $request): ?int
     {
         $version = $request->input('version', $request->query('version'));
 
-        if ($version !== null && in_array(HasVersion::class, class_uses_recursive($model), true) && method_exists($model, 'assertVersion')) {
-            if (! is_numeric($version)) {
-                throw ValidationException::withMessages(['version' => [(string) __('validation.integer', ['attribute' => 'version'])]]);
-            }
-
-            $model->assertVersion((int) $version);
+        if ($version === null) {
+            return null;
         }
+
+        if (! is_string($version) && ! is_int($version) || ! ctype_digit((string) $version)) {
+            throw ValidationException::withMessages(['version' => [(string) __('validation.integer', ['attribute' => 'version'])]]);
+        }
+
+        return (int) $version;
     }
 
     /**

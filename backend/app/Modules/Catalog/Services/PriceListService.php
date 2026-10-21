@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Modules\Catalog\Services;
 
+use App\Modules\Catalog\Models\Item;
+use App\Modules\Catalog\Models\ItemVariant;
 use App\Modules\Catalog\Models\PriceList;
 use App\Modules\Catalog\Models\PriceListLine;
+use App\Modules\Catalog\Models\Unit;
 use Illuminate\Validation\ValidationException;
 
 final class PriceListService
@@ -55,10 +58,13 @@ final class PriceListService
         }, self::INDEXES);
     }
 
-    public function delete(PriceList $list): void
+    public function delete(PriceList $list, ?int $version = null): void
     {
-        CatalogRules::transaction(function () use ($list): void {
+        CatalogRules::transaction(function () use ($list, $version): void {
             CatalogRules::lock('price_lists');
+            $list = CatalogRules::lockVersion($list, $version);
+            // Lines of a deleted list are unreachable; dropping them frees their items for deletion.
+            PriceListLine::query()->where('price_list_id', $list->id)->delete();
             $list->delete();
         });
     }
@@ -71,6 +77,7 @@ final class PriceListService
         return CatalogRules::transaction(function () use ($list, $data): PriceListLine {
             $this->lockList($list);
             $line = new PriceListLine(collect($data)->only(['item_id', 'variant_id', 'unit_id', 'min_qty', 'price', 'valid_from', 'valid_to'])->all());
+            $this->assertReferences([$line->item_id], [$line->variant_id], [$line->unit_id], '');
             $line->price_list_id = $list->id;
             $line->save();
 
@@ -85,18 +92,20 @@ final class PriceListService
     {
         return CatalogRules::transaction(function () use ($list, $line, $data, $version): PriceListLine {
             $this->lockList($list);
-            $line->assertVersion($version);
-            $line->fill(collect($data)->only(['item_id', 'variant_id', 'unit_id', 'min_qty', 'price', 'valid_from', 'valid_to'])->all())->save();
+            $line = CatalogRules::lockVersion($line, $version);
+            $line->fill(collect($data)->only(['item_id', 'variant_id', 'unit_id', 'min_qty', 'price', 'valid_from', 'valid_to'])->all());
+            $this->assertReferences([$line->item_id], [$line->variant_id], [$line->unit_id], '');
+            $line->save();
 
             return $line;
         }, self::LINE_INDEXES);
     }
 
-    public function deleteLine(PriceList $list, PriceListLine $line): void
+    public function deleteLine(PriceList $list, PriceListLine $line, ?int $version = null): void
     {
-        CatalogRules::transaction(function () use ($list, $line): void {
+        CatalogRules::transaction(function () use ($list, $line, $version): void {
             $this->lockList($list);
-            $line->delete();
+            CatalogRules::lockVersion($line, $version)->delete();
         });
     }
 
@@ -113,6 +122,7 @@ final class PriceListService
     {
         return CatalogRules::transaction(function () use ($list, $lines): array {
             $this->lockList($list);
+            $live = $this->liveReferences($lines);
             $existing = [];
 
             foreach (PriceListLine::query()->where('price_list_id', $list->id)->get() as $line) {
@@ -128,6 +138,13 @@ final class PriceListService
             foreach ($lines as $index => $data) {
                 $attributes = collect($data)->only(['item_id', 'variant_id', 'unit_id', 'min_qty', 'price', 'valid_from', 'valid_to'])->all();
                 $line = $existing[PriceLineRules::key($data)] ?? null;
+                $missing = $this->missingReference($data, $live);
+
+                if ($missing !== null) {
+                    $errors["lines.{$index}.{$missing}"] = [CatalogRules::message('reference_gone')];
+
+                    continue;
+                }
 
                 if ($line === null) {
                     if (isset($data['version'])) {
@@ -141,7 +158,14 @@ final class PriceListService
                     $line->save();
                     $created++;
                 } else {
-                    if (isset($data['version']) && (int) $data['version'] !== $line->currentVersion()) {
+                    // Overwriting an existing price needs the version it was read with.
+                    if (! isset($data['version'])) {
+                        $errors["lines.{$index}.version"] = [CatalogRules::message('line_version_required', ['version' => $line->currentVersion()])];
+
+                        continue;
+                    }
+
+                    if ((int) $data['version'] !== $line->currentVersion()) {
                         $errors["lines.{$index}.version"] = [CatalogRules::message('line_version', ['version' => $line->currentVersion()])];
 
                         continue;
@@ -178,6 +202,57 @@ final class PriceListService
             'min_qty' => (string) $line->min_qty,
             'valid_from' => $line->valid_from?->toDateString(),
         ];
+    }
+
+    /**
+     * Items, variants and units stay FOR SHARE locked until commit; their deletes lock them FOR
+     * UPDATE and check usage, so no line can end up pointing at a deleted record.
+     *
+     * @param  list<string|null>  $items
+     * @param  list<string|null>  $variants
+     * @param  list<string|null>  $units
+     */
+    private function assertReferences(array $items, array $variants, array $units, string $prefix): void
+    {
+        foreach (['item_id' => [Item::class, $items], 'variant_id' => [ItemVariant::class, $variants], 'unit_id' => [Unit::class, $units]] as $field => [$class, $ids]) {
+            if (! CatalogRules::sharedExists($class, $ids)) {
+                CatalogRules::fail($prefix.$field, 'reference_gone');
+            }
+        }
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $lines
+     * @return array<string, array<string, true>> field => live ids, share locked
+     */
+    private function liveReferences(array $lines): array
+    {
+        $live = [];
+
+        foreach (['item_id' => Item::class, 'variant_id' => ItemVariant::class, 'unit_id' => Unit::class] as $field => $class) {
+            $ids = array_values(array_unique(array_filter(array_map(fn (array $l): mixed => $l[$field] ?? null, $lines), 'is_string')));
+            $found = $ids === [] ? [] : $class::query()->whereIn('id', $ids)->sharedLock()->pluck('id')->all();
+            $live[$field] = array_fill_keys(array_map('strval', $found), true);
+        }
+
+        return $live;
+    }
+
+    /**
+     * @param  array<string, mixed>  $line
+     * @param  array<string, array<string, true>>  $live
+     */
+    private function missingReference(array $line, array $live): ?string
+    {
+        foreach ($live as $field => $ids) {
+            $id = $line[$field] ?? null;
+
+            if (is_string($id) && ! isset($ids[$id])) {
+                return $field;
+            }
+        }
+
+        return null;
     }
 
     private function clearDefault(string $currency, ?string $except): void

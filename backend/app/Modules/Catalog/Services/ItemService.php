@@ -11,15 +11,19 @@ use App\Modules\Catalog\Events\ItemCreated;
 use App\Modules\Catalog\Events\ItemUpdated;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\ItemBarcode;
+use App\Modules\Catalog\Models\ItemCategory;
 use App\Modules\Catalog\Models\ItemUnit;
 use App\Modules\Catalog\Models\ItemVariant;
 use App\Modules\Catalog\Models\PriceListLine;
+use App\Modules\Catalog\Models\Unit;
 
 final class ItemService
 {
     public const string DOC_TYPE = 'item';
 
     public const string SERIES = 'ITM';
+
+    public const string FORMAT = '{series}{year}{seq:6}';
 
     public const array INDEXES = ['items_company_code_unique' => 'code'];
 
@@ -35,6 +39,7 @@ final class ItemService
     {
         return CatalogRules::transaction(function () use ($data): Item {
             $item = new Item(collect($data)->only(Item::FIELDS)->all());
+            $this->lockReferences($item);
 
             if (! is_string($data['code'] ?? null) || $data['code'] === '') {
                 $item->code = $this->nextCode();
@@ -53,8 +58,11 @@ final class ItemService
     public function update(Item $item, array $data, int $version): Item
     {
         return CatalogRules::transaction(function () use ($item, $data, $version): Item {
-            $item->assertVersion($version);
+            // Alternate units, barcodes and lines are written under this row lock, so the base unit
+            // check below sees all of them.
+            $item = CatalogRules::lockVersion($item, $version);
             $item->fill(collect($data)->only(Item::FIELDS)->all());
+            $this->lockReferences($item);
 
             if ($item->isDirty('base_unit_id') && $this->baseUnitLocked($item)) {
                 CatalogRules::fail('base_unit_id', 'base_unit_locked');
@@ -71,10 +79,10 @@ final class ItemService
         }, self::INDEXES);
     }
 
-    public function delete(Item $item): void
+    public function delete(Item $item, ?int $version = null): void
     {
-        CatalogRules::transaction(function () use ($item): void {
-            $locked = Item::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+        CatalogRules::transaction(function () use ($item, $version): void {
+            $locked = CatalogRules::lockVersion($item, $version);
 
             if ($this->usage->isUsed($locked->id)) {
                 CatalogRules::fail('item', 'item_in_use');
@@ -96,6 +104,20 @@ final class ItemService
             || ItemBarcode::query()->where('item_id', $item->id)->exists()
             || PriceListLine::query()->where('item_id', $item->id)->exists()
             || $this->usage->isUsed($item->id);
+    }
+
+    /**
+     * The unit and category stay FOR SHARE locked, so they cannot be deleted under the new reference.
+     */
+    private function lockReferences(Item $item): void
+    {
+        if ($item->isDirty('base_unit_id') && ! CatalogRules::sharedExists(Unit::class, [$item->base_unit_id])) {
+            CatalogRules::fail('base_unit_id', 'unit_missing');
+        }
+
+        if ($item->isDirty('category_id') && ! CatalogRules::sharedExists(ItemCategory::class, [$item->category_id])) {
+            CatalogRules::fail('category_id', 'category_missing');
+        }
     }
 
     private function nextCode(): string

@@ -90,6 +90,44 @@ final class UnitGraph
         return null;
     }
 
+    /**
+     * Checks a set of units with factors to one common unit (an item: base = 1, alternates = their
+     * factor) against the graph: whenever two of them are connected, the graph factor between them
+     * must equal the ratio of their factors exactly. Returns the first conflicting pair.
+     *
+     * @param  array<string, BigRational>  $factors
+     * @return array{0: string, 1: string}|null
+     */
+    public function conflict(array $factors): ?array
+    {
+        ksort($factors);
+        $references = [];
+
+        foreach ($factors as $unit => $factor) {
+            $unit = (string) $unit;
+
+            foreach ($references as $reference) {
+                $path = $this->factor($unit, $reference);
+
+                if ($path === null) {
+                    continue;
+                }
+
+                // 1 unit = path reference, so factor(unit) must be path * factor(reference).
+                if (! $path->multipliedBy($factors[$reference])->isEqualTo($factor)) {
+                    return [$reference, $unit];
+                }
+
+                continue 2;
+            }
+
+            // First unit seen in its component: it anchors the others (paths agree in a forest).
+            $references[] = $unit;
+        }
+
+        return null;
+    }
+
     /** @return list<string> units reachable from $unit, itself included */
     public function component(string $unit): array
     {

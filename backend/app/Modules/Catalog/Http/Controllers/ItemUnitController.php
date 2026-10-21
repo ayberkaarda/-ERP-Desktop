@@ -25,6 +25,7 @@ final class ItemUnitController extends CatalogController
 
     public function index(Request $request, string $item): JsonResponse
     {
+        Gate::authorize('viewAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('view', $model);
 
@@ -36,6 +37,7 @@ final class ItemUnitController extends CatalogController
 
     public function store(ItemUnitRequest $request, string $item): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         /** @var array{unit_id: string, factor: string} $data */
@@ -47,6 +49,7 @@ final class ItemUnitController extends CatalogController
 
     public function show(Request $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('view', $model);
         $unit = ItemUnit::query()->with('unit')->where('item_id', $model->id)->findOrFail($id);
@@ -56,21 +59,22 @@ final class ItemUnitController extends CatalogController
 
     public function update(ItemUnitRequest $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $unit = ItemUnit::query()->where('item_id', $model->id)->findOrFail($id);
-        $this->parts->updateUnit($model, $unit, (string) $request->string('factor'), $request->integer('version'), new UnitConverter);
+        $unit = $this->parts->updateUnit($model, $unit, (string) $request->string('factor'), $request->integer('version'), new UnitConverter);
 
         return ApiResponse::success($this->resolve(new ItemUnitResource($unit->load('unit')), $request));
     }
 
     public function destroy(Request $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $unit = ItemUnit::query()->where('item_id', $model->id)->findOrFail($id);
-        $this->assertDeleteVersion($request, $unit);
-        $this->parts->deleteUnit($model, $unit);
+        $this->parts->deleteUnit($model, $unit, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }

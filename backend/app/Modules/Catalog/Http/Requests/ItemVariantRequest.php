@@ -8,7 +8,7 @@ use App\Modules\Catalog\Models\Item;
 
 final class ItemVariantRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->parentGate(Item::class, 'item');
     }

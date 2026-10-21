@@ -24,10 +24,11 @@ final class UnitService
 
     public const array CONVERSION_INDEXES = ['unit_conversions_pair_unique' => 'to_unit_id'];
 
-    public function delete(Unit $unit): void
+    public function delete(Unit $unit, ?int $version = null): void
     {
-        DB::transaction(function () use ($unit): void {
+        DB::transaction(function () use ($unit, $version): void {
             CatalogRules::lock('units');
+            $unit = CatalogRules::lockVersion($unit, $version);
             $id = $unit->id;
             $used = Item::withTrashed()->where('base_unit_id', $id)->exists()
                 || ItemUnit::query()->where('unit_id', $id)->exists()
@@ -77,11 +78,11 @@ final class UnitService
         });
     }
 
-    public function deleteConversion(UnitConversion $conversion): void
+    public function deleteConversion(UnitConversion $conversion, ?int $version = null): void
     {
-        DB::transaction(function () use ($conversion): void {
+        DB::transaction(function () use ($conversion, $version): void {
             CatalogRules::lock('units');
-            $conversion->delete();
+            CatalogRules::lockVersion($conversion, $version)->delete();
         });
     }
 
@@ -101,19 +102,20 @@ final class UnitService
      */
     private function assertItemsConsistent(UnitGraph $graph, array $units): void
     {
-        $rows = ItemUnit::query()
-            ->join('items', 'items.id', '=', 'item_units.item_id')
-            ->whereNull('items.deleted_at')
-            ->whereIn('item_units.unit_id', $units)
-            ->whereIn('items.base_unit_id', $units)
-            ->get(['item_units.unit_id', 'item_units.factor', 'items.base_unit_id', 'items.code']);
+        // Only items with at least one alternate unit in the touched component can conflict.
+        $itemIds = ItemUnit::query()->whereIn('unit_id', $units)->distinct()->pluck('item_id')->all();
+        $items = Item::query()->whereIn('id', $itemIds)->get(['id', 'code', 'base_unit_id']);
+        $alternates = ItemUnit::query()->whereIn('item_id', $itemIds)->get(['item_id', 'unit_id', 'factor'])->groupBy('item_id');
 
-        foreach ($rows as $row) {
-            $base = $row->getAttribute('base_unit_id');
-            $global = is_string($base) ? $graph->factor($row->unit_id, $base) : null;
+        foreach ($items as $item) {
+            $factors = [$item->base_unit_id => BigRational::one()];
 
-            if ($global !== null && ! $global->isEqualTo(BigRational::of($row->factor))) {
-                CatalogRules::fail('factor', 'conversion_conflicts_item', ['item' => (string) $row->getAttribute('code')]);
+            foreach ($alternates->get($item->id, []) as $alternate) {
+                $factors[$alternate->unit_id] = BigRational::of($alternate->factor);
+            }
+
+            if ($graph->conflict($factors) !== null) {
+                CatalogRules::fail('factor', 'conversion_conflicts_item', ['item' => $item->code]);
             }
         }
     }

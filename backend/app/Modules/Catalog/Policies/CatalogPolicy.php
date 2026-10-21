@@ -47,6 +47,17 @@ abstract class CatalogPolicy
         return $this->allowed($user, ...$this->createPermissions());
     }
 
+    /** Permission alone, checked before a record is looked up so 403/404 reveal nothing. */
+    public function updateAny(User $user): bool
+    {
+        return $this->allowed($user, ...$this->updatePermissions());
+    }
+
+    public function deleteAny(User $user): bool
+    {
+        return $this->allowed($user, ...$this->deletePermissions());
+    }
+
     public function update(User $user, CatalogModel $model): bool
     {
         return $this->own($model) && $this->allowed($user, ...$this->updatePermissions());

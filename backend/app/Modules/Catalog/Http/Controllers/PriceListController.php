@@ -38,6 +38,7 @@ final class PriceListController extends CatalogController
 
     public function show(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', PriceList::class);
         $list = PriceList::query()->findOrFail($id);
         Gate::authorize('view', $list);
 
@@ -46,6 +47,7 @@ final class PriceListController extends CatalogController
 
     public function update(PriceListRequest $request, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', PriceList::class);
         $list = PriceList::query()->findOrFail($id);
         Gate::authorize('update', $list);
         $list = $this->lists->update($list, collect($request->validated())->except('version')->all(), $request->integer('version'));
@@ -55,10 +57,10 @@ final class PriceListController extends CatalogController
 
     public function destroy(Request $request, string $id): JsonResponse
     {
+        Gate::authorize('deleteAny', PriceList::class);
         $list = PriceList::query()->findOrFail($id);
         Gate::authorize('delete', $list);
-        $this->assertDeleteVersion($request, $list);
-        $this->lists->delete($list);
+        $this->lists->delete($list, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }

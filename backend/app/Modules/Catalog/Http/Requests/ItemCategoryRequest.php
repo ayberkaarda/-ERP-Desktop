@@ -8,7 +8,7 @@ use App\Modules\Catalog\Models\ItemCategory;
 
 final class ItemCategoryRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->recordGate(ItemCategory::class);
     }

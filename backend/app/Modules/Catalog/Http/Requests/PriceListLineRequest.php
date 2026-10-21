@@ -12,7 +12,7 @@ use Illuminate\Validation\Validator;
 
 final class PriceListLineRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->parentGate(PriceList::class, 'priceList');
     }

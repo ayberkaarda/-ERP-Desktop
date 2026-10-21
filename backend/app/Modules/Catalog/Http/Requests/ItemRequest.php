@@ -14,7 +14,7 @@ use Illuminate\Validation\Validator;
 
 final class ItemRequest extends CatalogRequest
 {
-    protected function gate(): ?array
+    protected function gate(): array
     {
         return $this->recordGate(Item::class);
     }
@@ -24,7 +24,7 @@ final class ItemRequest extends CatalogRequest
     {
         return [
             // Generated from the `item` number sequence when omitted.
-            'code' => ['sometimes', 'nullable', 'string', 'max:64', 'regex:/^\S+$/', $this->unique('items', 'code', $this->routeId('id'))],
+            'code' => ['sometimes', $this->creating() ? 'nullable' : 'required', 'string', 'max:64', 'regex:/^\S+$/', $this->unique('items', 'code', $this->routeId('id'))],
             'name' => [$this->required(), 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'type' => [$this->required(), Rule::enum(ItemType::class)],

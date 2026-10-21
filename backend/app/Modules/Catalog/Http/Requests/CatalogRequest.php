@@ -22,41 +22,47 @@ abstract class CatalogRequest extends FormRequest
 
     public function authorize(): bool
     {
-        $gate = $this->gate();
+        [$ability, $subject] = $this->gate();
 
-        return $gate === null || Gate::allows($gate[0], $gate[1]);
+        return Gate::allows($ability, $subject);
     }
 
     /**
-     * Ability and class or record to check; null when the record does not exist.
+     * Ability and class or record to check.
      *
-     * @return array{0: string, 1: class-string<Model>|Model}|null
+     * @return array{0: string, 1: class-string<Model>|Model}
      */
-    abstract protected function gate(): ?array;
+    abstract protected function gate(): array;
 
     /**
      * create on POST, otherwise update of the record named by {$param}.
      *
      * @param  class-string<Model>  $class
-     * @return array{0: string, 1: class-string<Model>|Model}|null
+     * @return array{0: string, 1: class-string<Model>|Model}
      */
-    protected function recordGate(string $class, string $param = 'id'): ?array
+    protected function recordGate(string $class, string $param = 'id'): array
     {
         return $this->creating() ? ['create', $class] : $this->parentGate($class, $param);
     }
 
     /**
-     * update of the owning record (an item for its parts, a list for its lines).
+     * update of the owning record (an item for its parts, a list for its lines). The permission is
+     * checked before the lookup, so a caller without it gets 403 whether or not the record exists;
+     * a missing record is left to the controller (404).
      *
      * @param  class-string<Model>  $class
-     * @return array{0: string, 1: Model}|null
+     * @return array{0: string, 1: class-string<Model>|Model}
      */
-    protected function parentGate(string $class, string $param): ?array
+    protected function parentGate(string $class, string $param): array
     {
+        if (! Gate::allows('updateAny', $class)) {
+            return ['updateAny', $class];
+        }
+
         $id = $this->routeId($param);
         $record = $id !== null && Str::isUuid($id) ? $class::query()->find($id) : null;
 
-        return $record instanceof Model ? ['update', $record] : null;
+        return $record instanceof Model ? ['update', $record] : ['updateAny', $class];
     }
 
     protected function creating(): bool

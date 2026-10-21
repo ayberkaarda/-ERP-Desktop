@@ -16,7 +16,8 @@ abstract class GtinValidator implements BarcodeValidator
 
     public function isValid(string $barcode): bool
     {
-        if (preg_match('/^\d{'.$this->length().'}$/', $barcode) !== 1) {
+        // \A..\z: "$" would also match before a trailing newline.
+        if (preg_match('/\A[0-9]{'.$this->length().'}\z/', $barcode) !== 1) {
             return false;
         }
 
@@ -25,7 +26,7 @@ abstract class GtinValidator implements BarcodeValidator
 
     public static function checkDigit(string $payload): int
     {
-        if (preg_match('/^\d+$/', $payload) !== 1) {
+        if (preg_match('/\A[0-9]+\z/', $payload) !== 1) {
             throw new InvalidArgumentException('The payload must contain digits only.');
         }
 

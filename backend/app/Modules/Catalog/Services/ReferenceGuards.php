@@ -19,25 +19,38 @@ class ReferenceGuards
 
     public const string PARTIES = 'App\\Modules\\Parties\\Contracts\\PartyLookup';
 
-    public function __construct(private readonly Container $app) {}
+    /** @var array{tax_codes: string, currencies: string, parties: string} */
+    private readonly array $contracts;
+
+    /**
+     * @param  array{tax_codes?: string, currencies?: string, parties?: string}  $contracts  overrides of the contract names
+     */
+    public function __construct(private readonly Container $app, array $contracts = [])
+    {
+        $this->contracts = [
+            'tax_codes' => $contracts['tax_codes'] ?? self::TAX_CODES,
+            'currencies' => $contracts['currencies'] ?? self::CURRENCIES,
+            'parties' => $contracts['parties'] ?? self::PARTIES,
+        ];
+    }
 
     public function taxCodeExists(string $id): bool
     {
-        $lookup = $this->lookup(self::TAX_CODES);
+        $lookup = $this->lookup($this->contracts['tax_codes']);
 
         return $lookup === null || ! method_exists($lookup, 'find') || $lookup->find($id) !== null;
     }
 
     public function currencyExists(string $code): bool
     {
-        $lookup = $this->lookup(self::CURRENCIES);
+        $lookup = $this->lookup($this->contracts['currencies']);
 
         return $lookup === null || ! method_exists($lookup, 'exists') || $lookup->exists($code) === true;
     }
 
     public function partyExists(string $id): bool
     {
-        $lookup = $this->lookup(self::PARTIES);
+        $lookup = $this->lookup($this->contracts['parties']);
 
         return $lookup === null || ! method_exists($lookup, 'find') || $lookup->find($id) !== null;
     }
@@ -47,7 +60,7 @@ class ReferenceGuards
      */
     public function partyPriceListId(string $partyId): ?string
     {
-        $lookup = $this->lookup(self::PARTIES);
+        $lookup = $this->lookup($this->contracts['parties']);
 
         if ($lookup === null || ! method_exists($lookup, 'find')) {
             return null;

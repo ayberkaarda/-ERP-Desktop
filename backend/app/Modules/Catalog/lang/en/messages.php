@@ -6,7 +6,7 @@ return [
     'conversion_missing' => 'There is no conversion between these units.',
     'factor_positive' => 'The factor must be greater than zero.',
     'conversion_cycle' => 'These units are already convertible; another conversion would create a cycle.',
-    'conversion_inconsistent' => 'The factor contradicts the unit conversions of the company (expected :factor).',
+    'conversion_inconsistent' => 'The factor contradicts the unit conversions of the company for the other units of this item.',
     'conversion_conflicts_item' => 'The conversion contradicts the alternate unit factor of item :item.',
     'unit_in_use' => 'The unit is in use; deactivate it instead.',
     'category_depth' => 'Categories can be nested at most :max levels deep.',
@@ -35,4 +35,8 @@ return [
     'line_not_found' => 'No existing line matches; omit the version to create it.',
     'line_version' => 'The line was changed by someone else (current version :version).',
     'qty_positive' => 'The quantity must be greater than zero.',
+    'unit_missing' => 'The unit does not exist.',
+    'category_missing' => 'The category does not exist.',
+    'reference_gone' => 'The referenced record was deleted in the meantime.',
+    'line_version_required' => 'This line already exists; send its version (current :version) to overwrite it.',
 ];

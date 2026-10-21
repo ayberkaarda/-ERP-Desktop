@@ -25,6 +25,7 @@ final class PriceListLineController extends CatalogController
 
     public function index(Request $request, string $priceList): JsonResponse
     {
+        Gate::authorize('viewAny', PriceList::class);
         $list = PriceList::query()->findOrFail($priceList);
         Gate::authorize('view', $list);
         [$request, $custom] = $this->customFilters($request, ['item_id', 'variant_id', 'unit_id']);
@@ -42,6 +43,7 @@ final class PriceListLineController extends CatalogController
 
     public function store(PriceListLineRequest $request, string $priceList): JsonResponse
     {
+        Gate::authorize('updateAny', PriceList::class);
         $list = PriceList::query()->findOrFail($priceList);
         Gate::authorize('update', $list);
         $line = $this->lists->createLine($list, $request->validated());
@@ -51,6 +53,7 @@ final class PriceListLineController extends CatalogController
 
     public function show(Request $request, string $priceList, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', PriceList::class);
         $list = PriceList::query()->findOrFail($priceList);
         Gate::authorize('view', $list);
         $line = PriceListLine::query()->where('price_list_id', $list->id)->findOrFail($id);
@@ -60,21 +63,22 @@ final class PriceListLineController extends CatalogController
 
     public function update(PriceListLineRequest $request, string $priceList, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', PriceList::class);
         $list = PriceList::query()->findOrFail($priceList);
         Gate::authorize('update', $list);
         $line = PriceListLine::query()->where('price_list_id', $list->id)->findOrFail($id);
-        $this->lists->updateLine($list, $line, collect($request->validated())->except('version')->all(), $request->integer('version'));
+        $line = $this->lists->updateLine($list, $line, collect($request->validated())->except('version')->all(), $request->integer('version'));
 
         return ApiResponse::success($this->resolve(new PriceListLineResource($line), $request));
     }
 
     public function destroy(Request $request, string $priceList, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', PriceList::class);
         $list = PriceList::query()->findOrFail($priceList);
         Gate::authorize('update', $list);
         $line = PriceListLine::query()->where('price_list_id', $list->id)->findOrFail($id);
-        $this->assertDeleteVersion($request, $line);
-        $this->lists->deleteLine($list, $line);
+        $this->lists->deleteLine($list, $line, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }
@@ -84,6 +88,7 @@ final class PriceListLineController extends CatalogController
      */
     public function bulk(BulkPriceListLinesRequest $request, string $priceList): JsonResponse
     {
+        Gate::authorize('updateAny', PriceList::class);
         $list = PriceList::query()->findOrFail($priceList);
         Gate::authorize('update', $list);
         /** @var list<array<string, mixed>> $lines */

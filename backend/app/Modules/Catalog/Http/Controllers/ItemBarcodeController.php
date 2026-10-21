@@ -21,6 +21,7 @@ final class ItemBarcodeController extends CatalogController
 
     public function index(Request $request, string $item): JsonResponse
     {
+        Gate::authorize('viewAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('view', $model);
 
@@ -32,6 +33,7 @@ final class ItemBarcodeController extends CatalogController
 
     public function store(ItemBarcodeRequest $request, string $item): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $data = $request->validated();
@@ -43,6 +45,7 @@ final class ItemBarcodeController extends CatalogController
 
     public function show(Request $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('view', $model);
         $barcode = ItemBarcode::query()->where('item_id', $model->id)->findOrFail($id);
@@ -52,6 +55,7 @@ final class ItemBarcodeController extends CatalogController
 
     public function update(ItemBarcodeRequest $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $barcode = ItemBarcode::query()->where('item_id', $model->id)->findOrFail($id);
@@ -68,11 +72,11 @@ final class ItemBarcodeController extends CatalogController
 
     public function destroy(Request $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $barcode = ItemBarcode::query()->where('item_id', $model->id)->findOrFail($id);
-        $this->assertDeleteVersion($request, $barcode);
-        $this->parts->deleteBarcode($model, $barcode);
+        $this->parts->deleteBarcode($model, $barcode, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }

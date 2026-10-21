@@ -31,6 +31,12 @@ dataset('invalid barcodes', [
     'UPC-A wrong check digit' => [UpcAValidator::class, '036000291453'],
     'UPC-A given an EAN-13' => [UpcAValidator::class, '0036000291452'],
     'empty' => [Ean13Validator::class, ''],
+    // A newline after a full-length payload whose check digit is 0 used to slip through "$".
+    'EAN-13 zeros plus newline' => [Ean13Validator::class, "0000000000000\n"],
+    'EAN-8 zeros plus newline' => [Ean8Validator::class, "00000000\n"],
+    'UPC-A zeros plus newline' => [UpcAValidator::class, "000000000000\n"],
+    'EAN-13 valid code plus newline' => [Ean13Validator::class, "5901234123457\n"],
+    'EAN-13 unicode digits' => [Ean13Validator::class, '٤006381333931'],
 ]);
 
 it('accepts barcodes with a correct GS1 check digit', function (string $class, string $barcode): void {
@@ -53,7 +59,8 @@ it('completes a payload and refuses bad payloads', function (): void {
     expect((new Ean13Validator)->complete('590123412345'))->toBe('5901234123457')
         ->and((new Ean8Validator)->complete('7351353'))->toBe('73513537')
         ->and(fn () => (new Ean13Validator)->complete('123'))->toThrow(InvalidArgumentException::class)
-        ->and(fn () => GtinValidator::checkDigit('12a'))->toThrow(InvalidArgumentException::class);
+        ->and(fn () => GtinValidator::checkDigit('12a'))->toThrow(InvalidArgumentException::class)
+        ->and(fn () => GtinValidator::checkDigit("12\n"))->toThrow(InvalidArgumentException::class);
 });
 
 it('maps declared barcode types to their validators', function (): void {

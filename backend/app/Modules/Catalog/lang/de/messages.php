@@ -6,7 +6,7 @@ return [
     'conversion_missing' => 'Zwischen diesen Einheiten ist keine Umrechnung definiert.',
     'factor_positive' => 'Der Faktor muss größer als null sein.',
     'conversion_cycle' => 'Diese Einheiten sind bereits umrechenbar; eine weitere Umrechnung würde einen Zyklus bilden.',
-    'conversion_inconsistent' => 'Der Faktor widerspricht den Einheitenumrechnungen des Unternehmens (erwartet :factor).',
+    'conversion_inconsistent' => 'Der Faktor widerspricht den Einheitenumrechnungen des Unternehmens für die anderen Einheiten dieses Artikels.',
     'conversion_conflicts_item' => 'Die Umrechnung widerspricht dem Faktor der Alternativeinheit von Artikel :item.',
     'unit_in_use' => 'Die Einheit wird verwendet; deaktivieren Sie sie stattdessen.',
     'category_depth' => 'Kategorien können höchstens :max Ebenen tief verschachtelt werden.',
@@ -35,4 +35,8 @@ return [
     'line_not_found' => 'Keine passende Zeile vorhanden; lassen Sie die Version weg, um sie anzulegen.',
     'line_version' => 'Die Zeile wurde von jemand anderem geändert (aktuelle Version :version).',
     'qty_positive' => 'Die Menge muss größer als null sein.',
+    'unit_missing' => 'Die Einheit existiert nicht.',
+    'category_missing' => 'Die Kategorie existiert nicht.',
+    'reference_gone' => 'Der referenzierte Datensatz wurde inzwischen gelöscht.',
+    'line_version_required' => 'Diese Zeile existiert bereits; senden Sie ihre Version (aktuell :version), um sie zu überschreiben.',
 ];

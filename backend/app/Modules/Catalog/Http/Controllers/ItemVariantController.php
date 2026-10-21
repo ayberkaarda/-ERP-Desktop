@@ -21,6 +21,7 @@ final class ItemVariantController extends CatalogController
 
     public function index(Request $request, string $item): JsonResponse
     {
+        Gate::authorize('viewAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('view', $model);
 
@@ -32,6 +33,7 @@ final class ItemVariantController extends CatalogController
 
     public function store(ItemVariantRequest $request, string $item): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $variant = $this->parts->createVariant($model, $request->validated());
@@ -41,6 +43,7 @@ final class ItemVariantController extends CatalogController
 
     public function show(Request $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('viewAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('view', $model);
         $variant = ItemVariant::query()->where('item_id', $model->id)->findOrFail($id);
@@ -50,6 +53,7 @@ final class ItemVariantController extends CatalogController
 
     public function update(ItemVariantRequest $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $variant = ItemVariant::query()->where('item_id', $model->id)->findOrFail($id);
@@ -60,11 +64,11 @@ final class ItemVariantController extends CatalogController
 
     public function destroy(Request $request, string $item, string $id): JsonResponse
     {
+        Gate::authorize('updateAny', Item::class);
         $model = Item::query()->findOrFail($item);
         Gate::authorize('update', $model);
         $variant = ItemVariant::query()->where('item_id', $model->id)->findOrFail($id);
-        $this->assertDeleteVersion($request, $variant);
-        $this->parts->deleteVariant($model, $variant);
+        $this->parts->deleteVariant($model, $variant, $this->deleteVersion($request));
 
         return ApiResponse::noContent();
     }
