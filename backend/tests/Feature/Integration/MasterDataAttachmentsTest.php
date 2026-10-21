@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
 use App\Modules\Catalog\Models\Item;
-use App\Modules\Catalog\Models\PriceList;
 use App\Modules\Files\Models\File;
 use App\Modules\Parties\Models\Party;
 use App\Modules\Reference\Models\Project;
@@ -15,6 +14,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
 use Tests\Support\Identity;
@@ -49,7 +49,7 @@ function attachables(string $company): array
     ]);
 }
 
-/** @return TestResponse<\Symfony\Component\HttpFoundation\Response> */
+/** @return TestResponse<Response> */
 function attach(mixed $user, string $company, string $type, string $id): TestResponse
 {
     Identity::fresh();
