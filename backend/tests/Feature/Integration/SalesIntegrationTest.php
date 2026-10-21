@@ -137,3 +137,12 @@ it('issues an invoice of overridden order value without asking for another overr
     SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$direct['id']}/issue")->assertStatus(422)
         ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded');
 });
+
+it('names the company on the print model for a platform admin without a membership', function (): void {
+    $order = SalesKit::confirmedOrder($this->w, [[$this->w->service->id, '1', '100']]);
+    $admin = Actors::user([], null, ['is_super_admin' => true]);
+    $name = DB::table('companies')->where('id', $this->w->company)->value('name');
+
+    SalesKit::get($admin, $this->w->company, "sales-orders/{$order['id']}/print-model")->assertOk()
+        ->assertJsonPath('data.company.id', $this->w->company)->assertJsonPath('data.company.name', $name);
+});

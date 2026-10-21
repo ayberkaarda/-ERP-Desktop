@@ -67,8 +67,9 @@ final class PrintModel
         $user = $request->user();
 
         if ($user !== null) {
-            foreach ($this->companies->companiesFor((string) $user->getAuthIdentifier()) as $row) {
-                if ($row['id'] === $doc->company_id) {
+            // A platform admin reaches the company without a membership row: fall back to the company list.
+            foreach ([...$this->companies->companiesFor((string) $user->getAuthIdentifier()), ...$this->companies->allActiveCompanies()] as $row) {
+                if ($company === null && $row['id'] === $doc->company_id) {
                     $company = $row;
                 }
             }
