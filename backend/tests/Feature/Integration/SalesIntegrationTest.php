@@ -210,3 +210,25 @@ it('refuses a line id that is not a line of the edited document', function (): v
         ['id' => $other['lines'][0]['id'], 'item_id' => $this->w->item->id, 'quantity' => '1'],
     ]])->assertStatus(422)->assertJsonValidationErrors(['lines.0.id'], 'errors.fields');
 });
+
+it('lists the shipped serials a return can still take on the invoice detail', function (): void {
+    $serial = SalesKit::item($this->w->company, ['code' => 'PHONE', 'tracking' => 'serial', 'default_tax_code_id' => $this->w->vat->id], $this->w->unit);
+    SalesKit::receive($this->w->company, $this->w->wh->id, $serial->id, '3', '100', ['serials' => ['S1', 'S2', 'S3']]);
+    $order = SalesKit::confirmedOrder($this->w, [[$serial->id, '2', '300'], [$this->w->service->id, '1', '10']]);
+    $delivery = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/deliveries", [
+        'lines' => [['order_line_id' => $order['lines'][0]['id'], 'quantity' => '2', 'serial_numbers' => ['S1', 'S2']]],
+    ])->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-deliveries/{$delivery['id']}/post")->assertOk();
+    $invoice = SalesKit::invoiceDelivery($this->w, $delivery['id']);
+    $line = $invoice['lines'][0]['id'];
+
+    SalesKit::get($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}")->assertOk()
+        ->assertJsonPath('data.lines.0.returnable_serials', ['S1', 'S2']);
+    $return = SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/returns", [
+        'lines' => [['invoice_line_id' => $line, 'quantity' => '1', 'serial_numbers' => ['S2']]],
+    ])->assertCreated()->json('data');
+    SalesKit::get($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}")->assertJsonPath('data.lines.0.returnable_serials', ['S1']);
+
+    SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/cancel")->assertOk();
+    SalesKit::get($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}")->assertJsonPath('data.lines.0.returnable_serials', ['S1', 'S2']);
+});
