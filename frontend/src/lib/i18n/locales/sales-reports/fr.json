@@ -1,0 +1,167 @@
+{
+  "hub": {
+    "sales": "Ventes",
+    "title": "Rapports de ventes",
+    "description": "Ventes par période, client, article et catégorie ; commandes ouvertes, balance âgée, marge et conversion.",
+    "parameters": "Paramètres du rapport",
+    "run": "Exécuter",
+    "required": "Renseignez les paramètres obligatoires.",
+    "rangeInvalid": "La date de début ne peut pas être postérieure à la date de fin.",
+    "presets": "Paramètres enregistrés",
+    "choose": "Choisissez les paramètres et exécutez le rapport.",
+    "empty": "Aucun enregistrement pour ces paramètres.",
+    "total": "Total",
+    "rows": "{{count}} lignes",
+    "page": "Page {{page}} / {{pages}}",
+    "prevPage": "Page précédente",
+    "nextPage": "Page suivante"
+  },
+  "param": {
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "asOf": "À la date du",
+    "customer": "Client",
+    "item": "Article",
+    "category": "Catégorie",
+    "period": "Période",
+    "periodDay": "Jour",
+    "periodWeek": "Semaine",
+    "periodMonth": "Mois",
+    "periodQuarter": "Trimestre",
+    "periodYear": "Année",
+    "groupBy": "Regrouper par",
+    "groupItem": "Article",
+    "groupCustomer": "Client",
+    "groupCategory": "Catégorie",
+    "limit": "Premiers",
+    "currency": "Devise",
+    "localCurrency": "Devise société",
+    "documentCurrency": "Devise du document"
+  },
+  "col": {
+    "period": "Période",
+    "code": "Code",
+    "name": "Nom",
+    "customer": "Client",
+    "item": "Article",
+    "category": "Catégorie",
+    "unit": "Unité",
+    "invoiceCount": "Factures",
+    "quantity": "Quantité",
+    "netAmount": "Montant net",
+    "taxAmount": "Taxe",
+    "total": "Total",
+    "returns": "Retours",
+    "netSales": "Ventes nettes",
+    "grossSales": "Ventes brutes",
+    "share": "Part",
+    "averagePrice": "Prix moyen",
+    "order": "Commande",
+    "orderDate": "Date de commande",
+    "requestedDate": "Livraison souhaitée",
+    "ordered": "Commandé",
+    "delivered": "Livré",
+    "open": "Ouvert",
+    "openAmount": "Montant ouvert",
+    "delivery": "Bon de livraison",
+    "deliveryDate": "Date de livraison",
+    "invoiced": "Facturé",
+    "uninvoiced": "Non facturé",
+    "uninvoicedAmount": "Montant non facturé",
+    "notDue": "Non échu",
+    "d0_30": "0-30 jours",
+    "d31_60": "31-60 jours",
+    "d61_90": "61-90 jours",
+    "d90Plus": "90+ jours",
+    "revenue": "Chiffre d'affaires",
+    "cogs": "Coût des ventes",
+    "margin": "Marge brute",
+    "marginPercent": "Marge %",
+    "rank": "Rang",
+    "sold": "Vendu",
+    "returned": "Retourné",
+    "returnRate": "Taux de retour",
+    "returnedAmount": "Montant retourné",
+    "quotes": "Devis",
+    "converted": "Convertis",
+    "conversionRate": "Taux de conversion",
+    "quotedAmount": "Montant des devis",
+    "convertedAmount": "Montant converti"
+  },
+  "report": {
+    "salesByPeriod": {
+      "title": "Ventes par période",
+      "description": "Ventes brutes et nettes par jour, semaine, mois, trimestre ou année.",
+      "chart": "Ventes nettes"
+    },
+    "byCustomer": {
+      "title": "Ventes par client",
+      "description": "Nombre de factures, montant net et part par client.",
+      "chart": "Ventes nettes les plus élevées (top 10)"
+    },
+    "byItem": {
+      "title": "Ventes par article",
+      "description": "Quantité, prix moyen et montant net par article.",
+      "chart": "Articles les plus vendus (top 10)"
+    },
+    "byCategory": {
+      "title": "Ventes par catégorie",
+      "description": "Quantité et montant net par catégorie d'articles.",
+      "chart": "Parts par catégorie"
+    },
+    "openOrders": {
+      "title": "Commandes ouvertes",
+      "description": "Lignes de commande non livrées à la date.",
+      "chart": "Montant ouvert"
+    },
+    "deliveryVsInvoice": {
+      "title": "Livraisons et factures",
+      "description": "Quantités livrées mais pas encore facturées.",
+      "chart": "Montant non facturé"
+    },
+    "customerAgeing": {
+      "title": "Balance âgée clients",
+      "description": "Soldes de factures ouvertes par tranche d'échéance.",
+      "chart": "Tranches d'échéance"
+    },
+    "margin": {
+      "title": "Marge",
+      "description": "Chiffre d'affaires face au coût des ventes issu des mouvements de stock.",
+      "chart": "Marge brute la plus élevée (top 10)"
+    },
+    "topCustomers": {
+      "title": "Meilleurs clients",
+      "description": "Clients classés par ventes nettes.",
+      "chart": "Ventes nettes"
+    },
+    "returnRate": {
+      "title": "Taux de retour",
+      "description": "Quantité et montant retournés par rapport à la quantité vendue.",
+      "chart": "Taux de retour le plus élevé (top 10)"
+    },
+    "quoteConversion": {
+      "title": "Conversion des devis",
+      "description": "Nombre, taux et montant des devis convertis en commandes.",
+      "chart": "Taux de conversion"
+    }
+  },
+  "summary": {
+    "title": "Synthèse des ventes",
+    "noAccess": "Vous n'êtes pas autorisé à voir la synthèse des ventes.",
+    "allInvoices": "Afficher toutes les factures",
+    "netSales": "Ventes nettes",
+    "invoiceCount": "Factures",
+    "openBalance": "Solde ouvert",
+    "overdue": "Échu",
+    "returns": "Retours",
+    "openOrders": "Commandes non facturées",
+    "margin": "Marge brute",
+    "lastInvoice": "Dernière facture",
+    "monthly": "Ventes nettes mensuelles",
+    "topItems": "Articles les plus achetés",
+    "riskLimit": "Limite de risque",
+    "unlimited": "Illimitée",
+    "exposure": "Risque total",
+    "available": "Disponible"
+  }
+}

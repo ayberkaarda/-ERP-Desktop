@@ -1,0 +1,52 @@
+{
+  "list": {
+    "title": "Sales quotes",
+    "description": "Quotes given to customers, their status and revisions.",
+    "new": "New quote",
+    "exportName": "sales-quotes"
+  },
+  "palette": {
+    "list": "Sales quotes",
+    "new": "New sales quote"
+  },
+  "actions": {
+    "send": "Send",
+    "accept": "Accepted",
+    "reject": "Rejected",
+    "convert": "Convert to order",
+    "revise": "Revise",
+    "failed": "The action could not be completed.",
+    "converted": "Order {{number}} created.",
+    "revised": "Revision {{revision}} opened as a draft.",
+    "done": {
+      "send": "Quote marked as sent.",
+      "accept": "Quote accepted.",
+      "reject": "Quote rejected.",
+      "convert": "Quote converted to an order.",
+      "revise": "Revision created."
+    }
+  },
+  "confirm": {
+    "send": {
+      "title": "Send the quote?",
+      "body": "{{number}} is marked as sent; after that it can no longer be edited, only revised."
+    },
+    "accept": {
+      "title": "Was the quote accepted?",
+      "body": "{{number}} is marked as accepted by the customer."
+    },
+    "reject": {
+      "title": "Was the quote rejected?",
+      "body": "{{number}} is marked as rejected.",
+      "reason": "Rejection reason"
+    },
+    "convert": {
+      "title": "Convert to an order?",
+      "body": "A draft order is created with the lines of {{number}}, and the quote closes as converted."
+    },
+    "revise": {
+      "title": "Open a new revision?",
+      "body": "{{number}} stays as it is; a copy opens as a new draft revision."
+    }
+  }
+}

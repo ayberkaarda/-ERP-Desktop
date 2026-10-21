@@ -1,0 +1,372 @@
+{
+  "nav": {
+    "sales": "Ventes",
+    "deliveries": "Bons de livraison",
+    "invoices": "Factures de vente",
+    "returns": "Retours de vente"
+  },
+  "palette": {
+    "newDelivery": "Nouveau bon de livraison",
+    "newInvoice": "Nouvelle facture de vente"
+  },
+  "actions": {
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "apply": "Appliquer",
+    "ok": "OK",
+    "save": "Enregistrer",
+    "retry": "Réessayer"
+  },
+  "conflict": {
+    "title": "Quelqu'un d'autre a modifié ce document",
+    "body": "Vos modifications non enregistrées ne sont pas fusionnées. Chargez la dernière version et réessayez.",
+    "reload": "Charger la dernière version"
+  },
+  "export": {
+    "label": "Exporter",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "L'export a échoué."
+  },
+  "presets": {
+    "views": "Vues enregistrées",
+    "empty": "Aucune vue enregistrée.",
+    "remove": "Supprimer la vue {{name}}",
+    "saveCurrent": "Enregistrer les filtres actuels",
+    "saveTitle": "Enregistrer la vue",
+    "saveBody": "Les filtres sont conservés dans ce navigateur pour votre utilisateur et votre société.",
+    "name": "Nom"
+  },
+  "errors": {
+    "generic": "L'action n'a pas pu aboutir.",
+    "loadFailed": "Le document n'a pas pu être chargé."
+  },
+  "list": {
+    "filters": "Filtres"
+  },
+  "filters": {
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "customer": "Client",
+    "number": "N° de document",
+    "item": "Article",
+    "clear": "Effacer les filtres",
+    "openOnly": "Solde ouvert uniquement"
+  },
+  "fields": {
+    "number": "N° de document",
+    "documentDate": "Date du document",
+    "dueDate": "Échéance",
+    "fxRate": "Taux de change",
+    "item": "Article / service",
+    "quantity": "Quantité",
+    "lotSerial": "Lot / série",
+    "unitPrice": "Prix unitaire",
+    "discountPercent": "Remise %",
+    "taxRate": "TVA %",
+    "netAmount": "Montant net",
+    "taxCode": "Code taxe",
+    "taxBase": "Base imposable",
+    "taxAmount": "Taxe",
+    "notes": "Remarque",
+    "customer": "Client",
+    "warehouse": "Entrepôt",
+    "lineCount": "Lignes",
+    "status": "Statut",
+    "unit": "Unité",
+    "lot": "Lot",
+    "serials": "Numéros de série",
+    "unitCost": "Coût unitaire",
+    "invoicedQuantity": "Facturé",
+    "postedAt": "Comptabilisé le",
+    "stockDocument": "Document de stock",
+    "cogsEntry": "Écriture de coût des ventes",
+    "invoicedState": "Facturation",
+    "cancelReason": "Motif d'annulation",
+    "cancelDate": "Date d'annulation",
+    "reason": "Motif",
+    "description": "Description",
+    "lineTotal": "Total de ligne",
+    "currency": "Devise",
+    "paymentTerm": "Condition de paiement",
+    "internalNotes": "Note interne",
+    "invoiceType": "Type de facture",
+    "taxNumber": "Centre des impôts / n°",
+    "issuedAt": "Émise le",
+    "journalEntry": "Écriture comptable",
+    "reversalEntry": "Écriture d'extourne",
+    "reversalReason": "Motif d'extourne",
+    "total": "Total",
+    "balanceDue": "Solde dû",
+    "returnWarehouse": "Entrepôt de retour",
+    "returnable": "Retournable",
+    "returnQuantity": "Quantité retournée",
+    "lineReason": "Motif de ligne",
+    "receivedAt": "Reçu le",
+    "postingDate": "Date de comptabilisation"
+  },
+  "deliveryStatus": {
+    "draft": "Brouillon",
+    "posted": "Expédié",
+    "cancelled": "Annulé"
+  },
+  "invoiceStatus": {
+    "draft": "Brouillon",
+    "pending_approval": "En attente d'approbation",
+    "issued": "Émise",
+    "partially_paid": "Partiellement payée",
+    "paid": "Payée",
+    "cancelled": "Annulée",
+    "reversed": "Extournée"
+  },
+  "returnStatus": {
+    "draft": "Brouillon",
+    "approved": "Approuvé",
+    "received": "Reçu",
+    "credited": "Avoir émis",
+    "cancelled": "Annulé"
+  },
+  "invoiceType": {
+    "sale": "Facture de vente",
+    "return": "Avoir"
+  },
+  "invoicedState": {
+    "none": "Non facturé",
+    "partial": "Partiellement facturé",
+    "full": "Facturé"
+  },
+  "balance": {
+    "settled": "Soldée",
+    "partial": "Encaissement partiel",
+    "open": "Ouverte"
+  },
+  "links": {
+    "title": "Chaîne documentaire",
+    "unnumbered": "(sans numéro)"
+  },
+  "linkType": {
+    "sales_quote": "Devis",
+    "sales_order": "Commande",
+    "sales_delivery": "Bon de livraison",
+    "sales_invoice": "Facture",
+    "sales_return": "Retour",
+    "stock_document": "Document de stock",
+    "journal_entry": "Écriture"
+  },
+  "print": {
+    "open": "Imprimer",
+    "back": "Retour au document",
+    "print": "Imprimer",
+    "taxInfo": "Centre des impôts {{office}} · {{number}}",
+    "seller": "Vendeur",
+    "buyer": "Acheteur",
+    "draft": "BROUILLON",
+    "deliveryAddress": "Adresse de livraison"
+  },
+  "totals": {
+    "title": "Totaux",
+    "subtotal": "Sous-total",
+    "discount": "Remise",
+    "tax": "Taxe",
+    "total": "Total général",
+    "totalLocal": "Total en devise société",
+    "paid": "Encaissé",
+    "balanceDue": "Solde dû",
+    "calculating": "Calcul en cours",
+    "estimate": "Estimation"
+  },
+  "numbered": {
+    "body": "Le document a reçu le numéro {{number}}."
+  },
+  "editor": {
+    "header": "En-tête du document",
+    "saveDraft": "Enregistrer le brouillon",
+    "saved": "Brouillon enregistré.",
+    "delete": "Supprimer le brouillon",
+    "deleted": "Brouillon supprimé.",
+    "deleteTitle": "Supprimer ce brouillon ?",
+    "deleteBody": "Le brouillon est supprimé définitivement. Cette action est irréversible.",
+    "readOnly": "Vous n'êtes pas autorisé à modifier ce document."
+  },
+  "view": {
+    "open": "Ouvrir",
+    "journalEntry": "Ouvrir l'écriture",
+    "posted": "Comptabilisé"
+  },
+  "lines": {
+    "maxReached": "Un document peut avoir au plus {{max}} lignes."
+  },
+  "validation": {
+    "party": "Choisissez un client.",
+    "warehouse": "Choisissez un entrepôt.",
+    "date": "Saisissez une date.",
+    "minLines": "Saisissez au moins une ligne.",
+    "maxLines": "Un document peut avoir au plus {{max}} lignes.",
+    "tooLong": "Le texte est trop long.",
+    "quantity": "Saisissez une quantité valide.",
+    "quantityPositive": "La quantité doit être supérieure à zéro.",
+    "lot": "Saisissez un lot pour les articles suivis par lot.",
+    "serialCount": "{{quantity}} numéros de série requis, {{count}} saisis.",
+    "serialInteger": "Les quantités suivies par série doivent être entières.",
+    "serialDuplicate": "Le numéro de série {{serial}} est saisi plusieurs fois.",
+    "overRemaining": "Dépasse le reste de la commande.",
+    "reason": "Indiquez un motif d'au moins 3 caractères.",
+    "currency": "Choisissez une devise.",
+    "fxRate": "Le taux de change doit être supérieur à zéro.",
+    "dueBeforeDate": "L'échéance ne peut pas précéder la date du document.",
+    "item": "Choisissez un article ou saisissez une description.",
+    "unit": "Choisissez une unité.",
+    "price": "Saisissez un prix valide.",
+    "discount": "La remise doit être comprise entre 0 et 100.",
+    "taxCode": "Choisissez un code taxe.",
+    "selectLines": "Sélectionnez au moins une ligne à retourner.",
+    "overReturnable": "Dépasse la quantité retournable."
+  },
+  "fefo": {
+    "suggest": "Proposer les lots à péremption la plus proche pour la ligne {{index}}",
+    "hint": "Premier périmé, premier sorti (FEFO)",
+    "none": "Aucun lot utilisable dans cet entrepôt.",
+    "applied": "Quantité répartie sur {{count}} lots.",
+    "shortage": "Lots insuffisants ; {{quantity}} reste sans lot.",
+    "skippedExpired": "{{count}} lots périmés ignorés.",
+    "failed": "Les lots n'ont pas pu être lus.",
+    "stale": "La ligne a changé pendant le chargement des lots ; la proposition n'a pas été appliquée."
+  },
+  "delivery": {
+    "listTitle": "Bons de livraison",
+    "listDescription": "Livraisons issues de commandes ou directes.",
+    "new": "Nouveau",
+    "newDirect": "Livraison directe",
+    "newTitle": "Nouveau bon de livraison",
+    "editTitle": "Bon de livraison (brouillon)",
+    "editorDescription": "Saisissez quantités, lots et numéros de série ; expédiez après l'enregistrement.",
+    "viewTitle": "Bon de livraison {{number}}",
+    "lines": "Lignes de livraison",
+    "order": "Commande",
+    "direct": "Directe",
+    "fromOrder": "Commande d'origine :",
+    "remaining": "Reste {{quantity}}",
+    "overRemaining": "Dépasse le reste {{quantity}}",
+    "partialHint": "Laissez la quantité à 0 pour les lignes non livrées maintenant ; le reste demeure ouvert sur la commande.",
+    "footer": "{{count}} lignes seront livrées",
+    "serialButton": "{{count}} / {{quantity}} séries",
+    "serialsTitle": "Numéros de série · {{item}}",
+    "serialsBody": "Saisissez ou scannez un numéro de série par ligne.",
+    "serialCount": "{{count}} / {{quantity}} numéros saisis",
+    "post": "Expédier",
+    "postTitle": "Expédier ce bon de livraison ?",
+    "postBody": "Une sortie de stock et une écriture de coût des ventes sont comptabilisées ; un bon expédié ne peut plus être modifié.",
+    "postSummary": "{{date}} · {{count}} lignes",
+    "postedTitle": "Bon de livraison expédié",
+    "cancel": "Annuler",
+    "cancelTitle": "Annuler le bon de livraison {{number}} ?",
+    "cancelBody": "La sortie de stock et l'écriture de coût sont extournées, les quantités de la commande rouvertes.",
+    "cancelConfirm": "Annuler le bon de livraison",
+    "cancelled": "Bon de livraison annulé.",
+    "createInvoice": "Créer la facture",
+    "invoiceCreated": "Brouillon de facture créé."
+  },
+  "invoice": {
+    "listTitle": "Factures de vente",
+    "listDescription": "Factures et avoirs avec leurs soldes.",
+    "new": "Nouvelle facture",
+    "newTitle": "Nouvelle facture de vente",
+    "editTitle": "{{type}} (brouillon)",
+    "editorDescription": "Les lignes sans prix sont tarifées depuis la liste de prix ; le serveur calcule les totaux.",
+    "viewTitle": "{{type}} {{number}}",
+    "lines": "Lignes de facture",
+    "autoPrice": "Automatique",
+    "autoRate": "Taux du jour",
+    "priceSource": "Source : {{source}}",
+    "issue": "Émettre la facture",
+    "issuedTitle": "Facture émise",
+    "approvalStarted": "Le montant dépasse la limite d'approbation ; la facture a été envoyée pour approbation.",
+    "pendingApproval": "La facture attend une approbation ; elle recevra son numéro et sera comptabilisée ensuite.",
+    "deliverOnInvoice": "Livrer avec la facture",
+    "deliverOnInvoiceHint": "{{count}} lignes de stock sans livraison ; un bon de livraison est créé automatiquement à l'émission.",
+    "createReturn": "Démarrer un retour",
+    "reverse": "Extourner",
+    "overdue": "(échue)"
+  },
+  "issue": {
+    "title": "Émettre cette facture ?",
+    "body": "{{party}} · {{date}} · {{total}}. Une facture émise reçoit son numéro, est comptabilisée et ne peut plus être modifiée.",
+    "confirm": "Émettre la facture",
+    "blocked": "La limite de risque du client est dépassée.",
+    "overrideReason": "Justification du dépassement",
+    "noOverride": "Vous ne pouvez pas dépasser la limite ; adressez-vous à une personne habilitée.",
+    "override": "Émettre au-delà de la limite"
+  },
+  "exposure": {
+    "limit": "Limite de risque",
+    "unlimited": "Illimitée",
+    "openInvoices": "Factures ouvertes",
+    "openOrders": "Commandes non facturées",
+    "thisDocument": "Cette facture",
+    "availableAfter": "Disponible après émission",
+    "available": "Disponible {{amount}} / {{limit}}",
+    "over": "Limite dépassée de {{amount}}"
+  },
+  "reverse": {
+    "title": "Extourner la facture {{number}}",
+    "body": "L'écriture est extournée et la facture passe au statut extournée. Un avoir peut aussi servir aux corrections.",
+    "date": "Date d'extourne",
+    "stock": "Extourner aussi les mouvements de stock",
+    "stockHint": "S'applique uniquement aux livraisons créées avec la facture et si le stock le permet.",
+    "confirm": "Créer l'extourne",
+    "done": "Extourne créée."
+  },
+  "return": {
+    "listTitle": "Retours de vente",
+    "listDescription": "Retours démarrés depuis des factures : approbation, réception et avoir.",
+    "new": "Nouveau retour",
+    "newTitle": "Nouveau retour de vente",
+    "newDescription": "Choisissez les lignes et quantités à retourner de la facture {{number}}.",
+    "backToInvoice": "Retour à la facture",
+    "pickInvoice": "Un retour se démarre depuis la page d'une facture émise.",
+    "notReturnable": "Aucun retour ne peut être démarré depuis cette facture.",
+    "pickLines": "Lignes de facture",
+    "select": "Sélectionner",
+    "selectLine": "Sélectionner la ligne {{item}}",
+    "quantityFor": "Quantité retournée de {{item}}",
+    "reasonFor": "Motif de retour de {{item}}",
+    "summary": "{{count}} lignes sélectionnées · {{amount}} (HT)",
+    "create": "Créer le brouillon de retour",
+    "created": "Brouillon de retour créé.",
+    "viewTitle": "Retour de vente {{number}}",
+    "invoice": "Facture",
+    "creditNote": "Avoir",
+    "steps": "Étapes du retour",
+    "lines": "Lignes de retour"
+  },
+  "returnAction": {
+    "approve": {
+      "button": "Approuver",
+      "title": "Approuver ce retour ?",
+      "body": "Les marchandises d'un retour approuvé peuvent être reçues.",
+      "confirm": "Approuver",
+      "done": "Retour approuvé."
+    },
+    "receive": {
+      "button": "Réceptionner",
+      "title": "Réceptionner les marchandises retournées ?",
+      "body": "Les marchandises entrent dans l'entrepôt de retour à leur coût de livraison d'origine.",
+      "confirm": "Réceptionner",
+      "done": "Marchandises réceptionnées."
+    },
+    "credit": {
+      "button": "Émettre l'avoir",
+      "title": "Émettre l'avoir ?",
+      "body": "Un avoir est créé ; la créance et le coût des ventes sont extournés.",
+      "confirm": "Émettre l'avoir",
+      "done": "Avoir émis."
+    },
+    "cancel": {
+      "button": "Annuler le retour",
+      "title": "Annuler ce retour ?",
+      "body": "Aucune autre étape n'est possible sur un retour annulé.",
+      "confirm": "Annuler le retour",
+      "done": "Retour annulé."
+    }
+  }
+}

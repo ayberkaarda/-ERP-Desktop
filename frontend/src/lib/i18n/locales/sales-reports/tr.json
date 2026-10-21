@@ -1,0 +1,167 @@
+{
+  "hub": {
+    "sales": "Satış",
+    "title": "Satış raporları",
+    "description": "Dönem, müşteri, ürün ve kategori bazında satışlar; açık siparişler, yaşlandırma, kârlılık ve dönüşüm.",
+    "parameters": "Rapor parametreleri",
+    "run": "Çalıştır",
+    "required": "Zorunlu parametreleri doldurun.",
+    "rangeInvalid": "Başlangıç tarihi bitiş tarihinden sonra olamaz.",
+    "presets": "Kayıtlı parametreler",
+    "choose": "Parametreleri seçip raporu çalıştırın.",
+    "empty": "Bu parametrelerle kayıt bulunamadı.",
+    "total": "Toplam",
+    "rows": "{{count}} satır",
+    "page": "Sayfa {{page}} / {{pages}}",
+    "prevPage": "Önceki sayfa",
+    "nextPage": "Sonraki sayfa"
+  },
+  "param": {
+    "dateFrom": "Başlangıç",
+    "dateTo": "Bitiş",
+    "asOf": "Tarih itibarıyla",
+    "customer": "Müşteri",
+    "item": "Stok kartı",
+    "category": "Kategori",
+    "period": "Dönem",
+    "periodDay": "Gün",
+    "periodWeek": "Hafta",
+    "periodMonth": "Ay",
+    "periodQuarter": "Çeyrek",
+    "periodYear": "Yıl",
+    "groupBy": "Gruplama",
+    "groupItem": "Ürün",
+    "groupCustomer": "Müşteri",
+    "groupCategory": "Kategori",
+    "limit": "İlk",
+    "currency": "Para birimi",
+    "localCurrency": "Yerel para",
+    "documentCurrency": "Belge parası"
+  },
+  "col": {
+    "period": "Dönem",
+    "code": "Kod",
+    "name": "Ad",
+    "customer": "Müşteri",
+    "item": "Ürün",
+    "category": "Kategori",
+    "unit": "Birim",
+    "invoiceCount": "Fatura",
+    "quantity": "Miktar",
+    "netAmount": "Net tutar",
+    "taxAmount": "Vergi",
+    "total": "Toplam",
+    "returns": "İadeler",
+    "netSales": "Net satış",
+    "grossSales": "Brüt satış",
+    "share": "Pay",
+    "averagePrice": "Ort. fiyat",
+    "order": "Sipariş",
+    "orderDate": "Sipariş tarihi",
+    "requestedDate": "İstenen teslim",
+    "ordered": "Sipariş",
+    "delivered": "Sevk",
+    "open": "Açık",
+    "openAmount": "Açık tutar",
+    "delivery": "İrsaliye",
+    "deliveryDate": "Sevk tarihi",
+    "invoiced": "Faturalanan",
+    "uninvoiced": "Faturalanmamış",
+    "uninvoicedAmount": "Faturalanmamış tutar",
+    "notDue": "Vadesi gelmemiş",
+    "d0_30": "0-30 gün",
+    "d31_60": "31-60 gün",
+    "d61_90": "61-90 gün",
+    "d90Plus": "90+ gün",
+    "revenue": "Gelir",
+    "cogs": "Satılan malın maliyeti",
+    "margin": "Brüt kâr",
+    "marginPercent": "Kâr %",
+    "rank": "Sıra",
+    "sold": "Satılan",
+    "returned": "İade",
+    "returnRate": "İade oranı",
+    "returnedAmount": "İade tutarı",
+    "quotes": "Teklif",
+    "converted": "Siparişe dönen",
+    "conversionRate": "Dönüşüm oranı",
+    "quotedAmount": "Teklif tutarı",
+    "convertedAmount": "Dönen tutar"
+  },
+  "report": {
+    "salesByPeriod": {
+      "title": "Döneme göre satışlar",
+      "description": "Gün, hafta, ay, çeyrek ya da yıl bazında brüt ve net satış.",
+      "chart": "Net satış"
+    },
+    "byCustomer": {
+      "title": "Müşteriye göre satışlar",
+      "description": "Müşteri başına fatura sayısı, net tutar ve pay.",
+      "chart": "En yüksek net satış (ilk 10)"
+    },
+    "byItem": {
+      "title": "Ürüne göre satışlar",
+      "description": "Ürün başına miktar, ortalama fiyat ve net tutar.",
+      "chart": "En çok satan ürünler (ilk 10)"
+    },
+    "byCategory": {
+      "title": "Kategoriye göre satışlar",
+      "description": "Ürün kategorisi bazında miktar ve net tutar.",
+      "chart": "Kategori payları"
+    },
+    "openOrders": {
+      "title": "Açık siparişler",
+      "description": "Tarih itibarıyla sevk edilmemiş sipariş satırları.",
+      "chart": "Açık tutar"
+    },
+    "deliveryVsInvoice": {
+      "title": "İrsaliye - fatura karşılaştırması",
+      "description": "Sevk edilmiş ama faturalanmamış miktarlar.",
+      "chart": "Faturalanmamış tutar"
+    },
+    "customerAgeing": {
+      "title": "Müşteri yaşlandırma",
+      "description": "Açık fatura bakiyeleri vade dilimlerine göre.",
+      "chart": "Vade dilimleri"
+    },
+    "margin": {
+      "title": "Kârlılık",
+      "description": "Gelir ile stok hareketlerinden gelen satılan malın maliyeti karşılaştırması.",
+      "chart": "En yüksek brüt kâr (ilk 10)"
+    },
+    "topCustomers": {
+      "title": "En iyi müşteriler",
+      "description": "Net satışa göre sıralı müşteriler.",
+      "chart": "Net satış"
+    },
+    "returnRate": {
+      "title": "İade oranı",
+      "description": "Satılan miktara göre iade edilen miktar ve tutar.",
+      "chart": "En yüksek iade oranı (ilk 10)"
+    },
+    "quoteConversion": {
+      "title": "Teklif dönüşümü",
+      "description": "Siparişe dönen teklif sayısı, oranı ve tutarı.",
+      "chart": "Dönüşüm oranı"
+    }
+  },
+  "summary": {
+    "title": "Satış özeti",
+    "noAccess": "Satış özetini görme yetkiniz yok.",
+    "allInvoices": "Tüm faturaları göster",
+    "netSales": "Net satış",
+    "invoiceCount": "Fatura sayısı",
+    "openBalance": "Açık bakiye",
+    "overdue": "Vadesi geçmiş",
+    "returns": "İadeler",
+    "openOrders": "Faturalanmamış siparişler",
+    "margin": "Brüt kâr",
+    "lastInvoice": "Son fatura",
+    "monthly": "Aylık net satış",
+    "topItems": "En çok alınan ürünler",
+    "riskLimit": "Risk limiti",
+    "unlimited": "Limitsiz",
+    "exposure": "Toplam risk",
+    "available": "Kullanılabilir"
+  }
+}

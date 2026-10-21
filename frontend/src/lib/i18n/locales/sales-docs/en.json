@@ -1,0 +1,372 @@
+{
+  "nav": {
+    "sales": "Sales",
+    "deliveries": "Delivery notes",
+    "invoices": "Sales invoices",
+    "returns": "Sales returns"
+  },
+  "palette": {
+    "newDelivery": "New delivery note",
+    "newInvoice": "New sales invoice"
+  },
+  "actions": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "apply": "Apply",
+    "ok": "OK",
+    "save": "Save",
+    "retry": "Retry"
+  },
+  "conflict": {
+    "title": "Someone else changed this document",
+    "body": "Your unsaved changes are not merged. Load the latest version and try again.",
+    "reload": "Load latest version"
+  },
+  "export": {
+    "label": "Export",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Export failed."
+  },
+  "presets": {
+    "views": "Saved views",
+    "empty": "No saved views yet.",
+    "remove": "Delete view {{name}}",
+    "saveCurrent": "Save current filters",
+    "saveTitle": "Save view",
+    "saveBody": "Filters are kept in this browser for your user and company.",
+    "name": "Name"
+  },
+  "errors": {
+    "generic": "The action could not be completed.",
+    "loadFailed": "The document could not be loaded."
+  },
+  "list": {
+    "filters": "Filters"
+  },
+  "filters": {
+    "dateFrom": "From",
+    "dateTo": "To",
+    "customer": "Customer",
+    "number": "Document no.",
+    "item": "Item",
+    "clear": "Clear filters",
+    "openOnly": "Open balance only"
+  },
+  "fields": {
+    "number": "Document no.",
+    "documentDate": "Document date",
+    "dueDate": "Due date",
+    "fxRate": "Exchange rate",
+    "item": "Item / service",
+    "quantity": "Quantity",
+    "lotSerial": "Lot / serial",
+    "unitPrice": "Unit price",
+    "discountPercent": "Discount %",
+    "taxRate": "VAT %",
+    "netAmount": "Net amount",
+    "taxCode": "Tax code",
+    "taxBase": "Tax base",
+    "taxAmount": "Tax",
+    "notes": "Notes",
+    "customer": "Customer",
+    "warehouse": "Warehouse",
+    "lineCount": "Lines",
+    "status": "Status",
+    "unit": "Unit",
+    "lot": "Lot",
+    "serials": "Serial numbers",
+    "unitCost": "Unit cost",
+    "invoicedQuantity": "Invoiced",
+    "postedAt": "Posted at",
+    "stockDocument": "Stock document",
+    "cogsEntry": "COGS entry",
+    "invoicedState": "Invoicing",
+    "cancelReason": "Cancellation reason",
+    "cancelDate": "Cancellation date",
+    "reason": "Reason",
+    "description": "Description",
+    "lineTotal": "Line total",
+    "currency": "Currency",
+    "paymentTerm": "Payment term",
+    "internalNotes": "Internal note",
+    "invoiceType": "Invoice type",
+    "taxNumber": "Tax office / no.",
+    "issuedAt": "Issued at",
+    "journalEntry": "Journal entry",
+    "reversalEntry": "Reversal entry",
+    "reversalReason": "Reversal reason",
+    "total": "Total",
+    "balanceDue": "Balance due",
+    "returnWarehouse": "Return warehouse",
+    "returnable": "Returnable",
+    "returnQuantity": "Return quantity",
+    "lineReason": "Line reason",
+    "receivedAt": "Received at",
+    "postingDate": "Posting date"
+  },
+  "deliveryStatus": {
+    "draft": "Draft",
+    "posted": "Dispatched",
+    "cancelled": "Cancelled"
+  },
+  "invoiceStatus": {
+    "draft": "Draft",
+    "pending_approval": "Pending approval",
+    "issued": "Issued",
+    "partially_paid": "Partially paid",
+    "paid": "Paid",
+    "cancelled": "Cancelled",
+    "reversed": "Reversed"
+  },
+  "returnStatus": {
+    "draft": "Draft",
+    "approved": "Approved",
+    "received": "Received",
+    "credited": "Credited",
+    "cancelled": "Cancelled"
+  },
+  "invoiceType": {
+    "sale": "Sales invoice",
+    "return": "Credit note"
+  },
+  "invoicedState": {
+    "none": "Not invoiced",
+    "partial": "Partly invoiced",
+    "full": "Invoiced"
+  },
+  "balance": {
+    "settled": "Settled",
+    "partial": "Partly collected",
+    "open": "Open"
+  },
+  "links": {
+    "title": "Document chain",
+    "unnumbered": "(no number)"
+  },
+  "linkType": {
+    "sales_quote": "Quote",
+    "sales_order": "Order",
+    "sales_delivery": "Delivery note",
+    "sales_invoice": "Invoice",
+    "sales_return": "Return",
+    "stock_document": "Stock document",
+    "journal_entry": "Journal entry"
+  },
+  "print": {
+    "open": "Print",
+    "back": "Back to document",
+    "print": "Print",
+    "taxInfo": "{{office}} tax office · {{number}}",
+    "seller": "Seller",
+    "buyer": "Buyer",
+    "draft": "DRAFT",
+    "deliveryAddress": "Delivery address"
+  },
+  "totals": {
+    "title": "Totals",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "tax": "Tax",
+    "total": "Grand total",
+    "totalLocal": "Total in company currency",
+    "paid": "Collected",
+    "balanceDue": "Balance due",
+    "calculating": "Calculating",
+    "estimate": "Estimate"
+  },
+  "numbered": {
+    "body": "The document received number {{number}}."
+  },
+  "editor": {
+    "header": "Document header",
+    "saveDraft": "Save draft",
+    "saved": "Draft saved.",
+    "delete": "Delete draft",
+    "deleted": "Draft deleted.",
+    "deleteTitle": "Delete this draft?",
+    "deleteBody": "The draft is deleted permanently. This cannot be undone.",
+    "readOnly": "You are not allowed to edit this document."
+  },
+  "view": {
+    "open": "Open",
+    "journalEntry": "Open entry",
+    "posted": "Posted"
+  },
+  "lines": {
+    "maxReached": "A document can have at most {{max}} lines."
+  },
+  "validation": {
+    "party": "Choose a customer.",
+    "warehouse": "Choose a warehouse.",
+    "date": "Enter a date.",
+    "minLines": "Enter at least one line.",
+    "maxLines": "A document can have at most {{max}} lines.",
+    "tooLong": "The text is too long.",
+    "quantity": "Enter a valid quantity.",
+    "quantityPositive": "Quantity must be greater than zero.",
+    "lot": "Enter a lot for lot-tracked items.",
+    "serialCount": "{{quantity}} serials required, {{count}} entered.",
+    "serialInteger": "Serial-tracked quantities must be whole numbers.",
+    "serialDuplicate": "Serial number {{serial}} is entered more than once.",
+    "overRemaining": "Exceeds the remaining order quantity.",
+    "reason": "Write a reason of at least 3 characters.",
+    "currency": "Choose a currency.",
+    "fxRate": "The exchange rate must be greater than zero.",
+    "dueBeforeDate": "The due date cannot be before the document date.",
+    "item": "Choose an item or write a description.",
+    "unit": "Choose a unit.",
+    "price": "Enter a valid price.",
+    "discount": "Discount must be between 0 and 100.",
+    "taxCode": "Choose a tax code.",
+    "selectLines": "Select at least one line to return.",
+    "overReturnable": "Exceeds the returnable quantity."
+  },
+  "fefo": {
+    "suggest": "Suggest first-expiring lots for line {{index}}",
+    "hint": "First expired, first out (FEFO)",
+    "none": "No usable lot in this warehouse.",
+    "applied": "Quantity spread over {{count}} lots.",
+    "shortage": "Lots were not enough; {{quantity}} left without a lot.",
+    "skippedExpired": "{{count}} expired lots skipped.",
+    "failed": "Lots could not be read.",
+    "stale": "The line changed while the lots were loading; the suggestion was not applied."
+  },
+  "delivery": {
+    "listTitle": "Delivery notes",
+    "listDescription": "Deliveries from orders or direct ones.",
+    "new": "New",
+    "newDirect": "Direct delivery",
+    "newTitle": "New delivery note",
+    "editTitle": "Delivery note (draft)",
+    "editorDescription": "Enter quantities, lots and serial numbers; dispatch after saving.",
+    "viewTitle": "Delivery note {{number}}",
+    "lines": "Delivery lines",
+    "order": "Order",
+    "direct": "Direct",
+    "fromOrder": "Source order:",
+    "remaining": "Remaining {{quantity}}",
+    "overRemaining": "Exceeds remaining {{quantity}}",
+    "partialHint": "Leave the quantity at 0 for lines not delivered now; the rest stays open on the order.",
+    "footer": "{{count}} lines will be delivered",
+    "serialButton": "{{count}} / {{quantity}} serials",
+    "serialsTitle": "Serial numbers · {{item}}",
+    "serialsBody": "Type or scan one serial number per line.",
+    "serialCount": "{{count}} / {{quantity}} serials entered",
+    "post": "Dispatch",
+    "postTitle": "Dispatch this delivery note?",
+    "postBody": "A stock issue and a cost of goods sold entry are posted; a dispatched note cannot be changed.",
+    "postSummary": "{{date}} · {{count}} lines",
+    "postedTitle": "Delivery note dispatched",
+    "cancel": "Cancel",
+    "cancelTitle": "Cancel delivery note {{number}}?",
+    "cancelBody": "The stock issue and cost entry are reversed and the order quantities reopen.",
+    "cancelConfirm": "Cancel delivery note",
+    "cancelled": "Delivery note cancelled.",
+    "createInvoice": "Create invoice",
+    "invoiceCreated": "Invoice draft created."
+  },
+  "invoice": {
+    "listTitle": "Sales invoices",
+    "listDescription": "Sales invoices and credit notes with their balances.",
+    "new": "New invoice",
+    "newTitle": "New sales invoice",
+    "editTitle": "{{type}} (draft)",
+    "editorDescription": "Lines without a price are priced from the price list; the server computes the totals.",
+    "viewTitle": "{{type}} {{number}}",
+    "lines": "Invoice lines",
+    "autoPrice": "Automatic",
+    "autoRate": "Today's rate",
+    "priceSource": "Source: {{source}}",
+    "issue": "Issue invoice",
+    "issuedTitle": "Invoice issued",
+    "approvalStarted": "The amount exceeds the approval limit, so the invoice was sent for approval.",
+    "pendingApproval": "The invoice awaits approval; it gets its number and is posted once approved.",
+    "deliverOnInvoice": "Deliver with the invoice",
+    "deliverOnInvoiceHint": "{{count}} stock lines have no delivery; a delivery note is created automatically on issue.",
+    "createReturn": "Start return",
+    "reverse": "Reverse",
+    "overdue": "(overdue)"
+  },
+  "issue": {
+    "title": "Issue this invoice?",
+    "body": "{{party}} · {{date}} · {{total}}. An issued invoice gets its number, is posted to the journal and cannot be changed.",
+    "confirm": "Issue invoice",
+    "blocked": "The customer's risk limit is exceeded.",
+    "overrideReason": "Reason for exceeding the limit",
+    "noOverride": "You may not exceed the limit; ask an authorised user.",
+    "override": "Issue over the limit"
+  },
+  "exposure": {
+    "limit": "Risk limit",
+    "unlimited": "Unlimited",
+    "openInvoices": "Open invoices",
+    "openOrders": "Uninvoiced orders",
+    "thisDocument": "This invoice",
+    "availableAfter": "Left after issuing",
+    "available": "Available {{amount}} / {{limit}}",
+    "over": "Limit exceeded by {{amount}}"
+  },
+  "reverse": {
+    "title": "Reverse invoice {{number}}",
+    "body": "The journal entry is reversed and the invoice becomes reversed. A credit note can also be used for corrections.",
+    "date": "Reversal date",
+    "stock": "Also reverse stock movements",
+    "stockHint": "Applies only to deliveries made with the invoice and when inventory allows it.",
+    "confirm": "Create reversal",
+    "done": "Reversal created."
+  },
+  "return": {
+    "listTitle": "Sales returns",
+    "listDescription": "Returns started from invoices: approval, receipt and credit note.",
+    "new": "New return",
+    "newTitle": "New sales return",
+    "newDescription": "Choose the lines and quantities to return from invoice {{number}}.",
+    "backToInvoice": "Back to invoice",
+    "pickInvoice": "A return is started from the page of an issued invoice.",
+    "notReturnable": "A return cannot be started from this invoice.",
+    "pickLines": "Invoice lines",
+    "select": "Select",
+    "selectLine": "Select line {{item}}",
+    "quantityFor": "Return quantity of {{item}}",
+    "reasonFor": "Return reason of {{item}}",
+    "summary": "{{count}} lines selected · {{amount}} (excl. VAT)",
+    "create": "Create return draft",
+    "created": "Return draft created.",
+    "viewTitle": "Sales return {{number}}",
+    "invoice": "Invoice",
+    "creditNote": "Credit note",
+    "steps": "Return steps",
+    "lines": "Return lines"
+  },
+  "returnAction": {
+    "approve": {
+      "button": "Approve",
+      "title": "Approve this return?",
+      "body": "Goods of an approved return can be received.",
+      "confirm": "Approve",
+      "done": "Return approved."
+    },
+    "receive": {
+      "button": "Receive",
+      "title": "Receive the returned goods?",
+      "body": "The goods enter the return warehouse at their original delivery cost.",
+      "confirm": "Receive",
+      "done": "Goods received."
+    },
+    "credit": {
+      "button": "Issue credit note",
+      "title": "Issue the credit note?",
+      "body": "A credit note is created; the receivable and the cost of goods sold are reversed.",
+      "confirm": "Issue credit note",
+      "done": "Credit note issued."
+    },
+    "cancel": {
+      "button": "Cancel return",
+      "title": "Cancel this return?",
+      "body": "No further steps are possible on a cancelled return.",
+      "confirm": "Cancel return",
+      "done": "Return cancelled."
+    }
+  }
+}

@@ -1,0 +1,167 @@
+{
+  "hub": {
+    "sales": "Verkauf",
+    "title": "Verkaufsberichte",
+    "description": "Umsätze nach Zeitraum, Kunde, Artikel und Kategorie; offene Aufträge, Altersstruktur, Marge und Konversion.",
+    "parameters": "Berichtsparameter",
+    "run": "Ausführen",
+    "required": "Pflichtparameter ausfüllen.",
+    "rangeInvalid": "Das Startdatum darf nicht nach dem Enddatum liegen.",
+    "presets": "Gespeicherte Parameter",
+    "choose": "Parameter wählen und Bericht ausführen.",
+    "empty": "Keine Datensätze für diese Parameter.",
+    "total": "Summe",
+    "rows": "{{count}} Zeilen",
+    "page": "Seite {{page}} / {{pages}}",
+    "prevPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite"
+  },
+  "param": {
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "asOf": "Stichtag",
+    "customer": "Kunde",
+    "item": "Artikel",
+    "category": "Kategorie",
+    "period": "Zeitraum",
+    "periodDay": "Tag",
+    "periodWeek": "Woche",
+    "periodMonth": "Monat",
+    "periodQuarter": "Quartal",
+    "periodYear": "Jahr",
+    "groupBy": "Gruppierung",
+    "groupItem": "Artikel",
+    "groupCustomer": "Kunde",
+    "groupCategory": "Kategorie",
+    "limit": "Top",
+    "currency": "Währung",
+    "localCurrency": "Hauswährung",
+    "documentCurrency": "Belegwährung"
+  },
+  "col": {
+    "period": "Zeitraum",
+    "code": "Code",
+    "name": "Name",
+    "customer": "Kunde",
+    "item": "Artikel",
+    "category": "Kategorie",
+    "unit": "Einheit",
+    "invoiceCount": "Rechnungen",
+    "quantity": "Menge",
+    "netAmount": "Nettobetrag",
+    "taxAmount": "Steuer",
+    "total": "Summe",
+    "returns": "Retouren",
+    "netSales": "Nettoumsatz",
+    "grossSales": "Bruttoumsatz",
+    "share": "Anteil",
+    "averagePrice": "Ø Preis",
+    "order": "Auftrag",
+    "orderDate": "Auftragsdatum",
+    "requestedDate": "Wunschtermin",
+    "ordered": "Bestellt",
+    "delivered": "Geliefert",
+    "open": "Offen",
+    "openAmount": "Offener Betrag",
+    "delivery": "Lieferschein",
+    "deliveryDate": "Lieferdatum",
+    "invoiced": "Fakturiert",
+    "uninvoiced": "Nicht fakturiert",
+    "uninvoicedAmount": "Nicht fakturierter Betrag",
+    "notDue": "Nicht fällig",
+    "d0_30": "0-30 Tage",
+    "d31_60": "31-60 Tage",
+    "d61_90": "61-90 Tage",
+    "d90Plus": "90+ Tage",
+    "revenue": "Erlös",
+    "cogs": "Wareneinsatz",
+    "margin": "Rohertrag",
+    "marginPercent": "Marge %",
+    "rank": "Rang",
+    "sold": "Verkauft",
+    "returned": "Retourniert",
+    "returnRate": "Retourenquote",
+    "returnedAmount": "Retourbetrag",
+    "quotes": "Angebote",
+    "converted": "Umgewandelt",
+    "conversionRate": "Konversionsrate",
+    "quotedAmount": "Angebotsbetrag",
+    "convertedAmount": "Umgewandelter Betrag"
+  },
+  "report": {
+    "salesByPeriod": {
+      "title": "Umsatz nach Zeitraum",
+      "description": "Brutto- und Nettoumsatz nach Tag, Woche, Monat, Quartal oder Jahr.",
+      "chart": "Nettoumsatz"
+    },
+    "byCustomer": {
+      "title": "Umsatz nach Kunde",
+      "description": "Rechnungsanzahl, Nettobetrag und Anteil je Kunde.",
+      "chart": "Höchster Nettoumsatz (Top 10)"
+    },
+    "byItem": {
+      "title": "Umsatz nach Artikel",
+      "description": "Menge, Durchschnittspreis und Nettobetrag je Artikel.",
+      "chart": "Meistverkaufte Artikel (Top 10)"
+    },
+    "byCategory": {
+      "title": "Umsatz nach Kategorie",
+      "description": "Menge und Nettobetrag je Artikelkategorie.",
+      "chart": "Kategorieanteile"
+    },
+    "openOrders": {
+      "title": "Offene Aufträge",
+      "description": "Zum Stichtag nicht gelieferte Auftragspositionen.",
+      "chart": "Offener Betrag"
+    },
+    "deliveryVsInvoice": {
+      "title": "Lieferung vs. Rechnung",
+      "description": "Gelieferte, aber noch nicht fakturierte Mengen.",
+      "chart": "Nicht fakturierter Betrag"
+    },
+    "customerAgeing": {
+      "title": "Altersstruktur Forderungen",
+      "description": "Offene Rechnungssalden nach Fälligkeitsklassen.",
+      "chart": "Fälligkeitsklassen"
+    },
+    "margin": {
+      "title": "Marge",
+      "description": "Erlös gegen Wareneinsatz aus Lagerbewegungen.",
+      "chart": "Höchster Rohertrag (Top 10)"
+    },
+    "topCustomers": {
+      "title": "Top-Kunden",
+      "description": "Kunden nach Nettoumsatz geordnet.",
+      "chart": "Nettoumsatz"
+    },
+    "returnRate": {
+      "title": "Retourenquote",
+      "description": "Retournierte Menge und Betrag im Verhältnis zur verkauften Menge.",
+      "chart": "Höchste Retourenquote (Top 10)"
+    },
+    "quoteConversion": {
+      "title": "Angebotskonversion",
+      "description": "Anzahl, Quote und Betrag der in Aufträge umgewandelten Angebote.",
+      "chart": "Konversionsrate"
+    }
+  },
+  "summary": {
+    "title": "Verkaufsübersicht",
+    "noAccess": "Sie dürfen die Verkaufsübersicht nicht sehen.",
+    "allInvoices": "Alle Rechnungen anzeigen",
+    "netSales": "Nettoumsatz",
+    "invoiceCount": "Rechnungen",
+    "openBalance": "Offener Saldo",
+    "overdue": "Überfällig",
+    "returns": "Retouren",
+    "openOrders": "Nicht fakturierte Aufträge",
+    "margin": "Rohertrag",
+    "lastInvoice": "Letzte Rechnung",
+    "monthly": "Monatlicher Nettoumsatz",
+    "topItems": "Meistgekaufte Artikel",
+    "riskLimit": "Kreditlimit",
+    "unlimited": "Unbegrenzt",
+    "exposure": "Gesamtrisiko",
+    "available": "Verfügbar"
+  }
+}

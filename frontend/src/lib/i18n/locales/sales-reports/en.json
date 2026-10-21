@@ -1,0 +1,167 @@
+{
+  "hub": {
+    "sales": "Sales",
+    "title": "Sales reports",
+    "description": "Sales by period, customer, item and category; open orders, ageing, margin and conversion.",
+    "parameters": "Report parameters",
+    "run": "Run",
+    "required": "Fill in the required parameters.",
+    "rangeInvalid": "The start date cannot be after the end date.",
+    "presets": "Saved parameters",
+    "choose": "Choose the parameters and run the report.",
+    "empty": "No records for these parameters.",
+    "total": "Total",
+    "rows": "{{count}} rows",
+    "page": "Page {{page}} / {{pages}}",
+    "prevPage": "Previous page",
+    "nextPage": "Next page"
+  },
+  "param": {
+    "dateFrom": "From",
+    "dateTo": "To",
+    "asOf": "As of",
+    "customer": "Customer",
+    "item": "Item",
+    "category": "Category",
+    "period": "Period",
+    "periodDay": "Day",
+    "periodWeek": "Week",
+    "periodMonth": "Month",
+    "periodQuarter": "Quarter",
+    "periodYear": "Year",
+    "groupBy": "Group by",
+    "groupItem": "Item",
+    "groupCustomer": "Customer",
+    "groupCategory": "Category",
+    "limit": "Top",
+    "currency": "Currency",
+    "localCurrency": "Company currency",
+    "documentCurrency": "Document currency"
+  },
+  "col": {
+    "period": "Period",
+    "code": "Code",
+    "name": "Name",
+    "customer": "Customer",
+    "item": "Item",
+    "category": "Category",
+    "unit": "Unit",
+    "invoiceCount": "Invoices",
+    "quantity": "Quantity",
+    "netAmount": "Net amount",
+    "taxAmount": "Tax",
+    "total": "Total",
+    "returns": "Returns",
+    "netSales": "Net sales",
+    "grossSales": "Gross sales",
+    "share": "Share",
+    "averagePrice": "Avg. price",
+    "order": "Order",
+    "orderDate": "Order date",
+    "requestedDate": "Requested delivery",
+    "ordered": "Ordered",
+    "delivered": "Delivered",
+    "open": "Open",
+    "openAmount": "Open amount",
+    "delivery": "Delivery note",
+    "deliveryDate": "Delivery date",
+    "invoiced": "Invoiced",
+    "uninvoiced": "Uninvoiced",
+    "uninvoicedAmount": "Uninvoiced amount",
+    "notDue": "Not due",
+    "d0_30": "0-30 days",
+    "d31_60": "31-60 days",
+    "d61_90": "61-90 days",
+    "d90Plus": "90+ days",
+    "revenue": "Revenue",
+    "cogs": "Cost of goods sold",
+    "margin": "Gross margin",
+    "marginPercent": "Margin %",
+    "rank": "Rank",
+    "sold": "Sold",
+    "returned": "Returned",
+    "returnRate": "Return rate",
+    "returnedAmount": "Returned amount",
+    "quotes": "Quotes",
+    "converted": "Converted",
+    "conversionRate": "Conversion rate",
+    "quotedAmount": "Quoted amount",
+    "convertedAmount": "Converted amount"
+  },
+  "report": {
+    "salesByPeriod": {
+      "title": "Sales by period",
+      "description": "Gross and net sales by day, week, month, quarter or year.",
+      "chart": "Net sales"
+    },
+    "byCustomer": {
+      "title": "Sales by customer",
+      "description": "Invoice count, net amount and share per customer.",
+      "chart": "Highest net sales (top 10)"
+    },
+    "byItem": {
+      "title": "Sales by item",
+      "description": "Quantity, average price and net amount per item.",
+      "chart": "Best-selling items (top 10)"
+    },
+    "byCategory": {
+      "title": "Sales by category",
+      "description": "Quantity and net amount per item category.",
+      "chart": "Category shares"
+    },
+    "openOrders": {
+      "title": "Open orders",
+      "description": "Order lines not delivered as of the date.",
+      "chart": "Open amount"
+    },
+    "deliveryVsInvoice": {
+      "title": "Delivery vs invoice",
+      "description": "Quantities delivered but not yet invoiced.",
+      "chart": "Uninvoiced amount"
+    },
+    "customerAgeing": {
+      "title": "Customer ageing",
+      "description": "Open invoice balances by due-date bucket.",
+      "chart": "Ageing buckets"
+    },
+    "margin": {
+      "title": "Margin",
+      "description": "Revenue against cost of goods sold from stock movements.",
+      "chart": "Highest gross margin (top 10)"
+    },
+    "topCustomers": {
+      "title": "Top customers",
+      "description": "Customers ranked by net sales.",
+      "chart": "Net sales"
+    },
+    "returnRate": {
+      "title": "Return rate",
+      "description": "Returned quantity and amount against sold quantity.",
+      "chart": "Highest return rate (top 10)"
+    },
+    "quoteConversion": {
+      "title": "Quote conversion",
+      "description": "Count, rate and amount of quotes converted to orders.",
+      "chart": "Conversion rate"
+    }
+  },
+  "summary": {
+    "title": "Sales summary",
+    "noAccess": "You are not allowed to see the sales summary.",
+    "allInvoices": "Show all invoices",
+    "netSales": "Net sales",
+    "invoiceCount": "Invoices",
+    "openBalance": "Open balance",
+    "overdue": "Overdue",
+    "returns": "Returns",
+    "openOrders": "Uninvoiced orders",
+    "margin": "Gross margin",
+    "lastInvoice": "Last invoice",
+    "monthly": "Monthly net sales",
+    "topItems": "Most bought items",
+    "riskLimit": "Risk limit",
+    "unlimited": "Unlimited",
+    "exposure": "Total exposure",
+    "available": "Available"
+  }
+}
