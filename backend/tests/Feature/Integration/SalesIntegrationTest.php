@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use App\Modules\Files\Models\File;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -140,7 +141,7 @@ it('issues an invoice of overridden order value without asking for another overr
 
 it('names the company on the print model for a platform admin without a membership', function (): void {
     $order = SalesKit::confirmedOrder($this->w, [[$this->w->service->id, '1', '100']]);
-    $admin = Actors::user([], null, ['is_super_admin' => true]);
+    $admin = User::factory()->create(['is_super_admin' => true]);
     $name = DB::table('companies')->where('id', $this->w->company)->value('name');
 
     SalesKit::get($admin, $this->w->company, "sales-orders/{$order['id']}/print-model")->assertOk()
