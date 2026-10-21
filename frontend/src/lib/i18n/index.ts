@@ -1,5 +1,9 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import accountingJournalDe from './locales/accounting-journal/de.json'
+import accountingJournalEn from './locales/accounting-journal/en.json'
+import accountingJournalFr from './locales/accounting-journal/fr.json'
+import accountingJournalTr from './locales/accounting-journal/tr.json'
 import catalogDe from './locales/catalog/de.json'
 import catalogEn from './locales/catalog/en.json'
 import catalogFr from './locales/catalog/fr.json'
@@ -43,6 +47,7 @@ void i18n.use(initReactI18next).init({
       catalog: catalogTr,
       parties: partiesTr,
       reference: referenceTr,
+      accountingJournal: accountingJournalTr,
     },
     en: {
       translation: en,
@@ -50,6 +55,7 @@ void i18n.use(initReactI18next).init({
       catalog: catalogEn,
       parties: partiesEn,
       reference: referenceEn,
+      accountingJournal: accountingJournalEn,
     },
     de: {
       translation: de,
@@ -57,6 +63,7 @@ void i18n.use(initReactI18next).init({
       catalog: catalogDe,
       parties: partiesDe,
       reference: referenceDe,
+      accountingJournal: accountingJournalDe,
     },
     fr: {
       translation: fr,
@@ -64,9 +71,10 @@ void i18n.use(initReactI18next).init({
       catalog: catalogFr,
       parties: partiesFr,
       reference: referenceFr,
+      accountingJournal: accountingJournalFr,
     },
   },
-  ns: ['translation', 'common', 'catalog', 'parties', 'reference'],
+  ns: ['translation', 'common', 'catalog', 'parties', 'reference', 'accountingJournal'],
   lng: storedLanguage(),
   fallbackLng: 'tr',
   supportedLngs: SUPPORTED_LANGUAGES,

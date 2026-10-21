@@ -1,0 +1,248 @@
+{
+  "nav": {
+    "accounting": "Buchhaltung",
+    "entries": "Buchungssätze",
+    "reports": "Berichte",
+    "trialBalance": "Summen- und Saldenliste",
+    "generalLedger": "Hauptbuch",
+    "journalBook": "Journal"
+  },
+  "palette": {
+    "newEntry": "Neuer Buchungssatz"
+  },
+  "actions": {
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "ok": "OK",
+    "retry": "Erneut versuchen",
+    "save": "Speichern"
+  },
+  "status": {
+    "draft": "Entwurf",
+    "posted": "Gebucht",
+    "reversed": "Storniert"
+  },
+  "entryType": {
+    "opening": "Eröffnung",
+    "general": "Umbuchung",
+    "receipt": "Einnahme",
+    "payment": "Zahlung",
+    "adjustment": "Korrektur",
+    "revaluation": "Währungsbewertung",
+    "closing": "Abschluss",
+    "reversal": "Storno",
+    "system": "System"
+  },
+  "fields": {
+    "number": "Beleg-Nr.",
+    "entryDate": "Datum",
+    "entryType": "Buchungsart",
+    "description": "Buchungstext",
+    "status": "Status",
+    "source": "Herkunft",
+    "totalDebit": "Summe Soll",
+    "totalCredit": "Summe Haben"
+  },
+  "list": {
+    "title": "Buchungssätze",
+    "description": "Entwürfe, gebuchte und stornierte Buchungen.",
+    "new": "Neue Buchung",
+    "filters": "Buchungsfilter",
+    "unnumbered": "Entwurf"
+  },
+  "filters": {
+    "dateFrom": "Von Datum",
+    "dateTo": "Bis Datum",
+    "account": "Konto",
+    "party": "Geschäftspartner",
+    "amountMin": "Mindestbetrag",
+    "amountMax": "Höchstbetrag",
+    "clear": "Alle Filter zurücksetzen"
+  },
+  "presets": {
+    "views": "Gespeicherte Ansichten",
+    "params": "Gespeicherte Parameter",
+    "empty": "Noch nichts gespeichert.",
+    "remove": "{{name}} löschen",
+    "saveCurrent": "Aktuelle Einstellungen speichern…",
+    "saveTitle": "Einstellungen speichern",
+    "saveBody": "Die gewählten Filter und Parameter werden unter diesem Namen in diesem Browser gespeichert.",
+    "name": "Name"
+  },
+  "export": {
+    "label": "Exportieren",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Die Datei konnte nicht heruntergeladen werden."
+  },
+  "picker": {
+    "currency": "Währung: {{code}}",
+    "requiresParty": "Geschäftspartner erforderlich",
+    "requiresCostCenter": "Kostenstelle erforderlich",
+    "requiresProject": "Projekt erforderlich"
+  },
+  "lines": {
+    "title": "Buchungszeilen",
+    "account": "Konto",
+    "description": "Buchungstext",
+    "debit": "Soll",
+    "credit": "Haben",
+    "fxAmount": "Fremdwährungsbetrag",
+    "fxRate": "Kurs",
+    "baseAmount": "Betrag in Hauswährung",
+    "applyBase": "Betrag in Hauswährung in Zeile {{index}} übernehmen",
+    "party": "Geschäftspartner",
+    "costCenter": "Kostenstelle",
+    "project": "Projekt",
+    "dimensions": "Dimensionen",
+    "required": "Pflichtfeld",
+    "optional": "Optional",
+    "notApplicable": "Für dieses Konto nicht zutreffend",
+    "count": "Zeilen: {{count}} / {{max}}",
+    "keys": "F9 oder = : Differenz in diese Zeile · Enter nach Soll überspringt Haben · Strg+S speichert den Entwurf",
+    "maxReached": "Eine Buchung kann höchstens {{max}} Zeilen haben."
+  },
+  "balance": {
+    "balanced": "Buchung ist ausgeglichen",
+    "empty": "Noch keine Beträge",
+    "creditShort": "Haben fehlt: {{amount}}",
+    "debitShort": "Soll fehlt: {{amount}}",
+    "debitTotal": "Soll",
+    "creditTotal": "Haben",
+    "difference": "Differenz",
+    "totals": "Summe"
+  },
+  "validation": {
+    "account": "Wählen Sie ein Konto.",
+    "amountRequired": "Geben Sie einen Soll- oder Habenbetrag ein.",
+    "bothSides": "Eine Zeile kann nicht Soll und Haben zugleich haben.",
+    "party": "Dieses Konto erfordert einen Geschäftspartner.",
+    "costCenter": "Dieses Konto erfordert eine Kostenstelle.",
+    "project": "Dieses Konto erfordert ein Projekt.",
+    "fxAmount": "Ein Fremdwährungskonto erfordert einen Fremdwährungsbetrag.",
+    "fxRate": "Ein Fremdwährungskonto erfordert einen Kurs.",
+    "minLines": "Geben Sie mindestens eine Zeile ein.",
+    "maxLines": "Eine Buchung kann höchstens {{max}} Zeilen haben.",
+    "descriptionTooLong": "Der Buchungstext darf höchstens 500 Zeichen lang sein."
+  },
+  "editor": {
+    "newTitle": "Neuer Buchungssatz",
+    "editTitle": "Entwurf",
+    "description": "Zeilen per Tastatur erfassen; ist die Buchung ausgeglichen, kann sie gebucht werden.",
+    "saveDraft": "Entwurf speichern",
+    "post": "Buchen",
+    "postNeedsBalance": "Zum Buchen müssen Soll- und Habensumme gleich sein.",
+    "showAllDimensions": "Alle Dimensionsspalten anzeigen",
+    "saved": "Entwurf gespeichert.",
+    "delete": "Entwurf löschen",
+    "deleteTitle": "Entwurf löschen?",
+    "deleteBody": "Der Entwurf und seine Zeilen werden endgültig gelöscht.",
+    "deleted": "Entwurf gelöscht."
+  },
+  "post": {
+    "title": "Buchung festschreiben?",
+    "body": "Eine gebuchte Buchung erhält ihre Journalnummer; sie kann danach nicht geändert, nur storniert werden.",
+    "summary": "{{date}} · {{count}} Zeilen · Soll {{debit}} · Haben {{credit}}",
+    "confirm": "Buchen",
+    "doneTitle": "Buchung festgeschrieben",
+    "doneBody": "Die Buchung hat die Journalnummer {{number}} erhalten."
+  },
+  "reverse": {
+    "action": "Stornieren",
+    "title": "{{number}} stornieren",
+    "body": "Es wird eine neue Buchung mit vertauschtem Soll und Haben erstellt und mit dieser verknüpft.",
+    "date": "Stornodatum",
+    "reason": "Begründung",
+    "reasonRequired": "Die Begründung muss mindestens 3 Zeichen lang sein.",
+    "confirm": "Storno erstellen",
+    "done": "Storno {{number}} erstellt."
+  },
+  "view": {
+    "title": "Buchung {{number}}",
+    "noNumber": "ohne Nummer",
+    "postedAt": "Gebucht",
+    "manual": "Manuell",
+    "reverses": "Diese Buchung storniert:",
+    "reversedBy": "Storniert durch:",
+    "openEntry": "Buchung öffnen",
+    "reason": "Begründung",
+    "audit": "Verlauf"
+  },
+  "conflict": {
+    "title": "Die Buchung wurde von jemand anderem geändert",
+    "body": "Laden Sie vor dem Speichern den aktuellen Stand; Ihre Änderungen werden nicht zusammengeführt.",
+    "reload": "Aktuellen Stand laden"
+  },
+  "errors": {
+    "generic": "Der Vorgang konnte nicht abgeschlossen werden.",
+    "loadFailed": "Die Daten konnten nicht geladen werden."
+  },
+  "reports": {
+    "parameters": "Berichtsparameter",
+    "rangeMode": "Zeitraumauswahl",
+    "mode": {
+      "range": "Datumsbereich",
+      "period": "Buchungsperiode"
+    },
+    "period": "Periode",
+    "choosePeriod": "Periode wählen",
+    "loading": "Wird geladen…",
+    "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
+    "run": "Bericht abrufen",
+    "choose": "Parameter wählen und Bericht abrufen.",
+    "noRows": "Keine Zeilen für diese Parameter."
+  },
+  "trialBalance": {
+    "title": "Summen- und Saldenliste",
+    "description": "Eröffnung, Bewegungen und Salden je Konto; Soll- und Habensummen werden geprüft.",
+    "level": "Ebene",
+    "levelOption": "Ebene {{level}}",
+    "includeZero": "Konten ohne Saldo anzeigen",
+    "compare": "Mit Vorjahr vergleichen",
+    "account": "Konto",
+    "opening": "Eröffnung",
+    "movements": "Bewegungen",
+    "balance": "Saldo",
+    "previousBalance": "Saldo Vorjahr",
+    "debit": "Soll",
+    "credit": "Haben",
+    "totals": "Gesamtsumme",
+    "balanced": "Soll = Haben",
+    "unbalanced": "Nicht ausgeglichen · Bewegungsdifferenz {{movement}} · Saldendifferenz {{balance}}",
+    "expandAll": "Alle aufklappen",
+    "collapseAll": "Alle zuklappen",
+    "expand": "Unterkonten von {{code}} aufklappen",
+    "collapse": "Unterkonten von {{code}} zuklappen"
+  },
+  "ledger": {
+    "title": "Hauptbuch",
+    "description": "Anfangssaldo, Bewegungen und laufender Saldo eines Kontos.",
+    "account": "Konto",
+    "choose": "Konto und Datumsbereich wählen und Bericht abrufen.",
+    "opening": "Anfangssaldo (Vortrag)",
+    "closing": "Summen und Endsaldo",
+    "balance": "Saldo",
+    "debitSide": "S",
+    "creditSide": "H",
+    "noMovements": "Keine Bewegungen in diesem Zeitraum.",
+    "rows": "Bewegungen: {{count}}",
+    "loadMore": "Mehr laden ({{loaded}} / {{total}})"
+  },
+  "book": {
+    "title": "Journal",
+    "description": "Gebuchte Buchungen in Nummernfolge; jede Seite zeigt Übertrag und Vortrag.",
+    "pageSize": "Zeilen pro Seite",
+    "pageSizeOption": "{{count}} Zeilen",
+    "print": "Drucken",
+    "page": "Seite {{number}} / {{total}}",
+    "accountCode": "Kontonummer",
+    "accountName": "Kontobezeichnung",
+    "entryNo": "Journal-Nr. {{number}}",
+    "broughtForward": "Übertrag",
+    "pageTotal": "Seitensumme",
+    "carriedForward": "Vortrag",
+    "grandTotal": "Gesamtsumme",
+    "empty": "Keine gebuchten Buchungen in diesem Zeitraum.",
+    "tooLarge": "Der Zeitraum ist zu groß für die Anzeige; grenzen Sie ihn ein oder exportieren Sie."
+  }
+}
