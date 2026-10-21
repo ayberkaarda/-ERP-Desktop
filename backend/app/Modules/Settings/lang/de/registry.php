@@ -9,4 +9,5 @@ return [
     'security.session_timeout_minutes' => 'Sitzungs-Timeout (Minuten)',
     'security.require_two_factor' => 'Zwei-Faktor-Authentifizierung erzwingen',
     'notifications.email_enabled' => 'E-Mail-Benachrichtigungen',
+    'company.base_currency' => 'Basiswährung',
 ];
