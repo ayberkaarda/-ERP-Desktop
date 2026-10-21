@@ -13,4 +13,6 @@ return [
     'accounting.expense_scheme' => 'Schéma de comptabilisation des charges',
     'accounting.account_code_prefix_rule' => 'Imposer la règle de préfixe des codes de compte',
     'accounting.closing_mapping' => 'Correspondance de clôture annuelle',
+    'inventory.valuation_method' => 'Méthode de valorisation des stocks',
+    'inventory.cost_rounding_scale' => 'Décimales du coût unitaire',
 ];

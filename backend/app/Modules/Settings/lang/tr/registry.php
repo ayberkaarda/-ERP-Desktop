@@ -13,4 +13,6 @@ return [
     'accounting.expense_scheme' => 'Gider muhasebe şeması',
     'accounting.account_code_prefix_rule' => 'Hesap kodu önek kuralını uygula',
     'accounting.closing_mapping' => 'Yıl sonu kapanış eşlemesi',
+    'inventory.valuation_method' => 'Stok değerleme yöntemi',
+    'inventory.cost_rounding_scale' => 'Birim maliyet ondalık basamağı',
 ];

@@ -13,4 +13,6 @@ return [
     'accounting.expense_scheme' => 'Aufwandsbuchungsschema',
     'accounting.account_code_prefix_rule' => 'Kontonummern-Präfixregel erzwingen',
     'accounting.closing_mapping' => 'Zuordnung des Jahresabschlusses',
+    'inventory.valuation_method' => 'Bestandsbewertungsmethode',
+    'inventory.cost_rounding_scale' => 'Nachkommastellen der Stückkosten',
 ];

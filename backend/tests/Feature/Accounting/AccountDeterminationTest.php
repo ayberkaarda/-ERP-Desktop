@@ -25,7 +25,7 @@ it('seeds one default rule per known event whose TDHP account exists', function 
         'purchase.payable' => '320', 'purchase.expense' => '770', 'purchase.vat_input' => '191', 'purchase.vat_withholding' => '360',
         'inventory.stock' => '153', 'inventory.cogs' => '621', 'treasury.cash' => '100', 'treasury.bank' => '102',
         'treasury.cheque_portfolio' => '101', 'fx.gain' => '646', 'fx.loss' => '656',
-    ])->and($rules)->toHaveCount(16);
+    ])->and($rules)->toHaveCount(17); // plus inventory.opening_offset (500), seeded by Inventory
 });
 
 it('resolves the highest priority matching rule and falls back to the default', function (): void {

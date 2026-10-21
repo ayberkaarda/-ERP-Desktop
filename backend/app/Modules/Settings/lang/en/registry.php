@@ -13,4 +13,6 @@ return [
     'accounting.expense_scheme' => 'Expense accounting scheme',
     'accounting.account_code_prefix_rule' => 'Enforce account code prefix rule',
     'accounting.closing_mapping' => 'Year-end closing mapping',
+    'inventory.valuation_method' => 'Stock valuation method',
+    'inventory.cost_rounding_scale' => 'Unit cost decimal places',
 ];

@@ -34,7 +34,7 @@ it('bootstraps a new company from the chart template on CompanyCreated', functio
     $company = Books::company();
 
     // 45 template rows: one invalid, two of the 7/B layout.
-    expect(ledgerCounts($company))->toBe(['accounts' => 42, 'rules' => 16, 'years' => 1, 'periods' => 12]);
+    expect(ledgerCounts($company))->toBe(['accounts' => 42, 'rules' => 17, 'years' => 1, 'periods' => 12]);
 
     $cash = Books::account($company, '100');
     $group = Books::account($company, '10');
@@ -59,7 +59,7 @@ it('is idempotent and adds only what is missing', function (): void {
 
     $this->artisan('accounting:seed-chart', ['company' => $company, '--scheme' => '7b'])->assertSuccessful();
     expect(Books::in($company, fn () => Account::query()->whereIn('code', ['79', '793'])->count()))->toBe(2)
-        ->and(ledgerCounts($company)['rules'])->toBe(16);
+        ->and(ledgerCounts($company)['rules'])->toBe(17);
 });
 
 it('seeds an existing company through the command with the 7/B layout', function (): void {
