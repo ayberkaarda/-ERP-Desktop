@@ -13,7 +13,7 @@ use Tests\Support\Inventory\Inv;
 
 uses(RefreshDatabase::class);
 
-const REPORTS = ['stock-status', 'stock-ledger', 'valuation', 'ageing', 'expiring-lots', 'abc-analysis', 'turnover', 'movement-summary'];
+const STOCK_REPORTS = ['stock-status', 'stock-ledger', 'valuation', 'ageing', 'expiring-lots', 'abc-analysis', 'turnover', 'movement-summary'];
 
 beforeEach(function (): void {
     Inv::boot();
@@ -33,7 +33,7 @@ it('answers 403 before validation without the report permission on every route',
     $uri = $report.($export ? '/export' : '').'?as_of=not-a-date&date_from=x&days=-1&format=pdf&group_by=nope';
 
     ($this->get)($uri, $user)->assertForbidden();
-})->with(array_merge(...array_map(fn (string $r): array => [$r => [$r, false], $r.' export' => [$r, true]], REPORTS)));
+})->with(array_merge(...array_map(fn (string $r): array => [$r => [$r, false], $r.' export' => [$r, true]], STOCK_REPORTS)));
 
 it('serves every report and export to a holder of the permission', function (string $report): void {
     $query = $report === 'stock-ledger' ? '?item_id='.$this->item : '';
@@ -43,7 +43,7 @@ it('serves every report and export to a holder of the permission', function (str
     $csv = ($this->get)($report.'/export'.$query)->assertOk();
     expect($csv->headers->get('content-type'))->toContain('text/csv')
         ->and($csv->streamedContent())->toStartWith("\xEF\xBB\xBF");
-})->with(REPORTS);
+})->with(STOCK_REPORTS);
 
 it('grants the report permission to the accountant, viewer and warehouse roles by default', function (): void {
     $catalog = require app_path('Modules/Inventory/permissions.php');
@@ -168,7 +168,7 @@ it('stays fast and query-bounded on a few thousand movements and agrees with the
     app(BalanceRebuilder::class)->rebuild($this->company);
     expect(DB::table('stock_movements')->where('company_id', $this->company)->count())->toBeGreaterThanOrEqual(3000);
 
-    foreach (REPORTS as $report) {
+    foreach (STOCK_REPORTS as $report) {
         $uri = $report.($report === 'stock-ledger' ? '?item_id='.$items[0] : '');
         DB::flushQueryLog();
         DB::enableQueryLog();

@@ -27,7 +27,7 @@ beforeEach(function (): void {
 /**
  * The worked example of both methods: 10 @ 10, 5 @ 16, issue 6, 3 @ 20.
  */
-function workedExample(object $t): void
+function stockReportExample(object $t): void
 {
     Inv::receive($t->company, $t->wh, $t->item, '10', '10', date: '2027-06-01');
     Inv::receive($t->company, $t->wh, $t->item, '5', '16', date: '2027-06-02');
@@ -37,7 +37,7 @@ function workedExample(object $t): void
 
 it('rebuilds the stock status as of today equal to the balances and as of an earlier date from the movements', function (): void {
     $other = Inv::item($this->company, ['code' => 'B-200'])->id;
-    workedExample($this);
+    stockReportExample($this);
     Inv::receive($this->company, $this->wh2, $other, '7', '3.5', date: '2027-06-05');
     Inv::post($this->company, DocumentType::Transfer, $this->wh, [Inv::line($this->item, '2')], '2027-06-08', target: $this->wh2);
     Inv::issue($this->company, $this->wh2, $other, '1.25', date: '2027-06-12');
@@ -85,7 +85,7 @@ it('groups the stock status by category including sub-categories', function (): 
 });
 
 it('values the worked moving average example booked and simulates FIFO on the same movements', function (): void {
-    workedExample($this);
+    stockReportExample($this);
 
     $booked = ($this->report)('valuation')->assertOk();
     // (100 + 80) / 15 = 12; issue 6 x 12 = 72; (108 + 60) / 12 = 14
@@ -107,7 +107,7 @@ it('values the worked moving average example booked and simulates FIFO on the sa
 
 it('values the worked FIFO example booked and simulates the moving average', function (): void {
     Inv::fifo($this->company);
-    workedExample($this);
+    stockReportExample($this);
 
     $booked = ($this->report)('valuation');
     expect($booked->json('data.0'))->toMatchArray(['quantity' => '12.000000', 'value' => '180.0000'])
@@ -229,7 +229,7 @@ it('computes turnover and days on hand from opening, closing and consumption', f
 
 it('prints a kartex with opening, running balances across pages and closing', function (): void {
     Inv::receive($this->company, $this->wh, $this->item, '10', '10', date: '2027-05-20');
-    workedExample($this);
+    stockReportExample($this);
     Inv::post($this->company, DocumentType::Transfer, $this->wh, [Inv::line($this->item, '2')], '2027-06-08', target: $this->wh2);
 
     $query = ['item_id' => $this->item, 'date_from' => '2027-06-01', 'date_to' => '2027-06-15'];
@@ -256,7 +256,7 @@ it('prints a kartex with opening, running balances across pages and closing', fu
 
 it('summarises movements per item and warehouse with movement type totals', function (): void {
     Inv::receive($this->company, $this->wh, $this->item, '10', '10', date: '2027-05-20');
-    workedExample($this);
+    stockReportExample($this);
     Inv::post($this->company, DocumentType::Transfer, $this->wh, [Inv::line($this->item, '2')], '2027-06-08', target: $this->wh2);
 
     $response = ($this->report)('movement-summary', ['date_from' => '2027-06-01'])->assertOk();
