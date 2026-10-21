@@ -1,0 +1,79 @@
+{
+  "list": {
+    "title": "Sales orders",
+    "description": "Customer orders, approval state, delivery and invoicing progress.",
+    "new": "New order",
+    "exportName": "sales-orders"
+  },
+  "palette": {
+    "list": "Sales orders",
+    "new": "New sales order"
+  },
+  "actions": {
+    "confirm": "Confirm",
+    "revise": "Revise",
+    "cancel": "Cancel order",
+    "createDelivery": "Create delivery note",
+    "createInvoice": "Create invoice",
+    "confirmed": "Order confirmed.",
+    "sentForApproval": "Order sent for approval.",
+    "cancelled": "Order cancelled.",
+    "failed": "The action could not be completed."
+  },
+  "confirm": {
+    "title": "Confirm the order?",
+    "body": "{{number}} ({{total}}) for {{customer}} is confirmed; the credit limit is checked and stock is reserved. Above the approval threshold the order is sent for approval."
+  },
+  "cancel": {
+    "title": "Cancel the order?",
+    "body": "Reservations are released. Cancelling cannot be undone.",
+    "reason": "Cancellation reason"
+  },
+  "approval": {
+    "tab": "Approval",
+    "pending": "The order is waiting for approval. Once approved it becomes confirmed automatically.",
+    "rejected": "Approval rejected: {{comment}}",
+    "unavailable": "The approval cannot be shown."
+  },
+  "creditOverridden": "Confirmed over the credit limit. Reason: {{reason}}",
+  "wizard": {
+    "close": "Close",
+    "step": "Step {{step}} of {{total}}",
+    "step1": "Quantities",
+    "step2": "Date and summary",
+    "linesLabel": "Order lines",
+    "item": "Item",
+    "ordered": "Ordered",
+    "delivered": "Delivered",
+    "invoiced": "Invoiced",
+    "remaining": "Remaining",
+    "service": "(service)",
+    "quantityFor": "Quantity: {{item}}",
+    "fillAll": "Fill in all remaining",
+    "clear": "Clear",
+    "exceeds": "At most {{max}} can be entered.",
+    "invalid": "Enter a valid quantity.",
+    "nothingChosen": "Enter a quantity on at least one line.",
+    "tolerance": "Over-delivery tolerance: {{percent}}%",
+    "deliverOnInvoice": "Deliver undelivered stock lines together with the invoice",
+    "deliverOnInvoiceHelp": "A delivery note is created automatically when the invoice is issued, and stock is reduced.",
+    "documentDate": "Document date",
+    "warehouse": "Warehouse",
+    "summary": "Summary",
+    "back": "Back",
+    "next": "Next",
+    "failed": "The document could not be created.",
+    "delivery": {
+      "title": "Delivery note for {{number}}",
+      "quantity": "Delivery quantity",
+      "create": "Create draft delivery note",
+      "created": "Delivery note {{number}} created as a draft."
+    },
+    "invoice": {
+      "title": "Invoice for {{number}}",
+      "quantity": "Invoice quantity",
+      "create": "Create draft invoice",
+      "created": "Invoice {{number}} created as a draft."
+    }
+  }
+}

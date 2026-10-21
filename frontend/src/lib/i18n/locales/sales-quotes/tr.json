@@ -1,0 +1,52 @@
+{
+  "list": {
+    "title": "Satış teklifleri",
+    "description": "Müşterilere verilen teklifler, durumları ve revizyonları.",
+    "new": "Yeni teklif",
+    "exportName": "satis-teklifleri"
+  },
+  "palette": {
+    "list": "Satış teklifleri",
+    "new": "Yeni satış teklifi"
+  },
+  "actions": {
+    "send": "Gönder",
+    "accept": "Kabul edildi",
+    "reject": "Reddedildi",
+    "convert": "Siparişe dönüştür",
+    "revise": "Revize et",
+    "failed": "İşlem tamamlanamadı.",
+    "converted": "Sipariş {{number}} oluşturuldu.",
+    "revised": "Revizyon {{revision}} taslak olarak açıldı.",
+    "done": {
+      "send": "Teklif gönderildi olarak işaretlendi.",
+      "accept": "Teklif kabul edildi.",
+      "reject": "Teklif reddedildi.",
+      "convert": "Teklif siparişe dönüştürüldü.",
+      "revise": "Revizyon oluşturuldu."
+    }
+  },
+  "confirm": {
+    "send": {
+      "title": "Teklif gönderilsin mi?",
+      "body": "{{number}} gönderildi olarak işaretlenir; bundan sonra düzenlenemez, yalnızca revize edilebilir."
+    },
+    "accept": {
+      "title": "Teklif kabul edildi mi?",
+      "body": "{{number}} müşteri tarafından kabul edildi olarak işaretlenir."
+    },
+    "reject": {
+      "title": "Teklif reddedildi mi?",
+      "body": "{{number}} reddedildi olarak işaretlenir.",
+      "reason": "Ret gerekçesi"
+    },
+    "convert": {
+      "title": "Siparişe dönüştürülsün mü?",
+      "body": "{{number}} satırlarıyla taslak bir sipariş oluşturulur ve teklif dönüştürüldü olarak kapanır."
+    },
+    "revise": {
+      "title": "Yeni revizyon açılsın mı?",
+      "body": "{{number}} olduğu gibi kalır; kopyası yeni bir taslak revizyon olarak açılır."
+    }
+  }
+}

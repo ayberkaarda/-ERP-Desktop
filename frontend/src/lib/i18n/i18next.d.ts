@@ -7,6 +7,9 @@ import type inventoryDocsTr from './locales/inventory-docs/tr.json'
 import type inventoryStockTr from './locales/inventory-stock/tr.json'
 import type partiesTr from './locales/parties/tr.json'
 import type referenceTr from './locales/reference/tr.json'
+import type salesOrdersTr from './locales/sales-orders/tr.json'
+import type salesQuotesTr from './locales/sales-quotes/tr.json'
+import type salesSharedTr from './locales/sales-shared/tr.json'
 import type tr from './locales/tr.json'
 
 // Turkish is the source of truth for keys; t() is type-checked against it.
@@ -23,6 +26,9 @@ declare module 'i18next' {
       accountingJournal: typeof accountingJournalTr
       inventoryDocs: typeof inventoryDocsTr
       'inventory-stock': typeof inventoryStockTr
+      'sales-shared': typeof salesSharedTr
+      'sales-quotes': typeof salesQuotesTr
+      'sales-orders': typeof salesOrdersTr
     }
   }
 }
