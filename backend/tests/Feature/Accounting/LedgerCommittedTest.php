@@ -10,6 +10,9 @@ use App\Modules\Accounting\Models\AccountingPeriod;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Services\ChartSeeder;
 use App\Modules\Accounting\Services\FiscalCalendar;
+use App\Modules\Accounting\Services\FxRevaluation;
+use App\Modules\Accounting\Services\JournalDrafts;
+use App\Modules\Accounting\Services\LedgerPoster;
 use App\Modules\Accounting\Services\PeriodStatusService;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
@@ -17,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Tests\Support\Accounting\Books;
 use Tests\Support\Companies;
 
@@ -166,4 +170,57 @@ it('returns the number of a rolled back posting and announces only committed one
     expect($entry->number)->toBe('2027000000001')->and($numbers)->toBe(['2027000000001']);
     [$stored, $computed] = Books::balanceSnapshots($this->company);
     expect($stored)->toEqual($computed);
+});
+
+it('makes posting a draft wait for a concurrent change of its account to non-postable and then refuses it', function (): void {
+    $draft = app(JournalDrafts::class)->create([
+        'entry_type' => 'general', 'entry_date' => '2027-03-10',
+        'lines' => [['account_code' => '100', 'debit' => '5'], ['account_code' => '600', 'credit' => '5']],
+    ], null);
+    $sales = Books::account($this->company, '600')->id;
+
+    $this->b->beginTransaction();
+    $this->b->table('accounts')->where('id', $sales)->update(['is_postable' => false]);
+
+    $this->a->statement("SET lock_timeout = '300ms'");
+    expect(fn () => app(LedgerPoster::class)->postDraft($draft, null, false))->toThrow(QueryException::class, 'lock timeout');
+
+    $this->b->commit();
+    expect(fn () => app(LedgerPoster::class)->postDraft($draft, null, false))->toThrow(Exception::class);
+    expect(JournalEntry::query()->findOrFail($draft->id)->status->value)->toBe('draft');
+});
+
+it('makes draft creation wait for a concurrent period close and then refuses it', function (): void {
+    $create = fn () => app(JournalDrafts::class)->create([
+        'entry_type' => 'general', 'entry_date' => '2027-03-10', 'lines' => [['account_code' => '100', 'debit' => '5']],
+    ], null);
+
+    $this->b->beginTransaction();
+    $this->b->table('accounting_periods')->where('id', $this->march->id)->update(['status' => 'closed', 'version' => 2]);
+
+    $this->a->statement("SET lock_timeout = '300ms'");
+    expect($create)->toThrow(QueryException::class, 'lock timeout');
+
+    $this->b->commit();
+    expect($create)->toThrow(ValidationException::class);
+    expect(JournalEntry::query()->count())->toBe(0);
+});
+
+it('serializes FX revaluations per period whatever the rate date, and against postings into the period', function (): void {
+    $run = fn (string $rateDate) => app(FxRevaluation::class)->run($this->march, new DateTimeImmutable($rateDate), false, null);
+    $this->a->statement("SET lock_timeout = '300ms'");
+
+    // Another run of the same period (any rate date) holds the period's revaluation lock.
+    $this->b->beginTransaction();
+    $this->b->select('select pg_advisory_xact_lock(hashtext(?))', ['accounting.fx.'.$this->march->id.'.'.$this->company]);
+    expect(fn () => $run('2027-03-31'))->toThrow(QueryException::class, 'lock timeout');
+    $this->b->rollBack();
+
+    // An ordinary posting into the period holds its share lock.
+    $this->b->beginTransaction();
+    $this->b->select('select id from accounting_periods where id = ? for share', [$this->march->id]);
+    expect(fn () => $run('2027-03-30'))->toThrow(QueryException::class, 'lock timeout');
+    $this->b->rollBack();
+
+    expect(JournalEntry::query()->count())->toBe(0);
 });

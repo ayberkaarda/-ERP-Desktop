@@ -209,7 +209,11 @@ final class YearEndClosing
 
             $generated = JournalEntry::query()
                 ->where('source_type', self::SOURCE)->where('source_id', $locked->id)
+                // Only the entries of the latest closing run: earlier runs are already reversed, and
+                // their reversal entries (same source) must never be reversed again.
+                ->whereIn('entry_type', [EntryType::Closing->value, EntryType::Opening->value])
                 ->where('status', EntryStatus::Posted->value)
+                ->lockForUpdate()
                 ->orderByDesc('posted_at')->orderByDesc('number')->get();
 
             foreach ($generated as $entry) {

@@ -8,6 +8,7 @@ use App\Core\Money\RoundingPolicy;
 use App\Modules\Accounting\Contracts\AccountDeterminer;
 use App\Modules\Accounting\Enums\EntryStatus;
 use App\Modules\Accounting\Enums\EntryType;
+use App\Modules\Accounting\Enums\PeriodStatus;
 use App\Modules\Accounting\Models\Account;
 use App\Modules\Accounting\Models\AccountingPeriod;
 use App\Modules\Accounting\Models\JournalEntry;
@@ -43,6 +44,65 @@ final class FxRevaluation
      * @return array{period_id: string, rate_date: string, base_currency: string, dry_run: bool, lines: list<array<string, string>>, total_gain: string, total_loss: string, entry: array{id: string, number: string|null}|null, reversal: array{id: string, number: string|null}|null}
      */
     public function run(AccountingPeriod $period, DateTimeImmutable $rateDate, bool $dryRun, ?string $actor): array
+    {
+        if ($dryRun) {
+            return $this->compute($period, $rateDate, true)[0];
+        }
+
+        return Ledger::transaction(function () use ($period, $rateDate, $actor): array {
+            // One revaluation per period at a time, whatever the rate date, and no posting into this
+            // or an earlier open period while the balances are read and the adjustment is booked.
+            Ledger::lock('fx.'.$period->id);
+            AccountingPeriod::query()
+                ->whereDate('start_date', '<=', $period->end_date->format('Y-m-d'))
+                ->where('status', '<>', PeriodStatus::Closed->value)
+                ->orderBy('id')->lockForUpdate()->get(['id']);
+
+            $period = AccountingPeriod::query()->with('fiscalYear')->whereKey($period->id)->firstOrFail();
+            $this->periods->assertPostable($period);
+            $next = $this->periods->next($period) ?? Messages::fail('period_id', 'next_period_missing');
+            $next->load('fiscalYear');
+            $this->periods->assertPostable($next);
+
+            $key = self::SOURCE.'|'.$period->id.'|rate:'.$rateDate->format('Y-m-d');
+            Ledger::lock('post.'.hash('sha256', $key));
+            [$result, $items] = $this->compute($period, $rateDate, false);
+            $changed = array_values(array_filter($items, static fn (array $i): bool => ! $i['difference']->isZero()));
+            $entry = JournalEntry::query()->where('posting_key', $key)->where('status', '<>', EntryStatus::Draft->value)->first();
+
+            // A repeated run returns the booked revaluation; its differences are already in the books.
+            if ($entry === null && $changed === []) {
+                Messages::fail('period_id', 'fx_nothing_to_post');
+            }
+
+            if ($entry === null) {
+                $entry = $this->poster->book($this->lines($changed), [
+                    'entry_type' => EntryType::Revaluation,
+                    'entry_date' => $period->end_date->format('Y-m-d'),
+                    'description' => Messages::get('fx_revaluation_description', ['date' => $rateDate->format('Y-m-d')]),
+                    'source_type' => self::SOURCE,
+                    'source_id' => $period->id,
+                    'posting_key' => $key,
+                ], $actor, false, $period->id, strict: false);
+            }
+
+            $reversal = $entry->reversed_by_id !== null
+                ? JournalEntry::query()->findOrFail($entry->reversed_by_id)
+                : $this->poster->reverseEntry($entry->id, new DateTimeImmutable($next->start_date->format('Y-m-d')), Messages::get('fx_auto_reversal'), $actor, periodId: $next->id);
+
+            $result['entry'] = ['id' => $entry->id, 'number' => $entry->number];
+            $result['reversal'] = ['id' => $reversal->id, 'number' => $reversal->number];
+
+            return $result;
+        });
+    }
+
+    /**
+     * Differences at the period end with the rates of $rateDate.
+     *
+     * @return array{0: array{period_id: string, rate_date: string, base_currency: string, dry_run: bool, lines: list<array<string, string>>, total_gain: string, total_loss: string, entry: array{id: string, number: string|null}|null, reversal: array{id: string, number: string|null}|null}, 1: list<array{account: Account, difference: BigDecimal, row: array<string, string>}>}
+     */
+    private function compute(AccountingPeriod $period, DateTimeImmutable $rateDate, bool $dryRun): array
     {
         $base = $this->settings->baseCurrency();
         $asOf = new DateTimeImmutable($period->end_date->format('Y-m-d'));
@@ -89,7 +149,7 @@ final class FxRevaluation
             ];
         }
 
-        $result = [
+        return [[
             'period_id' => $period->id,
             'rate_date' => $rateDate->format('Y-m-d'),
             'base_currency' => $base,
@@ -99,50 +159,7 @@ final class FxRevaluation
             'total_loss' => (string) $loss,
             'entry' => null,
             'reversal' => null,
-        ];
-
-        if ($dryRun) {
-            return $result;
-        }
-
-        $changed = array_values(array_filter($items, static fn (array $i): bool => ! $i['difference']->isZero()));
-
-        return Ledger::transaction(function () use ($period, $rateDate, $actor, $changed, $result): array {
-            $period = AccountingPeriod::query()->with('fiscalYear')->whereKey($period->id)->firstOrFail();
-            $this->periods->assertPostable($period);
-            $next = $this->periods->next($period) ?? Messages::fail('period_id', 'next_period_missing');
-            $next->load('fiscalYear');
-            $this->periods->assertPostable($next);
-
-            $key = self::SOURCE.'|'.$period->id.'|rate:'.$rateDate->format('Y-m-d');
-            Ledger::lock('post.'.hash('sha256', $key));
-            $entry = JournalEntry::query()->where('posting_key', $key)->where('status', '<>', EntryStatus::Draft->value)->first();
-
-            // A repeated run returns the booked revaluation; its differences are already in the books.
-            if ($entry === null && $changed === []) {
-                Messages::fail('period_id', 'fx_nothing_to_post');
-            }
-
-            if ($entry === null) {
-                $entry = $this->poster->book($this->lines($changed), [
-                    'entry_type' => EntryType::Revaluation,
-                    'entry_date' => $period->end_date->format('Y-m-d'),
-                    'description' => Messages::get('fx_revaluation_description', ['date' => $rateDate->format('Y-m-d')]),
-                    'source_type' => self::SOURCE,
-                    'source_id' => $period->id,
-                    'posting_key' => $key,
-                ], $actor, false, $period->id, strict: false);
-            }
-
-            $reversal = $entry->reversed_by_id !== null
-                ? JournalEntry::query()->findOrFail($entry->reversed_by_id)
-                : $this->poster->reverseEntry($entry->id, new DateTimeImmutable($next->start_date->format('Y-m-d')), Messages::get('fx_auto_reversal'), $actor, periodId: $next->id);
-
-            $result['entry'] = ['id' => $entry->id, 'number' => $entry->number];
-            $result['reversal'] = ['id' => $reversal->id, 'number' => $reversal->number];
-
-            return $result;
-        });
+        ], $items];
     }
 
     /**

@@ -9,6 +9,7 @@ use App\Modules\Accounting\Enums\EntryType;
 use App\Modules\Accounting\Enums\FiscalYearStatus;
 use App\Modules\Accounting\Enums\PeriodStatus;
 use App\Modules\Accounting\Models\AccountingPeriod;
+use App\Modules\Accounting\Models\FiscalYear;
 use App\Modules\Accounting\Models\JournalEntry;
 use App\Modules\Accounting\Support\Ledger;
 use App\Modules\Accounting\Support\LineInput;
@@ -158,7 +159,10 @@ final class JournalDrafts
             Messages::fail('entry_date', 'no_period_for_date', ['date' => '']);
         }
 
-        $period = $this->periods->forDate(new DateTimeImmutable($date), is_string($periodId) ? $periodId : null);
+        // Share locks held to commit: a concurrent period or year close (which checks for drafts)
+        // waits for this draft, or this check waits for the close and sees its status.
+        $period = $this->periods->forDate(new DateTimeImmutable($date), is_string($periodId) ? $periodId : null, lock: true);
+        $period->setRelation('fiscalYear', FiscalYear::query()->whereKey($period->fiscal_year_id)->sharedLock()->firstOrFail());
 
         if ($period->status === PeriodStatus::Closed || $period->fiscalYear->status === FiscalYearStatus::Closed) {
             Messages::fail('entry_date', $period->status === PeriodStatus::Closed ? 'period_closed' : 'fiscal_year_closed', [

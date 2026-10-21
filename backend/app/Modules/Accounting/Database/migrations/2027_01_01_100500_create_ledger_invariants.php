@@ -130,6 +130,11 @@ return new class extends Migration
                         RAISE EXCEPTION USING ERRCODE = 'KA003',
                             MESSAGE = format('accounting period %s..%s is %s', p.start_date, p.end_date, p.status);
                     END IF;
+                    -- Share locks (in id order, against deadlocks) make a concurrent change of is_postable
+                    -- wait for this transaction, or this check wait for that change and see its result.
+                    PERFORM 1 FROM accounts
+                    WHERE id IN (SELECT l.account_id FROM journal_lines l WHERE l.entry_id = NEW.id)
+                    ORDER BY id FOR SHARE;
                     IF EXISTS (SELECT 1 FROM journal_lines l JOIN accounts a ON a.id = l.account_id
                                WHERE l.entry_id = NEW.id AND (NOT a.is_postable OR a.company_id <> NEW.company_id)) THEN
                         RAISE EXCEPTION USING ERRCODE = 'KA004',

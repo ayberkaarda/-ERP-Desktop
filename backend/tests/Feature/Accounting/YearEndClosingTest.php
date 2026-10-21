@@ -125,6 +125,19 @@ it('reopens a year by reversing its closing and opening entries, and closes it a
     expect(balancesAt($this->company, '2028-01-01', ['100', '590', '600', '770']))->toBe(['100' => '8400.0000', '590' => '-2000.0000', '600' => '0.0000', '770' => '0.0000']);
     [$stored, $computed] = Books::balanceSnapshots($this->company);
     expect($stored)->toEqual($computed);
+
+    // A second reopening reverses only the second run, never the first run's reversals.
+    Books::postJson($this->closer, $this->company, "fiscal-years/{$this->year->id}/reopen", ['reason' => 'second correction'])->assertOk();
+
+    expect(Books::in($this->company, fn () => JournalEntry::query()->where('entry_type', 'reversal')->where('reversal_reason', 'second correction')->count()))->toBe(5)
+        ->and(Books::in($this->company, fn () => JournalEntry::query()->where('entry_type', 'reversal')->where('status', 'reversed')->count()))->toBe(0)
+        ->and(balancesAt($this->company, '2027-12-31', ['100', '590', '600', '690', '770']))->toBe(['100' => '8400.0000', '590' => '0.0000', '600' => '-10000.0000', '690' => '0.0000', '770' => '1600.0000'])
+        ->and(balancesAt($this->company, '2028-01-01', ['100', '590', '600', '770']))->toBe(['100' => '8400.0000', '590' => '0.0000', '600' => '-10000.0000', '770' => '1600.0000']);
+
+    Books::postJson($this->closer, $this->company, "fiscal-years/{$this->year->id}/close")->assertOk();
+    expect(balancesAt($this->company, '2028-01-01', ['100', '590', '600', '770']))->toBe(['100' => '8400.0000', '590' => '-2000.0000', '600' => '0.0000', '770' => '0.0000']);
+    [$stored, $computed] = Books::balanceSnapshots($this->company);
+    expect($stored)->toEqual($computed);
 });
 
 it('requires the previous year closed, no drafts, and an open closing period', function (): void {
