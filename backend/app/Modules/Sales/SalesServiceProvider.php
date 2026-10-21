@@ -35,7 +35,6 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Translation\Translator;
 
 /**
  * Sales: quotes, orders, deliveries, invoices and returns. Stock moves only through Inventory's
@@ -73,8 +72,6 @@ final class SalesServiceProvider extends ModuleServiceProvider
         Gate::define('sales-customer-view', static fn (User $user): bool => self::any($user, CustomerController::PERMISSIONS));
 
         SalesSettings::register($this->app->make(SettingsRegistrar::class));
-        $this->registerSettingLabels();
-
         Event::listen(ApprovalCompleted::class, [OrderApprovalListener::class, 'completed']);
         Event::listen(ApprovalRejected::class, [OrderApprovalListener::class, 'rejected']);
 
@@ -99,37 +96,5 @@ final class SalesServiceProvider extends ModuleServiceProvider
         }
 
         return false;
-    }
-
-    /**
-     * Settings labels are read from settings::registry.<key>; this module keeps its own labels in
-     * lang/<locale>/settings.php and adds them to that group once every provider has booted (the
-     * Settings module registers its namespace after this one), loading the group file first so the
-     * other modules' labels stay.
-     */
-    private function registerSettingLabels(): void
-    {
-        $this->app->booted(function (): void {
-            $translator = $this->app->make(Translator::class);
-
-            foreach (['tr', 'en', 'de', 'fr'] as $locale) {
-                $translator->load('settings', 'registry', $locale);
-                $labels = $translator->get('sales::settings', [], $locale, false);
-
-                if (! is_array($labels)) {
-                    continue;
-                }
-
-                $lines = [];
-
-                foreach ($labels as $key => $label) {
-                    if (is_string($key) && is_string($label)) {
-                        $lines['registry.'.$key] = $label;
-                    }
-                }
-
-                $translator->addLines($lines, $locale, 'settings');
-            }
-        });
     }
 }
