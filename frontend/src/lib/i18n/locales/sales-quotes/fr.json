@@ -1,0 +1,52 @@
+{
+  "list": {
+    "title": "Devis de vente",
+    "description": "Devis remis aux clients, leur statut et leurs révisions.",
+    "new": "Nouveau devis",
+    "exportName": "devis-de-vente"
+  },
+  "palette": {
+    "list": "Devis de vente",
+    "new": "Nouveau devis de vente"
+  },
+  "actions": {
+    "send": "Envoyer",
+    "accept": "Accepté",
+    "reject": "Refusé",
+    "convert": "Transformer en commande",
+    "revise": "Réviser",
+    "failed": "L'opération n'a pas pu aboutir.",
+    "converted": "Commande {{number}} créée.",
+    "revised": "Révision {{revision}} ouverte en brouillon.",
+    "done": {
+      "send": "Devis marqué comme envoyé.",
+      "accept": "Devis accepté.",
+      "reject": "Devis refusé.",
+      "convert": "Devis transformé en commande.",
+      "revise": "Révision créée."
+    }
+  },
+  "confirm": {
+    "send": {
+      "title": "Envoyer le devis ?",
+      "body": "{{number}} est marqué comme envoyé ; il ne pourra plus être modifié, seulement révisé."
+    },
+    "accept": {
+      "title": "Le devis a-t-il été accepté ?",
+      "body": "{{number}} est marqué comme accepté par le client."
+    },
+    "reject": {
+      "title": "Le devis a-t-il été refusé ?",
+      "body": "{{number}} est marqué comme refusé.",
+      "reason": "Motif du refus"
+    },
+    "convert": {
+      "title": "Transformer en commande ?",
+      "body": "Une commande brouillon est créée avec les lignes de {{number}} et le devis est clôturé comme transformé."
+    },
+    "revise": {
+      "title": "Ouvrir une nouvelle révision ?",
+      "body": "{{number}} reste inchangé ; une copie s'ouvre comme nouvelle révision en brouillon."
+    }
+  }
+}

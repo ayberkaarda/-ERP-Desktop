@@ -1,0 +1,52 @@
+{
+  "list": {
+    "title": "Verkaufsangebote",
+    "description": "Angebote an Kunden, ihr Status und ihre Revisionen.",
+    "new": "Neues Angebot",
+    "exportName": "verkaufsangebote"
+  },
+  "palette": {
+    "list": "Verkaufsangebote",
+    "new": "Neues Verkaufsangebot"
+  },
+  "actions": {
+    "send": "Versenden",
+    "accept": "Angenommen",
+    "reject": "Abgelehnt",
+    "convert": "In Auftrag umwandeln",
+    "revise": "Revidieren",
+    "failed": "Der Vorgang konnte nicht abgeschlossen werden.",
+    "converted": "Auftrag {{number}} angelegt.",
+    "revised": "Revision {{revision}} als Entwurf geöffnet.",
+    "done": {
+      "send": "Angebot als versendet markiert.",
+      "accept": "Angebot angenommen.",
+      "reject": "Angebot abgelehnt.",
+      "convert": "Angebot in einen Auftrag umgewandelt.",
+      "revise": "Revision angelegt."
+    }
+  },
+  "confirm": {
+    "send": {
+      "title": "Angebot versenden?",
+      "body": "{{number}} wird als versendet markiert; danach kann es nicht mehr bearbeitet, nur noch revidiert werden."
+    },
+    "accept": {
+      "title": "Wurde das Angebot angenommen?",
+      "body": "{{number}} wird als vom Kunden angenommen markiert."
+    },
+    "reject": {
+      "title": "Wurde das Angebot abgelehnt?",
+      "body": "{{number}} wird als abgelehnt markiert.",
+      "reason": "Ablehnungsgrund"
+    },
+    "convert": {
+      "title": "In einen Auftrag umwandeln?",
+      "body": "Mit den Positionen von {{number}} wird ein Auftragsentwurf angelegt; das Angebot wird als umgewandelt abgeschlossen."
+    },
+    "revise": {
+      "title": "Neue Revision öffnen?",
+      "body": "{{number}} bleibt unverändert; eine Kopie öffnet sich als neue Entwurfsrevision."
+    }
+  }
+}
