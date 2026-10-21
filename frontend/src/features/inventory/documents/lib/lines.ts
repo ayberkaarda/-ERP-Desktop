@@ -99,7 +99,7 @@ export interface TypeRules {
   direction: boolean
   /** Lot and expiry must be given for tracked items (stock comes in under that lot). */
   lotRequired: boolean
-  /** Stock leaves the warehouse, so expired lots may be allowed explicitly. */
+  /** Stock leaves the warehouse (adjustments: on out lines), so expired lots may be allowed explicitly. */
   issues: boolean
 }
 
@@ -122,7 +122,8 @@ export function typeRules(type: EditableDocType): TypeRules {
         target: false,
         direction: true,
         lotRequired: true,
-        issues: false,
+        // Outbound lines take stock out, so the expired-lot override applies to them too.
+        issues: true,
       }
     case 'transfer':
       return {

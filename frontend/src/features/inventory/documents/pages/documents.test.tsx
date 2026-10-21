@@ -226,7 +226,14 @@ describe('stock document editor', () => {
   })
 
   it('sends adjustment lines with a direction and positive quantities', async () => {
-    const db = setupInvDocs()
+    const db = setupInvDocs({
+      permissions: [
+        'inventory.documents.view',
+        'inventory.documents.create',
+        'inventory.documents.issue_expired',
+        'items.view',
+      ],
+    })
     const user = userEvent.setup()
     renderInvDocs('/inventory/documents/new?type=adjustment')
     await screen.findByRole('heading', { name: 'Yeni Düzeltme fişi' })
@@ -237,6 +244,10 @@ describe('stock document editor', () => {
     await user.selectOptions(within(table).getByLabelText('Yön, 1. satır'), 'out')
     // Outbound lines leave at the current cost: no cost to enter.
     expect(within(table).getByLabelText('Birim maliyet, 1. satır')).toBeDisabled()
+    // Out lines may take expired lots: the override is offered to an authorized user.
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Süresi geçmiş lotlardan çıkışa izin ver' }),
+    )
     await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
     await waitFor(() =>
       expect(db.calls.some((c) => c.method === 'POST' && c.path === '/stock-documents')).toBe(true),
@@ -244,7 +255,7 @@ describe('stock document editor', () => {
     const body = db.calls.find((c) => c.method === 'POST' && c.path === '/stock-documents')
       ?.body as StockDocumentInput
     expect(body.lines[0]).toMatchObject({ quantity: '1', direction: 'out', unit_cost: null })
-    expect(body).not.toHaveProperty('allow_expired')
+    expect(body.allow_expired).toBe(true)
   })
 })
 

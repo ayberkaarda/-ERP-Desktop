@@ -39,6 +39,17 @@ const ref = (over: Partial<ItemRef> = {}): ItemRef => ({
   ...over,
 })
 
+const values0 = () => ({
+  docType: 'adjustment' as const,
+  documentDate: '2026-10-21',
+  warehouseId: 'w1',
+  targetWarehouseId: '',
+  reason: '',
+  notes: '',
+  allowExpired: false,
+  lines: [],
+})
+
 const line = (over: Partial<LineValues> = {}): LineValues => ({
   ...emptyLine(),
   itemId: 'i1',
@@ -99,8 +110,12 @@ describe('stock document lines', () => {
       ['out', null],
       ['in', '4'],
     ])
-    // Expired lots concern issues and transfers only.
-    expect(out).not.toHaveProperty('allow_expired')
+    // Out lines take stock out: the expired-lot override is sent with adjustments too.
+    expect(out.allow_expired).toBe(true)
+    expect(typeRules('adjustment').issues).toBe(true)
+    expect(toDocInput({ ...values0(), docType: 'receipt', allowExpired: true })).not.toHaveProperty(
+      'allow_expired',
+    )
   })
 
   it('asks for lot and expiry on inbound lines of tracked items, not on issues (FEFO)', () => {
