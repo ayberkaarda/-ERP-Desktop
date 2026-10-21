@@ -129,7 +129,8 @@
     "contacts": "Contacts",
     "bankAccounts": "Bank accounts",
     "attachments": "Attachments",
-    "history": "History"
+    "history": "History",
+    "sales": "Sales"
   },
   "sub": {
     "add": "Add",

@@ -129,7 +129,8 @@
     "contacts": "Contacts",
     "bankAccounts": "Comptes bancaires",
     "attachments": "Pièces jointes",
-    "history": "Historique"
+    "history": "Historique",
+    "sales": "Ventes"
   },
   "sub": {
     "add": "Ajouter",
