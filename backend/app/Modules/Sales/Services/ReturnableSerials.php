@@ -46,7 +46,7 @@ final class ReturnableSerials
         $out = [];
 
         foreach ($deliveryOf as $lineId => $deliveryLineId) {
-            $serials = $shipped->get($deliveryLineId)?->serial_numbers ?? [];
+            $serials = $shipped->get($deliveryLineId)->serial_numbers ?? [];
             $out[$lineId] = array_values(array_diff($serials, $taken[$deliveryLineId] ?? []));
         }
 
