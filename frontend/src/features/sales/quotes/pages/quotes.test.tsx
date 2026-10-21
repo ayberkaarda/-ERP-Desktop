@@ -159,7 +159,7 @@ describe('quote editor', () => {
     const patch = db.calls.find(
       (c) => c.method === 'PATCH' && c.path === `/sales-quotes/${QUOTE_DRAFT}`,
     )
-    expect((patch?.body as SalesDocumentInput).lines[0]?.unit_price).toBe('9.5000')
+    expect((patch?.body as SalesDocumentInput).lines?.[0]?.unit_price).toBe('9.5000')
     expect(db.calls.find((c) => c.path === `/sales-quotes/${QUOTE_DRAFT}/send`)?.body).toEqual({
       version: 2,
     })

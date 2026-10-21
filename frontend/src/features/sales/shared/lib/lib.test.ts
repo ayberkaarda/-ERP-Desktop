@@ -11,6 +11,7 @@ import {
   invoiceableQuantity,
   needsDeliverOnInvoice,
   quantityProblem,
+  remainingFor,
 } from './fulfilment'
 import { createPayloadKeys, stableStringify } from './idempotency'
 import { buildChain, documentPath, exposureState, stockHint } from './insights'
@@ -92,19 +93,21 @@ describe('document form mapping', () => {
       fxRate: '',
     })
     const input = toInput(v, 'order')
-    expect(input.lines).toHaveLength(2)
-    expect(input.lines[0]).toMatchObject({
-      id: 'stored-1',
+    const lines = input.lines ?? []
+    expect(lines).toHaveLength(2)
+    // Line ids are not part of the API body (lines are replaced as a whole).
+    expect(lines[0]).not.toHaveProperty('id')
+    expect(lines[0]).toMatchObject({
       unit_price: null,
       discount_percent: '5',
       discount_amount: '0',
       quantity: '2',
     })
-    expect(input.lines[1]).toMatchObject({ unit_price: '12.5', discount_amount: '0' })
-    expect(input.lines[1]).not.toHaveProperty('id')
+    expect(lines[1]).toMatchObject({ unit_price: '12.5', discount_amount: '0' })
+    expect(lines[1]).not.toHaveProperty('id')
     expect(input).toMatchObject({ requested_delivery_date: '2026-11-01', fx_rate: null })
     expect(input).not.toHaveProperty('valid_until')
-    for (const l of input.lines) {
+    for (const l of lines) {
       for (const v of [l.quantity, l.discount_percent, l.discount_amount])
         expect(typeof v).toBe('string')
     }
@@ -193,25 +196,27 @@ describe('lifecycle', () => {
     expect(quoteActions('converted')).toEqual([])
   })
 
-  it('allows revise only before deliveries and cancel only before deliveries or invoices', () => {
+  it('allows revise and cancel only while confirmed and untouched, close while open', () => {
     expect(orderActions({ status: 'confirmed', lines: [orderLine()] })).toEqual([
       'revise',
       'cancel',
       'createDelivery',
       'createInvoice',
+      'close',
     ])
     const partly = orderActions({
       status: 'partially_delivered',
       lines: [orderLine({ delivered_quantity: '4', invoiced_quantity: '4' })],
     })
-    expect(partly).toEqual(['createDelivery', 'createInvoice'])
+    expect(partly).toEqual(['createDelivery', 'createInvoice', 'close'])
     expect(
       orderActions({
         status: 'invoiced',
         lines: [orderLine({ delivered_quantity: '10', invoiced_quantity: '10' })],
       }),
-    ).toEqual([])
+    ).toEqual(['close'])
     expect(orderActions({ status: 'pending_approval', lines: [] })).toEqual(['cancel'])
+    expect(orderActions({ status: 'closed', lines: [orderLine()] })).toEqual([])
   })
 })
 
@@ -221,6 +226,19 @@ describe('fulfilment bounds', () => {
     expect(deliverableQuantity(l).toString()).toBe('6')
     expect(deliverableQuantity(l, '10').toString()).toBe('7')
     expect(deliverableQuantity(orderLine({ delivered_quantity: '12' })).toString()).toBe('0')
+    // Service lines are refused on deliveries by the API.
+    expect(deliverableQuantity(orderLine({ item_type: 'service' })).toString()).toBe('0')
+  })
+
+  it('leaves stock delivery lines to the server when the tolerance is unknown', () => {
+    const l = orderLine({ delivered_quantity: '10' })
+    expect(remainingFor('delivery', l, { overPercent: null }).isFinite()).toBe(false)
+    expect(remainingFor('delivery', l, { overPercent: '10' }).toString()).toBe('1')
+    expect(
+      remainingFor('delivery', orderLine({ item_type: 'service' }), {
+        overPercent: null,
+      }).toString(),
+    ).toBe('0')
   })
 
   it('bounds invoices by delivered stock, ordered services and deliver-on-invoice', () => {
@@ -346,18 +364,32 @@ describe('insights', () => {
 })
 
 describe('errors, keys and saved views', () => {
-  it('reads the credit breakdown from the error fields', () => {
-    const err = new ApiError(422, 'sales.credit_limit_exceeded', 'Limit', {
-      limit: ['1000.0000'],
-      exposure: ['900.0000'],
-      document: ['=1+1'],
-      currency: ['TRY'],
-    })
+  it('reads the credit breakdown from errors.details', () => {
+    const err = new ApiError(
+      422,
+      'sales.credit_limit_exceeded',
+      'Limit',
+      { party_id: ['Limit'] },
+      {
+        mode: 'block',
+        limit: '1000.00',
+        currency: 'TRY',
+        exposure: '900.00',
+        document: '=1+1',
+        total: '1020.00',
+        available: '-20.00',
+        exceeded: true,
+        overridden: false,
+      },
+    )
     expect(isCreditLimitExceeded(err)).toBe(true)
     expect(readCreditBreakdown(err)).toEqual({
-      limit: '1000.0000',
-      exposure: '900.0000',
+      mode: 'block',
+      limit: '1000.00',
+      exposure: '900.00',
       document: null,
+      total: '1020.00',
+      available: '-20.00',
       currency: 'TRY',
     })
     expect(readCreditBreakdown(new Error('x')).limit).toBeNull()
