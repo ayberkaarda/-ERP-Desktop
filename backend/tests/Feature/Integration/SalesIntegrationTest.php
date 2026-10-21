@@ -147,3 +147,20 @@ it('names the company on the print model for a platform admin without a membersh
     SalesKit::get($admin, $this->w->company, "sales-orders/{$order['id']}/print-model")->assertOk()
         ->assertJsonPath('data.company.id', $this->w->company)->assertJsonPath('data.company.name', $name);
 });
+
+it('rechecks the limit when an invoice of order value confirmed without an override is issued', function (): void {
+    SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'off');
+    $order = SalesKit::confirmedOrder($this->w, [[$this->w->service->id, '1', '1000']]);
+    $invoice = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/invoices", ['document_date' => '2027-06-12'])
+        ->assertCreated()->json('data');
+    SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'block');
+    DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '500']);
+
+    SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/issue")->assertStatus(422)
+        ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded')->assertJsonPath('errors.details.document', '0.00')
+        ->assertJsonPath('errors.details.total', '1200.00');
+
+    $approver = SalesKit::user(['sales.credit_override']);
+    SalesKit::post($approver, $this->w->company, "sales-invoices/{$invoice['id']}/issue", ['credit_override_reason' => 'Collateral received'])
+        ->assertOk()->assertJsonPath('data.status', 'issued')->assertJsonPath('data.credit_override_reason', 'Collateral received');
+});

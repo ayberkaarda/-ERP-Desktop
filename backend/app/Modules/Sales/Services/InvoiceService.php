@@ -469,12 +469,14 @@ final class InvoiceService extends DocumentService
 
         if (! $invoice->isCreditNote()) {
             $this->recheckBounds($invoice, $lines);
-            $check = $this->credit->check($invoice->company_id, $party, (string) $invoice->total_local, null, $this->coveredByOrders($lines, $orders), $overrideReason, $canOverride);
+            $prior = $this->priorOverride($lines, $orders);
+            $check = $this->credit->check($invoice->company_id, $party, (string) $invoice->total_local, null, $this->coveredByOrders($lines, $orders), $overrideReason, $canOverride, priorOverride: $prior?->credit_override_reason);
 
             if ($check !== null && $check->overridden) {
-                $invoice->credit_override_reason = $overrideReason;
-                $invoice->credit_override_by = self::actorId($actor);
-                activity()->performedOn($invoice)->causedBy(self::causer($actor))->withProperties(['reason' => $overrideReason, 'check' => $check->toArray()])
+                $own = $overrideReason !== null && trim($overrideReason) !== '' && $canOverride;
+                $invoice->credit_override_reason = $own ? $overrideReason : $prior?->credit_override_reason;
+                $invoice->credit_override_by = $own ? self::actorId($actor) : $prior?->credit_override_by;
+                activity()->performedOn($invoice)->causedBy(self::causer($actor))->withProperties(['reason' => $invoice->credit_override_reason, 'inherited_from' => $own ? null : $prior?->id, 'check' => $check->toArray()])
                     ->event('credit_override')->log('credit_override');
             }
 
@@ -559,6 +561,31 @@ final class InvoiceService extends DocumentService
         foreach ($touched as $order) {
             $this->progress->refresh($order, $actor);
         }
+    }
+
+    /**
+     * The order whose recorded credit override an invoice inherits: every line comes from an open
+     * order and all those orders were confirmed over the limit with an override (null otherwise).
+     *
+     * @param  Collection<int, SalesInvoiceLine>  $lines
+     * @param  array<string, SalesOrder>  $orders
+     */
+    private function priorOverride(Collection $lines, array $orders): ?SalesOrder
+    {
+        $orderOfLine = $this->orderIdsOfLines($lines);
+        $found = null;
+
+        foreach ($lines as $line) {
+            $order = $orders[$orderOfLine[$line->id] ?? ''] ?? null;
+
+            if ($order === null || $order->credit_override_reason === null || $order->credit_override_reason === '') {
+                return null;
+            }
+
+            $found ??= $order;
+        }
+
+        return $found;
     }
 
     /**
