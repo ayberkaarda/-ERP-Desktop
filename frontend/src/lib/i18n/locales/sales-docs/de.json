@@ -151,7 +151,8 @@
     "sales_invoice": "Rechnung",
     "sales_return": "Retoure",
     "stock_document": "Lagerbeleg",
-    "journal_entry": "Journalbuchung"
+    "journal_entry": "Journalbuchung",
+    "sales_credit_note": "Gutschrift"
   },
   "print": {
     "open": "Drucken",
@@ -161,7 +162,15 @@
     "seller": "Verkäufer",
     "buyer": "Käufer",
     "draft": "ENTWURF",
-    "deliveryAddress": "Lieferadresse"
+    "deliveryAddress": "Lieferadresse",
+    "titles": {
+      "sales_quote": "Angebot",
+      "sales_order": "Kundenauftrag",
+      "sales_delivery": "Lieferschein",
+      "sales_invoice": "Ausgangsrechnung",
+      "sales_credit_note": "Gutschrift",
+      "sales_return": "Retoure"
+    }
   },
   "totals": {
     "title": "Summen",
@@ -305,7 +314,9 @@
     "thisDocument": "Diese Rechnung",
     "availableAfter": "Verfügbar nach Ausstellung",
     "available": "Verfügbar {{amount}} / {{limit}}",
-    "over": "Limit um {{amount}} überschritten"
+    "over": "Limit um {{amount}} überschritten",
+    "current": "Aktuelles Risiko",
+    "totalAfter": "Risiko mit diesem Beleg"
   },
   "reverse": {
     "title": "Rechnung {{number}} stornieren",

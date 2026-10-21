@@ -29,7 +29,9 @@ export const ALL_SALES2_PERMISSIONS = [
   'sales.returns.credit',
   'sales.reports.view',
   'sales.price_override',
-  'accounting.journal.view',
+  'accounting.entries.view',
+  'inventory.documents.view',
+  'sales.orders.view',
 ]
 
 /** Signed-in user with the given permissions and a fresh in-memory sales API. */

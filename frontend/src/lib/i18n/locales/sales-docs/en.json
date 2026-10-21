@@ -151,7 +151,8 @@
     "sales_invoice": "Invoice",
     "sales_return": "Return",
     "stock_document": "Stock document",
-    "journal_entry": "Journal entry"
+    "journal_entry": "Journal entry",
+    "sales_credit_note": "Credit note"
   },
   "print": {
     "open": "Print",
@@ -161,7 +162,15 @@
     "seller": "Seller",
     "buyer": "Buyer",
     "draft": "DRAFT",
-    "deliveryAddress": "Delivery address"
+    "deliveryAddress": "Delivery address",
+    "titles": {
+      "sales_quote": "Quotation",
+      "sales_order": "Sales Order",
+      "sales_delivery": "Delivery Note",
+      "sales_invoice": "Sales Invoice",
+      "sales_credit_note": "Credit Note",
+      "sales_return": "Sales Return"
+    }
   },
   "totals": {
     "title": "Totals",
@@ -305,7 +314,9 @@
     "thisDocument": "This invoice",
     "availableAfter": "Left after issuing",
     "available": "Available {{amount}} / {{limit}}",
-    "over": "Limit exceeded by {{amount}}"
+    "over": "Limit exceeded by {{amount}}",
+    "current": "Current exposure",
+    "totalAfter": "Exposure with this document"
   },
   "reverse": {
     "title": "Reverse invoice {{number}}",

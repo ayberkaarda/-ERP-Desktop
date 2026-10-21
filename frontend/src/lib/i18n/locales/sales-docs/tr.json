@@ -151,7 +151,8 @@
     "sales_invoice": "Fatura",
     "sales_return": "İade",
     "stock_document": "Stok fişi",
-    "journal_entry": "Yevmiye"
+    "journal_entry": "Yevmiye",
+    "sales_credit_note": "İade faturası"
   },
   "print": {
     "open": "Yazdır",
@@ -161,7 +162,15 @@
     "seller": "Satıcı",
     "buyer": "Alıcı",
     "draft": "TASLAK",
-    "deliveryAddress": "Teslimat adresi"
+    "deliveryAddress": "Teslimat adresi",
+    "titles": {
+      "sales_quote": "Teklif",
+      "sales_order": "Satış Siparişi",
+      "sales_delivery": "Sevk İrsaliyesi",
+      "sales_invoice": "Satış Faturası",
+      "sales_credit_note": "İade Faturası",
+      "sales_return": "Satış İadesi"
+    }
   },
   "totals": {
     "title": "Toplamlar",
@@ -305,7 +314,9 @@
     "thisDocument": "Bu fatura",
     "availableAfter": "Kesildikten sonra kalan",
     "available": "Kullanılabilir {{amount}} / {{limit}}",
-    "over": "Limit {{amount}} aşılmış"
+    "over": "Limit {{amount}} aşılmış",
+    "current": "Mevcut risk",
+    "totalAfter": "Belge ile toplam risk"
   },
   "reverse": {
     "title": "{{number}} faturasına ters kayıt",

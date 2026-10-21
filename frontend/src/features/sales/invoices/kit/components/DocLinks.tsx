@@ -24,7 +24,9 @@ export function DocLinks({ links }: { links: DocLink[] | undefined }) {
             ) : (
               <ArrowRight className="size-3.5 text-muted-foreground" aria-hidden="true" />
             )}
-            <span className="text-muted-foreground">{t(`linkType.${l.type}`)}</span>
+            <span className="text-muted-foreground">
+              {l.credit ? t('linkType.sales_credit_note') : t(`linkType.${l.type}`)}
+            </span>
             <Link to={linkTo(l.type, l.id)} className="font-code text-primary hover:underline">
               {l.number ?? t('links.unnumbered')}
             </Link>

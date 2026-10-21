@@ -69,3 +69,28 @@ export function exportParams(query: ListQueryState): Record<string, string> {
   for (const [k, v] of Object.entries(query.filters)) if (v !== '') out[`filter[${k}]`] = v
   return out
 }
+
+/** `errors.details` of a credit block (sales.credit_limit_exceeded), in the risk currency. */
+export interface CreditBreakdown {
+  limit: string | null
+  currency: string
+  exposure: string
+  document: string
+  total: string
+  available: string | null
+}
+
+/** The credit check breakdown carried by a block-mode refusal, when the API sent it. */
+export function creditBreakdown(error: unknown): CreditBreakdown | null {
+  if (!isCreditBlocked(error)) return null
+  const details = (error as { details?: unknown }).details
+  if (!details || typeof details !== 'object') return null
+  const d = details as Record<string, unknown>
+  const s = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : null)
+  const currency = s(d.currency)
+  const exposure = s(d.exposure)
+  const document = s(d.document)
+  const total = s(d.total)
+  if (!currency || exposure === null || document === null || total === null) return null
+  return { limit: s(d.limit), currency, exposure, document, total, available: s(d.available) }
+}
