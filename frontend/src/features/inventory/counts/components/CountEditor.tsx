@@ -16,7 +16,7 @@ import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { documentsApi } from '../../documents/api/client'
-import { invDocsKeys } from '../../documents/api/keys'
+import { invalidateStockEffects, invDocsKeys } from '../../documents/api/keys'
 import { DocStatusBadge } from '../../documents/components/DocStatusBadge'
 import { VersionConflictAlert } from '../../documents/components/VersionConflictAlert'
 import { errorMessage, isVersionConflict } from '../../documents/lib/errors'
@@ -103,7 +103,7 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
       ),
     onSuccess: (posted, { company: started }) => {
       queryClient.setQueryData(invDocsKeys.document(posted.id, started ?? 'none'), posted)
-      void queryClient.invalidateQueries({ queryKey: invDocsKeys.documents(started ?? 'none') })
+      invalidateStockEffects(queryClient, started ?? 'none')
       if (sameCompany(started)) onPosted(posted)
     },
     onError: (error, { company: started }) => {
@@ -393,13 +393,13 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
         document={base}
         open={importing}
         onOpenChange={setImporting}
-        onApplied={(doc) => {
-          if (doc) {
-            queryClient.setQueryData(invDocsKeys.document(doc.id), doc)
-            adopt(doc)
-          } else {
-            void reload()
-          }
+        onApplied={(doc, started) => {
+          if (doc) queryClient.setQueryData(invDocsKeys.document(doc.id, started), doc)
+          void queryClient.invalidateQueries({ queryKey: invDocsKeys.documents(started) })
+          // Finished after a company switch: that company's cache is updated, this screen is not.
+          if (!sameCompany(started)) return
+          if (doc) adopt(doc)
+          else void reload()
         }}
       />
     </div>

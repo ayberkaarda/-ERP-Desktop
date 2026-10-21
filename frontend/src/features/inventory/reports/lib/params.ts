@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js'
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
-import { isDecimal } from '../../documents/lib/quantity'
+import { isDecimal, MONEY_SCALE } from '../../documents/lib/quantity'
 import type { ColDef, ReportDef, Row } from '../definitions'
 
 /** Report parameters as flat strings: URL- and preset-friendly. */
@@ -63,7 +63,7 @@ export function totalsRow(
       const v = stringAt(r, c.key)
       return isDecimal(v) ? s.plus(v) : s
     }, new Decimal(0))
-    setAt(out, c.key, sum.toFixed(c.kind === 'money' ? 2 : 6))
+    setAt(out, c.key, sum.toFixed(c.kind === 'money' ? MONEY_SCALE : 6))
   }
   return out
 }

@@ -19,7 +19,7 @@ import { toIsoDate } from '@/lib/datetime'
 import { calendarDate, snakeToCamelPath } from '@/lib/forms'
 import { platform } from '@/platform'
 import { documentsApi } from '../api/client'
-import { activeCompany, invDocsKeys } from '../api/keys'
+import { activeCompany, invalidateStockEffects, invDocsKeys } from '../api/keys'
 import { usePayloadKeys } from '../lib/idempotency'
 import type { StockDocument } from '../types'
 
@@ -55,7 +55,7 @@ export function ReverseDialog({ document, open, onOpenChange, onReversed }: Reve
     },
     onSuccess: (reversed, { company }) => {
       queryClient.setQueryData(invDocsKeys.document(reversed.id, company), reversed)
-      void queryClient.invalidateQueries({ queryKey: invDocsKeys.documents(company) })
+      invalidateStockEffects(queryClient, company)
       if (activeCompany() !== company) return
       onOpenChange(false)
       form.reset()

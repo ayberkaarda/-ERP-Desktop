@@ -1,6 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http } from 'msw'
+import { COMPANY_A, COMPANY_B } from '@/test/handlers/fea'
 import { DOC_COUNT, WH_MAIN } from '@/test/handlers/inventoryDocs'
+import { server } from '@/test/msw/server'
+import { useCompanyStore } from '@/stores/company'
+import { invDocsKeys } from '../../documents/api/keys'
 import type { CountStartInput, CountUpdateInput } from '../../documents/types'
 import { renderInvDocs, setupInvDocs } from '../../documents/testing'
 import './CountPage'
@@ -137,5 +142,75 @@ describe('stock count', () => {
     expect(counted('STK-001')).toBeDisabled()
     expect(screen.queryByRole('button', { name: 'CSV içe aktar' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Kesinleştir' })).not.toBeInTheDocument()
+  })
+
+  /** Holds import requests until released; they then reach the in-memory API. */
+  function gateImports() {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    server.use(
+      http.post('*/api/v1/stock-documents/:id/lines/import', async () => {
+        await gate
+        return undefined
+      }),
+    )
+    return () => release()
+  }
+
+  /** A count CSV with the header and the given rows. */
+  const csv = (...rows: string[]) =>
+    new File(
+      [['item_code,lot_no,location_code,counted_quantity', ...rows, ''].join('\n')],
+      'sayim.csv',
+      { type: 'text/csv' },
+    )
+
+  it('locks the file while a dry run runs and binds the preview to that file', async () => {
+    setupInvDocs()
+    const user = userEvent.setup()
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    await user.click(screen.getByRole('button', { name: 'CSV içe aktar' }))
+    const dialog = await screen.findByRole('dialog', { name: "Sayım CSV'si içe aktar" })
+    const input = within(dialog).getByLabelText(/^CSV dosyası/)
+    await user.upload(input, csv('STK-001,,A-01,97', 'STK-002,L-0925,A-01,40'))
+    const release = gateImports()
+    await user.click(within(dialog).getByRole('button', { name: 'Dene' }))
+    await waitFor(() => expect(input).toBeDisabled())
+    release()
+    expect(await within(dialog).findByText('2 uygun, 0 hatalı satır')).toBeInTheDocument()
+    expect(input).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: '2 satırı uygula' })).toBeEnabled()
+    // Another file drops the preview: it has not been tried yet.
+    await user.upload(input, csv('STK-001,,A-01,1'))
+    expect(within(dialog).queryByText('2 uygun, 0 hatalı satır')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: /satırı uygula/ })).toBeDisabled()
+  })
+
+  it('writes an import finished after a company switch to the starting company only', async () => {
+    setupInvDocs()
+    const user = userEvent.setup()
+    const { queryClient } = renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    await user.click(screen.getByRole('button', { name: 'CSV içe aktar' }))
+    const dialog = await screen.findByRole('dialog', { name: "Sayım CSV'si içe aktar" })
+    await user.upload(within(dialog).getByLabelText(/^CSV dosyası/), csv('STK-001,,A-01,97'))
+    await user.click(within(dialog).getByRole('button', { name: 'Dene' }))
+    await within(dialog).findByText('1 uygun, 0 hatalı satır')
+    const setData = vi.spyOn(queryClient, 'setQueryData')
+    const release = gateImports()
+    await user.click(within(dialog).getByRole('button', { name: '1 satırı uygula' }))
+    useCompanyStore.setState({ activeCompanyId: COMPANY_B })
+    release()
+    await waitFor(() =>
+      expect(setData.mock.calls.map((call) => JSON.stringify(call[0]))).toContain(
+        JSON.stringify(invDocsKeys.document(DOC_COUNT, COMPANY_A)),
+      ),
+    )
+    expect(setData.mock.calls.map((call) => JSON.stringify(call[0]))).not.toContain(
+      JSON.stringify(invDocsKeys.document(DOC_COUNT, COMPANY_B)),
+    )
   })
 })

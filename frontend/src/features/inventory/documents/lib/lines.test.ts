@@ -1,3 +1,4 @@
+import { formatDecimalDisplay } from '@/lib/money'
 import type { ItemRef } from '../types'
 import {
   docTotals,
@@ -55,7 +56,8 @@ describe('stock document lines', () => {
     expect(baseQuantity('abc', '24')).toBeNull()
     expect(factorOf('2.000000', '48.000000')).toBe('24')
     expect(factorOf('0', '0')).toBe('1')
-    expect(lineCost('3', '0.333333')?.toFixed(2)).toBe('1.00')
+    expect(lineCost('3', '0.333333')?.toFixed()).toBe('1')
+    expect(lineCost('1', '0.00494')?.toFixed()).toBe('0.0049')
   })
 
   it('parses serial numbers from lines, commas and semicolons', () => {
@@ -128,9 +130,19 @@ describe('stock document lines', () => {
     expect(docTotals(lines, typeRules('receipt'))).toEqual({
       lines: 2,
       quantities: [{ unit: 'ADET', quantity: '26' }],
-      cost: '22.01',
+      cost: '22.0100',
     })
     expect(docTotals(lines, typeRules('issue')).cost).toBeNull()
+  })
+
+  it('keeps line costs at the money scale and rounds the total only for display', () => {
+    const lines = [
+      line({ quantity: '1', unitCost: '0.0049' }),
+      line({ quantity: '1', unitCost: '0.0049' }),
+    ]
+    const totals = docTotals(lines, typeRules('receipt'))
+    expect(totals.cost).toBe('0.0098')
+    expect(formatDecimalDisplay(totals.cost ?? '', { locale: 'tr-TR' })).toBe('0,01')
   })
 
   it('builds the API body without blank lines and fields the type does not use', () => {

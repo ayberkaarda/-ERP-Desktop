@@ -185,7 +185,7 @@ export function CountGrid({
                     {l.unit_cost ? money(l.unit_cost) : ''}
                   </td>
                   <td className={cn(td, 'text-right tabular-nums', tone)}>
-                    {value ? money(value.toFixed(2)) : ''}
+                    {value ? money(value.toFixed()) : ''}
                   </td>
                 </tr>
               )

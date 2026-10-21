@@ -366,7 +366,7 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
           const cost = lineCost(line.quantity, line.unitCost)
           return (
             <span className="tabular-nums">
-              {cost ? formatDecimalDisplay(cost.toFixed(2), { locale }) : '—'}
+              {cost ? formatDecimalDisplay(cost.toFixed(), { locale }) : '—'}
             </span>
           )
         },

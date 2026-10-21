@@ -1,3 +1,4 @@
+import { formatDecimalDisplay } from '@/lib/money'
 import type { StockDocumentLine } from '../../documents/types'
 import { changedCounts, countSummary, filterLines, initialCounts, lineVariance } from './variance'
 
@@ -36,10 +37,20 @@ describe('count variance', () => {
       total: 3,
       counted: 3,
       differing: 2,
-      gain: '6.25',
-      loss: '60.00',
-      net: '-53.75',
+      gain: '6.2500',
+      loss: '60.0000',
+      net: '-53.7500',
     })
+  })
+
+  it('sums variance values at the money scale, not per line rounded', () => {
+    const tiny = [
+      line('x', { system_quantity: '0', unit_cost: '0.004900' }),
+      line('y', { system_quantity: '0', unit_cost: '0.004900' }),
+    ]
+    const summary = countSummary(tiny, { x: '1', y: '1' })
+    expect(summary.gain).toBe('0.0098')
+    expect(formatDecimalDisplay(summary.gain, { locale: 'tr-TR' })).toBe('0,01')
   })
 
   it('sends only changed counts, numerically compared', () => {

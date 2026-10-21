@@ -1,4 +1,6 @@
 import { useCallback, useState } from 'react'
+import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'
 
 /**
  * A named parameter set ("Ocak mizanı, 3. kırılım") kept per user in this browser: list filters
@@ -41,43 +43,71 @@ export function sanitizePresets(raw: unknown, allowed?: readonly string[]): Pres
   return out.slice(0, MAX)
 }
 
-export function readPresets(key: string, allowed?: readonly string[]): Preset[] {
+/**
+ * Storage key of one page's presets for one user in one company; null without a signed-in user
+ * and an active company (presets then live in memory only and are never shared).
+ */
+export function presetStorageKey(
+  key: string,
+  userId: string | null | undefined,
+  companyId: string | null | undefined,
+): string | null {
+  if (!userId || !companyId) return null
+  return `${PREFIX}${encodeURIComponent(userId)}.${encodeURIComponent(companyId)}.${key}`
+}
+
+export function readPresets(storageKey: string | null, allowed?: readonly string[]): Preset[] {
+  if (!storageKey) return []
   try {
-    const raw = window.localStorage.getItem(PREFIX + key)
+    const raw = window.localStorage.getItem(storageKey)
     return raw ? sanitizePresets(JSON.parse(raw), allowed) : []
   } catch {
     return []
   }
 }
 
-function write(key: string, list: Preset[]) {
+function write(storageKey: string | null, list: Preset[]) {
+  if (!storageKey) return
   try {
-    window.localStorage.setItem(PREFIX + key, JSON.stringify(list))
+    window.localStorage.setItem(storageKey, JSON.stringify(list))
   } catch {
     // Storage blocked: presets live for this session only.
   }
 }
 
+/** Presets of the signed-in user in the active company; reloads when either changes. */
 export function usePresets(key: string, allowed?: readonly string[]) {
-  const [list, setList] = useState(() => readPresets(key, allowed))
+  const userId = useAuthStore((s) => s.user?.id ?? null)
+  const companyId = useCompanyStore((s) => s.activeCompanyId)
+  const storageKey = presetStorageKey(key, userId, companyId)
+  const [state, setState] = useState(() => ({
+    storageKey,
+    list: readPresets(storageKey, allowed),
+  }))
+  // Another user or company: drop what was shown and read that scope's presets.
+  let current = state
+  if (state.storageKey !== storageKey) {
+    current = { storageKey, list: readPresets(storageKey, allowed) }
+    setState(current)
+  }
   const save = useCallback(
     (entry: Preset) =>
-      setList((prev) => {
+      setState((prev) => {
         const clean = { name: entry.name.trim().slice(0, MAX_NAME), params: entry.params }
-        const next = [clean, ...prev.filter((p) => p.name !== clean.name)].slice(0, MAX)
-        write(key, next)
-        return next
+        const list = [clean, ...prev.list.filter((p) => p.name !== clean.name)].slice(0, MAX)
+        write(prev.storageKey, list)
+        return { ...prev, list }
       }),
-    [key],
+    [],
   )
   const remove = useCallback(
     (name: string) =>
-      setList((prev) => {
-        const next = prev.filter((p) => p.name !== name)
-        write(key, next)
-        return next
+      setState((prev) => {
+        const list = prev.list.filter((p) => p.name !== name)
+        write(prev.storageKey, list)
+        return { ...prev, list }
       }),
-    [key],
+    [],
   )
-  return { list, save, remove }
+  return { list: current.list, save, remove }
 }

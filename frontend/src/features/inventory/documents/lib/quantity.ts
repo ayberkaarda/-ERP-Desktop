@@ -23,10 +23,13 @@ export function baseQuantity(quantity: string, factor: string): string | null {
     .toFixed(6)
 }
 
-/** Line cost rounded half-up to 2 (document totals add rounded line amounts). */
+/** Money scale of the API (numeric(20,4)); amounts are rounded to 2 only for display. */
+export const MONEY_SCALE = 4
+
+/** Line cost at the money scale (half-up); totals add these and round only when shown. */
 export function lineCost(quantity: string, unitCost: string): Decimal | null {
   if (!isDecimal(quantity) || !isDecimal(unitCost)) return null
-  return new Decimal(quantity).mul(unitCost).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+  return new Decimal(quantity).mul(unitCost).toDecimalPlaces(MONEY_SCALE, Decimal.ROUND_HALF_UP)
 }
 
 /** Strips trailing zeros of a canonical decimal for display-free comparisons ("1.500000" -> "1.5"). */

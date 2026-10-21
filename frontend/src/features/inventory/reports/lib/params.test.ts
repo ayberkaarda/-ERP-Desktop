@@ -46,7 +46,7 @@ describe('report parameters', () => {
     ]
     expect(valueAt(rows[0], 'buckets.d0_30.value')).toBe('1.10')
     const totals = totalsRow(ageing.columns, rows, { value: '9.99' })
-    expect(valueAt(totals, 'buckets.d0_30.value')).toBe('3.35')
+    expect(valueAt(totals, 'buckets.d0_30.value')).toBe('3.3500')
     expect(valueAt(totals, 'value')).toBe('9.99')
   })
 })

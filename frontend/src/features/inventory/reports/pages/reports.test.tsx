@@ -1,7 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { DOC_POSTED, ITEM_BOLT, WH_MAIN } from '@/test/handlers/inventoryDocs'
+import { COMPANY_A } from '@/test/handlers/fea'
 import { renderInvDocs, setupInvDocs } from '../../documents/testing'
+
+const USER = '0192a000-0000-7000-8000-0000000000u1'
 import './InventoryReportPage'
 import './ReportsHubPage'
 
@@ -72,7 +75,9 @@ describe('inventory reports', () => {
     await user.type(within(dialog).getByLabelText(/^Ad/), 'Eylül ana depo')
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
     const stored = JSON.parse(
-      window.localStorage.getItem('keystone.presets.inventory.reports.valuation') ?? '[]',
+      window.localStorage.getItem(
+        `keystone.presets.${encodeURIComponent(USER)}.${COMPANY_A}.inventory.reports.valuation`,
+      ) ?? '[]',
     ) as { name: string; params: Record<string, string> }[]
     expect(stored[0]).toEqual({
       name: 'Eylül ana depo',

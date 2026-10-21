@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js'
-import { dec, isDecimal } from '../../documents/lib/quantity'
+import { dec, isDecimal, MONEY_SCALE } from '../../documents/lib/quantity'
 import type { StockDocumentLine } from '../../documents/types'
 
 /** Counted quantities being edited, by line id ('' = not counted). */
@@ -15,11 +15,11 @@ export function lineVariance(line: StockDocumentLine, counted: string): Decimal 
   return new Decimal(counted).minus(dec(line.system_quantity))
 }
 
-/** Variance valued at the frozen average cost of the line, rounded to 2. */
+/** Variance valued at the frozen average cost, at the money scale (rounded to 2 only for display). */
 export function varianceValue(line: StockDocumentLine, counted: string): Decimal | null {
   const v = lineVariance(line, counted)
   if (v === null) return null
-  return v.mul(dec(line.unit_cost)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+  return v.mul(dec(line.unit_cost)).toDecimalPlaces(MONEY_SCALE, Decimal.ROUND_HALF_UP)
 }
 
 export interface CountSummary {
@@ -51,9 +51,9 @@ export function countSummary(lines: readonly StockDocumentLine[], counts: Counts
     total: lines.length,
     counted,
     differing,
-    gain: gain.toFixed(2),
-    loss: loss.toFixed(2),
-    net: gain.minus(loss).toFixed(2),
+    gain: gain.toFixed(MONEY_SCALE),
+    loss: loss.toFixed(MONEY_SCALE),
+    net: gain.minus(loss).toFixed(MONEY_SCALE),
   }
 }
 

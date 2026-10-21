@@ -11,6 +11,7 @@ import {
   WH_MAIN,
   WH_SECOND,
 } from '@/test/handlers/inventoryDocs'
+import { COMPANY_A } from '@/test/handlers/fea'
 import type { StockDocumentInput } from '../types'
 import { renderInvDocs, setupInvDocs } from '../testing'
 import './StockDocumentListPage'
@@ -126,7 +127,8 @@ describe('stock document editor', () => {
       permissions: ['inventory.documents.view', 'inventory.documents.post'],
     })
     const user = userEvent.setup()
-    renderInvDocs(`/inventory/documents/${DOC_DRAFT}`)
+    const { queryClient } = renderInvDocs(`/inventory/documents/${DOC_DRAFT}`)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     await screen.findByRole('heading', { name: 'Giriş fişi (taslak)' })
     expect(screen.queryByRole('button', { name: 'Taslağı kaydet' })).not.toBeInTheDocument()
     expect(screen.getByText('Bu fişi düzenleme yetkiniz yok.')).toBeInTheDocument()
@@ -139,6 +141,10 @@ describe('stock document editor', () => {
     expect(post?.body).toEqual({ version: 2 })
     expect(post?.headers.get('Idempotency-Key')).toBeTruthy()
     expect(db.calls.some((c) => c.method === 'PATCH')).toBe(false)
+    // Stock screens and reports of the company are refreshed after posting.
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+    expect(keys).toContain(JSON.stringify(['inventory', COMPANY_A, 'stock-views', 'balances']))
+    expect(keys).toContain(JSON.stringify(['inventory', COMPANY_A, 'docs', 'reports']))
   })
 
   it('reports a version conflict on save with a reload prompt', async () => {
@@ -191,7 +197,8 @@ describe('posted stock document', () => {
   it('shows lines and the journal link, and reverses with a reason', async () => {
     const db = setupInvDocs()
     const user = userEvent.setup()
-    renderInvDocs(`/inventory/documents/${DOC_POSTED}`)
+    const { queryClient } = renderInvDocs(`/inventory/documents/${DOC_POSTED}`)
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     await screen.findByRole('heading', { name: 'Çıkış CIK-2026-000001' })
     expect(screen.getByRole('link', { name: 'Muhasebe fişini aç' })).toHaveAttribute(
       'href',
@@ -212,6 +219,8 @@ describe('posted stock document', () => {
     expect(call?.body).toMatchObject({ reason: 'Yanlış depo', version: 3 })
     expect(call?.headers.get('Idempotency-Key')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Ters kayıt' })).not.toBeInTheDocument()
+    const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
+    expect(keys).toContain(JSON.stringify(['inventory', COMPANY_A, 'stock-views', 'movements']))
   })
 
   it('hides reversing without the reverse permission', async () => {

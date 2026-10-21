@@ -10,7 +10,15 @@ import type {
   StockLineInput,
   UnitChoice,
 } from '../types'
-import { baseQuantity, dec, factorOf, isDecimal, isInteger, lineCost } from './quantity'
+import {
+  baseQuantity,
+  dec,
+  factorOf,
+  isDecimal,
+  isInteger,
+  lineCost,
+  MONEY_SCALE,
+} from './quantity'
 
 /** One editable line; the picked item and unit facts ride along for rules and previews. */
 export interface LineValues {
@@ -318,7 +326,7 @@ export function docTotals(lines: readonly LineValues[], rules: TypeRules): DocTo
     quantities: [...byUnit.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([unit, q]) => ({ unit, quantity: q.toString() })),
-    cost: cost ? cost.toFixed(2) : null,
+    cost: cost ? cost.toFixed(MONEY_SCALE) : null,
   }
 }
 

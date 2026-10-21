@@ -15,7 +15,7 @@ import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { documentsApi, lookupsApi, type BarcodeHit } from '../api/client'
-import { invDocsKeys } from '../api/keys'
+import { invalidateStockEffects, invDocsKeys } from '../api/keys'
 import { useWarehouses } from '../hooks/queries'
 import { errorMessage, isVersionConflict } from '../lib/errors'
 import { usePayloadKeys } from '../lib/idempotency'
@@ -157,7 +157,7 @@ export function DocumentEditor({
       ),
     onSuccess: (posted, { company: started }) => {
       queryClient.setQueryData(invDocsKeys.document(posted.id, started ?? 'none'), posted)
-      void queryClient.invalidateQueries({ queryKey: invDocsKeys.documents(started ?? 'none') })
+      invalidateStockEffects(queryClient, started ?? 'none')
       if (sameCompany(started)) onPosted(posted)
     },
     onError: (error, { company: started }) => {
