@@ -4,14 +4,14 @@
       "title": "Stok",
       "stock": "Stok durumu",
       "movements": "Stok hareketleri",
-      "lots": "Partiler",
+      "lots": "Lotlar",
       "serials": "Seri numaraları",
       "warehouses": "Depolar"
     },
     "commands": {
       "stock": "Stok durumu",
       "movements": "Stok hareketleri",
-      "lots": "Partiler ve son kullanma",
+      "lots": "Lotlar ve son kullanma",
       "serials": "Seri numaraları",
       "warehouses": "Depolar ve lokasyonlar"
     },
@@ -47,9 +47,9 @@
     "item": "Ürün",
     "warehouse": "Depo",
     "location": "Lokasyon",
-    "lot": "Parti",
+    "lot": "Lot",
     "serial": "Seri no",
-    "lotSerial": "Parti / seri",
+    "lotSerial": "Lot / seri",
     "expiry": "Son kullanma",
     "manufactureDate": "Üretim tarihi",
     "receivedAt": "Giriş tarihi",
@@ -138,7 +138,7 @@
     "groups": {
       "warehouse": "Ürün × depo",
       "item": "Ürün (tüm depolar)",
-      "detail": "Lokasyon ve parti"
+      "detail": "Lokasyon ve lot"
     },
     "noLocation": "Lokasyonsuz",
     "openItem": "{{code}} stok ayrıntısını aç",
@@ -146,9 +146,9 @@
   },
   "drawer": {
     "title": "Ürün stoku",
-    "description": "Depo, parti ve son hareketlere göre stok.",
+    "description": "Depo, lot ve son hareketlere göre stok.",
     "byWarehouse": "Depolara göre",
-    "lots": "Partiler",
+    "lots": "Lotlar",
     "recent": "Son hareketler",
     "noStock": "Bu ürünün stoku yok.",
     "noMovements": "Henüz hareket yok.",
@@ -171,7 +171,7 @@
     },
     "loaded": "{{count}} hareket yüklendi",
     "loadMore": "Daha fazla yükle",
-    "scoped": "Liste bir belge, parti veya seri numarasıyla sınırlı.",
+    "scoped": "Liste bir belge, lot veya seri numarasıyla sınırlı.",
     "emptyTitle": "Hareket yok",
     "emptyBody": "Stok belgeleri kayda alındıkça hareketler burada görünür.",
     "emptyFiltered": "Bu filtrelere uyan hareket yok."
@@ -196,8 +196,8 @@
     "production_order": "Üretim emri"
   },
   "lots": {
-    "title": "Partiler",
-    "description": "Parti bazında stok ve son kullanma; {{days}} gün içinde dolanlar işaretlenir.",
+    "title": "Lotlar",
+    "description": "Lot bazında stok ve son kullanma; {{days}} gün içinde dolanlar işaretlenir.",
     "onlyInStock": "Yalnızca stokta olanlar",
     "noExpiry": "SKT yok",
     "expired": "Süresi doldu",
@@ -207,13 +207,13 @@
     "expiresBefore": "Son kullanma (en geç)"
   },
   "trace": {
-    "title": "Parti izleme",
-    "titleFor": "{{lot}} partisi",
-    "notFound": "Parti bulunamadı.",
+    "title": "Lot izleme",
+    "titleFor": "{{lot}} lotu",
+    "notFound": "Lot bulunamadı.",
     "received": "Giren",
     "issued": "Çıkan",
     "whereNow": "Şu an nerede",
-    "noBalance": "Bu partiden stok kalmadı.",
+    "noBalance": "Bu lottan stok kalmadı.",
     "history": "Hareket geçmişi",
     "noMovements": "Hareket bulunamadı.",
     "inLedger": "Stok defterinde göster"

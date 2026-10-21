@@ -13,7 +13,7 @@ describe('lots', () => {
     const db = setupInventoryStock()
     const user = userEvent.setup()
     renderInventoryStock('/inventory/lots')
-    const grid = await screen.findByRole('grid', { name: 'Partiler' })
+    const grid = await screen.findByRole('grid', { name: 'Lotlar' })
     const old = (await within(grid).findByRole('link', { name: 'L-2401' })).closest(
       'tr',
     ) as HTMLElement
@@ -37,7 +37,7 @@ describe('lots', () => {
     renderInventoryStock(
       '/inventory/lots?filter[expires_before]=2099-01-01&filter[with_stock]=true&filter[expiry_status]=expired',
     )
-    const grid = await screen.findByRole('grid', { name: 'Partiler' })
+    const grid = await screen.findByRole('grid', { name: 'Lotlar' })
     expect(await within(grid).findByRole('link', { name: 'L-2402' })).toBeInTheDocument()
     const call = db.calls.filter((c) => c.path === '/stock-lots').at(-1)
     expect(call?.url.searchParams.get('filter[expires_before]')).toBe('2099-01-01')
@@ -52,7 +52,7 @@ describe('lots', () => {
     const { router } = renderInventoryStock('/inventory/lots')
     await user.click(await screen.findByRole('link', { name: 'L-2401' }))
     await waitFor(() => expect(router.state.location.pathname).toBe(`/inventory/lots/${LOT_OLD}`))
-    expect(await screen.findByRole('heading', { name: 'L-2401 partisi' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'L-2401 lotu' })).toBeInTheDocument()
     const figures = screen.getByText('Giren', { selector: 'dt' }).closest('dl') as HTMLElement
     expect(within(figures).getByText('10')).toBeInTheDocument()
     expect(within(figures).getByText('4')).toBeInTheDocument()
@@ -70,7 +70,7 @@ describe('lots', () => {
   it('reports an unknown lot', async () => {
     setupInventoryStock()
     renderInventoryStock('/inventory/lots/nope')
-    expect(await screen.findByText('Parti bulunamadı.')).toBeInTheDocument()
+    expect(await screen.findByText('Lot bulunamadı.')).toBeInTheDocument()
   })
 })
 

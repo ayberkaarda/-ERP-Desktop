@@ -129,7 +129,7 @@ describe('stock status page', () => {
     const byWarehouse = await within(drawer).findByRole('table', { name: 'Depolara göre' })
     expect(within(byWarehouse).getByText('MRK')).toBeInTheDocument()
     expect(within(byWarehouse).getByText('1.056,5')).toBeInTheDocument()
-    const lots = within(drawer).getByRole('table', { name: 'Partiler' })
+    const lots = within(drawer).getByRole('table', { name: 'Lotlar' })
     expect(within(lots).getByRole('link', { name: 'L-2401' })).toHaveAttribute(
       'href',
       '/inventory/lots/lot-old',
