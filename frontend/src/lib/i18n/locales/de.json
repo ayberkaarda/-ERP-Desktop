@@ -60,7 +60,13 @@
     "stockLots": "Chargen",
     "stockSerials": "Seriennummern",
     "stockWarehouses": "Lager-Bestandseinstellungen",
-    "inventoryReports": "Lagerberichte"
+    "inventoryReports": "Lagerberichte",
+    "salesQuotes": "Angebote",
+    "salesOrders": "Aufträge",
+    "salesDeliveries": "Lieferscheine",
+    "salesInvoices": "Rechnungen",
+    "salesReturns": "Retouren",
+    "salesReports": "Verkaufsberichte"
   },
   "topbar": {
     "company": "Unternehmen",

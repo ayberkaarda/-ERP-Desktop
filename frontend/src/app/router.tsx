@@ -18,6 +18,12 @@ import { stockRoutes } from '@/features/inventory/stock/routes'
 import { warehousesRoutes } from '@/features/inventory/warehouses/routes'
 import { partyRoutes } from '@/features/parties/routes'
 import { referenceRoutes } from '@/features/reference/routes'
+import { salesDeliveriesRoutes } from '@/features/sales/deliveries/routes'
+import { salesInvoicesRoutes } from '@/features/sales/invoices/routes'
+import { ordersRoutes } from '@/features/sales/orders/routes'
+import { quotesRoutes } from '@/features/sales/quotes/routes'
+import { salesReportsRoutes } from '@/features/sales/reports/routes'
+import { salesReturnsRoutes } from '@/features/sales/returns/routes'
 import { GuestOnly, RequireAuth } from './guards'
 import { RouteError } from './RouteError'
 
@@ -104,6 +110,12 @@ export const routes: RouteObject[] = [
           ...countsRoutes,
           ...reservationsRoutes,
           ...inventoryReportsRoutes,
+          ...quotesRoutes,
+          ...ordersRoutes,
+          ...salesDeliveriesRoutes,
+          ...salesInvoicesRoutes,
+          ...salesReturnsRoutes,
+          ...salesReportsRoutes,
           ...devRoutes,
           {
             path: '*',

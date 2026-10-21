@@ -60,7 +60,13 @@
     "stockLots": "Lots",
     "stockSerials": "Numéros de série",
     "stockWarehouses": "Paramètres de stock des entrepôts",
-    "inventoryReports": "Rapports de stock"
+    "inventoryReports": "Rapports de stock",
+    "salesQuotes": "Devis",
+    "salesOrders": "Commandes",
+    "salesDeliveries": "Bons de livraison",
+    "salesInvoices": "Factures",
+    "salesReturns": "Retours",
+    "salesReports": "Rapports de vente"
   },
   "topbar": {
     "company": "Société",

@@ -1,5 +1,10 @@
 import {
   Activity,
+  FilePen,
+  FileText,
+  RotateCcw,
+  ShoppingCart,
+  Truck,
   ArrowLeftRight,
   Barcode,
   ChartColumn,
@@ -86,10 +91,17 @@ export type NavKey =
   | 'stockSerials'
   | 'stockWarehouses'
   | 'inventoryReports'
+  | 'salesQuotes'
+  | 'salesOrders'
+  | 'salesDeliveries'
+  | 'salesInvoices'
+  | 'salesReturns'
+  | 'salesReports'
 
 export type NavSectionKey =
   | 'main'
   | 'masterData'
+  | 'sales'
   | 'accounting'
   | 'inventory'
   | 'reference'
@@ -114,7 +126,6 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'main',
     items: [
       { key: 'dashboard', icon: LayoutDashboard, to: '/' },
-      { key: 'sales', icon: ReceiptText },
       { key: 'purchasing', icon: ShoppingBasket },
       { key: 'treasury', icon: WalletCards },
       { key: 'hr', icon: UsersRound },
@@ -159,6 +170,47 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Calculator,
         to: '/catalog/pricing',
         permission: 'pricing.view',
+      },
+    ],
+  },
+  {
+    key: 'sales',
+    items: [
+      {
+        key: 'salesQuotes',
+        icon: FilePen,
+        to: '/sales/quotes',
+        permission: 'sales.quotes.view',
+      },
+      {
+        key: 'salesOrders',
+        icon: ShoppingCart,
+        to: '/sales/orders',
+        permission: 'sales.orders.view',
+      },
+      {
+        key: 'salesDeliveries',
+        icon: Truck,
+        to: '/sales/deliveries',
+        permission: 'sales.deliveries.view',
+      },
+      {
+        key: 'salesInvoices',
+        icon: ReceiptText,
+        to: '/sales/invoices',
+        permission: 'sales.invoices.view',
+      },
+      {
+        key: 'salesReturns',
+        icon: RotateCcw,
+        to: '/sales/returns',
+        permission: 'sales.returns.view',
+      },
+      {
+        key: 'salesReports',
+        icon: FileText,
+        to: '/sales/reports',
+        permission: 'sales.reports.view',
       },
     ],
   },
