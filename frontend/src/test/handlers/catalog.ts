@@ -134,6 +134,7 @@ export function createCatalogDb(overrides: Partial<CatalogDb> = {}): CatalogDb {
         unit_id: U_PCS,
         variant_id: null,
         is_primary: true,
+        version: 1,
       },
     ],
     itemUnits: [
@@ -219,6 +220,7 @@ function line(id: string, itemId: string, minQty: string, price: string): PriceL
     price,
     valid_from: null,
     valid_to: null,
+    version: 1,
   }
 }
 
@@ -238,17 +240,35 @@ const notFound = () => error(404, 'NOT_FOUND', 'Kayıt bulunamadı.')
 const conflict = () =>
   error(409, 'VERSION_CONFLICT', 'Kayıt siz düzenlerken başka biri tarafından değiştirildi.')
 
+/**
+ * The list contract of one endpoint, copied from the backend controller: allowed sort fields,
+ * plain column filters, and filters with their own semantics. Anything else is a 422 there.
+ */
+export interface ListContract<T> {
+  sorts: string[]
+  filters: string[]
+  custom?: Record<string, (row: T, value: string) => boolean>
+}
+
 function paginate<T extends object>(
   rows: T[],
   url: URL,
   searchable: string[],
   extra?: (q: string, r: T) => boolean,
+  contract?: ListContract<T>,
 ) {
   let out = [...rows]
   for (const [key, value] of url.searchParams) {
     const name = /^filter\[(.+)\]$/.exec(key)?.[1]
-    if (!name || value === '') continue
-    out = out.filter((r) => String((r as Row)[name]) === value)
+    if (!name) continue
+    const custom = contract?.custom?.[name]
+    if (contract && !custom && !contract.filters.includes(name))
+      return validation({ [`filter.${name}`]: ['Geçersiz filtre.'] })
+    if (value === '') continue
+    const values = value.split(',')
+    out = custom
+      ? out.filter((r) => custom(r, value))
+      : out.filter((r) => values.includes(String((r as Row)[name])))
   }
   const q = (url.searchParams.get('q') ?? '').trim().toLocaleLowerCase('tr')
   if (q) {
@@ -262,6 +282,10 @@ function paginate<T extends object>(
     )
   }
   const sort = url.searchParams.get('sort')
+  if (sort && contract) {
+    const bad = sort.split(',').find((s) => s && !contract.sorts.includes(s.replace(/^-/, '')))
+    if (bad !== undefined) return validation({ sort: ['Geçersiz sıralama.'] })
+  }
   if (sort) {
     const desc = sort.startsWith('-')
     const field = (desc ? sort.slice(1) : sort).split(',')[0] ?? ''
@@ -277,10 +301,12 @@ function paginate<T extends object>(
   return HttpResponse.json({
     data: out.slice((page - 1) * perPage, page * perPage),
     meta: {
-      total,
-      current_page: page,
-      per_page: perPage,
-      last_page: Math.max(1, Math.ceil(total / perPage)),
+      pagination: {
+        total,
+        current_page: page,
+        per_page: perPage,
+        last_page: Math.max(1, Math.ceil(total / perPage)),
+      },
     },
   })
 }
@@ -298,6 +324,16 @@ interface ResourceSpec<T extends { id: string }> {
   validate?: (body: Row, existing: T | null, db: CatalogDb) => Record<string, string[]> | null
   versioned?: boolean
   search?: (q: string, row: T) => boolean
+  list: ListContract<T>
+  /** Fields the request rejects on PATCH ('prohibited' rule). */
+  immutable?: string[]
+}
+
+function prohibited(body: Row, fields: readonly string[] | undefined) {
+  const hit = (fields ?? []).filter((f) => f in body)
+  return hit.length
+    ? validation(Object.fromEntries(hit.map((f) => [f, ['Değiştirilemez.']])))
+    : null
 }
 
 function resource<T extends { id: string; version?: number }>(
@@ -307,7 +343,7 @@ function resource<T extends { id: string; version?: number }>(
   const find = (id: string) => spec.rows().find((r) => r.id === id) ?? null
   return [
     http.get(`${API}${spec.path}`, ({ request }) =>
-      paginate(spec.rows(), new URL(request.url), spec.searchable, spec.search),
+      paginate(spec.rows(), new URL(request.url), spec.searchable, spec.search, spec.list),
     ),
     http.get(`${API}${spec.path}/:id`, ({ params }) => {
       const row = find(String(params.id))
@@ -328,6 +364,8 @@ function resource<T extends { id: string; version?: number }>(
       const row = find(String(params.id))
       if (!row) return notFound()
       const body = (await request.json()) as Row
+      const locked = prohibited(body, spec.immutable)
+      if (locked) return locked
       if (spec.versioned !== false && body.version !== row.version) return conflict()
       const problems = spec.validate?.({ ...row, ...body }, row, db)
       if (problems) return validation(problems)
@@ -345,6 +383,23 @@ function resource<T extends { id: string; version?: number }>(
       return new HttpResponse(null, { status: 204 })
     }),
   ]
+}
+
+const LINE_KEYS = [
+  'item_id',
+  'variant_id',
+  'unit_id',
+  'min_qty',
+  'price',
+  'valid_from',
+  'valid_to',
+  'version',
+]
+
+/** PriceLineRules::key: (item, variant, unit, min_qty at scale 6, valid_from). */
+function naturalKey(l: Row): string {
+  const min = new Decimal(text(l.min_qty) || '0').toFixed(6)
+  return [text(l.item_id), text(l.variant_id), text(l.unit_id), min, text(l.valid_from)].join('|')
 }
 
 function nextId(db: CatalogDb, prefix: string) {
@@ -385,12 +440,15 @@ export function catalogHandlers(db: CatalogDb) {
     rows: () => T[],
     make: (itemId: string, body: Row) => T,
     validate: (body: Row, existing: T | null, itemId: string) => Record<string, string[]> | null,
+    list: ListContract<T>,
   ) => [
     http.get(`${API}/items/:item/${path}`, ({ params, request }) =>
       paginate(
         rows().filter((r) => r.item_id === String(params.item)),
         new URL(request.url),
         [],
+        undefined,
+        list,
       ),
     ),
     http.post(`${API}/items/:item/${path}`, async ({ params, request }) => {
@@ -407,6 +465,10 @@ export function catalogHandlers(db: CatalogDb) {
       const row = rows().find((r) => r.id === String(params.id))
       if (!row) return notFound()
       const body = (await request.json()) as Row
+      const locked = prohibited(body, path === 'units' ? ['unit_id'] : [])
+      if (locked) return locked
+      if (typeof row.version === 'number' && body.version === undefined)
+        return validation({ version: ['Sürüm zorunludur.'] })
       if (typeof row.version === 'number' && body.version !== row.version) return conflict()
       const problems = validate({ ...row, ...body }, row, String(params.item))
       if (problems) return validation(problems)
@@ -430,7 +492,8 @@ export function catalogHandlers(db: CatalogDb) {
     ...resource<Unit>(db, {
       path: '/units',
       rows: () => db.units,
-      searchable: ['code', 'name'],
+      searchable: ['code', 'name', 'symbol'],
+      list: { sorts: ['code', 'name', 'created_at'], filters: ['is_active'] },
       validate: (b, existing): Fields => {
         if (blank(b.code)) return { code: ['Kod zorunludur.'] }
         if (uniqueCode(db.units, b, existing)) return { code: ['Bu kod zaten kullanılıyor.'] }
@@ -450,6 +513,12 @@ export function catalogHandlers(db: CatalogDb) {
       path: '/unit-conversions',
       rows: () => db.conversions,
       searchable: [],
+      immutable: ['from_unit_id', 'to_unit_id'],
+      list: {
+        sorts: ['created_at'],
+        filters: ['from_unit_id', 'to_unit_id'],
+        custom: { unit_id: (c, v) => c.from_unit_id === v || c.to_unit_id === v },
+      },
       validate: (b, existing): Fields => {
         if (!isPositive(b.factor)) return { factor: ['Çarpan sıfırdan büyük olmalıdır.'] }
         if (b.from_unit_id === b.to_unit_id) return { to_unit_id: ['Birimler farklı olmalıdır.'] }
@@ -473,6 +542,14 @@ export function catalogHandlers(db: CatalogDb) {
       path: '/item-categories',
       rows: () => db.categories,
       searchable: ['code', 'name'],
+      list: {
+        sorts: ['code', 'name', 'depth', 'path', 'created_at'],
+        filters: ['is_active', 'depth'],
+        custom: {
+          parent_id: (c, v) => (v === 'root' ? c.parent_id === null : c.parent_id === v),
+          subtree: (c, v) => c.id === v || descendantIds(v, db.categories).has(c.id),
+        },
+      },
       validate: (b, existing): Fields => {
         if (blank(b.code)) return { code: ['Kod zorunludur.'] }
         if (uniqueCode(db.categories, b, existing)) return { code: ['Bu kod zaten kullanılıyor.'] }
@@ -496,6 +573,16 @@ export function catalogHandlers(db: CatalogDb) {
       path: '/items',
       rows: () => db.items,
       searchable: ['code', 'name'],
+      list: {
+        sorts: ['code', 'name', 'type', 'created_at', 'updated_at'],
+        filters: ['type', 'tracking', 'is_active', 'has_expiry', 'base_unit_id'],
+        // The category and its whole subtree.
+        custom: {
+          category: (i, v) =>
+            i.category_id !== null &&
+            (i.category_id === v || descendantIds(v, db.categories).has(i.category_id)),
+        },
+      },
       search: (q, item) =>
         db.barcodes.some((b) => b.item_id === item.id && b.barcode.includes(q)) ||
         db.variants.some((v) => v.item_id === item.id && v.sku.toLocaleLowerCase('tr').includes(q)),
@@ -535,6 +622,7 @@ export function catalogHandlers(db: CatalogDb) {
           return { sku: ['Bu SKU zaten kullanılıyor.'] }
         return null
       },
+      { sorts: ['sku', 'name', 'created_at'], filters: ['is_active'] },
     ),
     ...itemChild<ItemBarcode>(
       'barcodes',
@@ -550,6 +638,7 @@ export function catalogHandlers(db: CatalogDb) {
           unit_id: String(b.unit_id),
           variant_id: (b.variant_id as string | null) ?? null,
           is_primary: b.is_primary === true,
+          version: 1,
         }
       },
       (b, existing): Fields => {
@@ -562,6 +651,7 @@ export function catalogHandlers(db: CatalogDb) {
           return { barcode: ['Bu barkod başka bir stokta kullanılıyor.'] }
         return null
       },
+      { sorts: ['barcode', 'created_at'], filters: ['type', 'is_primary'] },
     ),
     ...itemChild<ItemUnit>(
       'units',
@@ -586,32 +676,90 @@ export function catalogHandlers(db: CatalogDb) {
           return { unit_id: ['Bu birim zaten ekli.'] }
         return null
       },
+      { sorts: ['created_at'], filters: [] },
     ),
     http.get(`${API}/price-lists/:id/lines`, ({ params, request }) =>
-      paginate(db.lines[String(params.id)] ?? [], new URL(request.url), []),
+      paginate(db.lines[String(params.id)] ?? [], new URL(request.url), [], undefined, {
+        sorts: ['min_qty', 'price', 'valid_from', 'created_at'],
+        filters: ['item_id', 'variant_id', 'unit_id'],
+      }),
     ),
+    // Upsert by natural key, all or nothing; never deletes (PriceListService::upsertLines).
     http.put(`${API}/price-lists/:id/lines`, async ({ params, request }) => {
       const id = String(params.id)
       if (!db.priceLists.some((p) => p.id === id)) return notFound()
-      const body = (await request.json()) as { lines?: PriceListLine[] }
+      const body = (await request.json()) as { lines?: Row[] }
       const lines = body.lines ?? []
+      if (lines.length === 0) return validation({ lines: ['En az bir satır gerekli.'] })
+      const existing = (db.lines[id] ??= [])
       const fields: Record<string, string[]> = {}
+      const seen = new Map<string, number>()
       lines.forEach((l, i) => {
+        const extra = Object.keys(l).filter((k) => !LINE_KEYS.includes(k))
+        if (extra.length) {
+          fields[`lines.${i}`] = ['Satırda tanımsız alan var.']
+          return
+        }
         if (!db.items.some((it) => it.id === l.item_id))
           fields[`lines.${i}.item_id`] = ['Stok bulunamadı.']
         if (!isPositive(l.price)) fields[`lines.${i}.price`] = ['Fiyat sıfırdan büyük olmalıdır.']
-        if (!isNonNegative(l.min_qty)) fields[`lines.${i}.min_qty`] = ['Geçersiz miktar.']
-        if (l.valid_from && l.valid_to && l.valid_to < l.valid_from)
-          fields[`lines.${i}.valid_to`] = ['Bitiş başlangıçtan önce olamaz.']
+        if (l.min_qty !== undefined && !isNonNegative(l.min_qty))
+          fields[`lines.${i}.min_qty`] = ['Geçersiz miktar.']
+        if (typeof l.valid_from === 'string' && typeof l.valid_to === 'string')
+          if (l.valid_to < l.valid_from)
+            fields[`lines.${i}.valid_to`] = ['Bitiş başlangıçtan önce olamaz.']
+        const key = naturalKey(l)
+        if (seen.has(key)) fields[`lines.${i}.item_id`] = ['Satır tekrar ediyor.']
+        seen.set(key, i)
+        const match = existing.find((e) => naturalKey(e as unknown as Row) === key)
+        if (match && l.version === undefined) fields[`lines.${i}.version`] = ['Sürüm zorunludur.']
+        else if (match && l.version !== match.version)
+          fields[`lines.${i}.version`] = ['Satır başka biri tarafından değiştirildi.']
+        else if (!match && l.version !== undefined)
+          fields[`lines.${i}.version`] = ['Satır bulunamadı.']
       })
       if (Object.keys(fields).length) return validation(fields)
-      db.lines[id] = lines.map((l, i) => ({ ...l, id: l.id ?? `pll-saved-${i}` }))
-      return HttpResponse.json({ data: db.lines[id] })
+      const saved = lines.map((l) => {
+        const key = naturalKey(l)
+        const match = existing.find((e) => naturalKey(e as unknown as Row) === key)
+        const values = {
+          item_id: String(l.item_id),
+          variant_id: (l.variant_id as string | null | undefined) ?? null,
+          unit_id: String(l.unit_id),
+          min_qty: new Decimal(text(l.min_qty) || '0').toFixed(6),
+          price: new Decimal(text(l.price)).toFixed(6),
+          valid_from: (l.valid_from as string | null | undefined) ?? null,
+          valid_to: (l.valid_to as string | null | undefined) ?? null,
+        }
+        if (match) {
+          const changed = JSON.stringify({ ...match, ...values }) !== JSON.stringify(match)
+          Object.assign(match, values)
+          if (changed) match.version = (match.version ?? 1) + 1
+          return match
+        }
+        const created: PriceListLine = { ...values, id: nextId(db, 'pll'), version: 1 }
+        existing.push(created)
+        return created
+      })
+      return HttpResponse.json({ data: saved, meta: { created: 0, updated: 0, unchanged: 0 } })
+    }),
+    http.delete(`${API}/price-lists/:id/lines/:lineId`, ({ params, request }) => {
+      const rows = db.lines[String(params.id)] ?? []
+      const idx = rows.findIndex((r) => r.id === String(params.lineId))
+      if (idx < 0) return notFound()
+      const version = new URL(request.url).searchParams.get('version')
+      if (version !== null && Number(version) !== rows[idx]?.version) return conflict()
+      rows.splice(idx, 1)
+      return new HttpResponse(null, { status: 204 })
     }),
     ...resource<PriceList>(db, {
       path: '/price-lists',
       rows: () => db.priceLists,
       searchable: ['code', 'name'],
+      list: {
+        sorts: ['code', 'name', 'currency_code', 'valid_from', 'created_at'],
+        filters: ['currency_code', 'is_active', 'is_default', 'tax_inclusive'],
+      },
       validate: (b, existing): Fields => {
         if (blank(b.code)) return { code: ['Kod zorunludur.'] }
         if (uniqueCode(db.priceLists, b, existing)) return { code: ['Bu kod zaten kullanılıyor.'] }
@@ -628,11 +776,23 @@ export function catalogHandlers(db: CatalogDb) {
       path: '/discount-rules',
       rows: () => db.discountRules,
       searchable: ['code', 'name'],
+      list: {
+        sorts: ['code', 'name', 'priority', 'valid_from', 'created_at'],
+        filters: ['scope', 'is_active', 'stackable', 'party_id', 'scope_ref'],
+      },
       validate: (b, existing): Fields => {
         const fields: Record<string, string[]> = {}
         if (blank(b.code)) fields.code = ['Kod zorunludur.']
         else if (uniqueCode(db.discountRules, b, existing))
           fields.code = ['Bu kod zaten kullanılıyor.']
+        // DiscountRuleRequest: scope_ref only for item/category; party rules need party_id.
+        const needsRef = b.scope === 'item' || b.scope === 'category'
+        if (needsRef && blank(b.scope_ref)) fields.scope_ref = ['Kapsam kaydı zorunludur.']
+        if (!needsRef && b.scope_ref !== null && b.scope_ref !== undefined)
+          fields.scope_ref = ['Bu kapsamda kayıt seçilemez.']
+        if (b.scope === 'party' && blank(b.party_id)) fields.party_id = ['Cari zorunludur.']
+        if (b.min_qty !== undefined && typeof b.min_qty !== 'string')
+          fields.min_qty = ['Geçersiz miktar.']
         if (
           typeof b.discount_percent !== 'string' ||
           new Decimal(b.discount_percent).greaterThan(100)
@@ -642,6 +802,7 @@ export function catalogHandlers(db: CatalogDb) {
       },
       create: (b) => ({
         ...(b as unknown as DiscountRule),
+        min_qty: new Decimal(text(b.min_qty) || '0').toFixed(6),
         id: nextId(db, 'dr'),
         version: 1,
       }),
@@ -649,8 +810,10 @@ export function catalogHandlers(db: CatalogDb) {
     http.get(`${API}/pricing/resolve`, ({ request }) => {
       const url = new URL(request.url)
       const itemId = url.searchParams.get('item_id') ?? ''
+      const currency = url.searchParams.get('currency') ?? ''
+      if (!/^[A-Z]{3}$/.test(currency)) return validation({ currency: ['Para birimi zorunludur.'] })
       const item = db.items.find((i) => i.id === itemId)
-      if (!item) return validation({ item_id: ['Stok bulunamadı.'] })
+      if (!item) return notFound()
       const qty = url.searchParams.get('qty') ?? '1'
       const partyId = url.searchParams.get('party_id')
       const party = db.parties.find((p) => p.id === partyId)
@@ -679,21 +842,40 @@ export function catalogHandlers(db: CatalogDb) {
         .filter(
           (r) =>
             r.is_active &&
-            (r.min_qty === null || new Decimal(r.min_qty).lessThanOrEqualTo(qty)) &&
+            new Decimal(r.min_qty || '0').lessThanOrEqualTo(qty) &&
+            (r.party_id === null || r.party_id === partyId) &&
             (r.scope === 'all' ||
+              r.scope === 'party' ||
               (r.scope === 'item' && r.scope_ref === itemId) ||
-              (r.scope === 'category' && r.scope_ref === item.category_id) ||
-              (r.scope === 'party' && r.scope_ref === partyId)),
+              (r.scope === 'category' && r.scope_ref === item.category_id)),
         )
         .sort((a, b) => b.priority - a.priority)[0]
+      const discount = rule?.discount_percent ?? '0'
+      const net =
+        chosen === null
+          ? null
+          : new Decimal(chosen.price)
+              .times(new Decimal(1).minus(new Decimal(discount).dividedBy(100)))
+              .toDecimalPlaces(6)
+              .toFixed(6)
       return HttpResponse.json({
         data: {
+          item_id: itemId,
+          variant_id: url.searchParams.get('variant_id'),
+          party_id: partyId,
+          qty,
+          unit_id: url.searchParams.get('unit_id') ?? item.base_unit_id,
+          date: url.searchParams.get('date'),
           unit_price: chosen?.price ?? null,
-          currency: url.searchParams.get('currency') ?? 'TRY',
+          net_unit_price: net,
+          currency,
           price_list_id: listId,
-          discount_percent: rule?.discount_percent ?? '0',
-          source,
+          price_list_line_id: chosen?.id ?? null,
+          price_unit_id: chosen?.unit_id ?? null,
+          tax_inclusive: listId ? false : null,
+          discount_percent: discount,
           discount_rule_ids: rule ? [rule.id] : [],
+          source,
         },
       })
     }),

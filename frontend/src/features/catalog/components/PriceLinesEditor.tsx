@@ -26,8 +26,8 @@ import { usePriceListLines, useVariants } from '../hooks/queries'
 import { isVersionConflict } from '../lib/errors'
 import {
   emptyLine,
+  planLineSave,
   priceLinesSchema,
-  toLineInput,
   toLineValues,
   type PriceLinesValues,
   type PriceLineValues,
@@ -96,6 +96,12 @@ function lineErrorRows(error: unknown): number[] {
   return [...rows].sort((a, b) => a - b)
 }
 
+/** 409, or a line the server says changed since it was read (`lines.N.version`). */
+function isLinesConflict(error: unknown): boolean {
+  if (isVersionConflict(error)) return true
+  return isApiError(error) && Object.keys(error.fields).some((k) => /^lines\.\d+\.version$/.test(k))
+}
+
 function LinesForm({
   priceList,
   server,
@@ -126,8 +132,10 @@ function LinesForm({
   const blocked = changedElsewhere || loadError !== null
 
   const save = useMutation({
-    mutationFn: (v: PriceLinesValues) =>
-      priceListsApi.saveLines(priceList.id, v.lines.map(toLineInput)),
+    mutationFn: (v: PriceLinesValues) => {
+      const plan = planLineSave(v.lines, server)
+      return priceListsApi.saveLines(priceList.id, plan.lines, plan.removed)
+    },
     onSuccess: (saved) => {
       queryClient.setQueryData(catalogKeys.priceListLines(priceList.id), saved)
       form.reset({ lines: saved.map(toLineValues) })
@@ -314,7 +322,7 @@ function LinesForm({
             </Button>
           </div>
         )}
-        {isVersionConflict(save.error) ? (
+        {isLinesConflict(save.error) ? (
           <VersionConflictAlert onReload={() => void reload()} />
         ) : (
           <FormErrorSummary

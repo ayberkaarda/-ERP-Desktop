@@ -32,6 +32,8 @@ describe('PricingPlaygroundPage', () => {
     expect(call?.url.searchParams.get('unit_id')).toBe(U_PCS)
     expect(call?.url.searchParams.get('qty')).toBe('120.000000')
     expect(call?.url.searchParams.has('party_id')).toBe(false)
+    // The API requires a currency; the playground defaults to TRY.
+    expect(call?.url.searchParams.get('currency')).toBe('TRY')
 
     const steps = screen.getByRole('region', { name: 'Öncelik sırası' })
     const items = within(steps).getAllByRole('listitem')

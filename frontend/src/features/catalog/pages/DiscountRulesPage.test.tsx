@@ -37,8 +37,9 @@ describe('DiscountRulesPage', () => {
     expect(post?.body).toMatchObject({
       code: 'BAYI5',
       scope: 'party',
-      scope_ref: PARTY_DEALER,
-      party_id: null,
+      scope_ref: null,
+      party_id: PARTY_DEALER,
+      min_qty: '0',
       discount_percent: '5.0000',
       priority: 10,
       stackable: false,

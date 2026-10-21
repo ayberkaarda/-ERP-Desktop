@@ -28,6 +28,18 @@ describe('ItemListPage', () => {
     expect(call?.url.searchParams.get('filter[is_active]')).toBe('true')
   })
 
+  it('filters by category subtree with the API filter name', async () => {
+    const db = setupCatalog()
+    renderCatalog('/catalog/items?filter[category]=cat-root')
+    const grid = await screen.findByRole('grid', { name: 'Stok kartları' })
+    // cat-fastener sits below cat-root, so the bolt matches; the service item does not.
+    expect(await within(grid).findByText('Cıvata M8')).toBeInTheDocument()
+    expect(within(grid).queryByText('Montaj hizmeti')).not.toBeInTheDocument()
+    const call = db.calls.find((c) => c.method === 'GET' && c.path === '/items')
+    expect(call?.url.searchParams.get('filter[category]')).toBe('cat-root')
+    expect(call?.url.searchParams.has('filter[category_id]')).toBe(false)
+  })
+
   it('searches by barcode through q', async () => {
     const db = setupCatalog()
     const user = userEvent.setup()

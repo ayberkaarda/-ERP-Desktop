@@ -240,6 +240,7 @@
       "ean13": "EAN-13",
       "ean8": "EAN-8",
       "upca": "UPC-A",
+      "code128": "Code 128",
       "other": "Diğer"
     },
     "problem": {

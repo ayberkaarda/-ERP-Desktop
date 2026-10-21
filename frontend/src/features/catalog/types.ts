@@ -1,8 +1,16 @@
 // HTTP shapes of the Catalog module (PHASE2 "Catalog module endpoints"). Decimals are strings.
 
+export interface Pagination {
+  total: number
+  current_page: number
+  last_page: number
+  per_page: number
+}
+
+/** ApiResponse::paginated: rows plus meta.pagination. */
 export interface Paginated<T> {
   data: T[]
-  meta: { total: number; current_page?: number; last_page?: number; per_page?: number }
+  meta: { pagination: Pagination }
 }
 
 export interface Envelope<T> {
@@ -42,6 +50,10 @@ export interface ItemCategory {
   code: string
   name: string
   parent_id: string | null
+  /** Server-maintained tree position (root = 1) and ancestor ids from the root down. */
+  depth?: number
+  path_ids?: string[]
+  is_active?: boolean
   version: number
 }
 
@@ -63,6 +75,7 @@ export interface Item {
   id: string
   code: string
   name: string
+  description?: string | null
   type: ItemType
   base_unit_id: string
   category_id: string | null
@@ -99,6 +112,7 @@ export interface ItemVariant {
   id: string
   item_id: string
   sku: string
+  name?: string | null
   attributes: Attributes
   is_active: boolean
   version: number
@@ -110,7 +124,7 @@ export interface ItemVariantInput {
   is_active: boolean
 }
 
-export const BARCODE_TYPES = ['ean13', 'ean8', 'upca', 'other'] as const
+export const BARCODE_TYPES = ['ean13', 'ean8', 'upca', 'code128', 'other'] as const
 export type BarcodeType = (typeof BARCODE_TYPES)[number]
 
 export interface ItemBarcode {
@@ -121,6 +135,7 @@ export interface ItemBarcode {
   unit_id: string
   variant_id: string | null
   is_primary: boolean
+  version: number
 }
 
 export interface ItemBarcodeInput {
@@ -178,6 +193,23 @@ export interface PriceListLine {
   price: string
   valid_from: string | null
   valid_to: string | null
+  version?: number
+}
+
+/**
+ * One line of PUT /price-lists/{id}/lines. The server upserts by the natural key
+ * (item, variant, unit, min_qty, valid_from) and never deletes; overwriting an existing line
+ * needs the version it was read with. Unknown keys (such as `id`) are rejected.
+ */
+export interface PriceListLineInput {
+  item_id: string
+  variant_id: string | null
+  unit_id: string
+  min_qty: string
+  price: string
+  valid_from: string | null
+  valid_to: string | null
+  version?: number
 }
 
 export const DISCOUNT_SCOPES = ['item', 'category', 'party', 'all'] as const
@@ -189,8 +221,10 @@ export interface DiscountRule {
   name: string
   scope: DiscountScope
   scope_ref: string | null
+  /** Required for scope=party (scope_ref stays null); an optional extra condition otherwise. */
   party_id: string | null
-  min_qty: string | null
+  /** Always a decimal string on the wire ("0.000000" = no minimum); null is rejected. */
+  min_qty: string
   discount_percent: string
   priority: number
   valid_from: string | null
@@ -209,7 +243,8 @@ export interface PricingQuery {
   qty: string
   unit_id?: string
   date: string
-  currency?: string
+  /** Required by the API (ISO 4217). */
+  currency: string
 }
 
 export type PriceSource = 'party_price_list' | 'default_price_list' | 'none'
@@ -227,6 +262,10 @@ export interface PricingResult {
   discount_percent: string
   /** A PriceSource; typed loosely so a new server value does not break parsing. */
   source: string
+  /** unit_price after discounts, computed by the server. */
+  net_unit_price?: string | null
+  price_unit_id?: string | null
+  tax_inclusive?: boolean | null
   /** Optional extras; the UI degrades gracefully without them. */
   price_list_line_id?: string | null
   discount_rule_ids?: string[]

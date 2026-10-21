@@ -50,7 +50,8 @@ export function BarcodesTab({ item }: { item: Item }) {
     onError: (e) => platform.notify.error(errorMessage(e, t('errors.deleteFailed'))),
   })
   const makePrimary = useMutation({
-    mutationFn: (b: ItemBarcode) => barcodesApi.update(item.id, b.id, { is_primary: true }),
+    mutationFn: (b: ItemBarcode) =>
+      barcodesApi.update(item.id, b.id, { is_primary: true, version: b.version }),
     onSuccess: async () => {
       await invalidate(catalogKeys.barcodes(item.id))
     },

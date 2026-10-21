@@ -2,7 +2,9 @@ import type { BarcodeType } from '../types'
 
 // GS1 mod-10 check digit, the same rule the API applies when a barcode declares its type.
 
-const LENGTH: Record<Exclude<BarcodeType, 'other'>, number> = { ean13: 13, ean8: 8, upca: 12 }
+/** Types with a GS1 check digit; code128 and other are free-form (no check on the server). */
+type GtinType = Exclude<BarcodeType, 'other' | 'code128'>
+const LENGTH: Record<GtinType, number> = { ean13: 13, ean8: 8, upca: 12 }
 
 /** Every character is ASCII 0-9: no whitespace, newline or non-Latin digits slip through. */
 export function isAsciiDigits(value: string): boolean {
@@ -38,7 +40,7 @@ export interface BarcodeCheck {
 export function validateBarcode(value: string, type: BarcodeType): BarcodeCheck {
   const code = value.trim()
   if (code === '') return { ok: false, problem: 'empty' }
-  if (type === 'other') return { ok: true }
+  if (type === 'other' || type === 'code128') return { ok: true }
   const expectedLength = LENGTH[type]
   if (!isAsciiDigits(code)) return { ok: false, problem: 'digits', expectedLength }
   if (code.length !== expectedLength) return { ok: false, problem: 'length', expectedLength }

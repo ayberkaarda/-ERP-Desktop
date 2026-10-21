@@ -17,6 +17,7 @@ const ghostLine: PriceListLine = {
   price: '5',
   valid_from: null,
   valid_to: null,
+  version: 1,
 }
 
 describe('price lists', () => {
@@ -67,16 +68,21 @@ describe('price lists', () => {
     expect(screen.getByRole('button', { name: '3. satır, Stok' })).toBeInTheDocument()
     const put = db.calls.find((c) => c.method === 'PUT')
     expect((put?.body as { lines: PriceListLine[] }).lines[1]).toMatchObject({
-      id: 'pll-2',
+      version: 1,
       price: '10.750000',
       min_qty: '100',
     })
+    expect((put?.body as { lines: object[] }).lines[1]).not.toHaveProperty('id')
 
     await user.click(within(table).getByRole('button', { name: '3. satırı sil' }))
     await user.click(screen.getByRole('button', { name: 'Satırları kaydet' }))
     expect(await screen.findByText('2 satır kaydedildi.')).toBeInTheDocument()
     expect(db.lines[PL_DEFAULT]).toHaveLength(2)
     expect(db.lines[PL_DEFAULT]?.[1]?.price).toBe('10.750000')
+    // The PUT upserts and never deletes: the removed line goes through DELETE with its version.
+    const del = db.calls.find((c) => c.method === 'DELETE')
+    expect(del?.path).toBe(`/price-lists/${PL_DEFAULT}/lines/pll-ghost`)
+    expect(del?.url.searchParams.get('version')).toBe('1')
   })
 
   it('adds a line from the keyboard and saves with Ctrl+S', async () => {
@@ -104,7 +110,7 @@ describe('price lists', () => {
       item_id: ITEM_SERVICE,
       unit_id: U_PCS,
       price: '250.000000',
-      min_qty: '1',
+      min_qty: '1.000000',
     })
     expect(db.lines[PL_DEFAULT]?.[0]?.item_id).toBe(ITEM_BOLT)
   })
@@ -147,7 +153,10 @@ describe('price lists', () => {
     setupCatalog()
     server.use(
       http.get('*/api/v1/price-lists/:id/lines', () =>
-        HttpResponse.json({ data: [], meta: { total: 60000, last_page: 600 } }),
+        HttpResponse.json({
+          data: [],
+          meta: { pagination: { total: 60000, last_page: 600, current_page: 1, per_page: 100 } },
+        }),
       ),
     )
     renderCatalog(`/catalog/price-lists/${PL_DEFAULT}`)
