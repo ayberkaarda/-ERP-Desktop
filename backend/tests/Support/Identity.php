@@ -44,14 +44,16 @@ final class Identity
     }
 
     /**
-     * A company with its default roles, as POST /companies creates it.
+     * A company with its default roles, as POST /companies creates it. Master data defaults
+     * (currencies, payment terms, warehouse, cost center, units) are opt-in so module tests start
+     * from an empty company; pass $defaults = true to get exactly what POST /companies seeds.
      *
      * @param  array<string, mixed>  $attributes
      */
-    public static function company(array $attributes = []): Company
+    public static function company(array $attributes = [], bool $defaults = false): Company
     {
         $company = Company::factory()->create($attributes);
-        CompanyCreated::dispatch($company->id);
+        CompanyCreated::dispatch($company->id, null, $defaults);
 
         return $company;
     }

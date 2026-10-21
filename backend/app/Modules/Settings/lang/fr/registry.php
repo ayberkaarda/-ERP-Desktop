@@ -9,4 +9,5 @@ return [
     'security.session_timeout_minutes' => 'Expiration de session (minutes)',
     'security.require_two_factor' => 'Exiger l’authentification à deux facteurs',
     'notifications.email_enabled' => 'Notifications par e-mail',
+    'company.base_currency' => 'Devise de base',
 ];

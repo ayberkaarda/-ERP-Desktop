@@ -10,6 +10,9 @@ use App\Modules\Catalog\Services\PriceLineRules;
 use App\Modules\Catalog\Services\UnitConverter;
 use Illuminate\Validation\Validator;
 
+/**
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
+ */
 final class PriceListLineRequest extends CatalogRequest
 {
     protected function gate(): array

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Reference\Database\seeders;
 
-use App\Modules\Reference\Models\Currency;
 use App\Modules\Reference\Models\TaxCode;
+use App\Modules\Reference\Services\CurrencyCatalog;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -14,21 +14,8 @@ final class ReferenceSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function (): void {
-            foreach ([
-                ['TRY', 'Türk lirası', '₺', 2], ['USD', 'US dollar', '$', 2],
-                ['EUR', 'Euro', '€', 2], ['GBP', 'Pound sterling', '£', 2],
-                ['CHF', 'Swiss franc', 'CHF', 2], ['JPY', 'Japanese yen', '¥', 0],
-                ['AUD', 'Australian dollar', 'A$', 2], ['CAD', 'Canadian dollar', 'C$', 2],
-                ['DKK', 'Danish krone', 'kr', 2], ['NOK', 'Norwegian krone', 'kr', 2],
-                ['SEK', 'Swedish krona', 'kr', 2], ['SAR', 'Saudi riyal', 'SAR', 2],
-                ['KWD', 'Kuwaiti dinar', 'KWD', 3], ['CNY', 'Chinese yuan', '¥', 2],
-                ['RUB', 'Russian ruble', '₽', 2], ['AED', 'UAE dirham', 'AED', 2],
-                ['AZN', 'Azerbaijani manat', '₼', 2], ['BGN', 'Bulgarian lev', 'лв', 2],
-                ['RON', 'Romanian leu', 'lei', 2], ['PKR', 'Pakistani rupee', 'Rs', 2],
-                ['QAR', 'Qatari riyal', 'QAR', 2], ['KRW', 'South Korean won', '₩', 0],
-            ] as [$code, $name, $symbol, $decimals]) {
-                Currency::query()->firstOrCreate(['code' => $code], compact('name', 'symbol', 'decimals') + ['is_active' => true]);
-            }
+            // Idempotent: missing currencies are added, existing (also soft deleted) rows are kept.
+            CurrencyCatalog::ensure();
             // Sources retrieved 2026-10-21; see docs/TAX-ENGINE.md (SOURCES).
             // GİB consolidated Karar 2007/13033 art. 1: %20 and %10 changed by Karar 7346 (in force 10/07/2023); %1 unchanged since the Karar took effect (31/12/2007).
             foreach ([['1', '2007-12-31'], ['10', '2023-07-10'], ['20', '2023-07-10']] as [$rate, $from]) {
@@ -61,8 +48,9 @@ final class ReferenceSeeder extends Seeder
     /** @param array<string, mixed> $attributes */
     private function tax(string $code, array $attributes, string $source, string $status, bool $periodVerified, string $note): void
     {
-        // Existing reference rows are preserved until a reviewed migration replaces them.
-        $record = TaxCode::query()->withoutGlobalScope('visible')->whereNull('company_id')->where('code', $code)->first();
+        // Existing reference rows are preserved until a reviewed migration replaces them; a row an
+        // administrator soft deleted counts as existing, so re-seeding does not bring it back.
+        $record = TaxCode::query()->withoutGlobalScope('visible')->withTrashed()->whereNull('company_id')->where('code', $code)->first();
         if ($record === null) {
             $record = new TaxCode($attributes + [
                 'code' => $code, 'is_active' => true,

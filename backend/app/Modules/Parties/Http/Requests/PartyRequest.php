@@ -20,6 +20,8 @@ use Illuminate\Validation\Validator;
  * POST creates, PATCH updates (partial, `version` required). Cross-field rules (tax number by
  * type/country, uniqueness, risk currency) run on the merged state of the stored party and the
  * payload, so a PATCH of only `type` is checked against the stored tax number.
+ *
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
  */
 final class PartyRequest extends FormRequest
 {
@@ -45,7 +47,8 @@ final class PartyRequest extends FormRequest
 
     public function creating(): bool
     {
-        return $this->route('party') === null;
+        // POST is the only creating route; decided by the method so the API document sees it too.
+        return $this->isMethod('POST');
     }
 
     /** @return array<string, list<mixed>> */

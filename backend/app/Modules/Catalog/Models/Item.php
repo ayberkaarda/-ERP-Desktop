@@ -9,6 +9,7 @@ use App\Core\Money\DecimalCast;
 use App\Modules\Catalog\Database\factories\ItemFactory;
 use App\Modules\Catalog\Enums\ItemTracking;
 use App\Modules\Catalog\Enums\ItemType;
+use App\Modules\Files\Contracts\Attachable;
 use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -41,7 +42,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, ItemVariant> $variants
  * @property-read Collection<int, ItemBarcode> $barcodes
  */
-class Item extends CatalogModel
+class Item extends CatalogModel implements Attachable
 {
     /** @use HasFactory<ItemFactory> */
     use HasFactory;

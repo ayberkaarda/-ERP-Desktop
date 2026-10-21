@@ -16,6 +16,8 @@ use Illuminate\Validation\Validator;
 /**
  * The unit must be the base unit or an alternate unit of the item; the variant must belong to it.
  * Declared GTIN types (ean13, ean8, upca) must carry a valid check digit.
+ *
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
  */
 final class ItemBarcodeRequest extends CatalogRequest
 {

@@ -8,6 +8,7 @@ use App\Modules\Identity\Enums\SessionEvent;
 use App\Modules\Identity\Models\SessionLog;
 use App\Modules\Identity\Support\CsvFormulaGuard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Support\Identity;
 
 uses(RefreshDatabase::class);
@@ -112,4 +113,41 @@ it('lists session logs of the company members only', function (): void {
 
     $root = User::factory()->superAdmin()->create();
     actingFor($root)->getJson('/api/v1/logs/sessions?filter[event]=failed', Identity::headers($this->a))->assertJsonCount(1, 'data');
+});
+
+it('returns the causer as id and name only, loaded once for the page, also for deleted users', function (): void {
+    $row = fn (): array => collect(actingFor($this->adminA)->getJson("/api/v1/logs/audit?filter[event]=updated&filter[subject_id]={$this->viewerA->id}", Identity::headers($this->a))
+        ->assertOk()->json('data'))->first();
+
+    expect($row()['causer'])->toBe(['id' => $this->adminA->id, 'name' => $this->adminA->name])
+        ->and(json_encode($row()))->not->toContain($this->adminA->email);
+
+    // A causer that was soft deleted later keeps its name in the history.
+    $this->adminA->delete();
+    $other = Identity::member($this->a, ['Admin']);
+    $entry = collect(actingFor($other)->getJson("/api/v1/logs/audit?filter[event]=updated&filter[subject_id]={$this->viewerA->id}", Identity::headers($this->a))
+        ->assertOk()->json('data'))->first();
+    expect($entry['causer'])->toBe(['id' => $this->adminA->id, 'name' => $this->adminA->name]);
+
+    // Entries without a causer (system changes) answer null.
+    app(CompanyContext::class)->runAs($this->a->id, fn () => activity()->causedByAnonymous()->log('system note'));
+    $system = collect(actingFor($other)->getJson('/api/v1/logs/audit?per_page=100', Identity::headers($this->a))->json('data'))->firstWhere('description', 'system note');
+    expect($system['causer'])->toBeNull();
+
+    // The number of queries does not grow with the number of entries (no per-row causer lookup).
+    $count = function () use ($other): int {
+        Identity::fresh();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        test()->actingAs($other)->getJson('/api/v1/logs/audit?per_page=100', Identity::headers($this->a))->assertOk();
+        DB::disableQueryLog();
+
+        return count(DB::getQueryLog());
+    };
+    $before = $count();
+    foreach (range(1, 5) as $i) {
+        Identity::fresh();
+        $this->actingAs($other)->patchJson("/api/v1/users/{$this->viewerA->id}", ['name' => 'Viewer '.$i], Identity::headers($this->a))->assertOk();
+    }
+    expect($count())->toBe($before);
 });
