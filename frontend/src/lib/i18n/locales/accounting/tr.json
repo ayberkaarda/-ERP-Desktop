@@ -37,7 +37,8 @@
     "saveView": "Bu görünümü kaydet",
     "saveViewBody": "Arama, filtre ve görünüm seçimleri bu ad altında saklanır.",
     "viewName": "Görünüm adı",
-    "removeView": "{{name}} görünümünü sil"
+    "removeView": "{{name}} görünümünü sil",
+    "dismiss": "Kapat"
   },
   "accounts": {
     "title": "Hesap planı",
@@ -211,7 +212,14 @@
       "noRows": "Gösterilecek satır yok.",
       "fixFirst": "Hatalı satırlar varken içe aktarma yapılamaz. Hata raporunu indirip düzeltin ve dosyayı yeniden yükleyin.",
       "doneToast": "{{count}} hesap içe aktarıldı.",
-      "doneBody": "{{created}} yeni hesap eklendi, {{updated}} hesap güncellendi, {{skipped}} satır atlandı."
+      "doneBody": "{{created}} yeni hesap eklendi, {{updated}} hesap güncellendi, {{skipped}} satır atlandı.",
+      "pager": "Sonuç sayfaları",
+      "prevPage": "Önceki",
+      "nextPage": "Sonraki",
+      "pageOf": "Sayfa {{page}} / {{pages}}",
+      "reportFor": "Deneme sonucu: {{name}}",
+      "partialToast": "İçe aktarma tamamlandı, {{failed}} satır işlenemedi.",
+      "partialBody": "{{failed}} satır içe aktarılamadı. Hatalı satırları aşağıda görebilir, hata raporunu indirebilirsiniz."
     }
   },
   "fiscal": {
@@ -284,6 +292,11 @@
       "updated": "{{code}} mali yılı güncellendi.",
       "closed": "{{code}} mali yılı kapatıldı.",
       "reopened": "{{code}} mali yılı yeniden açıldı."
+    },
+    "changed": {
+      "title": "Mali yıl başka bir yerde değişti",
+      "body": "Bu mali yıl siz onaylamadan önce güncellendi. Güncel hâli inceleyip yeniden onaylayın.",
+      "adopt": "Güncel hâli kullan"
     }
   },
   "periods": {
@@ -380,7 +393,12 @@
       "keyN": "{{n}}. koşul anahtarı",
       "valueN": "{{n}}. koşul değeri",
       "add": "Koşul ekle",
-      "remove": "{{n}}. koşulu kaldır"
+      "remove": "{{n}}. koşulu kaldır",
+      "errors": {
+        "keyRequired": "Koşul anahtarı zorunludur.",
+        "valueRequired": "En az bir değer girin.",
+        "duplicate": "Bu anahtar birden fazla kez kullanılmış."
+      }
     },
     "conditionKeys": {
       "party_group": "Cari grubu",
@@ -428,6 +446,8 @@
       "created": "Kural eklendi.",
       "updated": "Kural güncellendi.",
       "deleted": "Kural silindi."
-    }
+    },
+    "moveFailed": "{{event}} sıralaması değiştirilemedi; önceki sıra geri yüklendi. Neden: {{reason}}",
+    "moveFailedPartial": "{{event}} sıralaması yarım kaldı ve geri alınamadı; güncel sıra yeniden yüklendi, kontrol edin. Neden: {{reason}}"
   }
 }

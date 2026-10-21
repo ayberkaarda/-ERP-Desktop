@@ -25,7 +25,14 @@ import {
 } from '../../shared/types'
 import { RuleDialog } from '../components/RuleDialog'
 import { TestPanel } from '../components/TestPanel'
-import { groupRules, isDefaultRule, movePriority, ruleMatches } from '../lib/rules'
+import {
+  applyPriorityChanges,
+  groupRules,
+  isDefaultRule,
+  movePriority,
+  PriorityMoveError,
+  ruleMatches,
+} from '../lib/rules'
 
 const VIEW_KEY = 'accounting.determination'
 
@@ -57,6 +64,7 @@ export function DeterminationPage() {
   const [editor, setEditor] = useState<Editor>(null)
   const [deleting, setDeleting] = useState<DeterminationRule | null>(null)
   const [moving, setMoving] = useState<string | null>(null)
+  const [moveError, setMoveError] = useState<string | null>(null)
   const [matched, setMatched] = useState<DeterminationTestResult | null>(null)
   const q = params.get('q') ?? ''
   const group = params.get('group') ?? ''
@@ -97,17 +105,25 @@ export function DeterminationPage() {
     const changes = movePriority(ordered, rule.id, dir)
     if (changes.length === 0) return
     setMoving(rule.id)
+    setMoveError(null)
     try {
-      for (const c of changes) {
-        await rulesApi.update(c.rule.id, c.rule.version, { priority: c.priority })
-      }
+      await applyPriorityChanges(changes, (id, version, priority) =>
+        rulesApi.update(id, version, { priority }),
+      )
     } catch (error) {
-      platform.notify.error(
-        isVersionConflict(error)
-          ? t('common.conflictBody')
-          : errorMessage(error, t('common.actionFailed')),
+      const cause = error instanceof PriorityMoveError ? error.cause : error
+      const reason = isVersionConflict(cause)
+        ? t('common.conflictBody')
+        : errorMessage(cause, t('common.actionFailed'))
+      const rolledBack = error instanceof PriorityMoveError && error.rolledBack
+      setMoveError(
+        t(rolledBack ? 'determination.moveFailed' : 'determination.moveFailedPartial', {
+          event: rule.event_key,
+          reason,
+        }),
       )
     } finally {
+      // Always show the server's order: after a failure it is the truth to work from.
       await qc.invalidateQueries({ queryKey: accKeys.rules() })
       setMoving(null)
     }
@@ -162,6 +178,17 @@ export function DeterminationPage() {
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-4">
+          {moveError && (
+            <div
+              role="alert"
+              className="flex items-start justify-between gap-3 rounded-md border border-danger/30 bg-danger-soft p-3 text-sm text-danger-soft-foreground"
+            >
+              <p>{moveError}</p>
+              <Button variant="ghost" size="sm" onClick={() => setMoveError(null)}>
+                {t('common.dismiss')}
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap items-end gap-3">
             <FieldShell label={t('determination.search')} className="min-w-56 flex-1">
               {(control) => (

@@ -37,7 +37,8 @@
     "saveView": "Save this view",
     "saveViewBody": "Search, filters and view choices are stored under this name.",
     "viewName": "View name",
-    "removeView": "Remove view {{name}}"
+    "removeView": "Remove view {{name}}",
+    "dismiss": "Dismiss"
   },
   "accounts": {
     "title": "Chart of accounts",
@@ -211,7 +212,14 @@
       "noRows": "No rows to show.",
       "fixFirst": "Importing is not possible while rows fail. Download the error report, fix the file and upload it again.",
       "doneToast": "{{count}} accounts imported.",
-      "doneBody": "{{created}} accounts added, {{updated}} updated, {{skipped}} rows skipped."
+      "doneBody": "{{created}} accounts added, {{updated}} updated, {{skipped}} rows skipped.",
+      "pager": "Result pages",
+      "prevPage": "Previous",
+      "nextPage": "Next",
+      "pageOf": "Page {{page}} of {{pages}}",
+      "reportFor": "Dry run result: {{name}}",
+      "partialToast": "Import finished; {{failed}} rows could not be processed.",
+      "partialBody": "{{failed}} rows were not imported. See the failed rows below or download the error report."
     }
   },
   "fiscal": {
@@ -284,6 +292,11 @@
       "updated": "Fiscal year {{code}} updated.",
       "closed": "Fiscal year {{code}} closed.",
       "reopened": "Fiscal year {{code}} reopened."
+    },
+    "changed": {
+      "title": "The fiscal year changed elsewhere",
+      "body": "This fiscal year was updated before you confirmed. Review the latest version and confirm again.",
+      "adopt": "Use the latest version"
     }
   },
   "periods": {
@@ -380,7 +393,12 @@
       "keyN": "Condition {{n}} key",
       "valueN": "Condition {{n}} value",
       "add": "Add condition",
-      "remove": "Remove condition {{n}}"
+      "remove": "Remove condition {{n}}",
+      "errors": {
+        "keyRequired": "The condition key is required.",
+        "valueRequired": "Enter at least one value.",
+        "duplicate": "This key is used more than once."
+      }
     },
     "conditionKeys": {
       "party_group": "Party group",
@@ -428,6 +446,8 @@
       "created": "Rule added.",
       "updated": "Rule updated.",
       "deleted": "Rule deleted."
-    }
+    },
+    "moveFailed": "The order of {{event}} could not be changed; the previous order was restored. Reason: {{reason}}",
+    "moveFailedPartial": "The reorder of {{event}} stopped halfway and could not be undone; the current order was reloaded, please check it. Reason: {{reason}}"
   }
 }

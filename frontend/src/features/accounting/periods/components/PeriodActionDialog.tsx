@@ -1,11 +1,12 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { Ban } from 'lucide-react'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
-import { platform } from '@/platform'
+import { ApiError, platform } from '@/platform'
 import { ActionDialog } from '../../shared/ActionDialog'
 import { useAccT } from '../../shared/i18n'
 import { accKeys } from '../../shared/keys'
-import { usePeriodTransition } from '../../shared/queries'
+import { periodsApi } from '../../shared/api'
+import { usePeriods, usePeriodTransition } from '../../shared/queries'
 import type { AccountingPeriod, PeriodAction } from '../../shared/types'
 import { readBlockedReason, type BlockedReason } from '../lib/periods'
 
@@ -59,14 +60,27 @@ export function PeriodActionDialog({
   const qc = useQueryClient()
   const transition = usePeriodTransition()
   const key = ACTION_KEY[action]
-  const drafts = period.draft_entries_count ?? 0
+  // Live from the board's query, so a refresh moves the draft count (and the block) with it.
+  const periods = usePeriods(period.fiscal_year_id)
+  const live = periods.data?.find((p) => p.id === period.id) ?? period
+  const drafts = live.draft_entries_count ?? 0
   const blockedUpFront = action === 'close' && drafts > 0
 
   const confirm = async (reason: string | null) => {
-    const fresh =
-      qc
-        .getQueryData<AccountingPeriod[]>(accKeys.periods(period.fiscal_year_id))
-        ?.find((p) => p.id === period.id) ?? period
+    const yearId = period.fiscal_year_id
+    // Re-read right before submitting; the list on screen may be minutes old.
+    const list = await qc.query({
+      queryKey: accKeys.periods(yearId),
+      queryFn: ({ signal }) => periodsApi.forYear(yearId, signal),
+      staleTime: 0,
+    })
+    const fresh = list.find((p) => p.id === period.id) ?? live
+    const count = fresh.draft_entries_count ?? 0
+    if (action === 'close' && count > 0) {
+      throw new ApiError(422, 'PERIOD_HAS_DRAFT_ENTRIES', t('periods.blocked.upFront'), {
+        draft_entries: [String(count)],
+      })
+    }
     await transition.mutateAsync({ period: fresh, action, reason })
     platform.notify.success(t(`periods.toast.${key}`, { period: label }))
   }

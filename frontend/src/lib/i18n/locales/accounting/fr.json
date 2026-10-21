@@ -37,7 +37,8 @@
     "saveView": "Enregistrer cette vue",
     "saveViewBody": "La recherche, les filtres et le choix de vue sont enregistrés sous ce nom.",
     "viewName": "Nom de la vue",
-    "removeView": "Supprimer la vue {{name}}"
+    "removeView": "Supprimer la vue {{name}}",
+    "dismiss": "Fermer"
   },
   "accounts": {
     "title": "Plan comptable",
@@ -211,7 +212,14 @@
       "noRows": "Aucune ligne à afficher.",
       "fixFirst": "L’import est impossible tant que des lignes sont en erreur. Téléchargez le rapport, corrigez le fichier et rechargez-le.",
       "doneToast": "Comptes importés : {{count}}.",
-      "doneBody": "Comptes ajoutés : {{created}}, mis à jour : {{updated}}, lignes ignorées : {{skipped}}."
+      "doneBody": "Comptes ajoutés : {{created}}, mis à jour : {{updated}}, lignes ignorées : {{skipped}}.",
+      "pager": "Pages de résultats",
+      "prevPage": "Précédente",
+      "nextPage": "Suivante",
+      "pageOf": "Page {{page}} sur {{pages}}",
+      "reportFor": "Résultat de la simulation : {{name}}",
+      "partialToast": "Import terminé ; lignes non traitées : {{failed}}.",
+      "partialBody": "Lignes non importées : {{failed}}. Consultez les lignes en erreur ci-dessous ou téléchargez le rapport."
     }
   },
   "fiscal": {
@@ -284,6 +292,11 @@
       "updated": "Exercice {{code}} mis à jour.",
       "closed": "Exercice {{code}} clôturé.",
       "reopened": "Exercice {{code}} rouvert."
+    },
+    "changed": {
+      "title": "L’exercice a été modifié ailleurs",
+      "body": "Cet exercice a été mis à jour avant votre confirmation. Vérifiez la dernière version et confirmez à nouveau.",
+      "adopt": "Utiliser la dernière version"
     }
   },
   "periods": {
@@ -380,7 +393,12 @@
       "keyN": "Clé de la condition {{n}}",
       "valueN": "Valeur de la condition {{n}}",
       "add": "Ajouter une condition",
-      "remove": "Retirer la condition {{n}}"
+      "remove": "Retirer la condition {{n}}",
+      "errors": {
+        "keyRequired": "La clé de condition est obligatoire.",
+        "valueRequired": "Saisissez au moins une valeur.",
+        "duplicate": "Cette clé est utilisée plusieurs fois."
+      }
     },
     "conditionKeys": {
       "party_group": "Groupe de tiers",
@@ -428,6 +446,8 @@
       "created": "Règle ajoutée.",
       "updated": "Règle mise à jour.",
       "deleted": "Règle supprimée."
-    }
+    },
+    "moveFailed": "L’ordre de {{event}} n’a pas pu être modifié ; l’ordre précédent a été rétabli. Motif : {{reason}}",
+    "moveFailedPartial": "Le réordonnancement de {{event}} s’est interrompu et n’a pas pu être annulé ; l’ordre actuel a été rechargé, vérifiez-le. Motif : {{reason}}"
   }
 }

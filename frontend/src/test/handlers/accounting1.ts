@@ -22,6 +22,12 @@ export interface AccountingDb {
   rules: DeterminationRule[]
   /** null: the API has no closing preview (404). */
   preview: ClosingPreview | null
+  /** Drafts the server knows about but the period list does not report (race with the board). */
+  hiddenDrafts: Record<string, number>
+  /** Rule ids whose PATCH fails with 500 (to exercise rollback). */
+  failRulePatch: Set<string>
+  /** Extra failed rows a real (non dry-run) import reports. */
+  commitFailures: ImportRowResult[]
   /** Replayed responses per Idempotency-Key. */
   replays: Map<string, { status: number; body: unknown }>
   calls: { method: string; path: string; body: unknown; headers: Headers; url: URL }[]
@@ -204,6 +210,9 @@ export function createAccountingDb(overrides: Partial<AccountingDb> = {}): Accou
       rule('rule-vat', 'sales.vat_output', 0, ACC_VAT, {}, true),
     ],
     preview: null,
+    hiddenDrafts: {},
+    failRulePatch: new Set(),
+    commitFailures: [],
     replays: new Map(),
     calls: [],
     seq: 1,
@@ -430,6 +439,12 @@ export function accountingHandlers(db: AccountingDb) {
             account({ id: `acc-imp-${db.seq++}`, code: r.code ?? '', name: r.name ?? '' }),
           )
         }
+        // Rows the database refused while committing (e.g. a concurrent change).
+        if (db.commitFailures.length > 0) {
+          result.rows.push(...db.commitFailures)
+          result.failed += db.commitFailures.length
+          result.total += db.commitFailures.length
+        }
       }
       return remember(db, key, 200, { data: result })
     }),
@@ -565,13 +580,14 @@ export function accountingHandlers(db: AccountingDb) {
       const body = (await request.json()) as Row
       if (body.version !== p.version) return conflict()
       const action = String(params.action)
-      if (action === 'close' && (p.draft_entries_count ?? 0) > 0) {
+      const drafts = (p.draft_entries_count ?? 0) + (db.hiddenDrafts[p.id] ?? 0)
+      if (action === 'close' && drafts > 0) {
         return error(
           422,
           'PERIOD_HAS_DRAFT_ENTRIES',
           'Dönemde taslak fişler varken dönem kapatılamaz.',
           {
-            draft_entries: [`${p.draft_entries_count ?? 0} taslak fiş var.`],
+            draft_entries: [`${drafts} taslak fiş var.`],
           },
         )
       }
@@ -628,6 +644,7 @@ export function accountingHandlers(db: AccountingDb) {
       if (!r) return notFound()
       const body = (await request.json()) as Row
       if (body.version !== r.version) return conflict()
+      if (db.failRulePatch.has(r.id)) return error(500, 'SERVER_ERROR', 'Sunucu hatası.')
       const rest = { ...body }
       delete rest.version
       Object.assign(r, rest, { version: r.version + 1 })

@@ -1,5 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http } from 'msw'
+import { server } from '@/test/msw/server'
 import { ACC_BANK } from '@/test/handlers/accounting1'
 import { renderAccounting, setupAccounting } from '../../shared/testing'
 import './DeterminationPage'
@@ -101,5 +103,93 @@ describe('DeterminationPage', () => {
     renderAccounting('/accounting/determination?q=391')
     expect(await table('sales.vat_output')).toBeInTheDocument()
     expect(screen.queryByRole('table', { name: /sales\.revenue\.goods/ })).not.toBeInTheDocument()
+  })
+
+  it('rolls back the first priority edit when the second fails and says so', async () => {
+    const db = setupAccounting()
+    db.failRulePatch.add('rule-rev-usd')
+    const user = userEvent.setup()
+    renderAccounting('/accounting/determination')
+    const revenue = await table('sales.revenue.goods')
+    await user.click(
+      within(revenue).getByRole('button', { name: 'sales.revenue.goods 2. kuralı yukarı taşı' }),
+    )
+    expect(await screen.findByText(/önceki sıra geri yüklendi/)).toBeInTheDocument()
+    expect(db.rules.find((r) => r.id === 'rule-rev-eur')?.priority).toBe(10)
+    expect(db.rules.find((r) => r.id === 'rule-rev-usd')?.priority).toBe(20)
+    const patches = db.calls.filter((c) => c.method === 'PATCH').map((c) => c.body)
+    expect(patches).toEqual([
+      { priority: 20, version: 1 },
+      { priority: 10, version: 1 },
+      { priority: 10, version: 2 },
+    ])
+  })
+
+  it('blocks saving a rule with an empty or repeated condition', async () => {
+    const db = setupAccounting()
+    const user = userEvent.setup()
+    renderAccounting('/accounting/determination')
+    await table('sales.vat_output')
+    await user.click(screen.getByRole('button', { name: 'sales.vat_output için kural ekle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni hesap belirleme kuralı' })
+    await user.click(within(dialog).getByRole('combobox', { name: /^Hesap/ }))
+    await user.keyboard('102')
+    await user.click(await screen.findByRole('option', { name: /102 · Bankalar/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Koşul ekle' }))
+    await user.type(within(dialog).getByLabelText('1. koşul anahtarı'), 'currency')
+    await user.click(within(dialog).getByRole('button', { name: 'Koşul ekle' }))
+    await user.type(within(dialog).getByLabelText('2. koşul anahtarı'), 'currency')
+    await user.type(within(dialog).getByLabelText('2. koşul değeri'), 'USD')
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    expect(await within(dialog).findByText('En az bir değer girin.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Bu anahtar birden fazla kez kullanılmış.')).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('1. koşul değeri')).toHaveAttribute('aria-invalid', 'true')
+    expect(db.calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+  })
+
+  it('clears the test result on input changes and ignores a stale answer', async () => {
+    setupAccounting()
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let first = true
+    server.use(
+      http.post('*/api/v1/account-determination/test', async () => {
+        if (first) {
+          first = false
+          await gate
+        }
+        return undefined
+      }),
+    )
+    const user = userEvent.setup()
+    renderAccounting('/accounting/determination')
+    await table('sales.revenue.goods')
+    const panel = screen.getByRole('region', { name: 'Kural testi' })
+    await user.selectOptions(within(panel).getByLabelText(/^Olay/), 'sales.revenue.goods')
+    await user.type(within(panel).getByLabelText('Para birimi'), 'USD')
+    await user.click(within(panel).getByRole('button', { name: 'Test et' }))
+    // Inputs change while the first answer is still on the way.
+    await user.clear(within(panel).getByLabelText('Para birimi'))
+    release()
+    await new Promise((r) => setTimeout(r, 50))
+    expect(within(panel).queryByText('Belirlenen hesap')).not.toBeInTheDocument()
+    const revenue = await table('sales.revenue.goods')
+    expect(
+      within(revenue)
+        .getAllByRole('row')
+        .some((r) => r.dataset.matched),
+    ).toBe(false)
+
+    await user.click(within(panel).getByRole('button', { name: 'Test et' }))
+    expect(await within(panel).findByText('Varsayılan kural')).toBeInTheDocument()
+    await user.type(within(panel).getByLabelText('Para birimi'), 'E')
+    expect(within(panel).queryByText('Belirlenen hesap')).not.toBeInTheDocument()
+    expect(
+      within(revenue)
+        .getAllByRole('row')
+        .some((r) => r.dataset.matched),
+    ).toBe(false)
   })
 })

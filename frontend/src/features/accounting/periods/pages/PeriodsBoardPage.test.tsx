@@ -44,7 +44,7 @@ describe('PeriodsBoardPage', () => {
     expect(within(dialog).getByRole('button', { name: 'Dönemi kapat' })).toBeDisabled()
   })
 
-  it('renders the server refusal when drafts appear after the board loaded', async () => {
+  it('re-checks drafts right before closing when they appeared after the board loaded', async () => {
     const db = setupAccounting()
     const user = userEvent.setup()
     renderAccounting(`/accounting/periods?year=${YEAR_2026}`)
@@ -54,11 +54,47 @@ describe('PeriodsBoardPage', () => {
     await user.click(within(mar).getByRole('button', { name: /dönemini kapat$/ }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Dönemi kapat' }))
+    expect(await within(dialog).findAllByText('Dönemdeki taslak fiş sayısı: 2.')).not.toHaveLength(
+      0,
+    )
+    expect(within(dialog).getByRole('button', { name: 'Dönemi kapat' })).toBeDisabled()
+    expect(db.calls.some((c) => c.path.endsWith('/close'))).toBe(false)
+    expect(p?.status).toBe('open')
+  })
+
+  it('renders the server refusal when the server knows drafts the list did not show', async () => {
+    const db = setupAccounting({ db: { hiddenDrafts: { [`${YEAR_2026}-p4`]: 5 } } })
+    const user = userEvent.setup()
+    renderAccounting(`/accounting/periods?year=${YEAR_2026}`)
+    const apr = await card(/^4 · Nisan 2026/)
+    await user.click(within(apr).getByRole('button', { name: /dönemini kapat$/ }))
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: 'Dönemi kapat' }))
     expect(
       await within(dialog).findByText('Dönemde taslak fişler varken dönem kapatılamaz.'),
     ).toBeInTheDocument()
-    expect(within(dialog).getByText('Dönemdeki taslak fiş sayısı: 2.')).toBeInTheDocument()
-    expect(p?.status).toBe('open')
+    expect(within(dialog).getByText('Dönemdeki taslak fiş sayısı: 5.')).toBeInTheDocument()
+    expect(db.periods.find((x) => x.id === `${YEAR_2026}-p4`)?.status).toBe('open')
+  })
+
+  it('keeps the draft count live while the dialog is open', async () => {
+    const db = setupAccounting()
+    const feb = db.periods.find((p) => p.id === `${YEAR_2026}-p2`)
+    if (feb) feb.draft_entries_count = 3
+    const user = userEvent.setup()
+    const { queryClient } = renderAccounting(`/accounting/periods?year=${YEAR_2026}`)
+    const card2 = await card(/^2 · Şubat 2026/)
+    await user.click(within(card2).getByRole('button', { name: /dönemini kapat$/ }))
+    const dialog = await screen.findByRole('dialog')
+    const confirm = within(dialog).getByRole('button', { name: 'Dönemi kapat' })
+    expect(confirm).toBeDisabled()
+    // The drafts get posted elsewhere; the next refresh unblocks the dialog.
+    if (feb) feb.draft_entries_count = 0
+    await queryClient.invalidateQueries()
+    await waitFor(() => expect(confirm).toBeEnabled())
+    expect(within(dialog).queryByText('Dönem kapatılamıyor')).not.toBeInTheDocument()
+    await user.click(confirm)
+    await waitFor(() => expect(feb?.status).toBe('closed'))
   })
 
   it('offers no actions in a closed year and hides reopen without the permission', async () => {

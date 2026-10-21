@@ -1,8 +1,11 @@
 import { ApiError } from '@/platform'
 import type { DeterminationRule, FiscalYear } from '../../shared/types'
 import {
+  applyPriorityChanges,
+  conditionIssues,
   movePriority,
   groupRules,
+  PriorityMoveError,
   rowsToConditions,
   conditionsToRows,
 } from '../../determination/lib/rules'
@@ -84,6 +87,65 @@ describe('determination rules', () => {
       ['c', 21],
     ])
     expect(movePriority(ordered, 'a', 'up')).toEqual([])
+  })
+
+  it('moves the last of equal priorities exactly one place, keeping the others in order', () => {
+    const ordered = [rule('a', 30), rule('b', 20), rule('c', 20), rule('d', 20)]
+    const changes = movePriority(ordered, 'd', 'up')
+    const after = ordered
+      .map((r) => ({
+        id: r.id,
+        p: changes.find((c) => c.rule.id === r.id)?.priority ?? r.priority,
+      }))
+      .sort((x, y) => y.p - x.p)
+      .map((x) => x.id)
+    expect(after).toEqual(['a', 'b', 'd', 'c'])
+    // No integer room between neighbours: the group is respaced, order still adjacent.
+    const tight = [rule('a', 21), rule('b', 20), rule('c', 20), rule('d', 19)]
+    const respaced = movePriority(tight, 'c', 'up')
+    const order = tight
+      .map((r) => ({
+        id: r.id,
+        p: respaced.find((c) => c.rule.id === r.id)?.priority ?? r.priority,
+      }))
+      .sort((x, y) => y.p - x.p)
+      .map((x) => x.id)
+    expect(order).toEqual(['a', 'c', 'b', 'd'])
+  })
+
+  it('rolls back applied edits when a later one fails', async () => {
+    const calls: [string, number, number][] = []
+    const update = (id: string, version: number, priority: number) => {
+      calls.push([id, version, priority])
+      if (id === 'b' && priority === 30) return Promise.reject(new Error('boom'))
+      return Promise.resolve({ ...rule(id, priority), version: version + 1 })
+    }
+    const changes = [
+      { rule: rule('a', 30), priority: 20 },
+      { rule: rule('b', 20), priority: 30 },
+    ]
+    const error = await applyPriorityChanges(changes, update).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(PriorityMoveError)
+    expect((error as PriorityMoveError).rolledBack).toBe(true)
+    expect(calls).toEqual([
+      ['a', 1, 20],
+      ['b', 1, 30],
+      ['a', 2, 30],
+    ])
+  })
+
+  it('reports empty and duplicate condition rows', () => {
+    expect(
+      conditionIssues([
+        { key: 'currency', value: ' , ' },
+        { key: '', value: 'X' },
+        { key: 'currency', value: 'USD' },
+      ]).map((i) => [i.index, i.field, i.message.split('.').pop()]),
+    ).toEqual([
+      [0, 'value', 'valueRequired'],
+      [1, 'key', 'keyRequired'],
+      [2, 'key', 'duplicate'],
+    ])
   })
 
   it('groups by event prefix and keeps known empty events', () => {

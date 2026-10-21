@@ -66,9 +66,11 @@ export interface PriorityChange {
 }
 
 /**
- * Priority edits that move `rule` one place up or down among `ordered` (highest first): the two
- * rules swap priorities; equal priorities are split so the order is unambiguous afterwards.
- * Returns [] when the move is not possible.
+ * Priority edits that move `rule` exactly one place up or down among `ordered` (highest first)
+ * and keep every other rule's relative order. Distinct neighbours swap priorities. A run of equal
+ * priorities is renumbered (within the room the neighbouring priorities leave; otherwise the
+ * whole group is respaced) so the moved rule lands right next to its old neighbour.
+ * Returns only rules whose priority changes; [] when the move is not possible.
  */
 export function movePriority(
   ordered: readonly DeterminationRule[],
@@ -86,8 +88,78 @@ export function movePriority(
       { rule: b, priority: a.priority },
     ]
   }
-  // Same priority: lift (or drop) only the moved rule past its neighbour.
-  return [{ rule: a, priority: direction === 'up' ? b.priority + 1 : b.priority - 1 }]
+  const next = [...ordered]
+  next[i] = b
+  next[j] = a
+  const p = a.priority
+  const first = next.findIndex((r) => r.priority === p)
+  let last = first
+  while (next[last + 1]?.priority === p) last += 1
+  const run = next.slice(first, last + 1)
+  const upper = ordered[first - 1]?.priority ?? Number.POSITIVE_INFINITY
+  const lower = ordered[last + 1]?.priority ?? Number.NEGATIVE_INFINITY
+  const m = run.length
+  let target: number[]
+  if (p + m - 1 < upper) target = run.map((_, k) => p + m - 1 - k)
+  else if (p - m + 1 > lower) target = run.map((_, k) => p - k)
+  else {
+    // No integer room between the neighbours: respace the whole event group by tens.
+    const base = Math.min(...ordered.map((r) => r.priority))
+    return changesFor(
+      next,
+      next.map((_, k) => base + (next.length - 1 - k) * 10),
+    )
+  }
+  return changesFor(run, target)
+}
+
+function changesFor(rules: readonly DeterminationRule[], priorities: readonly number[]) {
+  const out: PriorityChange[] = []
+  rules.forEach((rule, k) => {
+    const priority = priorities[k]
+    if (priority !== undefined && priority !== rule.priority) out.push({ rule, priority })
+  })
+  return out
+}
+
+/** A reorder failed; `rolledBack` tells whether earlier edits were undone. */
+export class PriorityMoveError extends Error {
+  override readonly cause: unknown
+  readonly rolledBack: boolean
+  constructor(cause: unknown, rolledBack: boolean) {
+    super('Priority move failed')
+    this.name = 'PriorityMoveError'
+    this.cause = cause
+    this.rolledBack = rolledBack
+  }
+}
+
+/**
+ * Applies the edits one by one (the API has no bulk reorder). If one fails, the edits already
+ * applied are reverted in reverse order with their new versions, so the order is not left half
+ * changed; the caller reloads either way.
+ */
+export async function applyPriorityChanges(
+  changes: readonly PriorityChange[],
+  update: (id: string, version: number, priority: number) => Promise<DeterminationRule>,
+): Promise<void> {
+  const applied: { before: DeterminationRule; after: DeterminationRule }[] = []
+  try {
+    for (const c of changes) {
+      const after = await update(c.rule.id, c.rule.version, c.priority)
+      applied.push({ before: c.rule, after })
+    }
+  } catch (error) {
+    let rolledBack = true
+    for (const { before, after } of [...applied].reverse()) {
+      try {
+        await update(after.id, after.version, before.priority)
+      } catch {
+        rolledBack = false
+      }
+    }
+    throw new PriorityMoveError(error, rolledBack)
+  }
 }
 
 export interface ConditionRow {
@@ -132,4 +204,43 @@ export function ruleMatches(rule: DeterminationRule, q: string): boolean {
   ]
     .filter((x): x is string => typeof x === 'string')
     .some((x) => x.toLocaleLowerCase('tr').includes(needle))
+}
+
+export interface ConditionIssue {
+  index: number
+  field: 'key' | 'value'
+  /** i18n key in the accounting namespace. */
+  message: string
+}
+
+const splitValues = (value: string) =>
+  value
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+
+/**
+ * Problems that would change a rule's meaning on save: a row without key or without any value
+ * (it would be dropped and the rule could become unconditional) and repeated keys.
+ */
+export function conditionIssues(rows: readonly ConditionRow[]): ConditionIssue[] {
+  const issues: ConditionIssue[] = []
+  const seen = new Map<string, number>()
+  rows.forEach((row, index) => {
+    const key = row.key.trim()
+    if (!key)
+      issues.push({ index, field: 'key', message: 'determination.conditions.errors.keyRequired' })
+    if (splitValues(row.value).length === 0)
+      issues.push({
+        index,
+        field: 'value',
+        message: 'determination.conditions.errors.valueRequired',
+      })
+    if (key) {
+      if (seen.has(key))
+        issues.push({ index, field: 'key', message: 'determination.conditions.errors.duplicate' })
+      else seen.set(key, index)
+    }
+  })
+  return issues
 }

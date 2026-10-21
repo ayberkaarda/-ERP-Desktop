@@ -78,6 +78,8 @@ export function AccountTree({
   }, [activeIndex, virtualize, active, virtualizer])
 
   const rowId = (id: string) => `${baseId}-row-${id}`
+  // Mouse actions inside a row hand focus back to the tree so the arrow keys keep working.
+  const focusTree = () => scrollRef.current?.focus({ preventScroll: true })
 
   const moveTo = (index: number) => {
     if (rows.length === 0) return
@@ -91,7 +93,14 @@ export function AccountTree({
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget || !active) return
+    if (!active) return
+    // Keys bubble up from the row's buttons too (after a mouse click); only fields keep theirs,
+    // and a focused button keeps Enter/Space for its own click.
+    const target = e.target as HTMLElement
+    if (target !== e.currentTarget) {
+      if (target.closest('input, textarea, select, [contenteditable="true"]')) return
+      if ((e.key === 'Enter' || e.key === ' ') && target.closest('button')) return
+    }
     const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 400) / ROW_HEIGHT) - 1)
     const a = active.account
     const keys: Record<string, () => void> = {
@@ -178,6 +187,7 @@ export function AccountTree({
                 data-active={isActive || undefined}
                 onClick={() => {
                   setActiveId(a.id)
+                  focusTree()
                   onSelect(a)
                 }}
                 className={cn(
@@ -206,7 +216,9 @@ export function AccountTree({
                       )}
                       onClick={(e) => {
                         e.stopPropagation()
+                        setActiveId(a.id)
                         onToggle(a.id, !row.expanded)
+                        focusTree()
                       }}
                     >
                       {row.expanded ? (

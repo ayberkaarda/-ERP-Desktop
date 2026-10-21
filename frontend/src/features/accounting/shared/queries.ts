@@ -76,17 +76,6 @@ export function useDeleteAccount() {
   })
 }
 
-export function useImportAccounts() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ file, dryRun, key }: { file: File; dryRun: boolean; key: string }) =>
-      accountsApi.import(file, dryRun, key),
-    onSuccess: (result) => {
-      if (!result.dry_run) void qc.invalidateQueries({ queryKey: accKeys.accounts() })
-    },
-  })
-}
-
 // --- Fiscal years ---------------------------------------------------------------------------
 
 export function useFiscalYears(enabled = true) {
@@ -215,12 +204,5 @@ export function useDeleteRule() {
   return useMutation({
     mutationFn: ({ id, version }: { id: string; version: number }) => rulesApi.remove(id, version),
     onSuccess: invalidate,
-  })
-}
-
-export function useTestDetermination() {
-  return useMutation({
-    mutationFn: ({ eventKey, context }: { eventKey: string; context: Record<string, string> }) =>
-      rulesApi.test(eventKey, context),
   })
 }

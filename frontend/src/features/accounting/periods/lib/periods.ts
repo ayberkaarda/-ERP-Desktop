@@ -35,7 +35,8 @@ export function readBlockedReason(error: unknown): BlockedReason | null {
       if (n) draftCount = Number(n[0])
     }
   }
-  const details = fieldKeys.flatMap((k) => error.fields[k] ?? [])
+  // Bare counts are shown through draftCount, not repeated as text.
+  const details = fieldKeys.flatMap((k) => error.fields[k] ?? []).filter((m) => !/^\d+$/.test(m))
   return { message: error.message, draftCount, details }
 }
 

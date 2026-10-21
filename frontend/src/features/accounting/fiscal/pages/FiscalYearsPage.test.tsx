@@ -75,6 +75,34 @@ describe('FiscalYearsPage', () => {
     expect(close?.headers.get('Idempotency-Key')).toBeTruthy()
   })
 
+  it('asks for a new confirmation when the year changed elsewhere while the dialog was open', async () => {
+    const db = setupAccounting()
+    const user = userEvent.setup()
+    const { queryClient } = renderAccounting('/accounting/fiscal-years')
+    await screen.findByText('2026 hesap dönemi')
+    await user.click(screen.getByRole('button', { name: 'Yılı kapat' }))
+    const dialog = await screen.findByRole('dialog', { name: '2026 mali yılı kapatılsın mı?' })
+    await user.click(within(dialog).getByLabelText(/anladım/))
+    const y = db.years.find((x) => x.id === YEAR_2026)
+    if (y) {
+      y.version = 3
+      y.name = '2026 (güncel)'
+    }
+    await queryClient.invalidateQueries()
+    expect(await within(dialog).findByText('Mali yıl başka bir yerde değişti')).toBeInTheDocument()
+    const confirm = within(dialog).getByRole('button', { name: 'Yılı kapat' })
+    expect(confirm).toBeDisabled()
+    await user.click(within(dialog).getByRole('button', { name: 'Güncel hâli kullan' }))
+    // The acknowledgement must be given again for the new version.
+    expect(within(dialog).getByLabelText(/anladım/)).not.toBeChecked()
+    expect(confirm).toBeDisabled()
+    await user.click(within(dialog).getByLabelText(/anladım/))
+    await user.click(confirm)
+    await waitFor(() => expect(y?.status).toBe('closed'))
+    const closes = db.calls.filter((c) => c.path === `/fiscal-years/${YEAR_2026}/close`)
+    expect(closes.map((c) => c.body)).toEqual([{ version: 3 }])
+  })
+
   it('shows the closing preview when the API provides one', async () => {
     setupAccounting({
       db: {

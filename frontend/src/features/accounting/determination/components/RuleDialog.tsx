@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
-import { Controller, useFieldArray, useForm, useFormContext } from 'react-hook-form'
+import { Controller, useFieldArray, useForm, useFormContext, useFormState } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { z } from 'zod'
 import { FieldShell } from '@/components/shared/form'
@@ -21,7 +21,7 @@ import {
   type DeterminationRule,
   type DeterminationRuleInput,
 } from '../../shared/types'
-import { conditionsToRows, rowsToConditions } from '../lib/rules'
+import { conditionIssues, conditionsToRows, rowsToConditions } from '../lib/rules'
 
 const schema = z.object({
   event_key: requiredString()
@@ -37,7 +37,12 @@ const schema = z.object({
     .refine((v) => Boolean(v), MSG.required),
   side: z.enum(['', 'debit', 'credit']),
   description: z.string().max(500, MSG.max),
-  conditions: z.array(z.object({ key: z.string(), value: z.string() })),
+  conditions: z.array(z.object({ key: z.string(), value: z.string() })).superRefine((rows, ctx) => {
+    // Empty or repeated rows would silently change what the rule matches.
+    for (const issue of conditionIssues(rows)) {
+      ctx.addIssue({ code: 'custom', path: [issue.index, issue.field], message: issue.message })
+    }
+  }),
 })
 
 type Values = z.infer<typeof schema>
@@ -67,6 +72,11 @@ function ConditionsEditor({ disabled }: { disabled?: boolean }) {
   const t = useAccT()
   const listId = useId()
   const { control, register } = useFormContext<Values>()
+  const { errors } = useFormState({ control, name: 'conditions' })
+  const rowError = (i: number, field: 'key' | 'value') => {
+    const message = errors.conditions?.[i]?.[field]?.message
+    return message ? t(message) : undefined
+  }
   const { fields, append, remove } = useFieldArray({ control, name: 'conditions' })
   return (
     <fieldset className="space-y-2 sm:col-span-2" disabled={disabled}>
@@ -83,8 +93,13 @@ function ConditionsEditor({ disabled }: { disabled?: boolean }) {
         <p className="text-sm text-muted-foreground">{t('determination.conditions.none')}</p>
       )}
       {fields.map((f, i) => (
-        <div key={f.id} className="flex items-end gap-2">
-          <FieldShell label={t('determination.conditions.key')} className="w-48" hideLabel={i > 0}>
+        <div key={f.id} className="flex items-start gap-2">
+          <FieldShell
+            label={t('determination.conditions.key')}
+            className="w-48"
+            hideLabel={i > 0}
+            error={rowError(i, 'key')}
+          >
             {(c) => (
               <Input
                 {...c}
@@ -100,6 +115,7 @@ function ConditionsEditor({ disabled }: { disabled?: boolean }) {
             label={t('determination.conditions.value')}
             className="flex-1"
             hideLabel={i > 0}
+            error={rowError(i, 'value')}
           >
             {(c) => (
               <Input
@@ -114,6 +130,7 @@ function ConditionsEditor({ disabled }: { disabled?: boolean }) {
             type="button"
             variant="ghost"
             size="icon"
+            className={i === 0 ? 'mt-6' : undefined}
             aria-label={t('determination.conditions.remove', { n: i + 1 })}
             onClick={() => remove(i)}
           >

@@ -75,7 +75,7 @@ export const accountsApi = {
       }),
     ),
   /** Multipart upload; the same file and mode replay under one key. */
-  import: (file: File, dryRun: boolean, key: string) => {
+  import: (file: File, dryRun: boolean, key: string, signal?: AbortSignal) => {
     const body = new FormData()
     body.append('file', file)
     body.append('dry_run', dryRun ? '1' : '0')
@@ -83,7 +83,7 @@ export const accountsApi = {
       platform.http.post<ItemResponse<ImportResult>>(
         '/accounts/import',
         body,
-        withIdempotency({}, key),
+        withIdempotency({ signal }, key),
       ),
     )
   },

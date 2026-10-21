@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
@@ -10,7 +11,12 @@ import { errorMessage } from '../../shared/errors'
 import { usePayloadKeys } from '../../shared/idempotency'
 import { useAccT } from '../../shared/i18n'
 import { accKeys } from '../../shared/keys'
-import { useClosingPreview, usePeriods, useYearTransition } from '../../shared/queries'
+import {
+  useClosingPreview,
+  useFiscalYears,
+  usePeriods,
+  useYearTransition,
+} from '../../shared/queries'
 import type { ClosingPreview, FiscalYear } from '../../shared/types'
 
 function PreviewBlock({ preview }: { preview: ClosingPreview }) {
@@ -87,13 +93,26 @@ export function YearTransitionDialog({
   const keyFor = usePayloadKeys()
   const transition = useYearTransition()
   const [ack, setAck] = useState(false)
+  // The version the user is confirming against; a newer one elsewhere needs a new confirmation.
+  const [base, setBase] = useState(year)
+  const years = useFiscalYears()
+  const latest = years.data?.find((y) => y.id === year.id)
+  const changed = latest !== undefined && latest.version !== base.version
+  const adopt = () => {
+    if (!latest) return
+    setBase(latest)
+    setAck(false)
+  }
   const preview = useClosingPreview(action === 'close' ? year.id : null)
   const periods = usePeriods(action === 'close' ? year.id : null)
   const notClosed = (periods.data ?? []).filter((p) => p.status !== 'closed')
 
   const confirm = async (reason: string | null) => {
-    const fresh =
-      qc.getQueryData<FiscalYear[]>(accKeys.fiscalYears())?.find((y) => y.id === year.id) ?? year
+    const cached = qc
+      .getQueryData<FiscalYear[]>(accKeys.fiscalYears())
+      ?.find((y) => y.id === year.id)
+    if (cached && cached.version !== base.version) throw new Error(t('fiscal.changed.body'))
+    const fresh = base
     if (action === 'close') {
       await transition.mutateAsync({
         action,
@@ -124,10 +143,24 @@ export function YearTransitionDialog({
       confirmLabel={t(action === 'close' ? 'fiscal.close.confirm' : 'fiscal.reopen.confirm')}
       tone={action === 'close' ? 'primary' : 'danger'}
       requireReason={action === 'reopen'}
-      confirmDisabled={action === 'close' && !ack}
+      confirmDisabled={changed || (action === 'close' && !ack)}
       onConfirm={confirm}
       onReload={() => qc.invalidateQueries({ queryKey: accKeys.fiscalYears() })}
     >
+      {changed && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-start justify-between gap-3 rounded-md border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground"
+        >
+          <div>
+            <p className="font-semibold">{t('fiscal.changed.title')}</p>
+            <p>{t('fiscal.changed.body')}</p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={adopt}>
+            {t('fiscal.changed.adopt')}
+          </Button>
+        </div>
+      )}
       {action === 'close' && (
         <>
           <section

@@ -37,7 +37,8 @@
     "saveView": "Diese Ansicht speichern",
     "saveViewBody": "Suche, Filter und Ansichtsauswahl werden unter diesem Namen gespeichert.",
     "viewName": "Name der Ansicht",
-    "removeView": "Ansicht {{name}} entfernen"
+    "removeView": "Ansicht {{name}} entfernen",
+    "dismiss": "Schließen"
   },
   "accounts": {
     "title": "Kontenplan",
@@ -211,7 +212,14 @@
       "noRows": "Keine Zeilen anzuzeigen.",
       "fixFirst": "Solange Zeilen fehlerhaft sind, ist kein Import möglich. Fehlerbericht herunterladen, Datei korrigieren und erneut hochladen.",
       "doneToast": "{{count}} Konten importiert.",
-      "doneBody": "{{created}} Konten hinzugefügt, {{updated}} aktualisiert, {{skipped}} Zeilen übersprungen."
+      "doneBody": "{{created}} Konten hinzugefügt, {{updated}} aktualisiert, {{skipped}} Zeilen übersprungen.",
+      "pager": "Ergebnisseiten",
+      "prevPage": "Zurück",
+      "nextPage": "Weiter",
+      "pageOf": "Seite {{page}} von {{pages}}",
+      "reportFor": "Ergebnis des Probelaufs: {{name}}",
+      "partialToast": "Import beendet; {{failed}} Zeilen konnten nicht verarbeitet werden.",
+      "partialBody": "{{failed}} Zeilen wurden nicht importiert. Die fehlerhaften Zeilen stehen unten; der Fehlerbericht kann heruntergeladen werden."
     }
   },
   "fiscal": {
@@ -284,6 +292,11 @@
       "updated": "Geschäftsjahr {{code}} aktualisiert.",
       "closed": "Geschäftsjahr {{code}} abgeschlossen.",
       "reopened": "Geschäftsjahr {{code}} wieder geöffnet."
+    },
+    "changed": {
+      "title": "Das Geschäftsjahr wurde anderweitig geändert",
+      "body": "Dieses Geschäftsjahr wurde vor Ihrer Bestätigung aktualisiert. Prüfen Sie den neuesten Stand und bestätigen Sie erneut.",
+      "adopt": "Neuesten Stand verwenden"
     }
   },
   "periods": {
@@ -380,7 +393,12 @@
       "keyN": "Schlüssel der Bedingung {{n}}",
       "valueN": "Wert der Bedingung {{n}}",
       "add": "Bedingung hinzufügen",
-      "remove": "Bedingung {{n}} entfernen"
+      "remove": "Bedingung {{n}} entfernen",
+      "errors": {
+        "keyRequired": "Der Bedingungsschlüssel ist erforderlich.",
+        "valueRequired": "Mindestens einen Wert eingeben.",
+        "duplicate": "Dieser Schlüssel wird mehrfach verwendet."
+      }
     },
     "conditionKeys": {
       "party_group": "Partnergruppe",
@@ -428,6 +446,8 @@
       "created": "Regel hinzugefügt.",
       "updated": "Regel aktualisiert.",
       "deleted": "Regel gelöscht."
-    }
+    },
+    "moveFailed": "Die Reihenfolge von {{event}} konnte nicht geändert werden; die vorherige Reihenfolge wurde wiederhergestellt. Grund: {{reason}}",
+    "moveFailedPartial": "Die Umsortierung von {{event}} brach ab und konnte nicht zurückgenommen werden; die aktuelle Reihenfolge wurde neu geladen, bitte prüfen. Grund: {{reason}}"
   }
 }
