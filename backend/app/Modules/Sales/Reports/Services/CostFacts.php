@@ -41,7 +41,7 @@ final class CostFacts
             ->orderBy('l.id')
             ->select(['l.id', 'l.item_id', 'l.base_quantity', 'l.cost_total', 'd.document_date', 'd.status', 'd.reversal_date', 'd.party_id', 'd.party_name', 'd.warehouse_id']);
 
-        foreach ($deliveries->lazyById(1000, 'l.id', 'id') as $row) {
+        foreach ($this->items->stream($deliveries->lazyById(1000, 'l.id', 'id'), $f->categoryId !== null || $this->items->wantsCategories()) as $row) {
             if (! $this->matches($f, (string) $row->item_id)) {
                 continue;
             }
@@ -72,7 +72,7 @@ final class CostFacts
             ->orderBy('l.id')
             ->select(['l.id', 'l.item_id', 'l.base_quantity', 'l.cost_total', 'l.warehouse_id as line_warehouse_id', 'r.document_date', 'r.party_id', 'r.party_name', 'r.warehouse_id']);
 
-        foreach ($returns->lazyById(1000, 'l.id', 'id') as $row) {
+        foreach ($this->items->stream($returns->lazyById(1000, 'l.id', 'id'), $f->categoryId !== null || $this->items->wantsCategories()) as $row) {
             if (! $this->matches($f, (string) $row->item_id)) {
                 continue;
             }

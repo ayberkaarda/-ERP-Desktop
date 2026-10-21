@@ -39,10 +39,15 @@ final class RevenueFacts
         $to = (string) $f->dateTo;
 
         $this->headers($f)->chunkById(self::CHUNK, function ($headers) use ($f, $from, $to, $sink): void {
-            $lines = DB::table('sales_invoice_lines')->where('company_id', $f->companyId)->whereIn('document_id', $headers->pluck('id')->all())
+            $all = DB::table('sales_invoice_lines')->where('company_id', $f->companyId)->whereIn('document_id', $headers->pluck('id')->all())
                 ->orderBy('document_id')->orderBy('line_no')
-                ->get(['document_id', 'item_id', 'item_type', 'warehouse_id', 'base_quantity', 'net_amount', 'tax_amount'])
-                ->groupBy('document_id');
+                ->get(['document_id', 'item_id', 'item_type', 'warehouse_id', 'base_quantity', 'net_amount', 'tax_amount']);
+
+            if ($f->categoryId !== null || $this->items->wantsCategories()) {
+                $this->items->preload($all->pluck('item_id'));
+            }
+
+            $lines = $all->groupBy('document_id');
 
             foreach ($headers as $header) {
                 $own = $lines->get($header->id);

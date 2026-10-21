@@ -56,7 +56,7 @@ final class DeliveryInvoiceReport
         $totalCost = BigDecimal::zero();
         $deliveries = [];
 
-        foreach ($this->query($f, $asOf)->lazyById(1000, 'l.id', 'id') as $row) {
+        foreach ($this->items->stream($this->query($f, $asOf)->lazyById(1000, 'l.id', 'id'), $f->categoryId !== null) as $row) {
             if ($f->categoryId !== null && $this->items->categoryOf((string) $row->item_id) !== $f->categoryId) {
                 continue;
             }

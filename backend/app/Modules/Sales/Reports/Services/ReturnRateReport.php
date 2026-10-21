@@ -38,6 +38,10 @@ final class ReturnRateReport
 
     public function build(ReportFilters $f, string $by): ReportTable
     {
+        if ($by === 'category') {
+            $this->items->needCategories();
+        }
+
         /** @var array<string, SalesBucket> $buckets */
         $buckets = [];
         $totals = new RevenueTotals;

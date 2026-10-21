@@ -97,6 +97,10 @@ final class SalesGroupReport
      */
     private function grouped(ReportFilters $f, string $by): array
     {
+        if ($by === 'category') {
+            $this->items->needCategories();
+        }
+
         /** @var array<string, SalesBucket> $buckets */
         $buckets = [];
         /** @var array<string, array{item_type: string, items: array<string, true>}> $extra */

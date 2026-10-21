@@ -46,6 +46,10 @@ final class MarginReport
 
     public function build(ReportFilters $f, string $by): ReportTable
     {
+        if ($by === 'category') {
+            $this->items->needCategories();
+        }
+
         /** @var array<string, array{revenue: BigDecimal, cogs: BigDecimal, invoiced: BigDecimal, delivered: BigDecimal, name: string, date: string}> $groups */
         $groups = [];
         $blank = ['revenue' => BigDecimal::zero(), 'cogs' => BigDecimal::zero(), 'invoiced' => BigDecimal::zero(), 'delivered' => BigDecimal::zero(), 'name' => '', 'date' => ''];

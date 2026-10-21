@@ -6,32 +6,89 @@ namespace App\Modules\Sales\Reports\Services;
 
 use App\Modules\Catalog\Contracts\ItemLookup;
 use App\Modules\Parties\Contracts\PartyLookup;
+use Generator;
+use Illuminate\Support\LazyCollection;
+use stdClass;
 
 /**
- * Item and customer details through the Catalog and Parties contracts, memoized per request.
- * Parties come in one query per call; ItemLookup has no bulk read, so each distinct item costs one
- * lookup: reports ask only for the items of the rows they return (a page), or for every distinct
- * item when grouping or filtering by category. Deleted or foreign items resolve to null.
+ * Item and customer details through the Catalog and Parties contracts, memoized per request (the
+ * lookups themselves are resolved per call, in the active company). Items are read in bulk
+ * (ItemLookup::findMany, batches of 100): the fact streams preload the items of each chunk when a
+ * report needs categories, the decorators the items of the rows they return. Deleted or foreign
+ * items resolve to null.
  */
 final class ItemDirectory
 {
     /** @var array<string, array{code: string, name: string, category_id: string|null}|null> */
     private array $items = [];
 
-    public function __construct(
-        private readonly ItemLookup $lookup,
-        private readonly PartyLookup $parties,
-    ) {}
+    private bool $categories = false;
+
+    /** Reports grouping by category ask the fact streams to preload the items of every chunk. */
+    public function needCategories(): void
+    {
+        $this->categories = true;
+    }
+
+    public function wantsCategories(): bool
+    {
+        return $this->categories;
+    }
+
+    /**
+     * Loads the given items not yet known in one bulk read.
+     *
+     * @param  iterable<mixed>  $ids
+     */
+    public function preload(iterable $ids): void
+    {
+        $missing = [];
+
+        foreach ($ids as $id) {
+            if (is_string($id) && ! array_key_exists($id, $this->items)) {
+                $missing[$id] = $id;
+            }
+        }
+
+        if ($missing === []) {
+            return;
+        }
+
+        $found = app(ItemLookup::class)->findMany(array_values($missing));
+
+        foreach ($missing as $id) {
+            $item = $found[$id] ?? null;
+            $this->items[$id] = $item === null ? null : ['code' => $item->code, 'name' => $item->name, 'category_id' => $item->categoryId];
+        }
+    }
+
+    /**
+     * Passes the rows through, preloading the items of every 1 000 rows when $preload is set.
+     *
+     * @param  LazyCollection<int, stdClass>  $rows
+     * @return Generator<int, stdClass>
+     */
+    public function stream(LazyCollection $rows, bool $preload): Generator
+    {
+        foreach ($rows->chunk(1000) as $chunk) {
+            if ($preload) {
+                $this->preload($chunk->pluck('item_id'));
+            }
+
+            foreach ($chunk as $row) {
+                yield $row;
+            }
+        }
+    }
 
     /** @return array{code: string, name: string, category_id: string|null}|null */
     public function item(string $itemId): ?array
     {
         if (! array_key_exists($itemId, $this->items)) {
-            $item = $this->lookup->find($itemId);
-            $this->items[$itemId] = $item === null ? null : ['code' => $item->code, 'name' => $item->name, 'category_id' => $item->categoryId];
+            $this->preload([$itemId]);
         }
 
-        return $this->items[$itemId];
+        return $this->items[$itemId] ?? null;
     }
 
     public function categoryOf(string $itemId): ?string
@@ -49,7 +106,7 @@ final class ItemDirectory
     {
         $codes = [];
 
-        foreach ($ids === [] ? [] : $this->parties->findMany(array_values(array_unique($ids))) as $id => $party) {
+        foreach ($ids === [] ? [] : app(PartyLookup::class)->findMany(array_values(array_unique($ids))) as $id => $party) {
             $codes[$id] = $party->code;
         }
 
@@ -64,6 +121,8 @@ final class ItemDirectory
      */
     public function withItems(array $rows): array
     {
+        $this->preload(array_column($rows, 'item_id'));
+
         foreach ($rows as $i => $row) {
             $id = $row['item_id'] ?? null;
             $item = is_string($id) ? $this->item($id) : null;
