@@ -36,7 +36,7 @@ final class ReferenceSchema
             'currencies' => ['is_active' => ['required', 'boolean']],
             'exchange-rates' => [
                 'currency_code' => ['required', 'string', 'regex:/^[A-Z]{3}$/'],
-                'rate_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
+                'rate_date' => ['required', 'date_format:Y-m-d', 'before_or_equal:'.now('Europe/Istanbul')->toDateString()],
                 'forex_buying' => ['required', 'string', 'numeric', 'regex:/^\d{1,14}(\.\d{1,6})?$/', 'gt:0'],
                 'forex_selling' => ['required', 'string', 'numeric', 'regex:/^\d{1,14}(\.\d{1,6})?$/', 'gt:0'],
                 'banknote_buying' => ['nullable', 'string', 'numeric', 'regex:/^\d{1,14}(\.\d{1,6})?$/', 'gt:0'],

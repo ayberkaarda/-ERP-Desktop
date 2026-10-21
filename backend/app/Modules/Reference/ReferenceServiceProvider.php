@@ -13,8 +13,10 @@ use App\Modules\Reference\Rules\CurrencyCode;
 use App\Modules\Settings\Contracts\SettingsRegistrar;
 use App\Modules\Settings\Data\SettingDefinition;
 use App\Modules\Settings\Enums\SettingType;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 
 final class ReferenceServiceProvider extends ModuleServiceProvider
 {
@@ -41,6 +43,13 @@ final class ReferenceServiceProvider extends ModuleServiceProvider
             'company.base_currency', SettingType::String, 'TRY', 'company',
             rules: ['size:3', 'regex:/^[A-Z]{3}$/', new CurrencyCode],
         ));
+        // Core has no schedule hook yet, so the module registers its daily TCMB import itself.
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
+            $schedule->command('rates:fetch-tcmb')->dailyAt('16:00')->timezone('Europe/Istanbul')
+                ->withoutOverlapping()->onOneServer()
+                // Rates are global: the Notifier only addresses members of an active company, so failures are logged.
+                ->onFailure(fn () => Log::error('reference.rates_fetch_failed', ['command' => 'rates:fetch-tcmb']));
+        });
         if ($this->app->runningInConsole()) {
             $this->commands([FetchTcmbRates::class, BackfillRates::class]);
         }

@@ -7,12 +7,28 @@ namespace App\Modules\Reference\Http\Requests;
 use App\Modules\Reference\Data\RecordData;
 use App\Modules\Reference\Services\ReferenceSchema;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 
 final class ReferenceRequest extends FormRequest
 {
+    /** Rules whose parameter names another field; on PATCH they run on the merged record in the writer. */
+    private const array CROSS_FIELD = ['lt', 'lte', 'gt', 'gte', 'after', 'after_or_equal', 'before', 'before_or_equal', 'required_if', 'same', 'different'];
+
+    /** Permission is checked before validation and before any record lookup, so neither leaks existence. */
     public function authorize(): bool
     {
-        return true;
+        $resource = $this->route('resource');
+        if (! is_string($resource) || ! array_key_exists($resource, ReferenceSchema::MODELS)) {
+            return false;
+        }
+        $class = ReferenceSchema::model($resource);
+        $ability = match (true) {
+            $this->isMethod('POST') => 'create',
+            $this->isMethod('DELETE') => 'deleteAny',
+            default => 'updateAny',
+        };
+
+        return Gate::allows($ability, [$class, $class]);
     }
 
     /** @return array<string, list<string>> */
@@ -25,8 +41,9 @@ final class ReferenceRequest extends FormRequest
         $rules = ReferenceSchema::rules(is_string($resource) ? $resource : '');
         if ($this->isMethod('PATCH') || $this->isMethod('PUT')) {
             foreach ($rules as $key => $value) {
-                $rules[$key] = array_values(array_diff($value, ['required']));
-                array_unshift($rules[$key], 'sometimes');
+                $value = array_values(array_filter($value, fn (string $rule): bool => $rule !== 'required' && ! $this->crossField($rule)));
+                array_unshift($value, 'sometimes');
+                $rules[$key] = $value;
             }
         }
         if (! $this->isMethod('POST')) {
@@ -43,5 +60,12 @@ final class ReferenceRequest extends FormRequest
         unset($data['version']);
 
         return new RecordData($data, $version);
+    }
+
+    private function crossField(string $rule): bool
+    {
+        [$name, $parameter] = array_pad(explode(':', $rule, 2), 2, '');
+
+        return in_array($name, self::CROSS_FIELD, true) && preg_match('/^[a-z_]+(,|$)/', $parameter) === 1 && $parameter !== 'today';
     }
 }

@@ -21,6 +21,8 @@ final class TcmbRateFetcher
 {
     public const int MAX_BYTES = 1048576;
 
+    private const string SDR = 'XDR';
+
     public function url(?DateTimeInterface $date = null): string
     {
         return $date === null
@@ -88,11 +90,14 @@ final class TcmbRateFetcher
                     throw new InvalidRateFeed;
                 }
                 $seen[$code] = true;
+                // XDR (SDR) is the one documented row published with a buying rate only; it is not tradable here.
+                if ($code === self::SDR) {
+                    continue;
+                }
                 $buying = $this->decimal((string) $node->ForexBuying, $unit);
                 $selling = $this->decimal((string) $node->ForexSelling, $unit);
-                // XDR is published with a buying rate only; it is not a tradable currency here.
                 if ($buying === null || $selling === null) {
-                    continue;
+                    throw new InvalidRateFeed($code);
                 }
                 $result[] = new RateData(
                     $code, $date->format('Y-m-d'), $buying, $selling,

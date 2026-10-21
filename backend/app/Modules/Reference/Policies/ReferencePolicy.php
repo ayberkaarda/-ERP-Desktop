@@ -31,6 +31,18 @@ final class ReferencePolicy
         return $model !== Currency::class && $this->allowed($user, $model, 'create');
     }
 
+    /** @param class-string<Model> $model */
+    public function updateAny(User $user, string $model): bool
+    {
+        return $model !== ExchangeRate::class && $this->allowed($user, $model, 'update');
+    }
+
+    /** @param class-string<Model> $model */
+    public function deleteAny(User $user, string $model): bool
+    {
+        return $model !== Currency::class && $model !== ExchangeRate::class && $this->allowed($user, $model, 'delete');
+    }
+
     public function update(User $user, Model $record): bool
     {
         return $this->writable($record) && $this->allowed($user, $record::class, 'update');

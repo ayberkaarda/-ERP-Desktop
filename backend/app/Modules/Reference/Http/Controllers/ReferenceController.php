@@ -39,6 +39,9 @@ final class ReferenceController
 
     public function show(Request $request): JsonResponse
     {
+        $class = $this->model($request);
+        // Permission first, so a missing record cannot be told apart from a forbidden one.
+        Gate::authorize('viewAny', [$class, $class]);
         $record = $this->query($request)->whereKey($this->id($request))->firstOrFail();
         Gate::authorize('view', $record);
         $data = (new ReferenceResource($record))->resolve($request);

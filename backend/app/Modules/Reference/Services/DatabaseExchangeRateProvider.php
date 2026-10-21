@@ -35,11 +35,26 @@ final class DatabaseExchangeRateProvider implements ExchangeRateProvider
             $fromRate = $this->leg($from, $fixing);
             $toRate = $this->leg($to, $fixing);
             if ($fromRate !== null && $toRate !== null) {
-                return (string) BigDecimal::of($fromRate)->dividedBy($toRate, 6, RoundingMode::HalfUp);
+                return $this->positive(BigDecimal::of($fromRate), BigDecimal::of($toRate));
             }
         }
 
         throw new RateNotFound;
+    }
+
+    /** Six decimals as usual; a tiny cross rate keeps more digits instead of collapsing to zero. */
+    private function positive(BigDecimal $from, BigDecimal $to): string
+    {
+        $rounded = $from->dividedBy($to, 6, RoundingMode::HalfUp);
+        if ($rounded->isPositive()) {
+            return (string) $rounded;
+        }
+        $exact = $from->dividedBy($to, 18, RoundingMode::HalfUp);
+        if (! $exact->isPositive()) {
+            throw new RateNotFound;
+        }
+
+        return (string) $exact->strippedOfTrailingZeros();
     }
 
     private function leg(string $currency, string $date): ?string

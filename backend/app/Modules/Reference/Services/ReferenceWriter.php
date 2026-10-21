@@ -72,11 +72,15 @@ final class ReferenceWriter
                 $warehouse = Warehouse::query()->whereKey($warehouseId)->lockForUpdate()->firstOrFail();
                 $attributes['warehouse_id'] = $warehouse->getKey();
             }
-            $record->fill($attributes);
             $resource = array_search($record::class, ReferenceSchema::MODELS, true);
             if (is_string($resource)) {
-                Validator::make($record->getAttributes(), ReferenceSchema::rules($resource))->validate();
+                // Validate stored + incoming values in their cast (not JSON-serialized) form, so partial
+                // updates and cross-field rules see the complete record.
+                $rules = ReferenceSchema::rules($resource);
+                $stored = $record->exists ? array_intersect_key($record->attributesToArray(), $rules) : [];
+                Validator::make([...$stored, ...$attributes], $rules)->validate();
             }
+            $record->fill($attributes);
             $this->validateReferences($record);
             if ($record instanceof Warehouse && $record->getAttribute('is_default')) {
                 Warehouse::query()->where('is_default', true)->lockForUpdate()->get()->each(function (Warehouse $other) use ($record): void {
@@ -90,6 +94,9 @@ final class ReferenceWriter
                 ->where('rate_date', $record->getAttribute('rate_date'))->where('source', 'manual')
                 ->where('company_id', app(CompanyContext::class)->id())->exists()) {
                 $this->invalid('rate_date');
+            }
+            if ($record instanceof TaxCode) {
+                $this->assertNoOverlap($record);
             }
             if ($record->getAttribute('code') !== null) {
                 $duplicate = $record->newQuery()->where('code', $record->getAttribute('code'));
@@ -166,6 +173,23 @@ final class ReferenceWriter
         $party = $record->getAttribute('party_id');
         if (is_string($party) && ! $this->external->partyExists($party)) {
             $this->invalid('party_id');
+        }
+    }
+
+    /** One rate per code and scope on any day; the DB exclusion constraint backs this up under races. */
+    private function assertNoOverlap(TaxCode $record): void
+    {
+        $from = (string) $record->getAttribute('effective_from');
+        $to = $record->getAttribute('effective_to');
+        $overlap = TaxCode::query()->withoutGlobalScope('visible')
+            ->where('company_id', $record->getAttribute('company_id'))
+            ->where('code', $record->getAttribute('code'))
+            ->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>=', $from))
+            ->when(is_string($to), fn ($q) => $q->where('effective_from', '<=', $to))
+            ->when($record->exists, fn ($q) => $q->whereKeyNot($record->getKey()))
+            ->exists();
+        if ($overlap) {
+            $this->invalid('effective_from');
         }
     }
 

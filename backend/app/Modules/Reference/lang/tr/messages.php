@@ -6,6 +6,7 @@ return [
     'invalid_reference' => 'Başvurulan değer kullanılamıyor veya geçersiz.',
     'rate_not_found' => 'Yedi gün içinde kullanılabilir döviz kuru bulunamadı.',
     'invalid_feed' => 'Döviz kuru kaynağı geçersiz.',
+    'incomplete_feed_row' => 'Döviz kuru kaynağında :currency için alış veya satış kuru eksik; hiçbir kur aktarılmadı.',
     'invalid_date' => 'Geçerli bir tarih veya tarih aralığı girin.',
     'imported' => ':count döviz kuru aktarıldı.',
     'fetch_failed' => 'Döviz kurları aktarılamadı.',

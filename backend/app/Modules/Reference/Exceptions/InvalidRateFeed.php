@@ -9,8 +9,10 @@ use App\Core\Http\ErrorCode;
 
 final class InvalidRateFeed extends ApiException
 {
-    public function __construct()
+    public function __construct(public readonly ?string $currency = null)
     {
-        parent::__construct(ErrorCode::ValidationError, __('reference::messages.invalid_feed'));
+        parent::__construct(ErrorCode::ValidationError, $currency === null
+            ? __('reference::messages.invalid_feed')
+            : __('reference::messages.incomplete_feed_row', ['currency' => $currency]));
     }
 }

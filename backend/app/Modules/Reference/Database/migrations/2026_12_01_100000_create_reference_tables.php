@@ -119,6 +119,9 @@ return new class extends Migration
         DB::statement("CREATE UNIQUE INDEX exchange_rates_tcmb_day ON exchange_rates (currency_code, rate_date) WHERE source = 'tcmb'");
         DB::statement("CREATE UNIQUE INDEX exchange_rates_manual_day ON exchange_rates (company_id, currency_code, rate_date) WHERE source = 'manual'");
         DB::statement("ALTER TABLE exchange_rates ADD CONSTRAINT exchange_rates_owner CHECK ((source = 'tcmb' AND company_id IS NULL) OR (source = 'manual' AND company_id IS NOT NULL))");
+        // No two live periods of one code may overlap within a scope (global rows share the nil uuid).
+        DB::statement('CREATE EXTENSION IF NOT EXISTS btree_gist');
+        DB::statement("ALTER TABLE tax_codes ADD CONSTRAINT tax_codes_no_overlap EXCLUDE USING gist (COALESCE(company_id, '00000000-0000-0000-0000-000000000000'::uuid) WITH =, code WITH =, daterange(effective_from, effective_to, '[]') WITH &&) WHERE (deleted_at IS NULL)");
         DB::statement('ALTER TABLE tax_codes ADD CONSTRAINT tax_codes_fraction CHECK ((numerator IS NULL AND denominator IS NULL) OR (numerator IS NOT NULL AND denominator IS NOT NULL AND numerator > 0 AND denominator > 0 AND numerator <= denominator))');
         DB::statement('ALTER TABLE tax_codes ADD CONSTRAINT tax_codes_period CHECK (effective_to IS NULL OR effective_to >= effective_from)');
         DB::statement('ALTER TABLE projects ADD CONSTRAINT projects_period CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)');
