@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="isokur.xsl"?>
+<Tarih_Date Tarih="20.10.2026" Date="10/20/2026"  Bulten_No="2026/200" >
+	<Currency CrossOrder="0" Kod="USD" CurrencyCode="USD">
+			<Unit>1</Unit>
+			<Isim>ABD DOLARI</Isim>
+			<CurrencyName>US DOLLAR</CurrencyName>
+			<ForexBuying>34.1000</ForexBuying>
+			<ForexSelling>34.2000</ForexSelling>
+			<BanknoteBuying>34.0000</BanknoteBuying>
+			<BanknoteSelling>34.3000</BanknoteSelling>
+			<CrossRateUSD/>
+			<CrossRateOther/>
+
+	</Currency>
+	<Currency CrossOrder="5" Kod="JPY" CurrencyCode="JPY">
+			<Unit>100</Unit>
+			<Isim>JAPON YENİ</Isim>
+			<CurrencyName>JAPENESE YEN</CurrencyName>
+			<ForexBuying>22.3456</ForexBuying>
+			<ForexSelling>22.4567</ForexSelling>
+			<BanknoteBuying/>
+			<BanknoteSelling/>
+				<CrossRateUSD>152.30</CrossRateUSD>
+				<CrossRateOther/>
+
+	</Currency>
+	<Currency CrossOrder="9" Kod="EUR" CurrencyCode="EUR">
+			<Unit>1</Unit>
+			<Isim>EURO</Isim>
+			<CurrencyName>EURO</CurrencyName>
+			<ForexBuying>37.5000</ForexBuying>
+			<ForexSelling>38.0000</ForexSelling>
+			<BanknoteBuying>37.4000</BanknoteBuying>
+			<BanknoteSelling>38.1000</BanknoteSelling>
+				<CrossRateUSD/>
+				<CrossRateOther>1.1111</CrossRateOther>
+
+	</Currency>
+	<Currency CrossOrder="19" Kod="KRW" CurrencyCode="KRW">
+			<Unit>1</Unit>
+			<Isim>GÜNEY KORE WONU</Isim>
+			<CurrencyName>SOUTH KOREAN WON</CurrencyName>
+			<ForexBuying>0.02501</ForexBuying>
+			<ForexSelling>0.02534</ForexSelling>
+			<BanknoteBuying></BanknoteBuying>
+			<BanknoteSelling></BanknoteSelling>
+				<CrossRateUSD>1364</CrossRateUSD>
+				<CrossRateOther/>
+
+	</Currency>
+	<Currency CrossOrder="0" Kod="XDR" CurrencyCode="XDR">
+		<Unit>1</Unit>
+		<Isim>ÖZEL ÇEKME HAKKI (SDR)                            </Isim>
+		<CurrencyName>SPECIAL DRAWING RIGHT (SDR)                       </CurrencyName>
+		<ForexBuying>46.5000</ForexBuying>
+		<ForexSelling/>
+		<BanknoteBuying/>
+		<BanknoteSelling/>
+		<CrossRateUSD/>
+		<CrossRateOther>1.36000</CrossRateOther>
+	</Currency>
+</Tarih_Date>

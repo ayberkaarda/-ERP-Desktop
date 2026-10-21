@@ -1,0 +1,254 @@
+// HTTP shapes of the Catalog module (PHASE2 "Catalog module endpoints"). Decimals are strings.
+
+export interface Paginated<T> {
+  data: T[]
+  meta: { total: number; current_page?: number; last_page?: number; per_page?: number }
+}
+
+export interface Envelope<T> {
+  data: T
+}
+
+export interface UnitRef {
+  id: string
+  code: string
+  name: string
+  symbol: string | null
+}
+
+export interface Unit extends UnitRef {
+  is_active: boolean
+  version: number
+}
+
+export interface UnitInput {
+  code: string
+  name: string
+  symbol: string | null
+  is_active: boolean
+}
+
+export interface UnitConversion {
+  id: string
+  from_unit_id: string
+  to_unit_id: string
+  /** 1 from-unit = factor to-units. */
+  factor: string
+  version: number
+}
+
+export interface ItemCategory {
+  id: string
+  code: string
+  name: string
+  parent_id: string | null
+  version: number
+}
+
+export interface ItemCategoryInput {
+  code: string
+  name: string
+  parent_id: string | null
+}
+
+export const ITEM_TYPES = ['stock', 'service'] as const
+export type ItemType = (typeof ITEM_TYPES)[number]
+
+export const TRACKING_MODES = ['none', 'lot', 'serial'] as const
+export type TrackingMode = (typeof TRACKING_MODES)[number]
+
+export type Attributes = Record<string, string>
+
+export interface Item {
+  id: string
+  code: string
+  name: string
+  type: ItemType
+  base_unit_id: string
+  category_id: string | null
+  default_tax_code_id: string | null
+  purchase_tax_code_id: string | null
+  tracking: TrackingMode
+  has_expiry: boolean
+  min_stock: string | null
+  reorder_point: string | null
+  is_active: boolean
+  attributes: Attributes
+  version: number
+  /** Embedded when the API includes relations. */
+  base_unit?: UnitRef | null
+  category?: { id: string; code: string; name: string } | null
+}
+
+export interface ItemInput {
+  name: string
+  type: ItemType
+  base_unit_id: string
+  category_id: string | null
+  default_tax_code_id: string | null
+  purchase_tax_code_id: string | null
+  tracking: TrackingMode
+  has_expiry: boolean
+  min_stock: string | null
+  reorder_point: string | null
+  is_active: boolean
+  attributes: Attributes
+}
+
+export interface ItemVariant {
+  id: string
+  item_id: string
+  sku: string
+  attributes: Attributes
+  is_active: boolean
+  version: number
+}
+
+export interface ItemVariantInput {
+  sku: string
+  attributes: Attributes
+  is_active: boolean
+}
+
+export const BARCODE_TYPES = ['ean13', 'ean8', 'upca', 'other'] as const
+export type BarcodeType = (typeof BARCODE_TYPES)[number]
+
+export interface ItemBarcode {
+  id: string
+  item_id: string
+  barcode: string
+  type: BarcodeType
+  unit_id: string
+  variant_id: string | null
+  is_primary: boolean
+}
+
+export interface ItemBarcodeInput {
+  barcode: string
+  type: BarcodeType
+  unit_id: string
+  variant_id: string | null
+  is_primary: boolean
+}
+
+export interface ItemUnit {
+  id: string
+  item_id: string
+  unit_id: string
+  /** 1 alternate unit = factor base units. */
+  factor: string
+  version: number
+}
+
+export interface ItemUnitInput {
+  unit_id: string
+  factor: string
+}
+
+export interface PriceList {
+  id: string
+  code: string
+  name: string
+  currency_code: string
+  is_default: boolean
+  valid_from: string | null
+  valid_to: string | null
+  is_active: boolean
+  tax_inclusive: boolean
+  version: number
+}
+
+export interface PriceListInput {
+  code: string
+  name: string
+  currency_code: string
+  is_default: boolean
+  valid_from: string | null
+  valid_to: string | null
+  is_active: boolean
+  tax_inclusive: boolean
+}
+
+export interface PriceListLine {
+  id?: string
+  item_id: string
+  variant_id: string | null
+  unit_id: string
+  min_qty: string
+  price: string
+  valid_from: string | null
+  valid_to: string | null
+}
+
+export const DISCOUNT_SCOPES = ['item', 'category', 'party', 'all'] as const
+export type DiscountScope = (typeof DISCOUNT_SCOPES)[number]
+
+export interface DiscountRule {
+  id: string
+  code: string
+  name: string
+  scope: DiscountScope
+  scope_ref: string | null
+  party_id: string | null
+  min_qty: string | null
+  discount_percent: string
+  priority: number
+  valid_from: string | null
+  valid_to: string | null
+  is_active: boolean
+  stackable: boolean
+  version: number
+}
+
+export type DiscountRuleInput = Omit<DiscountRule, 'id' | 'version'>
+
+export interface PricingQuery {
+  item_id: string
+  variant_id?: string
+  party_id?: string
+  qty: string
+  unit_id?: string
+  date: string
+  currency?: string
+}
+
+export type PriceSource = 'party_price_list' | 'default_price_list' | 'none'
+
+export interface PricingTraceStep {
+  step: string
+  outcome: 'matched' | 'skipped' | 'rejected'
+  detail?: string | null
+}
+
+export interface PricingResult {
+  unit_price: string | null
+  currency: string
+  price_list_id: string | null
+  discount_percent: string
+  /** A PriceSource; typed loosely so a new server value does not break parsing. */
+  source: string
+  /** Optional extras; the UI degrades gracefully without them. */
+  price_list_line_id?: string | null
+  discount_rule_ids?: string[]
+  trace?: PricingTraceStep[]
+}
+
+// Other modules' rows used in pickers, read defensively.
+export interface TaxCodeRef {
+  id: string
+  code: string
+  name: string
+  rate: string | null
+  type?: string
+}
+
+export interface CurrencyRef {
+  code: string
+  name: string
+}
+
+export interface PartyRef {
+  id: string
+  code: string
+  name: string
+}
