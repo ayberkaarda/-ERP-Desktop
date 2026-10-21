@@ -6,6 +6,8 @@ import {
   invoiceLineProblems,
   toInvoiceInput,
   toPreviewInput,
+  previewLineFor,
+  previewRowIndexes,
   undeliveredGoods,
   valuesFromInvoice,
   type InvoiceLineValues,
@@ -66,6 +68,16 @@ describe('invoice form values', () => {
     expect(input.lines[1]?.unit_price).toBe('12.5')
     expect(input.fx_rate).toBeNull()
     expect(input.due_date).toBeNull()
+  })
+
+  it('maps preview answers back to the same rows the request was built from', () => {
+    // Row 0 is filled in but has no unit yet, so it is not priced; row 1 is.
+    const v = values([filled({ unitId: '' }), filled({ quantity: '3' })])
+    expect(previewRowIndexes(v)).toEqual([1])
+    expect(toPreviewInput(v)?.lines.map((l) => l.quantity)).toEqual(['3'])
+    const preview = { lines: [{ line_total: 'row1' }] }
+    expect(previewLineFor(v, preview, 0)).toBeUndefined()
+    expect(previewLineFor(v, preview, 1)).toEqual({ line_total: 'row1' })
   })
 
   it('builds a preview only once a line has a quantity and unit', () => {

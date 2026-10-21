@@ -11,6 +11,7 @@ import type { PreviewResult } from '../types'
 import {
   emptyInvoiceLine,
   isBlankInvoiceLine,
+  previewLineFor,
   toLineMath,
   type InvoiceLineValues,
   type InvoiceValues,
@@ -35,16 +36,9 @@ export function InvoiceLinesGrid({ disabled, canOverridePrice, preview }: Invoic
   const currency = useWatch({ control: form.control, name: 'currencyCode' })
   const taxCodes = useTaxCodes().data
 
-  // Preview lines follow the sent (non-blank) lines in form order.
-  const previewIndex: Record<number, number> = {}
-  let n = 0
-  lines.forEach((l, i) => {
-    if (!isBlankInvoiceLine(l)) previewIndex[i] = n++
-  })
-  const previewOf = (index: number) => {
-    const p = previewIndex[index]
-    return p === undefined ? undefined : preview?.lines[p]
-  }
+  // Same row selection as the request (lib/lines previewRowIndexes).
+  const previewOf = (index: number) =>
+    previewLineFor({ ...form.getValues(), lines }, preview, index)
 
   const set = (index: number, patch: Partial<InvoiceLineValues>) => {
     for (const [key, value] of Object.entries(patch)) {

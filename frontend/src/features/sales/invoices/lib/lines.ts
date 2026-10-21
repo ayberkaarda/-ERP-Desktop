@@ -161,10 +161,31 @@ export function toInvoiceInput(values: InvoiceValues): InvoiceInput {
 }
 
 /** Preview request of the current form, or null while it cannot be priced (no line yet). */
+/**
+ * Form indexes of the rows sent to preview-totals, in order. The request and the mapping of the
+ * answer back onto rows both use this one selection, so answer N always belongs to row [N].
+ */
+export function previewRowIndexes(values: InvoiceValues): number[] {
+  return sentInvoiceLines(values)
+    .filter(({ line }) => isDecimal(line.quantity) && line.unitId !== '')
+    .map(({ index }) => index)
+}
+
+/** The preview answer line of form row `index`, if that row was priced. */
+export function previewLineFor<T>(
+  values: InvoiceValues,
+  preview: { lines: readonly T[] } | null | undefined,
+  index: number,
+): T | undefined {
+  const at = previewRowIndexes(values).indexOf(index)
+  return at < 0 ? undefined : preview?.lines[at]
+}
+
 export function toPreviewInput(values: InvoiceValues): PreviewInput | null {
-  const lines = sentInvoiceLines(values)
-    .map(({ line }) => line)
-    .filter((l) => isDecimal(l.quantity) && l.unitId !== '')
+  const lines = previewRowIndexes(values).flatMap((i) => {
+    const line = values.lines[i]
+    return line ? [line] : []
+  })
   if (lines.length === 0 || !values.documentDate) return null
   return {
     document_type: 'sales_invoice',
