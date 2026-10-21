@@ -54,6 +54,36 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Sistem durumu' })).toBeInTheDocument()
   })
 
+  it('shows the inventory section entries the company grants', () => {
+    signInWith(['inventory.stock.view'])
+    renderSidebar()
+
+    const inventory = screen.getByRole('group', { name: 'Stok' })
+    expect(within(inventory).getByRole('link', { name: 'Stok durumu' })).toHaveAttribute(
+      'href',
+      '/inventory/stock',
+    )
+    for (const name of ['Stok hareketleri', 'Lotlar', 'Seri numaraları', 'Rezervasyonlar']) {
+      expect(within(inventory).getByRole('link', { name })).toBeInTheDocument()
+    }
+    expect(within(inventory).queryByRole('link', { name: 'Stok fişleri' })).not.toBeInTheDocument()
+    expect(within(inventory).queryByRole('link', { name: 'Sayımlar' })).not.toBeInTheDocument()
+  })
+
+  it('opens stock documents, counts and reports with their own permissions', () => {
+    signInWith(['inventory.documents.view', 'inventory.reports.view'])
+    renderSidebar()
+
+    const inventory = screen.getByRole('group', { name: 'Stok' })
+    expect(within(inventory).getByRole('link', { name: 'Stok fişleri' })).toHaveAttribute(
+      'href',
+      '/inventory/documents',
+    )
+    expect(within(inventory).getByRole('link', { name: 'Sayımlar' })).toBeInTheDocument()
+    expect(within(inventory).getByRole('link', { name: 'Stok raporları' })).toBeInTheDocument()
+    expect(within(inventory).queryByRole('link', { name: 'Stok durumu' })).not.toBeInTheDocument()
+  })
+
   it('shows the accounting section entries the company grants', () => {
     signInWith(['accounting.entries.view', 'accounting.reports.view'])
     renderSidebar()

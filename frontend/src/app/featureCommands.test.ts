@@ -3,7 +3,7 @@ import { useRegisteredCommands } from '@/features/command-palette/registry'
 import { registerFeatureCommands } from './featureCommands'
 
 describe('registerFeatureCommands', () => {
-  it('adds the parties, catalog, reference and accounting palette entries once', () => {
+  it('adds the parties, catalog, reference, accounting and inventory palette entries once', () => {
     const off = registerFeatureCommands()
     expect(registerFeatureCommands()).toBe(off)
 
@@ -17,6 +17,10 @@ describe('registerFeatureCommands', () => {
         'accounting.accounts',
         'accounting.journalEntries',
         'accounting.reports.trialBalance',
+        'inventory.documents',
+        'inventory.counts',
+        'inventory.reservations',
+        'inventory.reports',
       ]),
     )
     expect(ids.some((id) => id.startsWith('parties.'))).toBe(true)

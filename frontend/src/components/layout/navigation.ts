@@ -1,5 +1,12 @@
 import {
   Activity,
+  ArrowLeftRight,
+  Barcode,
+  ChartColumn,
+  ClipboardCheck,
+  ClipboardList,
+  Layers,
+  Lock,
   Banknote,
   BookOpenText,
   BookText,
@@ -33,9 +40,11 @@ import {
 } from 'lucide-react'
 import { ACC_ACCESS, ACC_PERMISSIONS } from '@/features/accounting/shared/permissions'
 import { CATALOG_OPEN } from '@/features/catalog/permissions'
+import { INV_OPEN, INV_PERMS } from '@/features/inventory/documents/permissions'
+import { INV_ACCESS } from '@/features/inventory/stock/lib/permissions'
 import { REF_PERMISSIONS } from '@/features/reference/permissions'
 // Permission names mirror each feature's routes.tsx guards.
-import type { PermissionRequirement } from '@/lib/permissions'
+import { anyOf, type PermissionRequirement } from '@/lib/permissions'
 
 export type NavKey =
   | 'dashboard'
@@ -68,8 +77,23 @@ export type NavKey =
   | 'fiscalYears'
   | 'accountingPeriods'
   | 'accountDetermination'
+  | 'stockStatus'
+  | 'stockMovements'
+  | 'stockDocuments'
+  | 'stockCounts'
+  | 'stockReservations'
+  | 'stockLots'
+  | 'stockSerials'
+  | 'stockWarehouses'
+  | 'inventoryReports'
 
-export type NavSectionKey = 'main' | 'masterData' | 'accounting' | 'reference' | 'system'
+export type NavSectionKey =
+  | 'main'
+  | 'masterData'
+  | 'accounting'
+  | 'inventory'
+  | 'reference'
+  | 'system'
 
 export interface NavItem {
   key: NavKey
@@ -92,7 +116,6 @@ export const NAV_SECTIONS: NavSection[] = [
       { key: 'dashboard', icon: LayoutDashboard, to: '/' },
       { key: 'sales', icon: ReceiptText },
       { key: 'purchasing', icon: ShoppingBasket },
-      { key: 'inventory', icon: Boxes },
       { key: 'treasury', icon: WalletCards },
       { key: 'hr', icon: UsersRound },
     ],
@@ -136,6 +159,65 @@ export const NAV_SECTIONS: NavSection[] = [
         icon: Calculator,
         to: '/catalog/pricing',
         permission: 'pricing.view',
+      },
+    ],
+  },
+  {
+    key: 'inventory',
+    items: [
+      {
+        key: 'stockStatus',
+        icon: Boxes,
+        to: '/inventory/stock',
+        permission: INV_ACCESS.stock,
+      },
+      {
+        key: 'stockMovements',
+        icon: ArrowLeftRight,
+        to: '/inventory/movements',
+        permission: INV_ACCESS.stock,
+      },
+      {
+        key: 'stockDocuments',
+        icon: ClipboardList,
+        to: '/inventory/documents',
+        permission: INV_OPEN.documents,
+      },
+      {
+        key: 'stockCounts',
+        icon: ClipboardCheck,
+        to: '/inventory/counts',
+        permission: INV_OPEN.documents,
+      },
+      {
+        key: 'stockReservations',
+        icon: Lock,
+        to: '/inventory/reservations',
+        permission: INV_OPEN.reservations,
+      },
+      {
+        key: 'stockLots',
+        icon: Layers,
+        to: '/inventory/lots',
+        permission: INV_ACCESS.stock,
+      },
+      {
+        key: 'stockSerials',
+        icon: Barcode,
+        to: '/inventory/serials',
+        permission: INV_ACCESS.stock,
+      },
+      {
+        key: 'stockWarehouses',
+        icon: Warehouse,
+        to: '/inventory/warehouses',
+        permission: INV_ACCESS.warehouses,
+      },
+      {
+        key: 'inventoryReports',
+        icon: ChartColumn,
+        to: '/inventory/reports',
+        permission: anyOf(INV_PERMS.reportsView, INV_PERMS.stockView),
       },
     ],
   },

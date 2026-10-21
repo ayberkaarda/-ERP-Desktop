@@ -8,6 +8,14 @@ import { periodsRoutes } from '@/features/accounting/periods/routes'
 import { reportsRoutes } from '@/features/accounting/reports/routes'
 import { bindAuthFailures } from '@/features/auth/session'
 import { catalogRoutes } from '@/features/catalog/routes'
+import { countsRoutes } from '@/features/inventory/counts/routes'
+import { documentsRoutes } from '@/features/inventory/documents/routes'
+import { lotsRoutes } from '@/features/inventory/lots/routes'
+import { movementsRoutes } from '@/features/inventory/movements/routes'
+import { inventoryReportsRoutes } from '@/features/inventory/reports/routes'
+import { reservationsRoutes } from '@/features/inventory/reservations/routes'
+import { stockRoutes } from '@/features/inventory/stock/routes'
+import { warehousesRoutes } from '@/features/inventory/warehouses/routes'
 import { partyRoutes } from '@/features/parties/routes'
 import { referenceRoutes } from '@/features/reference/routes'
 import { GuestOnly, RequireAuth } from './guards'
@@ -88,6 +96,14 @@ export const routes: RouteObject[] = [
           ...determinationRoutes,
           ...journalRoutes,
           ...reportsRoutes,
+          ...warehousesRoutes,
+          ...stockRoutes,
+          ...movementsRoutes,
+          ...lotsRoutes,
+          ...documentsRoutes,
+          ...countsRoutes,
+          ...reservationsRoutes,
+          ...inventoryReportsRoutes,
           ...devRoutes,
           {
             path: '*',

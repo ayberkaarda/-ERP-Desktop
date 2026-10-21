@@ -51,7 +51,16 @@
     "journalBook": "Journal book",
     "fiscalYears": "Fiscal years",
     "accountingPeriods": "Accounting periods",
-    "accountDetermination": "Account determination"
+    "accountDetermination": "Account determination",
+    "stockStatus": "Stock status",
+    "stockMovements": "Stock movements",
+    "stockDocuments": "Stock documents",
+    "stockCounts": "Stock counts",
+    "stockReservations": "Reservations",
+    "stockLots": "Lots",
+    "stockSerials": "Serial numbers",
+    "stockWarehouses": "Warehouse stock settings",
+    "inventoryReports": "Inventory reports"
   },
   "topbar": {
     "company": "Company",
