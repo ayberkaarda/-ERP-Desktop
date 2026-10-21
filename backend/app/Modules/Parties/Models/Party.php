@@ -8,6 +8,7 @@ use App\Core\Company\BelongsToCompany;
 use App\Core\Documents\HasVersion;
 use App\Core\Money\MoneyCast;
 use App\Core\Support\HasUuid7;
+use App\Modules\Files\Contracts\Attachable;
 use App\Modules\Parties\Database\factories\PartyFactory;
 use App\Modules\Parties\Enums\PartyType;
 use App\Modules\Parties\Validation\TaxNumber;
@@ -45,7 +46,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  */
-class Party extends Model
+class Party extends Model implements Attachable
 {
     use BelongsToCompany;
 
