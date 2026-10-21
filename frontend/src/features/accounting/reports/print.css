@@ -1,0 +1,53 @@
+/*
+ * Journal book printing. The app shell is a fixed-height, overflow-hidden frame, so printing
+ * it as-is cuts a multi-page book after the first screen. While the book page is mounted it
+ * marks <html>; in print the frame lets content flow, everything but the book is hidden and
+ * each book page starts on a new sheet.
+ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html[data-print-book],
+  html[data-print-book] body,
+  html[data-print-book] body * {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  html[data-print-book] body {
+    visibility: hidden;
+  }
+
+  html[data-print-book] #journal-book-print {
+    visibility: visible;
+    position: absolute;
+    inset: 0 0 auto 0;
+    width: 100%;
+  }
+
+  html[data-print-book] #journal-book-print * {
+    visibility: visible;
+  }
+
+  html[data-print-book] .journal-book-page {
+    break-after: page;
+    break-inside: auto;
+  }
+
+  html[data-print-book] .journal-book-page:last-child {
+    break-after: auto;
+  }
+
+  html[data-print-book] .journal-book-page tr {
+    break-inside: avoid;
+  }
+
+  html[data-print-book] .journal-book-page thead {
+    display: table-header-group;
+  }
+}
