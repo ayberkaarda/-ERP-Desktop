@@ -10,6 +10,7 @@ use App\Core\Money\MoneyCast;
 use App\Core\Support\HasUuid7;
 use App\Modules\Parties\Database\factories\PartyFactory;
 use App\Modules\Parties\Enums\PartyType;
+use App\Modules\Parties\Validation\TaxNumber;
 use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +30,7 @@ use Spatie\Activitylog\Support\LogOptions;
  * @property list<string> $roles
  * @property string|null $tax_office
  * @property string|null $tax_number
+ * @property string|null $tax_number_canonical
  * @property string $country
  * @property string|null $default_currency_code
  * @property string|null $payment_term_id
@@ -66,6 +68,13 @@ class Party extends Model
 
     /** @var array<string, mixed> */
     protected $attributes = ['is_active' => true, 'country' => 'TR', 'tags' => '[]'];
+
+    protected static function booted(): void
+    {
+        static::saving(static function (Party $party): void {
+            $party->tax_number_canonical = TaxNumber::canonical($party->tax_number);
+        });
+    }
 
     public function getMorphClass(): string
     {

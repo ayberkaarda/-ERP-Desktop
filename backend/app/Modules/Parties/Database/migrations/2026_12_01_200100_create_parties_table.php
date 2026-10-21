@@ -27,6 +27,8 @@ return new class extends Migration
             $table->jsonb('roles');
             $table->string('tax_office', 100)->nullable();
             $table->string('tax_number', 32)->nullable();
+            // Set by the model from tax_number; uniqueness and duplicate search use this form.
+            $table->string('tax_number_canonical', 32)->nullable();
             $table->char('country', 2)->default('TR');
             $table->char('default_currency_code', 3)->nullable();
             $table->uuid('payment_term_id')->nullable();
@@ -48,8 +50,8 @@ return new class extends Migration
 
         DB::statement('CREATE UNIQUE INDEX parties_company_code_unique ON parties (company_id, code) WHERE deleted_at IS NULL');
         // Inactive or deleted parties may share a tax number with the one active record.
-        DB::statement('CREATE UNIQUE INDEX parties_company_tax_number_unique ON parties (company_id, tax_number) WHERE deleted_at IS NULL AND is_active AND tax_number IS NOT NULL');
-        DB::statement('CREATE INDEX parties_company_tax_number_index ON parties (company_id, tax_number)');
+        DB::statement('CREATE UNIQUE INDEX parties_company_tax_number_unique ON parties (company_id, tax_number_canonical) WHERE deleted_at IS NULL AND is_active AND tax_number_canonical IS NOT NULL');
+        DB::statement('CREATE INDEX parties_company_tax_number_index ON parties (company_id, tax_number_canonical)');
         DB::statement('CREATE INDEX parties_roles_gin ON parties USING gin (roles jsonb_path_ops)');
 
         foreach (['name', 'legal_name', 'code', 'tax_number'] as $column) {

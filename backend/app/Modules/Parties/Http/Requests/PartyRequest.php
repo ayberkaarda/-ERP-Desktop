@@ -23,7 +23,7 @@ use Illuminate\Validation\Validator;
  */
 final class PartyRequest extends FormRequest
 {
-    public const string AMOUNT = '/^\d{1,16}(\.\d{1,4})?$/';
+    public const string AMOUNT = '/\A\d{1,16}(\.\d{1,4})?\z/';
 
     private ?Party $existing = null;
 
@@ -64,12 +64,12 @@ final class PartyRequest extends FormRequest
             'roles.*' => ['required', 'string', 'distinct', Rule::in(PartyRole::values())],
             'tax_office' => ['sometimes', 'nullable', 'string', 'max:100'],
             'tax_number' => ['sometimes', 'nullable', 'string', 'max:'.TaxNumber::MAX_FOREIGN_LENGTH],
-            'country' => ['sometimes', 'string', 'regex:/^[A-Z]{2}$/'],
-            'default_currency_code' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Z]{3}$/'],
+            'country' => ['sometimes', 'string', 'regex:/\A[A-Z]{2}\z/'],
+            'default_currency_code' => ['sometimes', 'nullable', 'string', 'regex:/\A[A-Z]{3}\z/'],
             'payment_term_id' => ['sometimes', 'nullable', 'uuid'],
             'price_list_id' => ['sometimes', 'nullable', 'uuid'],
             'risk_limit' => ['sometimes', 'nullable', 'regex:'.self::AMOUNT],
-            'risk_currency_code' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Z]{3}$/'],
+            'risk_currency_code' => ['sometimes', 'nullable', 'string', 'regex:/\A[A-Z]{3}\z/'],
             'is_active' => ['sometimes', 'boolean'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'tags' => ['sometimes', 'nullable', 'array', 'max:20'],
@@ -160,7 +160,7 @@ final class PartyRequest extends FormRequest
             return;
         }
 
-        $query = Party::query()->where('tax_number', $number)->where('is_active', true);
+        $query = Party::query()->where('tax_number_canonical', TaxNumber::canonical($number))->where('is_active', true);
 
         if ($this->existing() !== null) {
             $query->whereKeyNot($this->existing()->id);
