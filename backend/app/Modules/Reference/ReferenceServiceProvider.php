@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Reference;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Modules\Organization\Events\CompanyCreated;
 use App\Modules\Reference\Console\BackfillRates;
 use App\Modules\Reference\Console\FetchTcmbRates;
+use App\Modules\Reference\Listeners\SeedCompanyDefaults;
 use App\Modules\Reference\Models\CompanyCurrency;
 use App\Modules\Reference\Policies\ReferencePolicy;
 use App\Modules\Reference\Rules\CurrencyCode;
@@ -15,6 +17,7 @@ use App\Modules\Settings\Data\SettingDefinition;
 use App\Modules\Settings\Enums\SettingType;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 
@@ -43,6 +46,8 @@ final class ReferenceServiceProvider extends ModuleServiceProvider
             'company.base_currency', SettingType::String, 'TRY', 'company',
             rules: ['size:3', 'regex:/^[A-Z]{3}$/', new CurrencyCode],
         ));
+        // Currencies, payment terms, default warehouse and root cost center for every new company.
+        Event::listen(CompanyCreated::class, SeedCompanyDefaults::class);
         // Core has no schedule hook yet, so the module registers its daily TCMB import itself.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
             $schedule->command('rates:fetch-tcmb')->dailyAt('16:00')->timezone('Europe/Istanbul')
