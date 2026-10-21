@@ -72,4 +72,7 @@ return [
     'reorder_title' => ':count malzeme yeniden sipariş noktasında veya altında',
     'reorder_body' => 'Yeniden sipariş önerilerine bakın: :items',
     'command_company_missing' => 'Şirket yok veya etkin değil.',
+    'report_opening' => 'Devir',
+    'report_closing' => 'Kapanış bakiyesi',
+    'report_total' => 'Toplam',
 ];

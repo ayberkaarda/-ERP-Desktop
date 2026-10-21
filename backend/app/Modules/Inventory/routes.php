@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Inventory\Http\Controllers\InventoryReportController;
 use App\Modules\Inventory\Http\Controllers\ReorderController;
 use App\Modules\Inventory\Http\Controllers\ReservationController;
 use App\Modules\Inventory\Http\Controllers\StockBalanceController;
@@ -49,4 +50,15 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
     Route::post('stock-reservations/{id}/release', [ReservationController::class, 'release'])->whereUuid('id')->middleware('idempotent');
 
     Route::get('reports/reorder-suggestions', [ReorderController::class, 'index']);
+
+    // Stock reports (inventory.reports.view), each with an /export?format=csv|xlsx twin.
+    Route::prefix('inventory-reports')->group(function (): void {
+        foreach ([
+            'stock-status' => 'stockStatus', 'stock-ledger' => 'stockLedger', 'valuation' => 'valuation', 'ageing' => 'ageing',
+            'expiring-lots' => 'expiringLots', 'abc-analysis' => 'abcAnalysis', 'turnover' => 'turnover', 'movement-summary' => 'movementSummary',
+        ] as $path => $action) {
+            Route::get($path, [InventoryReportController::class, $action]);
+            Route::get($path.'/export', [InventoryReportController::class, $action.'Export']);
+        }
+    });
 });
