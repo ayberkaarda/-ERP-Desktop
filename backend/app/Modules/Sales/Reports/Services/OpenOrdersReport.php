@@ -151,7 +151,7 @@ final class OpenOrdersReport
                 default => $line['item_id'],
             };
             $g = $groups[$key] ?? match ($by) {
-                'order' => [...array_intersect_key($line, array_flip(self::columns('order'))), 'line_count' => 0, 'open_value' => '0'],
+                'order' => [...array_intersect_key($line, array_flip(self::columns('order'))), 'line_count' => 0, 'open_value' => '0', 'open_value_local' => '0'],
                 'customer' => ['party_id' => $line['party_id'], 'party_code' => null, 'party_name' => $line['party_name'], 'order_count' => 0, 'line_count' => 0],
                 default => ['item_id' => $line['item_id'], 'item_code' => null, 'item_name' => null, 'order_count' => 0, 'open_base_quantity' => '0'],
             };

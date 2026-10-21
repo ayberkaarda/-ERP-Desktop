@@ -172,7 +172,7 @@ final class DeliveryInvoiceReport
                 default => $line['item_id'],
             };
             $g = $groups[$key] ?? match ($by) {
-                'delivery' => [...array_intersect_key($line, array_flip(self::columns('delivery'))), 'line_count' => 0, 'uninvoiced_value' => '0'],
+                'delivery' => [...array_intersect_key($line, array_flip(self::columns('delivery'))), 'line_count' => 0, 'uninvoiced_value' => '0', 'uninvoiced_value_local' => '0', 'uninvoiced_cost' => '0'],
                 'customer' => ['party_id' => $line['party_id'], 'party_code' => null, 'party_name' => $line['party_name'], 'delivery_count' => 0, 'line_count' => 0],
                 default => ['item_id' => $line['item_id'], 'item_code' => null, 'item_name' => null, 'delivery_count' => 0, 'uninvoiced_base_quantity' => '0'],
             };

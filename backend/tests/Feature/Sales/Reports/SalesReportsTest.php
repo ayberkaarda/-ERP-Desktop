@@ -263,3 +263,20 @@ it('paginates rows and keeps totals for the whole report', function (): void {
         ->and($json['meta']['pagination'])->toBe(['current_page' => 2, 'per_page' => 1, 'total' => 2, 'last_page' => 2])
         ->and($json['meta']['totals']['net_amount'])->toBe('810.0000');
 });
+
+it('adds every grouping up to the line rows and the totals', function (string $report, array $groups, array $columns): void {
+    $sum = fn (array $rows, string $column): string => (string) array_reduce($rows, fn ($c, array $r) => $c->plus($r[$column]), SalesKit::dec('0'))->toScale(4);
+    $lines = ($this->get)("{$report}?as_of=2027-06-12")->json();
+
+    foreach ($groups as $group) {
+        $rows = ($this->get)("{$report}?as_of=2027-06-12&group_by={$group}")->json('data');
+
+        foreach ($columns as $column) {
+            expect($sum($rows, $column))->toBe($sum($lines['data'], $column), "{$group}.{$column}")
+                ->and($sum($rows, $column))->toBe($lines['meta']['totals'][$column], "{$group}.{$column} meta");
+        }
+    }
+})->with([
+    'delivery-vs-invoice' => ['delivery-vs-invoice', ['delivery', 'customer', 'item'], ['uninvoiced_value_local', 'uninvoiced_cost']],
+    'open-orders' => ['open-orders', ['order', 'customer', 'item'], ['open_value_local']],
+]);
