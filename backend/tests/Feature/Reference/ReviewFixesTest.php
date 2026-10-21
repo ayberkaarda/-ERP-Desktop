@@ -132,3 +132,34 @@ it('grants every default role read access to reference data', function (): void 
         expect($catalog->grantsFor($role))->toContain('currencies.view', 'tax_codes.view', 'payment_terms.view', 'warehouses.view', 'cost_centers.view', 'projects.view', 'exchange_rates.view');
     }
 });
+
+it('serializes two connections writing overlapping tax periods at the same time', function (): void {
+    // Two real sessions outside the test transaction; rows are cleaned up at the end.
+    foreach (['race_a', 'race_b'] as $name) {
+        config(['database.connections.'.$name => config('database.connections.'.config('database.default'))]);
+    }
+    [$a, $b] = [DB::connection('race_a'), DB::connection('race_b')];
+    $row = fn (string $from): array => [
+        'id' => (string) Str::uuid7(), 'type' => 'vat', 'code' => 'RACE2', 'name' => 'Race', 'rate' => '20',
+        'effective_from' => $from, 'created_at' => now(), 'updated_at' => now(),
+    ];
+    try {
+        $a->beginTransaction();
+        $a->table('tax_codes')->insert($row('2026-01-01'));
+        $b->statement("SET lock_timeout = '500ms'");
+        // B has to wait for A's uncommitted conflicting period instead of slipping in beside it.
+        expect(fn () => $b->transaction(fn () => $b->table('tax_codes')->insert($row('2026-02-01'))))
+            ->toThrow(QueryException::class, '55P03');
+        $a->commit();
+        expect(fn () => $b->transaction(fn () => $b->table('tax_codes')->insert($row('2026-02-01'))))
+            ->toThrow(QueryException::class, '23P01');
+    } finally {
+        if ($a->transactionLevel() > 0) {
+            $a->rollBack();
+        }
+        $a->table('tax_codes')->where('code', 'RACE2')->delete();
+        $a->disconnect();
+        $b->disconnect();
+    }
+    expect(DB::table('tax_codes')->where('code', 'RACE2')->count())->toBe(0);
+});

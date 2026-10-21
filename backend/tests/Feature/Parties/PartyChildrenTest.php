@@ -8,6 +8,7 @@ use App\Modules\Identity\Models\Activity;
 use App\Modules\Parties\Models\Party;
 use App\Modules\Parties\Models\PartyAddress;
 use App\Modules\Parties\Models\PartyBankAccount;
+use App\Modules\Reference\Database\seeders\ReferenceSeeder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -139,7 +140,8 @@ it('keeps one primary contact and validates contact fields', function (): void {
 });
 
 it('validates and normalizes IBANs, unique per party, with a single default', function (): void {
-    config(['parties.allow_unverified_references' => true]);
+    // Currencies come from the Reference module, which verifies them for real.
+    $this->seed(ReferenceSeeder::class);
     $url = "{$this->base}/bank-accounts";
     $first = childPost($this->editor, $this->company, $url, [
         'bank_name' => 'Ziraat', 'iban' => 'tr33 0006 1005 1978 6457 8413 26', 'swift' => 'tczbtr2a', 'currency_code' => 'try', 'is_default' => true,

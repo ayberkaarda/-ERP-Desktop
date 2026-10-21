@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Core\Company\CompanyContext;
 use App\Models\User;
 use App\Modules\Parties\Support\ReferenceGuards;
+use App\Modules\Reference\Database\seeders\ReferenceSeeder;
+use App\Modules\Reference\Models\PaymentTerm;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -76,6 +78,10 @@ function guardedPost(User $user, string $company, array $payload): TestResponse
 }
 
 it('rejects unverifiable references unless explicitly allowed', function (): void {
+    // Simulate an install without the Reference module: drop its lookup bindings.
+    foreach ([ReferenceGuards::CURRENCY, ReferenceGuards::PAYMENT_TERM] as $contract) {
+        app()->offsetUnset($contract);
+    }
     $guards = app(ReferenceGuards::class);
     app(CompanyContext::class)->set($this->company);
 
@@ -132,4 +138,17 @@ it('checks bank account currencies through the same guard', function (): void {
     $this->actingAs($this->manager, 'sanctum')->postJson("/api/v1/parties/{$party}/bank-accounts", [
         'bank_name' => 'x', 'iban' => 'DE89370400440532013000', 'currency_code' => 'EUR',
     ], [...$headers, 'Idempotency-Key' => (string) Str::uuid7()])->assertCreated();
+});
+
+it('verifies references through the real Reference lookups when that module is installed', function (): void {
+    $this->seed(ReferenceSeeder::class);
+    $term = app(CompanyContext::class)->runAs($this->company, fn () => PaymentTerm::factory()->create());
+    $foreign = app(CompanyContext::class)->runAs($this->other, fn () => PaymentTerm::factory()->create());
+    $guards = app(ReferenceGuards::class);
+    app(CompanyContext::class)->set($this->company);
+    expect($guards->currencyExists('TRY'))->toBeTrue()
+        ->and($guards->currencyExists('XYZ'))->toBeFalse()
+        ->and($guards->paymentTermExists($term->id))->toBeTrue()
+        ->and($guards->paymentTermExists($foreign->id))->toBeFalse();
+    guardedPost($this->manager, $this->company, ['default_currency_code' => 'EUR', 'payment_term_id' => $term->id])->assertCreated();
 });

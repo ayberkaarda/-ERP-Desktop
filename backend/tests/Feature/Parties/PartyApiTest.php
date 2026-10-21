@@ -15,6 +15,8 @@ use App\Modules\Parties\Models\Party;
 use App\Modules\Parties\Services\PartyService;
 use App\Modules\Parties\Validation\Tckn;
 use App\Modules\Parties\Validation\Vkn;
+use App\Modules\Reference\Database\seeders\ReferenceSeeder;
+use App\Modules\Reference\Models\PaymentTerm;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -107,8 +109,11 @@ it('refuses client codes and versions on create and needs an idempotency key', f
     expect(Party::withoutCompanyScope()->where('company_id', $this->company)->count())->toBe(1);
 });
 
-it('validates tax numbers by party type and country', function (array $override, ?string $field, bool $unverified = false): void {
-    config(['parties.allow_unverified_references' => $unverified]);
+it('validates tax numbers by party type and country', function (array $override, ?string $field, bool $withReference = false): void {
+    // Without seeded reference data the bound Reference lookups cannot confirm a currency or term.
+    if ($withReference) {
+        $this->seed(ReferenceSeeder::class);
+    }
     $response = partiesCreate($this->manager, $this->company, [...$this->payload, ...$override]);
 
     $field === null
@@ -143,11 +148,13 @@ it('validates tax numbers by party type and country', function (array $override,
 ]);
 
 it('stores money as a scale 4 string and normalizes codes', function (): void {
-    config(['parties.allow_unverified_references' => true]);
+    $this->seed(ReferenceSeeder::class);
+    $term = app(CompanyContext::class)->runAs($this->company, fn (): PaymentTerm => PaymentTerm::factory()->create());
     partiesCreate($this->manager, $this->company, [
         ...$this->payload, 'risk_limit' => 1500.5, 'risk_currency_code' => 'usd', 'default_currency_code' => 'eur',
-        'tags' => ['vip', 'vip', 'north'], 'payment_term_id' => (string) Str::uuid7(),
+        'tags' => ['vip', 'vip', 'north'], 'payment_term_id' => $term->id,
     ])->assertCreated()
+        ->assertJsonPath('data.payment_term_id', $term->id)
         ->assertJsonPath('data.risk_limit', '1500.5000')
         ->assertJsonPath('data.risk_currency_code', 'USD')
         ->assertJsonPath('data.default_currency_code', 'EUR')
