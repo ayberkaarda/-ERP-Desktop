@@ -13,6 +13,32 @@ import {
   type InvoiceLineValues,
   type InvoiceValues,
 } from './lines'
+import { wireHeader, wireLine } from '../kit/fixtures'
+import type { InvoiceSummary } from '../types'
+
+const invoiceDefaults: Omit<InvoiceSummary, keyof ReturnType<typeof wireHeader>> & {
+  status: 'draft'
+} = {
+  status: 'draft',
+  invoice_type: 'sale',
+  order_id: null,
+  delivery_id: null,
+  return_id: null,
+  original_invoice_id: null,
+  deliver_on_invoice: false,
+  journal_entry_id: null,
+  reversal_journal_entry_id: null,
+  paid_amount: '0',
+  balance_due: '0',
+  issued_at: null,
+  issued_by: null,
+  reversed_at: null,
+  reversal_date: null,
+  reversal_reason: null,
+  credit_override_reason: null,
+  e_document_status: null,
+  e_document_uuid: null,
+}
 
 const filled = (over: Partial<InvoiceLineValues> = {}): InvoiceLineValues => ({
   ...emptyInvoiceLine(),
@@ -48,29 +74,9 @@ describe('invoice form values', () => {
     expect(toInvoiceInput(stored).fx_rate).toBeNull()
     const explicit = toInvoiceInput(
       valuesFromInvoice({
-        id: 'i1',
-        number: null,
-        status: 'draft',
-        invoice_type: 'sale',
-        document_date: '2026-10-21',
-        due_date: null,
-        payment_term_id: null,
-        price_list_id: null,
-        party_id: 'p1',
-        currency_code: 'EUR',
-        fx_rate: '1',
-        warehouse_id: null,
-        notes: null,
-        source_type: null,
-        source_id: null,
-        version: 1,
-        subtotal: '0',
-        discount_total: '0',
-        tax_total: '0',
-        total: '0',
-        paid_amount: '0',
-        balance_due: '0',
-        journal_entry_id: null,
+        ...wireHeader({ currency_code: 'EUR', fx_rate: '1' }),
+        ...invoiceDefaults,
+        links: [],
         lines: [],
       }),
     )
@@ -127,6 +133,34 @@ describe('invoice form values', () => {
         m,
       ).map(([f]) => f),
     ).toEqual(['quantity', 'unitPrice', 'discountPercent', 'taxCodeId'])
+  })
+
+  it('sends the order line of a copied line and needs an item only on direct lines', () => {
+    const inv = valuesFromInvoice({
+      ...wireHeader(),
+      ...invoiceDefaults,
+      links: [],
+      lines: [
+        {
+          ...wireLine({ id: 'il1' }),
+          order_line_id: 'ol1',
+          delivery_line_id: null,
+          original_line_id: null,
+        },
+      ],
+    })
+    expect(inv.lines[0]?.sourceLineId).toBe('ol1')
+    const input = toInvoiceInput(inv)
+    expect(input.lines[0]).toMatchObject({ order_line_id: 'ol1', delivery_line_id: null })
+    expect(input).not.toHaveProperty('invoice_type')
+    // A description-only direct line is refused by the API (item_id required): flag it.
+    const textOnly = filled({ itemId: '', description: 'Nakliye' })
+    expect(invoiceLineProblems(textOnly, m).map(([f]) => f)).toContain('itemId')
+    expect(
+      invoiceLineProblems({ ...textOnly, deliveryLineId: 'dl1' }, m).map(([f]) => f),
+    ).not.toContain('itemId')
+    // preview-totals needs an item on every line: such rows are not priced.
+    expect(previewRowIndexes(values([textOnly, filled()]))).toEqual([1])
   })
 
   it('counts stock lines without a delivery (deliver_on_invoice needed)', () => {

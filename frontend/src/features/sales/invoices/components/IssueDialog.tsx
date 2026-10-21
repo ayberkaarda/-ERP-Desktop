@@ -19,7 +19,7 @@ import { platform } from '@/platform'
 import { invoicesApi, type Invoice } from '../api'
 import { ActionError } from '../kit/components/ActionError'
 import { VersionConflictAlert } from '../kit/components/VersionConflictAlert'
-import { isCreditBlocked, isVersionConflict } from '../kit/http'
+import { creditBreakdown, isCreditBlocked, isVersionConflict } from '../kit/http'
 import { usePayloadKeys } from '../kit/idempotency'
 import { activeCompany, invalidateSalesEffects, salesDocsKeys } from '../kit/keys'
 import { money } from '../kit/money'
@@ -72,6 +72,7 @@ export function IssueDialog({ invoice, open, onOpenChange, onIssued, onReload }:
     },
   })
   const blocked = isCreditBlocked(issue.error)
+  const breakdown = creditBreakdown(issue.error)
   const conflict = isVersionConflict(issue.error)
   const e = exposure.data
   // Only amounts in the risk currency are compared with the limit (lib/exposure).
@@ -144,6 +145,31 @@ export function IssueDialog({ invoice, open, onOpenChange, onIssued, onReload }:
               <ShieldAlert className="size-4" aria-hidden="true" />
               {issue.error instanceof Error ? issue.error.message : t('issue.blocked')}
             </p>
+            {breakdown && (
+              <dl
+                className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs"
+                data-testid="credit-breakdown"
+              >
+                <dt>{t('exposure.limit')}</dt>
+                <dd className="text-right tabular-nums">
+                  {breakdown.limit === null
+                    ? t('exposure.unlimited')
+                    : money(breakdown.limit, locale, breakdown.currency)}
+                </dd>
+                <dt>{t('exposure.current')}</dt>
+                <dd className="text-right tabular-nums">
+                  {money(breakdown.exposure, locale, breakdown.currency)}
+                </dd>
+                <dt>{t('exposure.thisDocument')}</dt>
+                <dd className="text-right tabular-nums">
+                  {money(breakdown.document, locale, breakdown.currency)}
+                </dd>
+                <dt className="font-medium">{t('exposure.totalAfter')}</dt>
+                <dd className="text-right font-medium tabular-nums">
+                  {money(breakdown.total, locale, breakdown.currency)}
+                </dd>
+              </dl>
+            )}
             {canOverride ? (
               <div className="space-y-1.5">
                 <Label htmlFor="credit-override-reason">{t('issue.overrideReason')}</Label>

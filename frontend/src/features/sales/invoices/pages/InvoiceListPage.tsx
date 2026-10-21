@@ -111,7 +111,8 @@ export function InvoiceListPage() {
       }),
       col.accessor('balance_due', {
         header: t('fields.balanceDue'),
-        enableSorting: true,
+        // Not a server sort (document_date, number, party_name, total, status, due_date, ...).
+        enableSorting: false,
         meta: { label: t('fields.balanceDue'), align: 'right' },
         size: 140,
         cell: (c) =>

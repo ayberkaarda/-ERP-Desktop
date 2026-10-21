@@ -1,6 +1,15 @@
-// Sales invoices and credit notes (/sales-invoices). Shapes mirror PHASE5 and are listed in
-// .orchestra/fe-sales2.md for the integration lane.
-import type { ApiAuditRow, DocLink, DocWarning, SalesHeader, SalesTotals } from './kit/types'
+// Sales invoices and credit notes (/sales-invoices) as the Sales API sends them and as the screens
+// use them after labelling.
+import type {
+  ApiDetailExtras,
+  ApiHeader,
+  ApiLine,
+  DocLink,
+  DocWarning,
+  LineLabels,
+  SalesHeader,
+  SalesTotals,
+} from './kit/types'
 
 export const INVOICE_STATUSES = [
   'draft',
@@ -19,62 +28,52 @@ export type InvoiceType = (typeof INVOICE_TYPES)[number]
 /** Statuses with a posted journal entry and an open or settled balance. */
 export const POSTED_STATUSES: readonly InvoiceStatus[] = ['issued', 'partially_paid', 'paid']
 
-export interface InvoiceSummary extends SalesHeader, SalesTotals {
+interface InvoiceFields {
   status: InvoiceStatus
   invoice_type: InvoiceType
-  due_date: string | null
-  payment_term_id: string | null
-  price_list_id: string | null
+  order_id: string | null
+  delivery_id: string | null
+  /** Credit notes: the return they credit and the invoice they correct. */
+  return_id: string | null
+  original_invoice_id: string | null
+  /** Stock-tracked goods without a delivery post one automatically when issued. */
+  deliver_on_invoice: boolean
+  journal_entry_id: string | null
+  reversal_journal_entry_id: string | null
   /** Maintained by the server (treasury applies payments from Phase 7). */
   paid_amount: string
   balance_due: string
-  journal_entry_id: string | null
-  reversal_journal_entry_id?: string | null
-  issued_at?: string | null
-  reversed_at?: string | null
-  reversal_reason?: string | null
+  issued_at: string | null
+  issued_by: string | null
+  reversed_at: string | null
+  reversal_date: string | null
+  reversal_reason: string | null
+  credit_override_reason: string | null
   /** Reserved for Phase 9 e-documents. */
-  e_document_status?: string | null
-  line_count?: number
+  e_document_status: string | null
+  e_document_uuid: string | null
 }
 
-export interface InvoiceLine {
-  id: string
-  line_no: number
-  item_id: string | null
-  item_code?: string | null
-  item_name?: string | null
-  item_type?: 'stock' | 'service' | null
-  variant_id?: string | null
-  description: string | null
-  quantity: string
-  unit_id: string
-  unit_code?: string | null
-  base_quantity?: string
-  unit_price: string
-  discount_percent: string
-  discount_amount: string
-  net_amount: string
-  tax_code_id: string | null
-  /** Snapshot at the document date. */
-  tax_rate: string
-  tax_amount: string
-  line_total: string
-  warehouse_id?: string | null
+/** A list row (GET /sales-invoices). */
+export type InvoiceSummary = Omit<SalesHeader, 'status'> & InvoiceFields
+
+export interface ApiInvoiceLine extends ApiLine {
+  order_line_id: string | null
   delivery_line_id: string | null
-  source_line_id: string | null
-  price_source?: string | null
-  /** Already credited by returns (read by the return flow). */
-  returned_quantity?: string
+  /** Credit notes: the sale invoice line credited. */
+  original_line_id: string | null
 }
 
-export interface ApiInvoice extends InvoiceSummary {
-  /** Stock-tracked goods without a delivery post one automatically when issued. */
-  deliver_on_invoice?: boolean
+export type RawInvoice = Omit<ApiHeader, 'status'> &
+  InvoiceFields &
+  ApiDetailExtras & { lines: ApiInvoiceLine[] }
+
+export type InvoiceLine = ApiInvoiceLine & LineLabels
+
+export type InvoiceDetail = InvoiceSummary & {
   lines: InvoiceLine[]
-  links?: DocLink[]
+  links: DocLink[]
   warnings?: DocWarning[]
-  audit?: ApiAuditRow[]
 }
 
 export interface InvoiceLineInput {
@@ -88,13 +87,12 @@ export interface InvoiceLineInput {
   discount_amount: string
   tax_code_id: string | null
   delivery_line_id: string | null
-  source_line_id: string | null
+  order_line_id: string | null
 }
 
 /** POST /sales-invoices (draft, Idempotency-Key) and PATCH /sales-invoices/{id} (+ version). */
 export interface InvoiceInput {
   party_id: string
-  invoice_type: InvoiceType
   document_date: string
   due_date: string | null
   currency_code: string
@@ -108,14 +106,23 @@ export interface InvoiceInput {
   lines: InvoiceLineInput[]
 }
 
-/** POST /sales-documents/preview-totals: totals and resolved prices, nothing stored. */
+/** POST /sales-documents/preview-totals body (header like a draft; lines need an item). */
 export interface PreviewInput {
-  document_type: 'sales_invoice'
   party_id: string | null
   document_date: string
   currency_code: string
   fx_rate: string | null
-  lines: InvoiceLineInput[]
+  payment_term_id?: string | null
+  warehouse_id?: string | null
+  lines: {
+    item_id: string
+    quantity: string
+    unit_id: string
+    unit_price: string | null
+    discount_percent: string
+    discount_amount: string
+    tax_code_id: string | null
+  }[]
 }
 
 export interface PreviewLine {
@@ -132,6 +139,22 @@ export interface PreviewResult extends SalesTotals {
   warnings?: DocWarning[]
 }
 
+/** Wire answer of preview-totals: `{header, lines, taxes, totals, price_overrides}`. */
+export interface RawPreview {
+  header: Record<string, unknown>
+  lines: (Record<string, unknown> & {
+    unit_price: string
+    price_source: string | null
+    tax_rate: string
+    net_amount: string
+    tax_amount: string
+    line_total: string
+  })[]
+  taxes: { tax_code_id: string | null; rate: string; base: string; tax: string }[]
+  totals: SalesTotals
+  price_overrides: { line: number; resolved: string; given: string }[]
+}
+
 /** POST /sales-invoices/{id}/issue; over-limit issues need sales.credit_override + reason. */
 export interface IssueInput {
   version: number
@@ -146,9 +169,10 @@ export interface InvoiceReverseInput {
   reverse_stock: boolean
 }
 
-/** POST /sales-orders/{id}/invoices and POST /sales-deliveries/{id}/invoice bodies. */
-export interface InvoiceFromSourceInput {
+/** POST /sales-deliveries/{id}/invoice body; omitted lines = everything not invoiced yet. */
+export interface InvoiceFromDeliveryInput {
   document_date: string
-  /** Omitted: everything still invoiceable. */
-  lines?: { source_line_id: string; quantity: string }[]
+  due_date?: string | null
+  notes?: string | null
+  lines?: { delivery_line_id: string; quantity: string }[]
 }
