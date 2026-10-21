@@ -1,4 +1,5 @@
 import { screen, within } from '@testing-library/react'
+import { accountingHandlers, createAccountingDb } from '@/test/handlers/accounting1'
 import { COMPANY_A, COMPANY_B } from '@/test/handlers/fea'
 import { renderRoutes, setupFea, signIn } from '@/test/handlers/feaRender'
 import { createPartiesDb, partiesHandlers } from '@/test/handlers/parties'
@@ -21,6 +22,19 @@ describe('feature routes in the app shell', () => {
       'page',
     )
     expect(within(nav).queryByRole('link', { name: 'Stok kartları' })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['/accounting/accounts', 'accounting.accounts.manage', 'Hesap planı'],
+    ['/accounting/periods', 'accounting.periods.close', 'Muhasebe dönemleri'],
+    ['/accounting/fiscal-years', 'accounting.periods.manage', 'Mali yıllar'],
+  ])('opens %s with the alternative permission %s alone', async (path, permission, heading) => {
+    const db = setupFea({ permissions: { [COMPANY_A]: [permission], [COMPANY_B]: [] } })
+    server.use(...accountingHandlers(createAccountingDb()))
+    signIn(db)
+    renderRoutes(routes, path)
+
+    expect(await screen.findByRole('heading', { level: 1, name: heading })).toBeInTheDocument()
   })
 
   it.each([

@@ -1,8 +1,17 @@
 import { useAuthStore, type SessionUser } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 
-/** A single permission name, or several that must all be granted. */
-export type PermissionRequirement = string | readonly string[]
+/**
+ * A single permission name, several that must all be granted, or `{ anyOf }`: at least one of
+ * them (mirrors policies that accept alternatives, e.g. view or manage).
+ */
+export type PermissionRequirement =
+  string | readonly string[] | { readonly anyOf: readonly string[] }
+
+/** Requirement met by any one of the names. */
+export function anyOf(...names: string[]): { readonly anyOf: readonly string[] } {
+  return { anyOf: names }
+}
 
 export interface PermissionContext {
   user: SessionUser | null
@@ -23,7 +32,10 @@ export function hasPermission(
   if (required === undefined) return true
   if (ctx.stale) return false
   if (ctx.user.isSuperAdmin) return true
-  const names = typeof required === 'string' ? [required] : required
+  if (typeof required === 'object' && 'anyOf' in required) {
+    return required.anyOf.length === 0 || required.anyOf.some((n) => ctx.granted.includes(n))
+  }
+  const names: readonly string[] = typeof required === 'string' ? [required] : required
   if (names.length === 0) return true
   return mode === 'all'
     ? names.every((n) => ctx.granted.includes(n))

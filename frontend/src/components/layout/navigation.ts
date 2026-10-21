@@ -31,8 +31,8 @@ import {
   Warehouse,
   type LucideIcon,
 } from 'lucide-react'
-import { ACC_PERMISSIONS } from '@/features/accounting/shared/permissions'
-import { CATALOG_ACCESS } from '@/features/catalog/permissions'
+import { ACC_ACCESS, ACC_PERMISSIONS } from '@/features/accounting/shared/permissions'
+import { CATALOG_OPEN } from '@/features/catalog/permissions'
 import { REF_PERMISSIONS } from '@/features/reference/permissions'
 // Permission names mirror each feature's routes.tsx guards.
 import type { PermissionRequirement } from '@/lib/permissions'
@@ -111,13 +111,13 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'categories',
         icon: FolderTree,
         to: '/catalog/categories',
-        permission: CATALOG_ACCESS.categories.read,
+        permission: CATALOG_OPEN.categories,
       },
       {
         key: 'units',
         icon: Ruler,
         to: '/catalog/units',
-        permission: CATALOG_ACCESS.units.read,
+        permission: CATALOG_OPEN.units,
       },
       {
         key: 'priceLists',
@@ -129,7 +129,7 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'discountRules',
         icon: TicketPercent,
         to: '/catalog/discount-rules',
-        permission: CATALOG_ACCESS.discountRules.read,
+        permission: CATALOG_OPEN.discountRules,
       },
       {
         key: 'pricing',
@@ -152,7 +152,7 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'chartOfAccounts',
         icon: ListTree,
         to: '/accounting/accounts',
-        permission: ACC_PERMISSIONS.accounts.view,
+        permission: ACC_ACCESS.accounts,
       },
       {
         key: 'trialBalance',
@@ -176,13 +176,13 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'fiscalYears',
         icon: CalendarRange,
         to: '/accounting/fiscal-years',
-        permission: ACC_PERMISSIONS.periods.view,
+        permission: ACC_ACCESS.fiscalYears,
       },
       {
         key: 'accountingPeriods',
         icon: CalendarDays,
         to: '/accounting/periods',
-        permission: ACC_PERMISSIONS.periods.view,
+        permission: ACC_ACCESS.periods,
       },
       {
         key: 'accountDetermination',

@@ -1,5 +1,6 @@
 import type { TFunction } from 'i18next'
 import type { Command } from '@/features/command-palette/registry'
+import type { PermissionRequirement } from '@/lib/permissions'
 import { ACCOUNTING_NS } from './i18n'
 
 type Translate = (key: string, options: { ns: string }) => string
@@ -12,7 +13,7 @@ export function navCommand(
   id: string,
   path: string,
   key: string,
-  permission: string,
+  permission: PermissionRequirement,
   icon: Command['icon'],
   keywords: string[],
   group: Command['group'] = 'navigation',

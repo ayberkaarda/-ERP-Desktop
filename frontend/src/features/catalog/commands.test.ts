@@ -25,6 +25,19 @@ describe('catalog commands and routes', () => {
       'catalog.units',
       'catalog.categories',
     ])
+
+    // The manage permission alone opens them as well (read OR manage, like the API policies).
+    const managers = commands.filter((c) =>
+      hasPermission(
+        { user, granted: ['units.manage', 'item_categories.manage', 'discount_rules.manage'] },
+        c.permission,
+      ),
+    )
+    expect(managers.map((c) => c.id)).toEqual([
+      'catalog.units',
+      'catalog.categories',
+      'catalog.discountRules',
+    ])
   })
 
   it('navigates to the matching route', () => {

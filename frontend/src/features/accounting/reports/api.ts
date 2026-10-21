@@ -80,8 +80,7 @@ export const reportsApi = {
       if (page === 1) {
         opening = res.meta.page_brought_forward
         range = { date_from: res.meta.date_from, date_to: res.meta.date_to }
-      }
-      else if (!same(carried, res.meta.page_brought_forward)) {
+      } else if (!same(carried, res.meta.page_brought_forward)) {
         throw new ApiError(0, BOOK_CHANGED, 'The journal book changed while it was loaded.')
       }
       carried = res.meta.page_carried_forward

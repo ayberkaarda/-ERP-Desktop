@@ -1,5 +1,6 @@
 export { Can } from './Can'
 export {
+  anyOf,
   checkPermission,
   hasPermission,
   useGrantedPermissions,
