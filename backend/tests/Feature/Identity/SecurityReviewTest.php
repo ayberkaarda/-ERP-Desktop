@@ -9,6 +9,7 @@ use App\Modules\Identity\Http\Middleware\EnforceAccountState;
 use App\Modules\Identity\Models\Role;
 use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\CredentialVerifier;
+use App\Modules\Identity\Services\PermissionCatalog;
 use App\Modules\Identity\Services\TwoFactorService;
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,7 +74,11 @@ it('refuses to grant permissions the actor does not hold', function (): void {
 
 // 2. Role assignment cannot escalate.
 it('stops role assignment from escalating privileges', function (): void {
-    $assigner = Actors::user(['roles.assign', 'companies.view', 'branches.view', 'departments.view', 'notifications.view', 'files.view', 'files.create'], $this->company->id);
+    // Holds exactly what Sales and Viewer hold (from the module catalog) plus roles.assign: enough to
+    // move someone from Viewer to Sales, never enough for HR or Admin.
+    $catalog = app(PermissionCatalog::class);
+    $assigner = Actors::user(array_values(array_unique(['roles.assign', ...$catalog->grantsFor('Sales'), ...$catalog->grantsFor('Viewer')])), $this->company->id);
+    expect(array_diff($catalog->grantsFor('HR'), $catalog->grantsFor('Sales'), $catalog->grantsFor('Viewer')))->not->toBe([]);
     $target = Identity::member($this->company, ['Viewer']);
     $put = fn (User $actor, User $who, array $roles) => secAs($actor)->putJson("/api/v1/users/{$who->id}/roles", ['company_id' => $this->company->id, 'roles' => $roles], Identity::headers());
 
