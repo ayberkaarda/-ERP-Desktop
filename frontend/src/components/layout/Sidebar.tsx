@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { NavLink } from 'react-router'
+import { NavLink, useMatch } from 'react-router'
 import { KeystoneLogo, KeystoneMark } from '@/components/brand/Logo'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { hasPermission, usePermissionContext } from '@/lib/permissions'
@@ -107,6 +107,8 @@ function SidebarItem({
   const { t } = useTranslation()
   const label = t(`nav.${item.key}`)
   const Icon = item.icon
+  // A string className (not NavLink's function form): TooltipTrigger's Slot would stringify a function.
+  const isActive = useMatch({ path: item.to ?? '/__unrouted__', end: item.to === '/' }) !== null
 
   const body = (
     <>
@@ -126,15 +128,13 @@ function SidebarItem({
       end={item.to === '/'}
       onClick={onNavigate}
       aria-label={collapsed ? label : undefined}
-      className={({ isActive }) =>
-        cn(
-          itemClass,
-          collapsed && 'justify-center px-0',
-          isActive
-            ? 'bg-sidebar-active text-sidebar-active-foreground shadow-[inset_2px_0_0_var(--brand-accent)]'
-            : 'hover:bg-sidebar-active/60 hover:text-sidebar-active-foreground',
-        )
-      }
+      className={cn(
+        itemClass,
+        collapsed && 'justify-center px-0',
+        isActive
+          ? 'bg-sidebar-active text-sidebar-active-foreground shadow-[inset_2px_0_0_var(--brand-accent)]'
+          : 'hover:bg-sidebar-active/60 hover:text-sidebar-active-foreground',
+      )}
     >
       {body}
     </NavLink>

@@ -44,7 +44,10 @@ describe('Sidebar', () => {
     renderSidebar()
 
     const master = screen.getByRole('group', { name: 'Ana veriler' })
-    expect(within(master).getByRole('link', { name: 'Cariler' })).toHaveAttribute('href', '/parties')
+    expect(within(master).getByRole('link', { name: 'Cariler' })).toHaveAttribute(
+      'href',
+      '/parties',
+    )
     expect(within(master).getByRole('link', { name: 'Stok kartları' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Fiyat listeleri' })).not.toBeInTheDocument()
     expect(screen.queryByRole('group', { name: 'Referans' })).not.toBeInTheDocument()
@@ -56,7 +59,13 @@ describe('Sidebar', () => {
     renderSidebar()
 
     const reference = screen.getByRole('group', { name: 'Referans' })
-    for (const name of ['Para birimleri', 'Döviz kurları', 'Vergi kodları', 'Depolar', 'Projeler']) {
+    for (const name of [
+      'Para birimleri',
+      'Döviz kurları',
+      'Vergi kodları',
+      'Depolar',
+      'Projeler',
+    ]) {
       expect(within(reference).getByRole('link', { name })).toBeInTheDocument()
     }
     expect(screen.getByRole('link', { name: 'Fiyat hesaplama' })).toHaveAttribute(
@@ -65,15 +74,18 @@ describe('Sidebar', () => {
     )
   })
 
-  it('marks the section of a nested route as active', () => {
+  it('marks the entry of a nested route as active, also in the collapsed rail', () => {
     signInWith([], true)
+    useUiStore.setState({ sidebarCollapsed: true })
     renderSidebar('/catalog/items/42')
 
     expect(screen.getByRole('link', { name: 'Stok kartları' })).toHaveAttribute(
       'aria-current',
       'page',
     )
+    expect(screen.getByRole('link', { name: 'Stok kartları' })).toHaveClass('bg-sidebar-active')
     expect(screen.getByRole('link', { name: 'Panel' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Panel' })).not.toHaveClass('bg-sidebar-active')
   })
 
   it('labels icon-only entries and shows a tooltip when the rail is collapsed', async () => {
@@ -83,6 +95,8 @@ describe('Sidebar', () => {
 
     const link = screen.getByRole('link', { name: 'Vergi kodları' })
     expect(link).not.toHaveTextContent('Vergi kodları')
+    // The tooltip trigger must keep the link's own classes (a function className would be lost).
+    expect(link).toHaveClass('h-8', 'justify-center')
     await userEvent.setup().hover(link)
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Vergi kodları')
   })
