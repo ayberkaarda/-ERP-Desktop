@@ -56,8 +56,8 @@ describe('count variance', () => {
   it('sends only changed counts, numerically compared', () => {
     const counts = { a: '3.000000', b: '8', c: '' }
     expect(changedCounts(lines, counts)).toEqual([
-      { id: 'a', counted_quantity: '3.000000' },
-      { id: 'c', counted_quantity: null },
+      { line_id: 'a', counted_quantity: '3.000000' },
+      { line_id: 'c', counted_quantity: null },
     ])
   })
 

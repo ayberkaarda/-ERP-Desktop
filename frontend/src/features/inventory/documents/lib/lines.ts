@@ -2,6 +2,7 @@ import Decimal from 'decimal.js'
 import { toIsoDate } from '@/lib/datetime'
 import type { Item } from '@/features/catalog'
 import type {
+  Direction,
   EditableDocType,
   ItemRef,
   StockDocument,
@@ -36,6 +37,8 @@ export interface LineValues {
   serials: string
   locationId: string
   targetLocationId: string
+  /** Adjustments: stock in or out (quantities stay positive). */
+  direction: Direction
 }
 
 export interface DocValues {
@@ -45,6 +48,8 @@ export interface DocValues {
   targetWarehouseId: string
   reason: string
   notes: string
+  /** Issues and transfers: allow issuing from expired lots (permission-bearing). */
+  allowExpired: boolean
   lines: LineValues[]
 }
 
@@ -62,6 +67,7 @@ export function emptyLine(): LineValues {
     serials: '',
     locationId: '',
     targetLocationId: '',
+    direction: 'in',
   }
 }
 
@@ -77,6 +83,7 @@ export function emptyDocument(
     targetWarehouseId: '',
     reason: '',
     notes: '',
+    allowExpired: false,
     lines: [emptyLine()],
   }
 }
@@ -88,23 +95,53 @@ export interface TypeRules {
   costRequired: boolean
   /** Target warehouse and target location (transfers). */
   target: boolean
-  /** Quantities may be negative (adjustment out). */
-  signed: boolean
+  /** Each line says whether it moves stock in or out (adjustments). */
+  direction: boolean
   /** Lot and expiry must be given for tracked items (stock comes in under that lot). */
   lotRequired: boolean
+  /** Stock leaves the warehouse, so expired lots may be allowed explicitly. */
+  issues: boolean
 }
 
 export function typeRules(type: EditableDocType): TypeRules {
   switch (type) {
     case 'receipt':
     case 'opening':
-      return { cost: true, costRequired: true, target: false, signed: false, lotRequired: true }
+      return {
+        cost: true,
+        costRequired: true,
+        target: false,
+        direction: false,
+        lotRequired: true,
+        issues: false,
+      }
     case 'adjustment':
-      return { cost: true, costRequired: false, target: false, signed: true, lotRequired: true }
+      return {
+        cost: true,
+        costRequired: false,
+        target: false,
+        direction: true,
+        lotRequired: true,
+        issues: false,
+      }
     case 'transfer':
-      return { cost: false, costRequired: false, target: true, signed: false, lotRequired: false }
+      return {
+        cost: false,
+        costRequired: false,
+        target: true,
+        direction: false,
+        lotRequired: false,
+        issues: true,
+      }
     case 'issue':
-      return { cost: false, costRequired: false, target: false, signed: false, lotRequired: false }
+      return {
+        cost: false,
+        costRequired: false,
+        target: false,
+        direction: false,
+        lotRequired: false,
+        issues: true,
+      }
   }
 }
 
@@ -175,6 +212,7 @@ export function toDocValues(doc: StockDocument): DocValues {
     targetWarehouseId: text(doc.target_warehouse_id),
     reason: text(doc.reason),
     notes: text(doc.notes),
+    allowExpired: doc.allow_expired ?? false,
     lines: doc.lines.map((l) => ({
       itemId: l.item_id,
       item: itemOfLine(l),
@@ -188,6 +226,7 @@ export function toDocValues(doc: StockDocument): DocValues {
       serials: l.serial_numbers.join('\n'),
       locationId: text(l.location_id),
       targetLocationId: text(l.target_location_id),
+      direction: l.direction ?? 'in',
     })),
   }
 }
@@ -204,18 +243,29 @@ export function isBlankLine(l: LineValues): boolean {
 
 const orNull = (v: string) => (v.trim() === '' ? null : v.trim())
 
+/** Lot numbers apply to lot-tracked items and to items with an expiry date. */
+export const usesLot = (item: ItemRef | null | undefined) =>
+  item?.tracking === 'lot' || item?.has_expiry === true
+
+/** The line takes stock in (receipts, openings, adjustments in). */
+export const isInbound = (l: LineValues, rules: TypeRules) =>
+  rules.lotRequired && !(rules.direction && l.direction === 'out')
+
 export function toLineInput(l: LineValues, rules: TypeRules): StockLineInput {
   const tracking = l.item?.tracking ?? 'none'
+  const outbound = rules.direction && l.direction === 'out'
   return {
     item_id: l.itemId,
     unit_id: l.unitId,
     quantity: l.quantity,
-    unit_cost: rules.cost ? orNull(l.unitCost) : null,
-    lot_no: tracking === 'lot' ? orNull(l.lotNo) : null,
+    // Outbound adjustments leave at the current cost.
+    unit_cost: rules.cost && !outbound ? orNull(l.unitCost) : null,
+    lot_no: usesLot(l.item) ? orNull(l.lotNo) : null,
     expiry_date: l.item?.has_expiry ? orNull(l.expiryDate) : null,
     serial_numbers: tracking === 'serial' ? parseSerials(l.serials) : [],
     location_id: orNull(l.locationId),
     target_location_id: rules.target ? orNull(l.targetLocationId) : null,
+    ...(rules.direction ? { direction: l.direction } : {}),
     notes: null,
   }
 }
@@ -229,6 +279,7 @@ export function toDocInput(v: DocValues): StockDocumentInput {
     target_warehouse_id: rules.target ? orNull(v.targetWarehouseId) : null,
     reason: orNull(v.reason),
     notes: orNull(v.notes),
+    ...(rules.issues ? { allow_expired: v.allowExpired } : {}),
     lines: v.lines.filter((l) => !isBlankLine(l)).map((l) => toLineInput(l, rules)),
   }
 }
@@ -239,7 +290,6 @@ export interface LineMessages {
   unit: string
   quantity: string
   quantityPositive: string
-  quantityNonZero: string
   unitCost: string
   lot: string
   expiry: string
@@ -263,18 +313,17 @@ export function lineProblems(
   if (!l.unitId && l.itemId) out.push(['unitId', m.unit])
   const q = l.quantity.trim()
   if (!isDecimal(q)) out.push(['quantity', m.quantity])
-  else if (rules.signed ? dec(q).isZero() : dec(q).lte(0))
-    out.push(['quantity', rules.signed ? m.quantityNonZero : m.quantityPositive])
-  const inbound = rules.lotRequired && !(rules.signed && dec(q).isNegative())
-  if (rules.costRequired || (rules.cost && l.unitCost !== '')) {
+  else if (dec(q).lte(0)) out.push(['quantity', m.quantityPositive])
+  const inbound = isInbound(l, rules)
+  if (rules.costRequired || (rules.cost && inbound && l.unitCost !== '')) {
     if (!isDecimal(l.unitCost) || dec(l.unitCost).isNegative()) out.push(['unitCost', m.unitCost])
   }
   const item = l.item
-  if (item?.tracking === 'lot' && inbound && l.lotNo.trim() === '') out.push(['lotNo', m.lot])
+  if (usesLot(item) && inbound && l.lotNo.trim() === '') out.push(['lotNo', m.lot])
   if (item?.has_expiry && inbound && l.expiryDate === '') out.push(['expiryDate', m.expiry])
   if (item?.tracking === 'serial' && isDecimal(q)) {
     const serials = parseSerials(l.serials)
-    const base = baseQuantity(new Decimal(q).abs().toString(), l.factor)
+    const base = baseQuantity(q, l.factor)
     if (base === null || !isInteger(base)) out.push(['quantity', m.serialInteger])
     else if (serials.length !== Number(new Decimal(base).toFixed(0)))
       out.push(['serials', m.serialCount(serials.length, new Decimal(base).toFixed(0))])
@@ -316,7 +365,7 @@ export function docTotals(lines: readonly LineValues[], rules: TypeRules): DocTo
       const unit = l.item.base_unit?.code ?? ''
       byUnit.set(unit, (byUnit.get(unit) ?? new Decimal(0)).plus(base))
     }
-    if (rules.cost) {
+    if (rules.cost && isInbound(l, rules)) {
       const c = lineCost(l.quantity, l.unitCost)
       if (c) cost = (cost ?? new Decimal(0)).plus(c)
     }

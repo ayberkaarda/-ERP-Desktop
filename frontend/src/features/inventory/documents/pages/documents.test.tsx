@@ -35,7 +35,9 @@ describe('stock document list', () => {
     const user = userEvent.setup()
     const { router } = renderInvDocs(`/inventory/documents?filter[warehouse_id]=${WH_MAIN}`)
     const grid = await screen.findByRole('grid', { name: 'Stok fişleri' })
-    expect(await within(grid).findByText('CIK-2026-000001')).toBeInTheDocument()
+    expect(await within(grid).findByText('ISS2026000000001')).toBeInTheDocument()
+    // Rows carry warehouse ids; the label comes from /stock-warehouses.
+    expect((await within(grid).findAllByText('ANA · Ana depo')).length).toBeGreaterThan(0)
     expect(within(grid).getAllByText('Taslak').length).toBeGreaterThan(0)
     expect(within(grid).getByText('Kesinleşti')).toBeInTheDocument()
     expect(within(grid).getByText('Sayım')).toBeInTheDocument()
@@ -136,7 +138,7 @@ describe('stock document editor', () => {
     await user.click(screen.getByRole('button', { name: 'Kesinleştir' }))
     const dialog = await screen.findByRole('alertdialog', { name: 'Fiş kesinleştirilsin mi?' })
     await user.click(within(dialog).getByRole('button', { name: 'Kesinleştir' }))
-    expect(await screen.findByTestId('posted-number')).toHaveTextContent('GIR-2026-000001')
+    expect(await screen.findByTestId('posted-number')).toHaveTextContent('REC2026000000001')
     const post = db.calls.find((c) => c.path === `/stock-documents/${DOC_DRAFT}/post`)
     expect(post?.body).toEqual({ version: 2 })
     expect(post?.headers.get('Idempotency-Key')).toBeTruthy()
@@ -190,6 +192,59 @@ describe('stock document editor', () => {
       ?.body as StockDocumentInput
     expect(body).toMatchObject({ doc_type: 'transfer', target_warehouse_id: WH_SECOND })
     expect(body.lines[0]?.unit_cost).toBeNull()
+    // Without inventory.documents.issue_expired the flag is not offered and stays false.
+    expect(
+      screen.queryByRole('checkbox', { name: /Süresi geçmiş lotlardan/ }),
+    ).not.toBeInTheDocument()
+    expect(body.allow_expired).toBe(false)
+  })
+
+  it('offers issuing from expired lots to permitted users and sends allow_expired', async () => {
+    const db = setupInvDocs({
+      permissions: [
+        'inventory.documents.view',
+        'inventory.documents.create',
+        'inventory.documents.issue_expired',
+        'items.view',
+      ],
+    })
+    const user = userEvent.setup()
+    renderInvDocs('/inventory/documents/new?type=issue')
+    await screen.findByRole('heading', { name: 'Yeni Çıkış fişi' })
+    await waitFor(() => expect(screen.getByLabelText(/^Depo/)).toHaveValue('ANA · Ana depo'))
+    await scan(user, BARCODE_PCS)
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Süresi geçmiş lotlardan çıkışa izin ver' }),
+    )
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() =>
+      expect(db.calls.some((c) => c.method === 'POST' && c.path === '/stock-documents')).toBe(true),
+    )
+    const body = db.calls.find((c) => c.method === 'POST' && c.path === '/stock-documents')
+      ?.body as StockDocumentInput
+    expect(body).toMatchObject({ doc_type: 'issue', allow_expired: true })
+  })
+
+  it('sends adjustment lines with a direction and positive quantities', async () => {
+    const db = setupInvDocs()
+    const user = userEvent.setup()
+    renderInvDocs('/inventory/documents/new?type=adjustment')
+    await screen.findByRole('heading', { name: 'Yeni Düzeltme fişi' })
+    await waitFor(() => expect(screen.getByLabelText(/^Depo/)).toHaveValue('ANA · Ana depo'))
+    await scan(user, BARCODE_PCS)
+    const table = screen.getByRole('table', { name: 'Satırlar' })
+    await waitFor(() => expect(within(table).getByLabelText('Birim, 1. satır')).toHaveValue('ADET'))
+    await user.selectOptions(within(table).getByLabelText('Yön, 1. satır'), 'out')
+    // Outbound lines leave at the current cost: no cost to enter.
+    expect(within(table).getByLabelText('Birim maliyet, 1. satır')).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() =>
+      expect(db.calls.some((c) => c.method === 'POST' && c.path === '/stock-documents')).toBe(true),
+    )
+    const body = db.calls.find((c) => c.method === 'POST' && c.path === '/stock-documents')
+      ?.body as StockDocumentInput
+    expect(body.lines[0]).toMatchObject({ quantity: '1', direction: 'out', unit_cost: null })
+    expect(body).not.toHaveProperty('allow_expired')
   })
 })
 
@@ -199,16 +254,18 @@ describe('posted stock document', () => {
     const user = userEvent.setup()
     const { queryClient } = renderInvDocs(`/inventory/documents/${DOC_POSTED}`)
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    await screen.findByRole('heading', { name: 'Çıkış CIK-2026-000001' })
+    await screen.findByRole('heading', { name: 'Çıkış ISS2026000000001' })
     expect(screen.getByRole('link', { name: 'Muhasebe fişini aç' })).toHaveAttribute(
       'href',
       '/accounting/journal-entries/je-77',
     )
-    expect(screen.getByText('Cıvata M8')).toBeInTheDocument()
+    // Lines carry ids; item and unit labels come from Catalog.
+    expect(await screen.findByText('Cıvata M8')).toBeInTheDocument()
+    expect(screen.getByText('ADET')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Ters kayıt' }))
     const dialog = await screen.findByRole('dialog', {
-      name: 'CIK-2026-000001 ters kayıtla iptal edilsin mi?',
+      name: 'ISS2026000000001 ters kayıtla iptal edilsin mi?',
     })
     await user.click(within(dialog).getByRole('button', { name: 'Ters kaydı oluştur' }))
     expect(await within(dialog).findByText('Gerekçe en az 3 karakter olmalı.')).toBeInTheDocument()
@@ -217,6 +274,12 @@ describe('posted stock document', () => {
     expect(await screen.findByText(/ters kayıtla iptal edildi: Yanlış depo/)).toBeInTheDocument()
     const call = db.calls.find((c) => c.path === `/stock-documents/${DOC_POSTED}/reverse`)
     expect(call?.body).toMatchObject({ reason: 'Yanlış depo', version: 3 })
+    // The same document comes back cancelled; no second document is created.
+    expect(db.documents.find((d) => d.id === DOC_POSTED)).toMatchObject({
+      status: 'cancelled',
+      reversal_reason: 'Yanlış depo',
+    })
+    expect(db.documents).toHaveLength(3)
     expect(call?.headers.get('Idempotency-Key')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Ters kayıt' })).not.toBeInTheDocument()
     const keys = invalidate.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey))
@@ -226,7 +289,7 @@ describe('posted stock document', () => {
   it('hides reversing without the reverse permission', async () => {
     setupInvDocs({ permissions: ['inventory.documents.view'] })
     renderInvDocs(`/inventory/documents/${DOC_POSTED}`)
-    await screen.findByRole('heading', { name: 'Çıkış CIK-2026-000001' })
+    await screen.findByRole('heading', { name: 'Çıkış ISS2026000000001' })
     expect(screen.queryByRole('button', { name: 'Ters kayıt' })).not.toBeInTheDocument()
   })
 })

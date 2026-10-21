@@ -31,6 +31,7 @@ export function docSchema(m: DocMessages) {
       targetWarehouseId: z.string(),
       reason: z.string().max(TEXT_MAX, m.tooLong),
       notes: z.string().max(2000, m.tooLong),
+      allowExpired: z.boolean(),
       lines: z.array(z.custom<LineValues>()),
     })
     .superRefine((v, ctx) => {

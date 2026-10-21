@@ -43,7 +43,6 @@
     "notes": "Notlar",
     "status": "Durum",
     "lineCount": "Satır",
-    "totalCost": "Toplam maliyet",
     "source": "Kaynak",
     "postedAt": "Kesinleşme",
     "journalEntry": "Muhasebe fişi",
@@ -92,7 +91,8 @@
     "saved": "Taslak kaydedildi.",
     "deleted": "Taslak silindi.",
     "readOnly": "Bu fişi düzenleme yetkiniz yok.",
-    "header": "Fiş bilgileri"
+    "header": "Fiş bilgileri",
+    "allowExpired": "Süresi geçmiş lotlardan çıkışa izin ver"
   },
   "lines": {
     "title": "Satırlar",
@@ -115,7 +115,10 @@
     "serialsEntered": "{{count}} girildi",
     "maxReached": "Bir fişte en çok {{max}} satır olabilir.",
     "count": "{{count}} / {{max}} satır",
-    "fefo": "Boş bırakılırsa en yakın SKT'li lot (FEFO) seçilir."
+    "fefo": "Boş bırakılırsa en yakın SKT'li lot (FEFO) seçilir.",
+    "direction": "Yön",
+    "directionIn": "Giriş",
+    "directionOut": "Çıkış"
   },
   "scan": {
     "label": "Barkod okut",
@@ -141,7 +144,6 @@
     "unit": "Birim seçin.",
     "quantity": "Geçerli bir miktar girin.",
     "quantityPositive": "Miktar sıfırdan büyük olmalı.",
-    "quantityNonZero": "Miktar sıfır olamaz.",
     "unitCost": "Geçerli bir birim maliyet girin.",
     "lot": "Lot takipli kart için lot numarası zorunlu.",
     "expiry": "Son kullanma tarihi zorunlu.",
@@ -171,7 +173,8 @@
     "lines": "Satırlar",
     "audit": "Geçmiş",
     "reversed": "{{date}} tarihinde ters kayıtla iptal edildi: {{reason}}",
-    "journalEntry": "Muhasebe fişini aç"
+    "journalEntry": "Muhasebe fişini aç",
+    "yes": "Evet"
   },
   "conflict": {
     "title": "Fiş başka biri tarafından değiştirildi",
@@ -188,10 +191,7 @@
     "listDescription": "Sayım başlatın, sayılan miktarları girin, farkları inceleyip kesinleştirin.",
     "new": "Yeni sayım",
     "startTitle": "Sayım başlat",
-    "startBody": "Başlattığınız anda seçili kapsamdaki sistem miktarları dondurulur; sayım bu miktarlarla karşılaştırılır.",
-    "scopeLocation": "Lokasyon (isteğe bağlı)",
-    "scopeCategory": "Kategori (isteğe bağlı)",
-    "includeZero": "Sistem miktarı sıfır olan kartları da listele",
+    "startBody": "Dondurarak başlatırsanız deponun sıfır olmayan bakiyeleri sistem miktarlarıyla sayım satırı olur; sayım bu miktarlarla karşılaştırılır.",
     "start": "Dondur ve başlat",
     "title": "Sayım {{number}}",
     "frozenAt": "Donduruldu: {{date}}",
@@ -208,37 +208,47 @@
     "saved": "Sayım kaydedildi.",
     "keys": "Ok tuşları ve Enter ile hücreler arasında gezinin; Ctrl+S kaydeder.",
     "progress": "{{counted}} / {{total}} satır sayıldı",
-    "uncountedWarning": "{{count}} satır henüz sayılmadı; kesinleştirmeden önce sayın veya sistem miktarıyla doldurun.",
+    "uncountedWarning": "{{count}} satır henüz sayılmadı; sayılmayan satırlar kesinleştirmede atlanır.",
     "summaryGain": "Fazla",
     "summaryLoss": "Eksik",
     "summaryNet": "Net fark",
     "postBody": "Farklar için sayım düzeltme hareketleri ve fark muhasebe fişi oluşur.",
     "postSummary": "{{gain}} fazla · {{loss}} eksik · net {{net}}",
-    "postNeedsCounts": "Tüm satırlar sayılmadan kesinleştirilemez.",
+    "postNeedsCounts": "En az bir satır sayılmadan kesinleştirilemez.",
     "empty": "Bu sayımda satır yok.",
     "notFound": "Filtreye uyan satır yok.",
     "saveBeforeImport": "İçe aktarmadan önce sayımı kaydedin.",
     "summary": "Sayım özeti",
     "prevPage": "Önceki sayfa",
     "nextPage": "Sonraki sayfa",
-    "page": "Sayfa {{page}} / {{pages}}"
+    "page": "Sayfa {{page}} / {{pages}}",
+    "freeze": "Mevcut stoğu dondur (sistem miktarlarını satır olarak ekle)",
+    "startEmpty": "Boş sayım başlat",
+    "scopeItems": "Yalnızca bu kartlar (isteğe bağlı)",
+    "scopeItemsHint": "Boş bırakılırsa depodaki tüm kartlar dondurulur.",
+    "removeItem": "{{item}} kapsamdan çıkar",
+    "addLine": "Satır ekle",
+    "addTitle": "Sayım satırı ekle",
+    "addBody": "Listede olmayan stok için; sistem miktarı eklendiği andaki eldeki miktardır. Aynı kart, lokasyon ve lot zaten varsa o satır güncellenir.",
+    "added": "Satır eklendi.",
+    "postSkipsUncounted": "{{count}} sayılmamış satır atlanacak."
   },
   "import": {
     "action": "CSV içe aktar",
     "title": "Sayım CSV'si içe aktar",
-    "body": "Sütunlar: item_code, lot_no, location_code, counted_quantity. Önce deneme yapılır; hata yoksa uygulayabilirsiniz.",
+    "body": "Sütunlar: item_code, counted_quantity ve isteğe bağlı location_code, lot_no (virgül veya noktalı virgül). Eşleşen satırların sayımı girilir, diğerleri eklenir. Önce deneme yapılır; hata yoksa uygulayabilirsiniz.",
     "file": "CSV dosyası",
     "dryRun": "Dene",
     "apply": "{{count}} satırı uygula",
     "row": "Satır",
     "result": "Sonuç",
-    "ok": "Uygun",
-    "error": "Hatalı",
-    "summary": "{{valid}} uygun, {{invalid}} hatalı satır",
+    "summary": "{{rows}} satırdan {{valid}} uygun",
     "applied": "{{count}} satır içe aktarıldı.",
     "hasErrors": "Hatalı satırları düzeltip dosyayı yeniden deneyin.",
     "tooLarge": "Dosya çok büyük (en çok 5 MB).",
-    "wrongType": "Yalnızca .csv dosyası seçin."
+    "wrongType": "Yalnızca .csv dosyası seçin.",
+    "column": "Sütun",
+    "message": "Hata"
   },
   "reservation": {
     "title": "Rezervasyonlar",
@@ -251,13 +261,20 @@
     "release": "Serbest bırak",
     "releaseTitle": "Rezervasyon serbest bırakılsın mı?",
     "releaseBody": "{{item}} için {{quantity}} ayrılmış miktar kullanılabilir stoğa döner.",
-    "releaseReason": "Gerekçe (isteğe bağlı)",
     "released": "Rezervasyon serbest bırakıldı.",
     "noExpiry": "Süresiz",
     "statusActive": "Etkin",
     "statusReleased": "Serbest",
     "statusConsumed": "Tüketildi",
-    "statusExpired": "Süresi doldu"
+    "statusExpired": "Süresi doldu",
+    "new": "Yeni rezervasyon",
+    "createTitle": "Stok rezerve et",
+    "createBody": "Bir depodaki miktarı ayırır. Esnek politikalı depoda kullanılabilir miktarı aşan kısım uyarı olarak bildirilir.",
+    "create": "Rezerve et",
+    "created": "Rezervasyon oluşturuldu.",
+    "shortage": "Rezervasyon oluşturuldu; {{quantity}} kullanılabilir stoğu aşıyor.",
+    "anyLot": "Herhangi bir lot",
+    "manual": "Elle"
   },
   "reports": {
     "hubTitle": "Stok raporları",
@@ -268,8 +285,12 @@
     "empty": "Rapor için kayıt yok.",
     "total": "Toplam",
     "rows": "{{count}} satır",
-    "truncated": "Ekranda ilk {{count}} satır gösteriliyor; tamamı için dışa aktarın.",
-    "required": "Zorunlu parametreleri doldurun."
+    "required": "Zorunlu parametreleri doldurun.",
+    "expired": "Süresi doldu",
+    "basisBooked": "Defter değerleri ({{method}}): stok hesabının gösterdiği tutarlar.",
+    "basisSimulated": "{{method}} ile yeniden hesaplanmış varsayımsal değerler; defter kayıtlarıyla aynı olmayabilir.",
+    "basisLayers": "Yaşlar FIFO maliyet katmanlarından hesaplandı.",
+    "basisReceipts": "Yaşlar stoğu karşılayan en yeni girişlerden hesaplandı."
   },
   "report": {
     "stockStatus": {
@@ -294,15 +315,19 @@
     },
     "abc": {
       "title": "ABC analizi",
-      "description": "Kartların dönemdeki çıkış değerine göre A, B, C sınıfları."
+      "description": "Kartların dönemdeki tüketim değerine (veya dönem sonu stok değerine) göre A, B, C sınıfları."
     },
     "turnover": {
       "title": "Stok devir hızı",
-      "description": "Dönem ortalama stoğu, satılan malın maliyeti ve devir hızı."
+      "description": "Dönem başı ve sonu stok değeri, tüketim, ortalama stok, devir hızı ve stokta kalma günü."
     },
     "reorder": {
       "title": "Sipariş önerileri",
       "description": "Kullanılabilir miktarı yeniden sipariş noktasının altına düşen kartlar."
+    },
+    "movementSummary": {
+      "title": "Hareket özeti",
+      "description": "Dönem başı, giriş, çıkış ve dönem sonu miktar ile değerleri."
     }
   },
   "param": {
@@ -320,10 +345,16 @@
     "days": "Gün",
     "includeExpired": "Süresi dolmuşları da göster",
     "basis": "Ölçüt",
-    "basisValue": "Değer",
-    "basisQuantity": "Miktar",
     "aThreshold": "A sınırı (%)",
-    "bThreshold": "B sınırı (%)"
+    "bThreshold": "B sınırı (%)",
+    "groupBy": "Gruplama",
+    "groupItemWarehouse": "Kart ve depo",
+    "groupItem": "Kart",
+    "groupWarehouse": "Depo",
+    "groupCategory": "Kategori",
+    "search": "Kod veya ad",
+    "basisConsumption": "Tüketim değeri",
+    "basisStockValue": "Dönem sonu stok değeri"
   },
   "col": {
     "itemCode": "Kod",
@@ -354,19 +385,28 @@
     "b61_90": "61-90 gün",
     "b90": "90+ gün",
     "expiryDate": "SKT",
-    "daysLeft": "Kalan gün",
     "share": "Pay %",
     "cumulative": "Kümülatif %",
     "class": "Sınıf",
     "openingValue": "Dönem başı değer",
     "closingValue": "Dönem sonu değer",
-    "averageInventory": "Ortalama stok",
-    "cogs": "SMM",
     "turnover": "Devir hızı",
     "daysOnHand": "Stokta gün",
     "reorderPoint": "Sipariş noktası",
     "minStock": "Asgari stok",
-    "suggested": "Önerilen miktar"
+    "suggested": "Önerilen miktar",
+    "warehouseName": "Depo adı",
+    "category": "Kategori",
+    "categoryName": "Kategori adı",
+    "itemCount": "Kart sayısı",
+    "rank": "Sıra",
+    "serial": "Seri no",
+    "balanceAvgCost": "Ort. maliyet",
+    "daysToExpiry": "Kalan gün",
+    "consumedValue": "Tüketim",
+    "averageValue": "Ortalama stok",
+    "openingQuantity": "Dönem başı miktar",
+    "closingQuantity": "Dönem sonu miktar"
   },
   "movementType": {
     "receipt": "Giriş",

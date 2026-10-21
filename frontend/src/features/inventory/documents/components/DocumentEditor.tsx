@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { DateInput, Form, FormErrorSummary, FormField } from '@/components/shared/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
@@ -16,7 +17,8 @@ import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { documentsApi, lookupsApi, type BarcodeHit } from '../api/client'
 import { invalidateStockEffects, invDocsKeys } from '../api/keys'
-import { useWarehouses } from '../hooks/queries'
+import { useStockWarehouses } from '../../shared/warehouses'
+import { useEnrich } from '../hooks/queries'
 import { errorMessage, isVersionConflict } from '../lib/errors'
 import { usePayloadKeys } from '../lib/idempotency'
 import {
@@ -67,7 +69,9 @@ export function DocumentEditor({
   const keyFor = usePayloadKeys()
   const canEdit = usePermission(INV_PERMS.documents.create)
   const canPost = usePermission(INV_PERMS.documents.post)
-  const warehouses = useWarehouses()
+  const canIssueExpired = usePermission(INV_PERMS.documents.issueExpired)
+  const enrich = useEnrich()
+  const warehouses = useStockWarehouses()
   const defaultWarehouse = warehouses.data?.find((w) => w.is_default && w.is_active)?.id ?? ''
   const [conflict, setConflict] = useState(false)
   const [base, setBase] = useState<StockDocument | null>(document)
@@ -93,7 +97,6 @@ export function DocumentEditor({
       unit: t('validation.unit'),
       quantity: t('validation.quantity'),
       quantityPositive: t('validation.quantityPositive'),
-      quantityNonZero: t('validation.quantityNonZero'),
       unitCost: t('validation.unitCost'),
       lot: t('validation.lot'),
       expiry: t('validation.expiry'),
@@ -110,6 +113,7 @@ export function DocumentEditor({
   const { isDirty } = useFormState({ control: form.control })
   const docType = useWatch({ control: form.control, name: 'docType' })
   const warehouseId = useWatch({ control: form.control, name: 'warehouseId' })
+  const allowExpired = useWatch({ control: form.control, name: 'allowExpired' })
   const rules = typeRules(docType)
 
   // The company default warehouse fills an untouched new document once the list arrives.
@@ -129,12 +133,19 @@ export function DocumentEditor({
     useCompanyStore.getState().activeCompanyId === started
 
   const save = useMutation({
-    mutationFn: async ({ values }: { values: DocValues; company: string | null }) => {
+    mutationFn: async ({
+      values,
+      company: started,
+    }: {
+      values: DocValues
+      company: string | null
+    }) => {
       setLastValues(values)
       const input = toDocInput(values)
-      return base
+      const saved = await (base
         ? documentsApi.update(base.id, { ...input, version: base.version })
-        : documentsApi.create(input, keyFor(input))
+        : documentsApi.create(input, keyFor(input)))
+      return enrich(saved, started ?? 'none')
     },
     onSuccess: (saved, { company: started }) => {
       queryClient.setQueryData(invDocsKeys.document(saved.id, started ?? 'none'), saved)
@@ -149,11 +160,20 @@ export function DocumentEditor({
   })
 
   const post = useMutation({
-    mutationFn: ({ target }: { target: StockDocument; company: string | null }) =>
-      documentsApi.post(
-        target.id,
-        target.version,
-        keyFor({ post: target.id, version: target.version }),
+    mutationFn: async ({
+      target,
+      company: started,
+    }: {
+      target: StockDocument
+      company: string | null
+    }) =>
+      enrich(
+        await documentsApi.post(
+          target.id,
+          target.version,
+          keyFor({ post: target.id, version: target.version }),
+        ),
+        started ?? 'none',
       ),
     onSuccess: (posted, { company: started }) => {
       queryClient.setQueryData(invDocsKeys.document(posted.id, started ?? 'none'), posted)
@@ -379,6 +399,7 @@ export function DocumentEditor({
             targetWarehouseId: t('fields.targetWarehouse'),
             reason: t('fields.reason'),
             notes: t('fields.notes'),
+            allowExpired: t('editor.allowExpired'),
           }}
         />
         <section
@@ -479,6 +500,18 @@ export function DocumentEditor({
                 <Input {...control} {...field} disabled={disabled} maxLength={500} />
               )}
             />
+          )}
+          {rules.issues && (canIssueExpired || allowExpired) && (
+            <label className="flex items-center gap-2 text-sm md:col-span-4">
+              <Checkbox
+                checked={allowExpired}
+                disabled={disabled || !canIssueExpired}
+                onChange={(e) =>
+                  form.setValue('allowExpired', e.target.checked, { shouldDirty: true })
+                }
+              />
+              {t('editor.allowExpired')}
+            </label>
           )}
           <div className="md:col-span-4">
             <FormField<DocValues, 'notes'>

@@ -1,8 +1,7 @@
-// Shapes of the stock document, reservation and inventory report endpoints (PHASE4 HTTP API).
-// The backend lane builds them in parallel: field names follow the PHASE4 data model and the
-// conventions of earlier modules (ApiResponse envelopes, ListQuery filters, HasVersion). Money
-// and quantities are decimal strings (quantities numeric(20,6), money numeric(20,4)); calendar
-// dates are "YYYY-MM-DD".
+// Shapes of the stock document, reservation and inventory report endpoints (Inventory module,
+// /api/v1). Envelopes follow Core ApiResponse: `{data}`, lists `{data, meta: {pagination}}`.
+// Money and quantities are decimal strings (quantities numeric(20,6), money numeric(20,4));
+// calendar dates are "YYYY-MM-DD", timestamps ISO 8601.
 import type { AuditEntry } from '@/components/shared/AuditTrail'
 
 export interface Pagination {
@@ -37,23 +36,13 @@ export type EditableDocType = (typeof EDITABLE_DOC_TYPES)[number]
 export const DOC_STATUSES = ['draft', 'posted', 'cancelled'] as const
 export type DocStatus = (typeof DOC_STATUSES)[number]
 
+/** Adjustment lines move stock in or out; quantities are always positive. */
+export type Direction = 'in' | 'out'
+
 export interface CodeName {
   id: string
   code: string
   name: string
-}
-
-/** GET /warehouses row (only what the documents need). */
-export interface WarehouseRef extends CodeName {
-  is_active: boolean
-  is_default: boolean
-  allow_negative_stock?: boolean
-}
-
-/** GET /warehouses/{id}/locations row. */
-export interface LocationRef extends CodeName {
-  warehouse_id: string
-  is_active: boolean
 }
 
 export type TrackingMode = 'none' | 'lot' | 'serial'
@@ -75,6 +64,7 @@ export interface UnitChoice {
   factor: string
 }
 
+/** StockDocumentResource without lines (list rows carry line_count). */
 export interface StockDocumentSummary {
   id: string
   doc_type: DocType
@@ -83,61 +73,72 @@ export interface StockDocumentSummary {
   status: DocStatus
   document_date: string
   warehouse_id: string
-  warehouse_code?: string | null
-  warehouse_name?: string | null
   target_warehouse_id: string | null
-  target_warehouse_code?: string | null
-  target_warehouse_name?: string | null
   reason: string | null
   notes: string | null
+  /** Accounting offset event of issues and adjustments (e.g. inventory.scrap). */
+  offset_event?: string | null
+  /** Issue from expired lots (needs inventory.documents.issue_expired when posting). */
+  allow_expired?: boolean
   source_type: string | null
   source_id: string | null
   journal_entry_id: string | null
-  posted_at: string | null
-  posted_by?: string | null
-  /** Set when a posted document was reversed (status becomes cancelled). */
-  reversed_at?: string | null
-  reversal_reason?: string | null
-  reversal_date?: string | null
   /** Count documents: when the system quantities were frozen. */
   frozen_at?: string | null
+  posted_at: string | null
+  posted_by?: string | null
+  /** Set when a posted document was reversed: it becomes cancelled, no second document. */
+  reversal_date?: string | null
+  reversal_reason?: string | null
+  reversal_journal_entry_id?: string | null
+  reversed_at?: string | null
+  reversed_by?: string | null
+  created_by?: string | null
   line_count?: number
-  /** Sum of line costs where known (receipts, openings, posted documents). */
-  total_cost?: string | null
-  created_at?: string
+  created_at?: string | null
+  updated_at?: string | null
   version: number
 }
 
+/**
+ * StockDocumentLineResource. The API sends ids only; the `item_*`, `*_unit_*` and `*_code`
+ * labels are filled in on the client from Catalog items, units and the warehouse locations
+ * (lib/enrich.ts).
+ */
 export interface StockDocumentLine {
   id: string
   line_no: number
   item_id: string
-  item_code?: string | null
-  item_name?: string | null
-  /** Echoed by the API so the editor knows tracking rules without another lookup. */
-  item_tracking?: TrackingMode
-  item_has_expiry?: boolean
-  base_unit_id?: string | null
-  base_unit_code?: string | null
   unit_id: string
-  unit_code?: string | null
   quantity: string
   /** quantity × unit factor, computed by the server. */
   base_quantity: string
   unit_cost: string | null
-  total_cost?: string | null
   lot_no: string | null
   expiry_date: string | null
   serial_numbers: string[]
   location_id: string | null
-  location_code?: string | null
   /** Transfers: location in the target warehouse. */
   target_location_id?: string | null
-  target_location_code?: string | null
+  /** Adjustments: in or out (null on other types). */
+  direction?: Direction | null
   /** Counts: frozen system quantity and the counted one (null = not counted yet). */
   system_quantity?: string | null
   counted_quantity?: string | null
+  /** counted - system once counted. */
+  difference?: string | null
+  reservation_id?: string | null
   notes?: string | null
+  // Client-side labels.
+  item_code?: string | null
+  item_name?: string | null
+  item_tracking?: TrackingMode
+  item_has_expiry?: boolean
+  base_unit_id?: string | null
+  base_unit_code?: string | null
+  unit_code?: string | null
+  location_code?: string | null
+  target_location_code?: string | null
 }
 
 export interface ApiAuditRow {
@@ -168,6 +169,8 @@ export interface StockLineInput {
   serial_numbers: string[]
   location_id: string | null
   target_location_id: string | null
+  /** Adjustments only. */
+  direction?: Direction
   notes: string | null
 }
 
@@ -178,26 +181,40 @@ export interface StockDocumentInput {
   target_warehouse_id: string | null
   reason: string | null
   notes: string | null
+  /** Issues and transfers only (expired lots may then be issued by a permitted poster). */
+  allow_expired?: boolean
   lines: StockLineInput[]
 }
 
-/** POST /stock-documents with doc_type count: the server freezes system quantities. */
+/**
+ * POST /stock-documents with doc_type count: with freeze (default true) the server snapshots the
+ * warehouse's non-zero balances (optionally only `item_ids`) as uncounted lines.
+ */
 export interface CountStartInput {
   doc_type: 'count'
   document_date: string
   warehouse_id: string
-  freeze: true
-  location_id: string | null
-  category_id: string | null
-  /** Also list items with zero system quantity (blind counts of the whole catalog). */
-  include_zero: boolean
+  freeze: boolean
+  item_ids?: string[]
   notes: string | null
 }
 
-/** PATCH of a count draft: counted quantities by line id (null clears the count). */
+/** A line for stock found outside the snapshot (system quantity = on hand when added). */
+export interface CountAddInput {
+  item_id: string
+  unit_id?: string | null
+  location_id: string | null
+  lot_no: string | null
+  expiry_date?: string | null
+  unit_cost?: string | null
+  counted_quantity: string
+}
+
+/** PATCH /stock-documents/{id}/counts: counted quantities by line (null clears) and new lines. */
 export interface CountUpdateInput {
   version: number
-  lines: { id: string; counted_quantity: string | null }[]
+  counts: { line_id: string; counted_quantity: string | null }[]
+  add?: CountAddInput[]
 }
 
 export interface ReverseInput {
@@ -206,50 +223,45 @@ export interface ReverseInput {
   version: number
 }
 
-/** Result row of the count CSV import (dry run or applied). */
-export interface ImportRow {
-  row: number
-  item_code: string | null
-  lot_no: string | null
-  location_code: string | null
-  counted_quantity: string | null
-  line_id: string | null
-  status: 'ok' | 'error'
-  message: string | null
-}
-
+/** POST /stock-documents/{id}/import (count and opening drafts), dry run or applied. */
 export interface ImportResult {
-  dry_run: boolean
-  rows: ImportRow[]
+  /** Data rows read from the file. */
+  rows: number
   valid: number
-  invalid: number
-  /** Present once applied (dry_run false): the updated count document. */
-  document?: ApiStockDocument | null
+  errors: { row: number; field: string; message: string }[]
+  /** False on a dry run or when any row failed. */
+  applied: boolean
 }
 
 export const RESERVATION_STATUSES = ['active', 'released', 'consumed', 'expired'] as const
 export type ReservationStatus = (typeof RESERVATION_STATUSES)[number]
 
+/** StockReservationResource; item, warehouse and lot labels are resolved on the client. */
 export interface StockReservation {
   id: string
   item_id: string
-  item_code?: string | null
-  item_name?: string | null
   warehouse_id: string
-  warehouse_code?: string | null
   lot_id: string | null
-  lot_no?: string | null
   quantity: string
-  unit_code?: string | null
   status: ReservationStatus
   source_type: string | null
   source_id: string | null
-  /** Human reference of the source document when the server can resolve it. */
-  source_label?: string | null
   expires_at: string | null
+  closed_at?: string | null
+  notes: string | null
   created_by?: string | null
-  created_at?: string
+  created_at?: string | null
+  updated_at?: string | null
   version: number
+}
+
+export interface ReservationInput {
+  item_id: string
+  warehouse_id: string
+  lot_id: string | null
+  quantity: string
+  expires_at: string | null
+  notes: string | null
 }
 
 /** API limit per document. */

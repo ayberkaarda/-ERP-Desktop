@@ -25,6 +25,7 @@ const WIDTH: Record<ParamDef['kind'], string> = {
   number: 'w-28',
   select: 'w-44',
   checkbox: '',
+  text: 'w-48',
 }
 
 /** Parameter form of a report, built from its definition; Enter or "Run" applies it. */
@@ -66,6 +67,16 @@ export function ReportParamsForm({ def, value, onChange, onSubmit }: ReportParam
                   value={v || null}
                   type="stock"
                   onChange={(id) => set(p.key, id ?? '')}
+                />
+              )
+            case 'text':
+              return (
+                <Input
+                  {...control}
+                  type="search"
+                  maxLength={200}
+                  value={v}
+                  onChange={(e) => set(p.key, e.target.value)}
                 />
               )
             case 'number':

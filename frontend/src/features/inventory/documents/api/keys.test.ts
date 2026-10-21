@@ -34,7 +34,7 @@ describe('inventory document query keys', () => {
     const untouched = [
       ['inventory', 'c2', 'stock-views', 'balances', 'list', {}],
       ['inventory', 'c2', 'docs', 'reports', 'stock-status', {}],
-      ['inventory', 'c1', 'stock-views', 'warehouses'],
+      ['inventory', 'c1', 'warehouses', 'list'],
     ]
     for (const key of [...stale, ...untouched]) seed(key)
 

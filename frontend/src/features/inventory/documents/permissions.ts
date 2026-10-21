@@ -1,12 +1,14 @@
 import { anyOf } from '@/lib/permissions'
 
-/** Permission names of the stock document, reservation and report endpoints (PHASE4). */
+/** Permission names of the stock document, reservation and report endpoints (permissions.php). */
 export const INV_PERMS = {
   documents: {
     view: 'inventory.documents.view',
     create: 'inventory.documents.create',
     post: 'inventory.documents.post',
     reverse: 'inventory.documents.reverse',
+    /** Post documents flagged allow_expired (issue from expired lots). */
+    issueExpired: 'inventory.documents.issue_expired',
   },
   stockView: 'inventory.stock.view',
   reservationsManage: 'inventory.reservations.manage',
@@ -20,6 +22,6 @@ export const INV_OPEN = {
   /** Reservations are listed for stock viewers and for those who manage them. */
   reservations: anyOf(INV_PERMS.stockView, INV_PERMS.reservationsManage),
   reports: INV_PERMS.reportsView,
-  /** GET /reports/reorder-suggestions: report viewers or stock viewers (it backs a stock alert). */
-  reorder: anyOf(INV_PERMS.reportsView, INV_PERMS.stockView),
+  /** GET /reports/reorder-suggestions is a stock read (inventory.stock.view). */
+  reorder: INV_PERMS.stockView,
 } as const

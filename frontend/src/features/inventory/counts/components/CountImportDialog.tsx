@@ -1,9 +1,8 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FieldShell } from '@/components/shared/form'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,13 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { useIntlLocale } from '@/lib/datetime'
-import { formatDecimalDisplay } from '@/lib/money'
 import { platform } from '@/platform'
-import { documentsApi, toDocument } from '../../documents/api/client'
-import { activeCompany } from '../../documents/api/keys'
+import { documentsApi } from '../../documents/api/client'
+import { activeCompany, invDocsKeys } from '../../documents/api/keys'
+import { useEnrich } from '../../documents/hooks/queries'
 import { usePayloadKeys } from '../../documents/lib/idempotency'
-import { trimDecimal } from '../../documents/lib/quantity'
 import { ActionError } from '../../documents/components/ActionError'
 import type { ImportResult, StockDocument } from '../../documents/types'
 
@@ -30,11 +27,14 @@ interface CountImportDialogProps {
   document: StockDocument
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** `company` is the one the import was started in. */
+  /** `company` is the one the import was started in; `doc` is the reloaded count. */
   onApplied: (doc: StockDocument | null, company: string) => void
 }
 
-/** Count CSV: a dry run shows how every row matches; only a clean file can be applied. */
+/**
+ * Count CSV (POST /stock-documents/{id}/import): a dry run reports the rows and their errors;
+ * only a clean file can be applied. The API answers with counts only, so the count is reloaded.
+ */
 export function CountImportDialog({
   document,
   open,
@@ -42,8 +42,9 @@ export function CountImportDialog({
   onApplied,
 }: CountImportDialogProps) {
   const { t } = useTranslation('inventoryDocs')
-  const locale = useIntlLocale()
+  const queryClient = useQueryClient()
   const keyFor = usePayloadKeys()
+  const enrich = useEnrich()
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   /** The dry run result together with the file it was run on. */
@@ -52,7 +53,15 @@ export function CountImportDialog({
   const selected = useRef<File | null>(null)
 
   const run = useMutation({
-    mutationFn: ({ dryRun, file: target }: { dryRun: boolean; file: File; company: string }) => {
+    mutationFn: async ({
+      dryRun,
+      file: target,
+      company,
+    }: {
+      dryRun: boolean
+      file: File
+      company: string
+    }) => {
       const key = keyFor({
         doc: document.id,
         version: document.version,
@@ -61,20 +70,27 @@ export function CountImportDialog({
         size: target.size,
         modified: target.lastModified,
       })
-      return documentsApi.importLines(document.id, target, {
+      const result = await documentsApi.importLines(document.id, target, {
         dryRun,
         version: document.version,
         idempotencyKey: key,
       })
+      if (dryRun || !result.applied) return { result, doc: null }
+      const doc = await documentsApi
+        .get(document.id)
+        .then((fresh) => enrich(fresh, company))
+        .catch(() => null)
+      return { result, doc }
     },
-    onSuccess: (result, { dryRun, file: target, company }) => {
-      if (dryRun) {
+    onSuccess: ({ result, doc }, { dryRun, file: target, company }) => {
+      if (dryRun || !result.applied) {
         // A response for a file that is no longer selected is ignored.
         if (selected.current === target) setPreview({ file: target, result })
         return
       }
+      if (doc) queryClient.setQueryData(invDocsKeys.document(doc.id, company), doc)
       platform.notify.success(t('import.applied', { count: result.valid }))
-      onApplied(result.document ? toDocument(result.document) : null, company)
+      onApplied(doc, company)
       close()
     },
   })
@@ -105,7 +121,7 @@ export function CountImportDialog({
   }
 
   const result = preview?.file === file ? preview.result : null
-  const canApply = result !== null && result.invalid === 0 && result.valid > 0
+  const canApply = result !== null && result.errors.length === 0 && result.valid > 0
 
   return (
     <Dialog
@@ -132,64 +148,39 @@ export function CountImportDialog({
         {result && (
           <div className="space-y-2">
             <p role="status" className="text-sm">
-              {t('import.summary', { valid: result.valid, invalid: result.invalid })}
+              {t('import.summary', { valid: result.valid, rows: result.rows })}
             </p>
-            {result.invalid > 0 && <p className="text-sm text-danger">{t('import.hasErrors')}</p>}
-            <div className="max-h-72 overflow-auto rounded-md border border-border">
-              <table className="w-full text-table" aria-label={t('import.result')}>
-                <thead className="sticky top-0 bg-surface-sunken text-xs text-muted-foreground">
-                  <tr>
-                    <th scope="col" className="px-2 py-1 text-right">
-                      {t('import.row')}
-                    </th>
-                    <th scope="col" className="px-2 py-1 text-left">
-                      {t('lines.item')}
-                    </th>
-                    <th scope="col" className="px-2 py-1 text-left">
-                      {t('lines.lot')}
-                    </th>
-                    <th scope="col" className="px-2 py-1 text-left">
-                      {t('lines.location')}
-                    </th>
-                    <th scope="col" className="px-2 py-1 text-right">
-                      {t('count.counted')}
-                    </th>
-                    <th scope="col" className="px-2 py-1 text-left">
-                      {t('import.result')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.rows.map((r) => (
-                    <tr key={r.row} className="border-t border-border">
-                      <td className="px-2 py-1 text-right tabular-nums">{r.row}</td>
-                      <td className="px-2 py-1 font-code">{r.item_code}</td>
-                      <td className="px-2 py-1 font-code">{r.lot_no}</td>
-                      <td className="px-2 py-1">{r.location_code}</td>
-                      <td className="px-2 py-1 text-right tabular-nums">
-                        {r.counted_quantity
-                          ? formatDecimalDisplay(trimDecimal(r.counted_quantity), {
-                              locale,
-                              minFraction: 0,
-                              maxFraction: 6,
-                            })
-                          : ''}
-                      </td>
-                      <td className="px-2 py-1">
-                        {r.status === 'ok' ? (
-                          <Badge tone="success">{t('import.ok')}</Badge>
-                        ) : (
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            <Badge tone="danger">{t('import.error')}</Badge>
-                            <span className="text-xs text-danger">{r.message}</span>
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {result.errors.length > 0 && (
+              <>
+                <p className="text-sm text-danger">{t('import.hasErrors')}</p>
+                <div className="max-h-72 overflow-auto rounded-md border border-border">
+                  <table className="w-full text-table" aria-label={t('import.result')}>
+                    <thead className="sticky top-0 bg-surface-sunken text-xs text-muted-foreground">
+                      <tr>
+                        <th scope="col" className="px-2 py-1 text-right">
+                          {t('import.row')}
+                        </th>
+                        <th scope="col" className="px-2 py-1 text-left">
+                          {t('import.column')}
+                        </th>
+                        <th scope="col" className="px-2 py-1 text-left">
+                          {t('import.message')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.errors.map((e, i) => (
+                        <tr key={`${e.row}-${e.field}-${i}`} className="border-t border-border">
+                          <td className="px-2 py-1 text-right tabular-nums">{e.row}</td>
+                          <td className="px-2 py-1 font-code">{e.field}</td>
+                          <td className="px-2 py-1 text-danger">{e.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         )}
         <DialogFooter>

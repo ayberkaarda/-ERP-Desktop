@@ -61,13 +61,13 @@ export function countSummary(lines: readonly StockDocumentLine[], counts: Counts
 export function changedCounts(
   lines: readonly StockDocumentLine[],
   counts: Counts,
-): { id: string; counted_quantity: string | null }[] {
+): { line_id: string; counted_quantity: string | null }[] {
   return lines.flatMap((l) => {
     const now = counts[l.id] ?? ''
     const stored = l.counted_quantity ?? ''
     const same =
       now === stored || (isDecimal(now) && isDecimal(stored) && new Decimal(now).eq(stored))
-    return same ? [] : [{ id: l.id, counted_quantity: now === '' ? null : now }]
+    return same ? [] : [{ line_id: l.id, counted_quantity: now === '' ? null : now }]
   })
 }
 

@@ -1,10 +1,12 @@
-// Inventory report definitions: API path, parameter form, columns and how rows are read from
-// the response. Shapes follow PHASE4 "Reports (invrep)": GET /inventory-reports/<name> returns
-// { data: { rows: [...], totals?: {...} } } with numbers as strings; the stock ledger (kartex)
-// adds opening and closing balances. Exports live at `<path>/export?format=csv|xlsx`.
+// Inventory report definitions: API path, parameter form and columns. The stock reports live at
+// GET /inventory-reports/<name> (inventory.reports.view) with plain query parameters
+// (warehouse_id, category_id, item_id, q, page, per_page ≤ 500 plus the report's own) and answer
+// `{data: rows of the page, meta: {as_of | date_from/date_to, group_by, basis, totals, pagination}}`
+// with every number a decimal string. Each has an `/export?format=csv|xlsx` twin. Reorder
+// suggestions (GET /reports/reorder-suggestions, inventory.stock.view) return a plain row list.
 import type { PermissionRequirement } from '@/lib/permissions'
 import type tr from '@/lib/i18n/locales/inventory-docs/tr.json'
-import { addDays, toIsoDate } from '@/lib/datetime'
+import { toIsoDate } from '@/lib/datetime'
 import { INV_OPEN } from '../documents/permissions'
 
 export type ReportId = keyof (typeof tr)['report']
@@ -12,7 +14,7 @@ export type ParamLabel = keyof (typeof tr)['param']
 export type ColLabel = keyof (typeof tr)['col']
 
 export type ParamKind =
-  'date' | 'warehouse' | 'category' | 'item' | 'number' | 'select' | 'checkbox'
+  'date' | 'warehouse' | 'category' | 'item' | 'number' | 'select' | 'checkbox' | 'text'
 
 export interface ParamDef {
   key: string
@@ -35,29 +37,28 @@ export type ColKind =
   | 'cost'
   | 'percent'
   | 'decimal'
+  | 'integer'
   | 'date'
   | 'class'
   | 'movement'
   | 'document'
+  | 'unit'
+  | 'days'
+
+export type GroupBy = 'item_warehouse' | 'item' | 'warehouse' | 'category'
 
 export interface ColDef {
-  /** Field of the row; dotted for nested values ("buckets.d0_30.quantity"). */
+  /** Field of the row. */
   key: string
   label: ColLabel
   kind: ColKind
-  /** Summed into the totals row when the API sends no totals for it. */
+  /** Shown in the totals row from meta.totals[key]. */
   total?: boolean
+  /** Only for these groupings (identity columns of grouped reports). */
+  groups?: GroupBy[]
 }
 
 export type Row = Record<string, unknown>
-
-export interface ReportData {
-  rows?: Row[]
-  totals?: Row | null
-  opening?: Row | null
-  closing?: Row | null
-  [key: string]: unknown
-}
 
 export interface ReportDef {
   id: ReportId
@@ -66,13 +67,59 @@ export interface ReportDef {
   permission: PermissionRequirement
   params: ParamDef[]
   columns: ColDef[]
+  /** Grouping when the report has no group_by parameter or it is empty. */
+  groupDefault?: GroupBy
   /** Kartex: devir row before and closing row after the movements. */
   ledger?: boolean
+  /** The API pages the rows (meta.pagination). */
+  paged: boolean
+  /** Has an /export twin. */
+  exportable: boolean
 }
 
 const today = () => toIsoDate(new Date())
 const yearStart = () => `${today().slice(0, 4)}-01-01`
-const minus = (days: number) => () => addDays(today(), -days)
+
+const WAREHOUSE: ParamDef = { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' }
+const CATEGORY: ParamDef = { key: 'category_id', kind: 'category', label: 'category' }
+const SEARCH: ParamDef = { key: 'q', kind: 'text', label: 'search' }
+const AS_OF: ParamDef = { key: 'as_of', kind: 'date', label: 'asOf', initial: today }
+const FROM: ParamDef = { key: 'date_from', kind: 'date', label: 'dateFrom', initial: yearStart }
+const TO: ParamDef = { key: 'date_to', kind: 'date', label: 'dateTo', initial: today }
+const INCLUDE_ZERO: ParamDef = { key: 'include_zero', kind: 'checkbox', label: 'includeZero' }
+
+const GROUP_OPTIONS: Record<GroupBy, ParamLabel> = {
+  item_warehouse: 'groupItemWarehouse',
+  item: 'groupItem',
+  warehouse: 'groupWarehouse',
+  category: 'groupCategory',
+}
+
+function groupBy(values: GroupBy[]): ParamDef {
+  return {
+    key: 'group_by',
+    kind: 'select',
+    label: 'groupBy',
+    initial: () => values[0] ?? 'item_warehouse',
+    options: values.map((v) => ({ value: v, label: GROUP_OPTIONS[v] })),
+  }
+}
+
+const PER_ITEM: GroupBy[] = ['item_warehouse', 'item']
+const PER_WAREHOUSE: GroupBy[] = ['item_warehouse', 'warehouse']
+const AGGREGATE: GroupBy[] = ['warehouse', 'category']
+
+/** Identity columns of grouped rows: fields outside the grouping are null. */
+const IDENTITY: ColDef[] = [
+  { key: 'item_code', label: 'itemCode', kind: 'code', groups: PER_ITEM },
+  { key: 'item_name', label: 'itemName', kind: 'text', groups: PER_ITEM },
+  { key: 'base_unit_id', label: 'unit', kind: 'unit', groups: PER_ITEM },
+  { key: 'warehouse_code', label: 'warehouse', kind: 'code', groups: PER_WAREHOUSE },
+  { key: 'warehouse_name', label: 'warehouseName', kind: 'text', groups: ['warehouse'] },
+  { key: 'category_code', label: 'category', kind: 'code', groups: ['category'] },
+  { key: 'category_name', label: 'categoryName', kind: 'text', groups: ['category'] },
+  { key: 'item_count', label: 'itemCount', kind: 'integer', groups: AGGREGATE },
+]
 
 const ITEM: ColDef[] = [
   { key: 'item_code', label: 'itemCode', kind: 'code' },
@@ -85,20 +132,20 @@ export const REPORTS: ReportDef[] = [
     slug: 'stock-status',
     path: '/inventory-reports/stock-status',
     permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
     params: [
-      { key: 'as_of', kind: 'date', label: 'asOf', required: true, initial: today },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'category_id', kind: 'category', label: 'category' },
-      { key: 'include_zero', kind: 'checkbox', label: 'includeZero' },
+      AS_OF,
+      WAREHOUSE,
+      CATEGORY,
+      SEARCH,
+      groupBy(['item_warehouse', 'item', 'warehouse', 'category']),
+      INCLUDE_ZERO,
     ],
     columns: [
-      ...ITEM,
-      { key: 'unit_code', label: 'unit', kind: 'text' },
-      { key: 'warehouse_code', label: 'warehouse', kind: 'text' },
-      { key: 'on_hand', label: 'onHand', kind: 'qty' },
-      { key: 'reserved', label: 'reserved', kind: 'qty' },
-      { key: 'available', label: 'available', kind: 'qty' },
-      { key: 'avg_cost', label: 'avgCost', kind: 'cost' },
+      ...IDENTITY,
+      { key: 'quantity', label: 'quantity', kind: 'qty', groups: PER_ITEM },
+      { key: 'avg_cost', label: 'avgCost', kind: 'cost', groups: PER_ITEM },
       { key: 'value', label: 'value', kind: 'money', total: true },
     ],
   },
@@ -107,26 +154,25 @@ export const REPORTS: ReportDef[] = [
     slug: 'stock-ledger',
     path: '/inventory-reports/stock-ledger',
     permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
     ledger: true,
-    params: [
-      { key: 'item_id', kind: 'item', label: 'item', required: true },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'date_from', kind: 'date', label: 'dateFrom', required: true, initial: yearStart },
-      { key: 'date_to', kind: 'date', label: 'dateTo', required: true, initial: today },
-    ],
+    params: [{ key: 'item_id', kind: 'item', label: 'item', required: true }, WAREHOUSE, FROM, TO],
     columns: [
       { key: 'occurred_at', label: 'date', kind: 'date' },
       { key: 'document_number', label: 'document', kind: 'document' },
       { key: 'movement_type', label: 'movementType', kind: 'movement' },
-      { key: 'warehouse_code', label: 'warehouse', kind: 'text' },
+      { key: 'warehouse_code', label: 'warehouse', kind: 'code' },
       { key: 'lot_no', label: 'lot', kind: 'code' },
-      { key: 'in_quantity', label: 'in', kind: 'qty', total: true },
-      { key: 'out_quantity', label: 'out', kind: 'qty', total: true },
+      { key: 'serial_no', label: 'serial', kind: 'code' },
+      { key: 'quantity_in', label: 'in', kind: 'qty', total: true },
+      { key: 'quantity_out', label: 'out', kind: 'qty', total: true },
       { key: 'unit_cost', label: 'unitCost', kind: 'cost' },
-      { key: 'in_value', label: 'inValue', kind: 'money', total: true },
-      { key: 'out_value', label: 'outValue', kind: 'money', total: true },
+      { key: 'value_in', label: 'inValue', kind: 'money', total: true },
+      { key: 'value_out', label: 'outValue', kind: 'money', total: true },
       { key: 'balance_quantity', label: 'balanceQuantity', kind: 'qty' },
       { key: 'balance_value', label: 'balanceValue', kind: 'money' },
+      { key: 'balance_avg_cost', label: 'balanceAvgCost', kind: 'cost' },
     ],
   },
   {
@@ -134,10 +180,13 @@ export const REPORTS: ReportDef[] = [
     slug: 'valuation',
     path: '/inventory-reports/valuation',
     permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
     params: [
-      { key: 'as_of', kind: 'date', label: 'asOf', required: true, initial: today },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'category_id', kind: 'category', label: 'category' },
+      AS_OF,
+      WAREHOUSE,
+      CATEGORY,
+      SEARCH,
       {
         key: 'method',
         kind: 'select',
@@ -148,13 +197,13 @@ export const REPORTS: ReportDef[] = [
           { value: 'fifo', label: 'methodFifo' },
         ],
       },
+      groupBy(['item_warehouse', 'item', 'warehouse', 'category']),
+      INCLUDE_ZERO,
     ],
     columns: [
-      ...ITEM,
-      { key: 'unit_code', label: 'unit', kind: 'text' },
-      { key: 'warehouse_code', label: 'warehouse', kind: 'text' },
-      { key: 'quantity', label: 'quantity', kind: 'qty' },
-      { key: 'avg_cost', label: 'avgCost', kind: 'cost' },
+      ...IDENTITY,
+      { key: 'quantity', label: 'quantity', kind: 'qty', groups: PER_ITEM },
+      { key: 'avg_cost', label: 'avgCost', kind: 'cost', groups: PER_ITEM },
       { key: 'value', label: 'value', kind: 'money', total: true },
     ],
   },
@@ -163,19 +212,16 @@ export const REPORTS: ReportDef[] = [
     slug: 'ageing',
     path: '/inventory-reports/ageing',
     permission: INV_OPEN.reports,
-    params: [
-      { key: 'as_of', kind: 'date', label: 'asOf', required: true, initial: today },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'category_id', kind: 'category', label: 'category' },
-    ],
+    paged: true,
+    exportable: true,
+    params: [AS_OF, WAREHOUSE, CATEGORY, SEARCH, groupBy(['item_warehouse', 'item'])],
     columns: [
-      ...ITEM,
-      { key: 'unit_code', label: 'unit', kind: 'text' },
-      { key: 'buckets.d0_30.value', label: 'b0_30', kind: 'money', total: true },
-      { key: 'buckets.d31_60.value', label: 'b31_60', kind: 'money', total: true },
-      { key: 'buckets.d61_90.value', label: 'b61_90', kind: 'money', total: true },
-      { key: 'buckets.d90_plus.value', label: 'b90', kind: 'money', total: true },
+      ...IDENTITY,
       { key: 'quantity', label: 'quantity', kind: 'qty' },
+      { key: 'value_0_30', label: 'b0_30', kind: 'money', total: true },
+      { key: 'value_31_60', label: 'b31_60', kind: 'money', total: true },
+      { key: 'value_61_90', label: 'b61_90', kind: 'money', total: true },
+      { key: 'value_over_90', label: 'b90', kind: 'money', total: true },
       { key: 'value', label: 'value', kind: 'money', total: true },
     ],
   },
@@ -184,26 +230,25 @@ export const REPORTS: ReportDef[] = [
     slug: 'expiring-lots',
     path: '/inventory-reports/expiring-lots',
     permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
     params: [
-      {
-        key: 'days',
-        kind: 'number',
-        label: 'days',
-        required: true,
-        initial: () => '30',
-        min: 1,
-        max: 3650,
-      },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'include_expired', kind: 'checkbox', label: 'includeExpired' },
+      { key: 'days', kind: 'number', label: 'days', initial: () => '30', min: 0, max: 3650 },
+      WAREHOUSE,
+      CATEGORY,
+      SEARCH,
+      { key: 'include_expired', kind: 'checkbox', label: 'includeExpired', initial: () => '1' },
     ],
     columns: [
       ...ITEM,
       { key: 'lot_no', label: 'lot', kind: 'code' },
       { key: 'expiry_date', label: 'expiryDate', kind: 'date' },
-      { key: 'days_left', label: 'daysLeft', kind: 'decimal' },
-      { key: 'warehouse_code', label: 'warehouse', kind: 'text' },
-      { key: 'quantity', label: 'quantity', kind: 'qty' },
+      { key: 'days_to_expiry', label: 'daysToExpiry', kind: 'days' },
+      { key: 'warehouse_code', label: 'warehouse', kind: 'code' },
+      { key: 'base_unit_id', label: 'unit', kind: 'unit' },
+      { key: 'on_hand', label: 'onHand', kind: 'qty' },
+      { key: 'reserved', label: 'reserved', kind: 'qty' },
+      { key: 'available', label: 'available', kind: 'qty' },
       { key: 'value', label: 'value', kind: 'money', total: true },
     ],
   },
@@ -212,44 +257,36 @@ export const REPORTS: ReportDef[] = [
     slug: 'abc-analysis',
     path: '/inventory-reports/abc-analysis',
     permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
     params: [
-      { key: 'date_from', kind: 'date', label: 'dateFrom', required: true, initial: minus(365) },
-      { key: 'date_to', kind: 'date', label: 'dateTo', required: true, initial: today },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
+      FROM,
+      TO,
+      WAREHOUSE,
+      CATEGORY,
+      SEARCH,
       {
         key: 'basis',
         kind: 'select',
         label: 'basis',
-        initial: () => 'value',
+        initial: () => 'consumption',
         options: [
-          { value: 'value', label: 'basisValue' },
-          { value: 'quantity', label: 'basisQuantity' },
+          { value: 'consumption', label: 'basisConsumption' },
+          { value: 'stock_value', label: 'basisStockValue' },
         ],
       },
-      {
-        key: 'a_threshold',
-        kind: 'number',
-        label: 'aThreshold',
-        initial: () => '80',
-        min: 1,
-        max: 99,
-      },
-      {
-        key: 'b_threshold',
-        kind: 'number',
-        label: 'bThreshold',
-        initial: () => '95',
-        min: 1,
-        max: 99,
-      },
+      { key: 'a', kind: 'number', label: 'aThreshold', initial: () => '80', min: 1, max: 100 },
+      { key: 'b', kind: 'number', label: 'bThreshold', initial: () => '95', min: 1, max: 100 },
     ],
     columns: [
+      { key: 'rank', label: 'rank', kind: 'integer' },
+      { key: 'class', label: 'class', kind: 'class' },
       ...ITEM,
+      { key: 'base_unit_id', label: 'unit', kind: 'unit' },
       { key: 'quantity', label: 'quantity', kind: 'qty' },
       { key: 'value', label: 'value', kind: 'money', total: true },
       { key: 'share', label: 'share', kind: 'percent' },
       { key: 'cumulative_share', label: 'cumulative', kind: 'percent' },
-      { key: 'class', label: 'class', kind: 'class' },
     ],
   },
   {
@@ -257,20 +294,54 @@ export const REPORTS: ReportDef[] = [
     slug: 'turnover',
     path: '/inventory-reports/turnover',
     permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
+    groupDefault: 'item',
     params: [
-      { key: 'date_from', kind: 'date', label: 'dateFrom', required: true, initial: yearStart },
-      { key: 'date_to', kind: 'date', label: 'dateTo', required: true, initial: today },
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'category_id', kind: 'category', label: 'category' },
+      FROM,
+      TO,
+      WAREHOUSE,
+      CATEGORY,
+      SEARCH,
+      groupBy(['item', 'item_warehouse', 'warehouse', 'category']),
     ],
     columns: [
-      ...ITEM,
+      ...IDENTITY,
       { key: 'opening_value', label: 'openingValue', kind: 'money', total: true },
       { key: 'closing_value', label: 'closingValue', kind: 'money', total: true },
-      { key: 'average_inventory', label: 'averageInventory', kind: 'money', total: true },
-      { key: 'cogs', label: 'cogs', kind: 'money', total: true },
-      { key: 'turnover_ratio', label: 'turnover', kind: 'decimal' },
-      { key: 'days_on_hand', label: 'daysOnHand', kind: 'decimal' },
+      { key: 'consumed_value', label: 'consumedValue', kind: 'money', total: true },
+      // Half of two 4-decimal amounts: exact at 5 decimals, shown unrounded.
+      { key: 'average_value', label: 'averageValue', kind: 'cost', total: true },
+      { key: 'turnover', label: 'turnover', kind: 'decimal', total: true },
+      { key: 'days_on_hand', label: 'daysOnHand', kind: 'decimal', total: true },
+    ],
+  },
+  {
+    id: 'movementSummary',
+    slug: 'movement-summary',
+    path: '/inventory-reports/movement-summary',
+    permission: INV_OPEN.reports,
+    paged: true,
+    exportable: true,
+    params: [
+      FROM,
+      TO,
+      WAREHOUSE,
+      CATEGORY,
+      SEARCH,
+      groupBy(['item_warehouse', 'item', 'warehouse', 'category']),
+      INCLUDE_ZERO,
+    ],
+    columns: [
+      ...IDENTITY,
+      { key: 'opening_quantity', label: 'openingQuantity', kind: 'qty', groups: PER_ITEM },
+      { key: 'opening_value', label: 'openingValue', kind: 'money', total: true },
+      { key: 'in_quantity', label: 'in', kind: 'qty', groups: PER_ITEM },
+      { key: 'in_value', label: 'inValue', kind: 'money', total: true },
+      { key: 'out_quantity', label: 'out', kind: 'qty', groups: PER_ITEM },
+      { key: 'out_value', label: 'outValue', kind: 'money', total: true },
+      { key: 'closing_quantity', label: 'closingQuantity', kind: 'qty', groups: PER_ITEM },
+      { key: 'closing_value', label: 'closingValue', kind: 'money', total: true },
     ],
   },
   {
@@ -278,14 +349,12 @@ export const REPORTS: ReportDef[] = [
     slug: 'reorder-suggestions',
     path: '/reports/reorder-suggestions',
     permission: INV_OPEN.reorder,
-    params: [
-      { key: 'warehouse_id', kind: 'warehouse', label: 'warehouse' },
-      { key: 'category_id', kind: 'category', label: 'category' },
-    ],
+    paged: false,
+    exportable: false,
+    params: [SEARCH],
     columns: [
       ...ITEM,
-      { key: 'unit_code', label: 'unit', kind: 'text' },
-      { key: 'warehouse_code', label: 'warehouse', kind: 'text' },
+      { key: 'base_unit_id', label: 'unit', kind: 'unit' },
       { key: 'on_hand', label: 'onHand', kind: 'qty' },
       { key: 'reserved', label: 'reserved', kind: 'qty' },
       { key: 'available', label: 'available', kind: 'qty' },
@@ -300,4 +369,12 @@ export const REPORTS_BASE = '/inventory/reports'
 
 export function reportBySlug(slug: string | undefined): ReportDef | undefined {
   return REPORTS.find((r) => r.slug === slug)
+}
+
+/** Columns of the report for the applied grouping. */
+export function visibleColumns(def: ReportDef, group: string | undefined): ColDef[] {
+  const current = (
+    group !== undefined && group !== '' ? group : (def.groupDefault ?? 'item_warehouse')
+  ) as GroupBy
+  return def.columns.filter((c) => !c.groups || c.groups.includes(current))
 }
