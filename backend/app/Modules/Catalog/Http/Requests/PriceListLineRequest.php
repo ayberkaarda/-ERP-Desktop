@@ -26,6 +26,12 @@ final class PriceListLineRequest extends CatalogRequest
             }
 
             $current = $this->creating() ? null : PriceListLine::query()->find($this->routeId('id'));
+
+            // Unknown record: the controller answers 404 before anything is written.
+            if (! $this->creating() && $current === null) {
+                return;
+            }
+
             $line = [
                 'item_id' => $current?->item_id,
                 'variant_id' => $current?->variant_id,

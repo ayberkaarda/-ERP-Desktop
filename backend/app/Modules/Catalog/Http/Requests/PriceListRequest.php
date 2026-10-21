@@ -42,6 +42,12 @@ final class PriceListRequest extends CatalogRequest
             }
 
             $current = $this->creating() ? null : PriceList::query()->find($this->routeId('id'));
+
+            // Unknown record: the controller answers 404 before anything is written.
+            if (! $this->creating() && $current === null) {
+                return;
+            }
+
             $from = $this->input('valid_from', $current?->valid_from?->toDateString());
             $to = $this->input('valid_to', $current?->valid_to?->toDateString());
 

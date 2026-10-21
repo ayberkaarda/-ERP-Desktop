@@ -43,6 +43,12 @@ final class ItemBarcodeRequest extends CatalogRequest
             }
 
             $current = $this->creating() ? null : ItemBarcode::query()->find($this->routeId('id'));
+
+            // Unknown record: the controller answers 404 before anything is written.
+            if (! $this->creating() && $current === null) {
+                return;
+            }
+
             $barcode = $this->input('barcode', $current?->barcode);
             $type = BarcodeType::tryFrom((string) $this->input('type', $current->type->value ?? BarcodeType::Other->value));
             $checker = $type?->validator();

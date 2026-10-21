@@ -56,6 +56,12 @@ final class ItemRequest extends CatalogRequest
             }
 
             $current = $this->creating() ? null : Item::query()->find($this->routeId('id'));
+
+            // Unknown record: the controller answers 404 before anything is written.
+            if (! $this->creating() && $current === null) {
+                return;
+            }
+
             $type = $this->input('type', $current?->type->value);
             $tracking = $this->input('tracking', $current->tracking->value ?? ItemTracking::None->value);
             $expiry = $this->boolean('has_expiry', $current->has_expiry ?? false);

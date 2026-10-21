@@ -46,6 +46,12 @@ final class DiscountRuleRequest extends CatalogRequest
             }
 
             $current = $this->creating() ? null : DiscountRule::query()->find($this->routeId('id'));
+
+            // Unknown record: the controller answers 404 before anything is written.
+            if (! $this->creating() && $current === null) {
+                return;
+            }
+
             $scope = DiscountScope::from((string) $this->input('scope', $current?->scope->value));
             $ref = $this->input('scope_ref', $current?->scope_ref);
             $party = $this->input('party_id', $current?->party_id);
