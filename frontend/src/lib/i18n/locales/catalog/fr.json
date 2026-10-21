@@ -1,0 +1,396 @@
+{
+  "nav": {
+    "catalog": "Catalogue",
+    "items": "Articles",
+    "units": "Unités et conversions",
+    "categories": "Catégories d’articles",
+    "priceLists": "Listes de prix",
+    "discountRules": "Règles de remise",
+    "pricing": "Calcul de prix"
+  },
+  "palette": {
+    "newItem": "Nouvel article",
+    "newPriceList": "Nouvelle liste de prix"
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "delete": "Supprimer",
+    "back": "Retour à la liste",
+    "retry": "Réessayer",
+    "discard": "Annuler les modifications"
+  },
+  "common": {
+    "actions": "Actions",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "yes": "Oui",
+    "no": "Non"
+  },
+  "toast": {
+    "saved": "Enregistré.",
+    "deleted": "Supprimé."
+  },
+  "errors": {
+    "loadFailed": "Les données n’ont pas pu être chargées.",
+    "saveFailed": "Échec de l’enregistrement.",
+    "deleteFailed": "Échec de la suppression."
+  },
+  "conflict": {
+    "title": "Cet enregistrement a été modifié par quelqu’un d’autre",
+    "body": "L’enregistrement a été mis à jour pendant votre saisie. Chargez la dernière version et appliquez à nouveau vos modifications.",
+    "reload": "Charger la dernière version"
+  },
+  "validation": {
+    "number": "Saisissez un nombre valide.",
+    "factorPositive": "Le facteur doit être supérieur à zéro.",
+    "duplicateKey": "Ce nom d’attribut est déjà utilisé.",
+    "dateOrder": "La date de fin ne peut pas précéder la date de début.",
+    "percentRange": "La remise doit être supérieure à 0 et au plus 100.",
+    "integer": "Saisissez un nombre entier.",
+    "scopeRef": "Sélectionnez un enregistrement pour la portée.",
+    "code": "Le code ne peut contenir que des lettres, chiffres, points, tirets et traits de soulignement."
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Nom",
+    "symbol": "Symbole",
+    "status": "Statut",
+    "isActive": "Actif",
+    "type": "Type",
+    "category": "Catégorie",
+    "parent": "Catégorie parente",
+    "baseUnit": "Unité de base",
+    "unit": "Unité",
+    "tracking": "Suivi",
+    "hasExpiry": "Suivre les dates de péremption",
+    "minStock": "Stock minimum",
+    "reorderPoint": "Point de commande",
+    "defaultTaxCode": "Code de taxe à la vente",
+    "purchaseTaxCode": "Code de taxe à l’achat",
+    "attributes": "Attributs",
+    "sku": "SKU",
+    "barcode": "Code-barres",
+    "barcodeType": "Type de code-barres",
+    "variant": "Variante",
+    "factor": "Facteur",
+    "currency": "Devise",
+    "taxInclusive": "TVA comprise",
+    "validFrom": "Valable du",
+    "validTo": "Valable jusqu’au",
+    "item": "Article",
+    "minQty": "Quantité minimale",
+    "price": "Prix",
+    "scope": "Portée",
+    "party": "Tiers",
+    "discountPercent": "Remise %",
+    "priority": "Priorité",
+    "stackable": "Cumulable",
+    "qty": "Quantité",
+    "date": "Date"
+  },
+  "itemType": {
+    "stock": "Stocké",
+    "service": "Service"
+  },
+  "tracking": {
+    "none": "Sans suivi",
+    "lot": "Suivi par lot",
+    "serial": "Suivi par numéro de série"
+  },
+  "scope": {
+    "item": "Article",
+    "category": "Catégorie",
+    "party": "Tiers",
+    "all": "Tous"
+  },
+  "pickers": {
+    "rate": "Taux {{rate}} %"
+  },
+  "itemCombobox": {
+    "details": "Unité : {{unit}} · Code de taxe : {{tax}}",
+    "noTax": "aucun"
+  },
+  "attributes": {
+    "empty": "Aucun attribut pour l’instant.",
+    "add": "Ajouter un attribut",
+    "key": "Nom de l’attribut {{index}}",
+    "value": "Valeur de l’attribut {{index}}",
+    "keyPlaceholder": "Nom (ex. couleur)",
+    "valuePlaceholder": "Valeur (ex. rouge)",
+    "remove": "Supprimer l’attribut {{index}}"
+  },
+  "savedFilters": {
+    "title": "Vues enregistrées",
+    "empty": "Aucune vue enregistrée.",
+    "saveCurrent": "Enregistrer les filtres actuels…",
+    "saveTitle": "Enregistrer la vue",
+    "saveBody": "La recherche et les filtres sont enregistrés sous ce nom et s’appliquent en un clic.",
+    "name": "Nom de la vue",
+    "remove": "Supprimer la vue {{name}}"
+  },
+  "units": {
+    "title": "Unités",
+    "description": "Gérez les unités de mesure et les facteurs de conversion entre elles.",
+    "tabUnits": "Unités",
+    "tabConversions": "Table de conversion",
+    "new": "Nouvelle unité",
+    "newTitle": "Nouvelle unité",
+    "editTitle": "Modifier l’unité",
+    "edit": "Modifier l’unité {{code}}"
+  },
+  "conversions": {
+    "title": "Table de conversion des unités",
+    "help": "Indiquez à combien d’unités de la colonne correspond une unité de la ligne. Un seul sens suffit ; le sens inverse est affiché en grisé.",
+    "fromTo": "1 unité =",
+    "identity": "Même unité",
+    "cellLabel": "1 {{from}} en {{to}}",
+    "needUnits": "Au moins deux unités actives sont nécessaires pour définir des conversions.",
+    "pending_one": "{{count}} modification non enregistrée",
+    "pending_other": "{{count}} modifications non enregistrées",
+    "noChanges": "Aucune modification non enregistrée",
+    "save": "Enregistrer les conversions",
+    "partialFailure_one": "{{count}} cellule n’a pas pu être enregistrée ; voir le message en dessous.",
+    "partialFailure_other": "{{count}} cellules n’ont pas pu être enregistrées ; voir les messages en dessous."
+  },
+  "categories": {
+    "title": "Catégories d’articles",
+    "description": "Organisez les catégories en arborescence. Faites glisser pour déplacer, ou utilisez « Déplacer ».",
+    "new": "Nouvelle catégorie",
+    "newTitle": "Nouvelle catégorie",
+    "editTitle": "Modifier la catégorie",
+    "empty": "Aucune catégorie pour l’instant.",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
+    "keyboardHint": "Utilisez les flèches ; → déplie, ← replie, Entrée modifie.",
+    "dropRoot": "Déposez ici pour placer au premier niveau",
+    "addChild": "Ajouter une catégorie sous {{name}}",
+    "edit": "Modifier la catégorie {{name}}",
+    "move": "Déplacer la catégorie {{name}}",
+    "delete": "Supprimer la catégorie {{name}}",
+    "deleteTitle": "Supprimer la catégorie ?",
+    "deleteBody": "{{name}} sera supprimée. Une catégorie avec des sous-catégories ou des articles ne peut pas être supprimée.",
+    "deleted": "{{name}} supprimée.",
+    "moved": "{{name}} déplacée.",
+    "moveTitle": "Déplacer la catégorie {{name}}",
+    "moveBody": "Choisissez la nouvelle catégorie parente. Laissez vide pour la placer au premier niveau.",
+    "root": "Premier niveau",
+    "parentHelp": "Laissez vide pour placer la catégorie au premier niveau.",
+    "cycleHint": "Elle-même ou une sous-catégorie ; non sélectionnable",
+    "cycle": {
+      "self": "{{name}} ne peut pas être déplacée sous elle-même.",
+      "descendant": "{{parent}} est une sous-catégorie de {{name}}. Ce déplacement créerait un cycle.",
+      "same": "{{name}} se trouve déjà sous cette catégorie."
+    }
+  },
+  "items": {
+    "title": "Articles",
+    "description": "Articles stockés et services. La recherche porte sur le code, le nom, le SKU et le code-barres.",
+    "new": "Nouvel article",
+    "newTitle": "Nouvel article",
+    "editTitle": "Article",
+    "notFound": "Article introuvable.",
+    "barcodeSearch": "Recherche par code-barres",
+    "saveFirst": "Enregistrez d’abord l’article pour ajouter variantes, codes-barres et unités alternatives.",
+    "baseUnitLocked": "L’unité de base ne peut plus être modifiée une fois l’article mouvementé.",
+    "taxHelp": "Les documents utilisent ce code de taxe par défaut.",
+    "serviceNoStock": "Les services ne sont pas suivis en stock.",
+    "activeHelp": "Désactivez les articles utilisés au lieu de les supprimer.",
+    "deleted": "Article supprimé.",
+    "deleteTitle": "Supprimer l’article ?",
+    "deleteBody": "{{name}} sera supprimé. Les articles mouvementés ne peuvent pas être supprimés ; désactivez-les.",
+    "tabs": {
+      "general": "Général",
+      "variants": "Variantes",
+      "barcodes": "Codes-barres",
+      "units": "Unités alternatives"
+    }
+  },
+  "variants": {
+    "help": "Sous-articles qui diffèrent par des attributs comme la couleur ou la taille. Les SKU sont uniques dans la société.",
+    "add": "Ajouter une variante",
+    "empty": "Cet article n’a pas de variante.",
+    "newTitle": "Nouvelle variante",
+    "editTitle": "Modifier la variante",
+    "edit": "Modifier la variante {{sku}}",
+    "remove": "Supprimer la variante {{sku}}",
+    "removeTitle": "Supprimer la variante ?",
+    "removeBody": "{{sku}} sera supprimée."
+  },
+  "barcode": {
+    "help": "La clé de contrôle des codes EAN-13, EAN-8 et UPC-A est vérifiée avant l’enregistrement.",
+    "add": "Ajouter un code-barres",
+    "empty": "Aucun code-barres défini pour cet article.",
+    "newTitle": "Nouveau code-barres",
+    "primary": "Principal",
+    "primaryLabel": "Code-barres principal",
+    "primaryHelp": "Les étiquettes et documents utilisent ce code-barres.",
+    "allVariants": "Toutes les variantes",
+    "makePrimary": "Définir {{code}} comme code-barres principal",
+    "remove": "Supprimer le code-barres {{code}}",
+    "removeTitle": "Supprimer le code-barres ?",
+    "removeBody": "{{code}} sera supprimé.",
+    "valid": "La clé de contrôle est correcte.",
+    "expectedDigit": "La clé de contrôle doit être {{digit}}.",
+    "lengthHint_one": "Doit comporter {{count}} chiffre.",
+    "lengthHint_other": "Doit comporter {{count}} chiffres.",
+    "type": {
+      "ean13": "EAN-13",
+      "ean8": "EAN-8",
+      "upca": "UPC-A",
+      "other": "Autre"
+    },
+    "problem": {
+      "empty": "Le code-barres est obligatoire.",
+      "digits": "Ce type de code-barres ne contient que des chiffres.",
+      "length": "La longueur ne correspond pas à ce type de code-barres.",
+      "checkDigit": "La clé de contrôle est incorrecte."
+    }
+  },
+  "itemUnits": {
+    "help": "Définissez des unités comme le carton ou le paquet avec un facteur vers l’unité de base ({{base}}).",
+    "add": "Ajouter une unité",
+    "empty": "Aucune unité alternative.",
+    "newTitle": "Ajouter une unité alternative",
+    "editTitle": "Modifier l’unité alternative",
+    "edit": "Modifier l’unité {{unit}}",
+    "remove": "Retirer l’unité {{unit}}",
+    "removeTitle": "Retirer l’unité alternative ?",
+    "removeBody": "{{unit}} sera retirée de cet article.",
+    "equation": "Conversion",
+    "equationText": "1 {{unit}} = {{factor}} {{base}}",
+    "factorLabel": "1 {{unit}} en {{base}}",
+    "inverse": "1 {{base}} = {{inverse}} {{unit}}",
+    "preview": "Aperçu de la conversion",
+    "sampleQty": "Quantité ({{unit}})",
+    "previewResult": "{{qty}} {{unit}} = {{result}} {{base}}",
+    "previewEmpty": "Saisissez un facteur valide pour voir l’aperçu."
+  },
+  "priceLists": {
+    "title": "Listes de prix",
+    "description": "Listes de prix de vente ; la liste propre d’un tiers prime sur la liste par défaut.",
+    "new": "Nouvelle liste de prix",
+    "newTitle": "Nouvelle liste de prix",
+    "editTitle": "Liste de prix",
+    "notFound": "Liste de prix introuvable.",
+    "header": "Informations de la liste",
+    "default": "Par défaut",
+    "isDefault": "Liste par défaut",
+    "isDefaultHelp": "Utilisée si le tiers n’a pas de liste propre. Une seule liste peut être par défaut.",
+    "taxIncluded": "TVA comprise",
+    "taxExcluded": "Hors TVA",
+    "taxInclusiveHelp": "Les prix sont saisis toutes taxes comprises.",
+    "saveFirst": "Enregistrez d’abord la liste pour ajouter des lignes.",
+    "saveHeader": "Enregistrer les informations",
+    "deleteTitle": "Supprimer la liste de prix ?",
+    "deleteBody": "{{name}} et toutes ses lignes seront supprimées."
+  },
+  "priceLines": {
+    "title": "Lignes de prix",
+    "hint": "Entrée passe à la cellule suivante et ouvre une nouvelle ligne depuis la dernière ; Ctrl+S enregistre toutes les lignes.",
+    "anyVariant": "Toutes les variantes",
+    "save": "Enregistrer les lignes",
+    "unsaved": "Des modifications ne sont pas enregistrées.",
+    "saved_one": "{{count}} ligne enregistrée.",
+    "saved_other": "{{count}} lignes enregistrées.",
+    "count_one": "{{count}} ligne",
+    "count_other": "{{count}} lignes",
+    "failedRows": "Lignes en erreur : {{rows}}",
+    "cellLabel": "Ligne {{row}}, {{field}}",
+    "field": {
+      "item_id": "Article",
+      "variant_id": "Variante",
+      "unit_id": "Unité",
+      "min_qty": "Quantité minimale",
+      "price": "Prix",
+      "valid_from": "Valable du",
+      "valid_to": "Valable jusqu’au"
+    }
+  },
+  "discounts": {
+    "title": "Règles de remise",
+    "description": "Remises en pourcentage par article, catégorie ou tiers. La priorité la plus élevée l’emporte.",
+    "new": "Nouvelle règle",
+    "newTitle": "Nouvelle règle de remise",
+    "editTitle": "Modifier la règle de remise",
+    "edit": "Modifier la règle {{code}}",
+    "remove": "Supprimer la règle {{code}}",
+    "removeTitle": "Supprimer la règle ?",
+    "removeBody": "{{code}} sera supprimée.",
+    "validity": "Validité",
+    "allHelp": "La règle s’applique à tous les articles.",
+    "partyHelp": "Si renseigné, la règle ne s’applique qu’à ce tiers.",
+    "minQtyHelp": "Laissez vide pour l’appliquer quelle que soit la quantité.",
+    "priorityHelp": "Si plusieurs règles correspondent, celle de priorité la plus élevée s’applique.",
+    "stackableHelp": "Si coché, s’applique avec les autres règles cumulables.",
+    "scopeRef": {
+      "item": "Article",
+      "category": "Catégorie",
+      "party": "Tiers",
+      "all": "Portée"
+    }
+  },
+  "pricing": {
+    "title": "Calcul de prix",
+    "description": "Voyez quel prix et quelle remise le système retient pour un article, un tiers, une quantité et une date.",
+    "inputs": "Paramètres",
+    "partyHelp": "Laissez vide pour utiliser la liste par défaut.",
+    "resolve": "Calculer le prix",
+    "failed": "Le prix n’a pas pu être calculé",
+    "empty": "Renseignez les paramètres puis cliquez sur « Calculer le prix ».",
+    "result": "Résultat",
+    "noPrice": "Aucun prix valable trouvé pour ces conditions.",
+    "unitPrice": "Prix catalogue",
+    "netUnitPrice": "Prix unitaire net",
+    "lineTotal": "Montant pour {{qty}} unités",
+    "source": "Source",
+    "priceList": "Liste de prix",
+    "rules": "Remises appliquées",
+    "sources": {
+      "party_price_list": "Liste propre du tiers",
+      "default_price_list": "Liste par défaut",
+      "none": "Aucun prix trouvé"
+    },
+    "precedence": "Ordre de priorité",
+    "precedenceHelp": "Le moteur applique les étapes dans cet ordre ; la première correspondance l’emporte.",
+    "state": {
+      "decided": "Déterminant",
+      "passed": "Appliqué",
+      "skipped": "Ignoré",
+      "none": "Sans effet"
+    },
+    "steps": {
+      "partyList": {
+        "title": "Liste de prix du tiers",
+        "body": "Si le tiers a sa propre liste contenant l’article, elle est utilisée en premier."
+      },
+      "defaultList": {
+        "title": "Liste de prix par défaut",
+        "body": "Sans prix propre au tiers, la liste par défaut de la société est utilisée."
+      },
+      "validity": {
+        "title": "Date de validité",
+        "body": "La période de validité de la liste et de la ligne doit inclure la date choisie."
+      },
+      "minQty": {
+        "title": "Meilleur palier de quantité",
+        "body": "Parmi les lignes dont la quantité minimale ne dépasse pas la quantité demandée, le palier le plus élevé est retenu."
+      },
+      "discount": {
+        "title": "Règle de remise",
+        "body": "Parmi les règles applicables, celle de priorité la plus élevée s’applique."
+      },
+      "stacking": {
+        "title": "Cumul",
+        "body": "Les remises ne s’additionnent pas ; seules les règles marquées « cumulables » s’appliquent ensemble."
+      }
+    },
+    "trace": "Trace serveur",
+    "traceOutcome": {
+      "matched": "retenu",
+      "skipped": "ignoré",
+      "rejected": "écarté"
+    }
+  }
+}

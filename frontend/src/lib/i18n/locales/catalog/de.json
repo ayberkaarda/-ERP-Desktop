@@ -1,0 +1,396 @@
+{
+  "nav": {
+    "catalog": "Katalog",
+    "items": "Artikel",
+    "units": "Einheiten und Umrechnungen",
+    "categories": "Artikelkategorien",
+    "priceLists": "Preislisten",
+    "discountRules": "Rabattregeln",
+    "pricing": "Preisrechner"
+  },
+  "palette": {
+    "newItem": "Neuer Artikel",
+    "newPriceList": "Neue Preisliste"
+  },
+  "actions": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "delete": "Löschen",
+    "back": "Zurück zur Liste",
+    "retry": "Erneut versuchen",
+    "discard": "Änderungen verwerfen"
+  },
+  "common": {
+    "actions": "Aktionen",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "toast": {
+    "saved": "Gespeichert.",
+    "deleted": "Gelöscht."
+  },
+  "errors": {
+    "loadFailed": "Die Daten konnten nicht geladen werden.",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "deleteFailed": "Löschen fehlgeschlagen."
+  },
+  "conflict": {
+    "title": "Der Datensatz wurde von jemand anderem geändert",
+    "body": "Der Datensatz wurde während Ihrer Bearbeitung aktualisiert. Laden Sie den aktuellen Stand und übernehmen Sie Ihre Änderungen erneut.",
+    "reload": "Aktuellen Stand laden"
+  },
+  "validation": {
+    "number": "Geben Sie eine gültige Zahl ein.",
+    "factorPositive": "Der Faktor muss größer als null sein.",
+    "duplicateKey": "Dieser Merkmalsname wird bereits verwendet.",
+    "dateOrder": "Das Enddatum darf nicht vor dem Startdatum liegen.",
+    "percentRange": "Der Rabatt muss größer als 0 und höchstens 100 sein.",
+    "integer": "Geben Sie eine ganze Zahl ein.",
+    "scopeRef": "Wählen Sie einen Datensatz für den Geltungsbereich.",
+    "code": "Codes dürfen nur Buchstaben, Ziffern, Punkte, Bindestriche und Unterstriche enthalten."
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Name",
+    "symbol": "Symbol",
+    "status": "Status",
+    "isActive": "Aktiv",
+    "type": "Art",
+    "category": "Kategorie",
+    "parent": "Übergeordnete Kategorie",
+    "baseUnit": "Basiseinheit",
+    "unit": "Einheit",
+    "tracking": "Nachverfolgung",
+    "hasExpiry": "Mindesthaltbarkeit verfolgen",
+    "minStock": "Mindestbestand",
+    "reorderPoint": "Meldebestand",
+    "defaultTaxCode": "Steuerschlüssel Verkauf",
+    "purchaseTaxCode": "Steuerschlüssel Einkauf",
+    "attributes": "Merkmale",
+    "sku": "SKU",
+    "barcode": "Barcode",
+    "barcodeType": "Barcodetyp",
+    "variant": "Variante",
+    "factor": "Faktor",
+    "currency": "Währung",
+    "taxInclusive": "Inkl. MwSt.",
+    "validFrom": "Gültig ab",
+    "validTo": "Gültig bis",
+    "item": "Artikel",
+    "minQty": "Mindestmenge",
+    "price": "Preis",
+    "scope": "Geltungsbereich",
+    "party": "Geschäftspartner",
+    "discountPercent": "Rabatt %",
+    "priority": "Priorität",
+    "stackable": "Kombinierbar",
+    "qty": "Menge",
+    "date": "Datum"
+  },
+  "itemType": {
+    "stock": "Lagerartikel",
+    "service": "Dienstleistung"
+  },
+  "tracking": {
+    "none": "Ohne Nachverfolgung",
+    "lot": "Chargengeführt",
+    "serial": "Seriennummerngeführt"
+  },
+  "scope": {
+    "item": "Artikel",
+    "category": "Kategorie",
+    "party": "Geschäftspartner",
+    "all": "Alle"
+  },
+  "pickers": {
+    "rate": "Satz {{rate}} %"
+  },
+  "itemCombobox": {
+    "details": "Einheit: {{unit}} · Steuerschlüssel: {{tax}}",
+    "noTax": "keiner"
+  },
+  "attributes": {
+    "empty": "Noch keine Merkmale.",
+    "add": "Merkmal hinzufügen",
+    "key": "Name von Merkmal {{index}}",
+    "value": "Wert von Merkmal {{index}}",
+    "keyPlaceholder": "Name (z. B. Farbe)",
+    "valuePlaceholder": "Wert (z. B. rot)",
+    "remove": "Merkmal {{index}} entfernen"
+  },
+  "savedFilters": {
+    "title": "Gespeicherte Ansichten",
+    "empty": "Keine gespeicherten Ansichten.",
+    "saveCurrent": "Aktuelle Filter speichern…",
+    "saveTitle": "Ansicht speichern",
+    "saveBody": "Suche und Filter werden unter diesem Namen gespeichert und lassen sich mit einem Klick anwenden.",
+    "name": "Name der Ansicht",
+    "remove": "Ansicht {{name}} löschen"
+  },
+  "units": {
+    "title": "Einheiten",
+    "description": "Maßeinheiten und die Umrechnungsfaktoren zwischen ihnen verwalten.",
+    "tabUnits": "Einheiten",
+    "tabConversions": "Umrechnungstabelle",
+    "new": "Neue Einheit",
+    "newTitle": "Neue Einheit",
+    "editTitle": "Einheit bearbeiten",
+    "edit": "Einheit {{code}} bearbeiten"
+  },
+  "conversions": {
+    "title": "Einheiten-Umrechnungstabelle",
+    "help": "Tragen Sie ein, wie vielen Spalteneinheiten eine Zeileneinheit entspricht. Eine Richtung genügt; die Gegenrichtung wird blass angezeigt.",
+    "fromTo": "1 Einheit =",
+    "identity": "Gleiche Einheit",
+    "cellLabel": "1 {{from}} in {{to}}",
+    "needUnits": "Für Umrechnungen sind mindestens zwei aktive Einheiten nötig.",
+    "pending_one": "{{count}} ungespeicherte Änderung",
+    "pending_other": "{{count}} ungespeicherte Änderungen",
+    "noChanges": "Keine ungespeicherten Änderungen",
+    "save": "Umrechnungen speichern",
+    "partialFailure_one": "{{count}} Zelle konnte nicht gespeichert werden; Details darunter.",
+    "partialFailure_other": "{{count}} Zellen konnten nicht gespeichert werden; Details darunter."
+  },
+  "categories": {
+    "title": "Artikelkategorien",
+    "description": "Kategorien als Baum ordnen. Zum Verschieben ziehen oder „Verschieben“ verwenden.",
+    "new": "Neue Kategorie",
+    "newTitle": "Neue Kategorie",
+    "editTitle": "Kategorie bearbeiten",
+    "empty": "Noch keine Kategorien.",
+    "expandAll": "Alle aufklappen",
+    "collapseAll": "Alle zuklappen",
+    "keyboardHint": "Mit den Pfeiltasten navigieren; → klappt auf, ← klappt zu, Enter bearbeitet.",
+    "dropRoot": "Hier ablegen, um auf die oberste Ebene zu verschieben",
+    "addChild": "Kategorie unter {{name}} hinzufügen",
+    "edit": "Kategorie {{name}} bearbeiten",
+    "move": "Kategorie {{name}} verschieben",
+    "delete": "Kategorie {{name}} löschen",
+    "deleteTitle": "Kategorie löschen?",
+    "deleteBody": "{{name}} wird gelöscht. Kategorien mit Unterkategorien oder Artikeln können nicht gelöscht werden.",
+    "deleted": "{{name}} gelöscht.",
+    "moved": "{{name}} verschoben.",
+    "moveTitle": "Kategorie {{name}} verschieben",
+    "moveBody": "Wählen Sie die neue übergeordnete Kategorie. Leer lassen, um auf die oberste Ebene zu verschieben.",
+    "root": "Oberste Ebene",
+    "parentHelp": "Leer lassen, um die Kategorie auf der obersten Ebene anzulegen.",
+    "cycleHint": "Sie selbst oder eine Unterkategorie; nicht wählbar",
+    "cycle": {
+      "self": "{{name}} kann nicht unter sich selbst verschoben werden.",
+      "descendant": "{{parent}} ist eine Unterkategorie von {{name}}. Diese Verschiebung würde einen Zyklus erzeugen.",
+      "same": "{{name}} liegt bereits unter dieser Kategorie."
+    }
+  },
+  "items": {
+    "title": "Artikel",
+    "description": "Lagerartikel und Dienstleistungen. Gesucht wird in Code, Name, SKU und Barcode.",
+    "new": "Neuer Artikel",
+    "newTitle": "Neuer Artikel",
+    "editTitle": "Artikel",
+    "notFound": "Artikel nicht gefunden.",
+    "barcodeSearch": "Suche nach Barcode",
+    "saveFirst": "Speichern Sie den Artikel zuerst, um Varianten, Barcodes und Alternativeinheiten hinzuzufügen.",
+    "baseUnitLocked": "Die Basiseinheit kann nach den ersten Bewegungen nicht mehr geändert werden.",
+    "taxHelp": "Belege verwenden standardmäßig diesen Steuerschlüssel.",
+    "serviceNoStock": "Dienstleistungen werden nicht im Bestand geführt.",
+    "activeHelp": "Verwendete Artikel deaktivieren statt löschen.",
+    "deleted": "Artikel gelöscht.",
+    "deleteTitle": "Artikel löschen?",
+    "deleteBody": "{{name}} wird gelöscht. Artikel mit Bewegungen können nicht gelöscht werden; deaktivieren Sie sie.",
+    "tabs": {
+      "general": "Allgemein",
+      "variants": "Varianten",
+      "barcodes": "Barcodes",
+      "units": "Alternativeinheiten"
+    }
+  },
+  "variants": {
+    "help": "Unterartikel, die sich durch Merkmale wie Farbe oder Größe unterscheiden. SKUs sind unternehmensweit eindeutig.",
+    "add": "Variante hinzufügen",
+    "empty": "Dieser Artikel hat keine Varianten.",
+    "newTitle": "Neue Variante",
+    "editTitle": "Variante bearbeiten",
+    "edit": "Variante {{sku}} bearbeiten",
+    "remove": "Variante {{sku}} löschen",
+    "removeTitle": "Variante löschen?",
+    "removeBody": "{{sku}} wird gelöscht."
+  },
+  "barcode": {
+    "help": "Die Prüfziffer von EAN-13-, EAN-8- und UPC-A-Barcodes wird vor dem Speichern geprüft.",
+    "add": "Barcode hinzufügen",
+    "empty": "Für diesen Artikel sind keine Barcodes hinterlegt.",
+    "newTitle": "Neuer Barcode",
+    "primary": "Primär",
+    "primaryLabel": "Primärer Barcode",
+    "primaryHelp": "Etiketten und Belege verwenden diesen Barcode.",
+    "allVariants": "Alle Varianten",
+    "makePrimary": "{{code}} zum primären Barcode machen",
+    "remove": "Barcode {{code}} löschen",
+    "removeTitle": "Barcode löschen?",
+    "removeBody": "{{code}} wird gelöscht.",
+    "valid": "Prüfziffer ist korrekt.",
+    "expectedDigit": "Die Prüfziffer muss {{digit}} lauten.",
+    "lengthHint_one": "Muss {{count}} Stelle haben.",
+    "lengthHint_other": "Muss {{count}} Stellen haben.",
+    "type": {
+      "ean13": "EAN-13",
+      "ean8": "EAN-8",
+      "upca": "UPC-A",
+      "other": "Sonstige"
+    },
+    "problem": {
+      "empty": "Barcode ist erforderlich.",
+      "digits": "Dieser Barcodetyp enthält nur Ziffern.",
+      "length": "Die Länge passt nicht zu diesem Barcodetyp.",
+      "checkDigit": "Die Prüfziffer ist falsch."
+    }
+  },
+  "itemUnits": {
+    "help": "Einheiten wie Karton oder Packung mit einem Faktor zur Basiseinheit ({{base}}) festlegen.",
+    "add": "Einheit hinzufügen",
+    "empty": "Keine Alternativeinheiten.",
+    "newTitle": "Alternativeinheit hinzufügen",
+    "editTitle": "Alternativeinheit bearbeiten",
+    "edit": "Einheit {{unit}} bearbeiten",
+    "remove": "Einheit {{unit}} entfernen",
+    "removeTitle": "Alternativeinheit entfernen?",
+    "removeBody": "{{unit}} wird von diesem Artikel entfernt.",
+    "equation": "Umrechnung",
+    "equationText": "1 {{unit}} = {{factor}} {{base}}",
+    "factorLabel": "1 {{unit}} in {{base}}",
+    "inverse": "1 {{base}} = {{inverse}} {{unit}}",
+    "preview": "Umrechnungsvorschau",
+    "sampleQty": "Menge ({{unit}})",
+    "previewResult": "{{qty}} {{unit}} = {{result}} {{base}}",
+    "previewEmpty": "Für die Vorschau einen gültigen Faktor eingeben."
+  },
+  "priceLists": {
+    "title": "Preislisten",
+    "description": "Verkaufspreislisten; die Liste eines Geschäftspartners hat Vorrang vor der Standardliste.",
+    "new": "Neue Preisliste",
+    "newTitle": "Neue Preisliste",
+    "editTitle": "Preisliste",
+    "notFound": "Preisliste nicht gefunden.",
+    "header": "Listenangaben",
+    "default": "Standard",
+    "isDefault": "Standardliste",
+    "isDefaultHelp": "Wird verwendet, wenn der Geschäftspartner keine eigene Liste hat. Nur eine Liste kann Standard sein.",
+    "taxIncluded": "Inkl. MwSt.",
+    "taxExcluded": "Zzgl. MwSt.",
+    "taxInclusiveHelp": "Preise werden inklusive Steuer erfasst.",
+    "saveFirst": "Speichern Sie die Liste zuerst, um Positionen hinzuzufügen.",
+    "saveHeader": "Listenangaben speichern",
+    "deleteTitle": "Preisliste löschen?",
+    "deleteBody": "{{name}} und alle Positionen werden gelöscht."
+  },
+  "priceLines": {
+    "title": "Preispositionen",
+    "hint": "Enter springt zur nächsten Zelle und öffnet in der letzten eine neue Zeile; Strg+S speichert alle Positionen.",
+    "anyVariant": "Alle Varianten",
+    "save": "Positionen speichern",
+    "unsaved": "Es gibt ungespeicherte Änderungen.",
+    "saved_one": "{{count}} Position gespeichert.",
+    "saved_other": "{{count}} Positionen gespeichert.",
+    "count_one": "{{count}} Position",
+    "count_other": "{{count}} Positionen",
+    "failedRows": "Fehlerhafte Zeilen: {{rows}}",
+    "cellLabel": "Zeile {{row}}, {{field}}",
+    "field": {
+      "item_id": "Artikel",
+      "variant_id": "Variante",
+      "unit_id": "Einheit",
+      "min_qty": "Mindestmenge",
+      "price": "Preis",
+      "valid_from": "Gültig ab",
+      "valid_to": "Gültig bis"
+    }
+  },
+  "discounts": {
+    "title": "Rabattregeln",
+    "description": "Prozentuale Rabatte für Artikel, Kategorien oder Geschäftspartner. Die höchste Priorität gewinnt.",
+    "new": "Neue Regel",
+    "newTitle": "Neue Rabattregel",
+    "editTitle": "Rabattregel bearbeiten",
+    "edit": "Regel {{code}} bearbeiten",
+    "remove": "Regel {{code}} löschen",
+    "removeTitle": "Regel löschen?",
+    "removeBody": "{{code}} wird gelöscht.",
+    "validity": "Gültigkeit",
+    "allHelp": "Die Regel gilt für alle Artikel.",
+    "partyHelp": "Wenn gesetzt, gilt die Regel nur für diesen Geschäftspartner.",
+    "minQtyHelp": "Leer lassen, um bei jeder Menge anzuwenden.",
+    "priorityHelp": "Passen mehrere Regeln, gilt die mit der höchsten Priorität.",
+    "stackableHelp": "Wenn aktiviert, wird sie zusammen mit anderen kombinierbaren Regeln angewendet.",
+    "scopeRef": {
+      "item": "Artikel",
+      "category": "Kategorie",
+      "party": "Geschäftspartner",
+      "all": "Geltungsbereich"
+    }
+  },
+  "pricing": {
+    "title": "Preisrechner",
+    "description": "Sehen Sie, welchen Preis und Rabatt das System für Artikel, Geschäftspartner, Menge und Datum wählt.",
+    "inputs": "Eingaben",
+    "partyHelp": "Leer lassen, um die Standardliste zu verwenden.",
+    "resolve": "Preis berechnen",
+    "failed": "Der Preis konnte nicht berechnet werden",
+    "empty": "Eingaben ausfüllen und „Preis berechnen“ wählen.",
+    "result": "Ergebnis",
+    "noPrice": "Für diese Bedingungen wurde kein gültiger Preis gefunden.",
+    "unitPrice": "Listenpreis",
+    "netUnitPrice": "Netto-Stückpreis",
+    "lineTotal": "Betrag für {{qty}} Einheiten",
+    "source": "Quelle",
+    "priceList": "Preisliste",
+    "rules": "Angewendete Rabatte",
+    "sources": {
+      "party_price_list": "Eigene Liste des Partners",
+      "default_price_list": "Standardliste",
+      "none": "Kein Preis gefunden"
+    },
+    "precedence": "Rangfolge",
+    "precedenceHelp": "Der Preisfinder wendet die Schritte in dieser Reihenfolge an; der erste Treffer gewinnt.",
+    "state": {
+      "decided": "Entscheidend",
+      "passed": "Angewendet",
+      "skipped": "Übersprungen",
+      "none": "Ohne Wirkung"
+    },
+    "steps": {
+      "partyList": {
+        "title": "Preisliste des Geschäftspartners",
+        "body": "Hat der Partner eine eigene Liste, die den Artikel enthält, wird diese zuerst verwendet."
+      },
+      "defaultList": {
+        "title": "Standardpreisliste",
+        "body": "Ohne Partnerpreis wird die Standardliste des Unternehmens herangezogen."
+      },
+      "validity": {
+        "title": "Gültigkeitsdatum",
+        "body": "Der Gültigkeitszeitraum von Liste und Position muss das gewählte Datum umfassen."
+      },
+      "minQty": {
+        "title": "Passende Mengenstaffel",
+        "body": "Unter den Positionen, deren Mindestmenge die angefragte Menge nicht übersteigt, wird die höchste Staffel gewählt."
+      },
+      "discount": {
+        "title": "Rabattregel",
+        "body": "Von den passenden Regeln gilt die mit der höchsten Priorität."
+      },
+      "stacking": {
+        "title": "Kombination",
+        "body": "Rabatte werden nicht addiert; nur als „kombinierbar“ markierte Regeln gelten gemeinsam."
+      }
+    },
+    "trace": "Server-Protokoll",
+    "traceOutcome": {
+      "matched": "Treffer",
+      "skipped": "übersprungen",
+      "rejected": "verworfen"
+    }
+  }
+}

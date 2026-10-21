@@ -1,4 +1,5 @@
 import 'i18next'
+import type catalogTr from './locales/catalog/tr.json'
 import type commonTr from './locales/common/tr.json'
 import type tr from './locales/tr.json'
 
@@ -6,6 +7,6 @@ import type tr from './locales/tr.json'
 declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'translation'
-    resources: { translation: typeof tr; common: typeof commonTr }
+    resources: { translation: typeof tr; common: typeof commonTr; catalog: typeof catalogTr }
   }
 }

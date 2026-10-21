@@ -1,0 +1,396 @@
+{
+  "nav": {
+    "catalog": "Catalog",
+    "items": "Items",
+    "units": "Units and conversions",
+    "categories": "Item categories",
+    "priceLists": "Price lists",
+    "discountRules": "Discount rules",
+    "pricing": "Price calculator"
+  },
+  "palette": {
+    "newItem": "New item",
+    "newPriceList": "New price list"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "back": "Back to list",
+    "retry": "Try again",
+    "discard": "Discard changes"
+  },
+  "common": {
+    "actions": "Actions",
+    "active": "Active",
+    "inactive": "Inactive",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "toast": {
+    "saved": "Saved.",
+    "deleted": "Deleted."
+  },
+  "errors": {
+    "loadFailed": "Data could not be loaded.",
+    "saveFailed": "Could not save.",
+    "deleteFailed": "Could not delete."
+  },
+  "conflict": {
+    "title": "This record was changed by someone else",
+    "body": "The record was updated while you were editing. Load the latest version and apply your changes again.",
+    "reload": "Load latest version"
+  },
+  "validation": {
+    "number": "Enter a valid number.",
+    "factorPositive": "The factor must be greater than zero.",
+    "duplicateKey": "This attribute name is already used.",
+    "dateOrder": "The end date cannot be before the start date.",
+    "percentRange": "The discount must be greater than 0 and at most 100.",
+    "integer": "Enter a whole number.",
+    "scopeRef": "Select a record for the scope.",
+    "code": "Codes may only contain letters, digits, dots, hyphens and underscores."
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Name",
+    "symbol": "Symbol",
+    "status": "Status",
+    "isActive": "Active",
+    "type": "Type",
+    "category": "Category",
+    "parent": "Parent category",
+    "baseUnit": "Base unit",
+    "unit": "Unit",
+    "tracking": "Tracking",
+    "hasExpiry": "Track expiry dates",
+    "minStock": "Minimum stock",
+    "reorderPoint": "Reorder point",
+    "defaultTaxCode": "Sales tax code",
+    "purchaseTaxCode": "Purchase tax code",
+    "attributes": "Attributes",
+    "sku": "SKU",
+    "barcode": "Barcode",
+    "barcodeType": "Barcode type",
+    "variant": "Variant",
+    "factor": "Factor",
+    "currency": "Currency",
+    "taxInclusive": "VAT included",
+    "validFrom": "Valid from",
+    "validTo": "Valid to",
+    "item": "Item",
+    "minQty": "Minimum quantity",
+    "price": "Price",
+    "scope": "Scope",
+    "party": "Party",
+    "discountPercent": "Discount %",
+    "priority": "Priority",
+    "stackable": "Stackable",
+    "qty": "Quantity",
+    "date": "Date"
+  },
+  "itemType": {
+    "stock": "Stock",
+    "service": "Service"
+  },
+  "tracking": {
+    "none": "Not tracked",
+    "lot": "Lot tracked",
+    "serial": "Serial tracked"
+  },
+  "scope": {
+    "item": "Item",
+    "category": "Category",
+    "party": "Party",
+    "all": "All"
+  },
+  "pickers": {
+    "rate": "Rate {{rate}}%"
+  },
+  "itemCombobox": {
+    "details": "Unit: {{unit}} · Tax code: {{tax}}",
+    "noTax": "none"
+  },
+  "attributes": {
+    "empty": "No attributes yet.",
+    "add": "Add attribute",
+    "key": "Attribute {{index}} name",
+    "value": "Attribute {{index}} value",
+    "keyPlaceholder": "Name (e.g. colour)",
+    "valuePlaceholder": "Value (e.g. red)",
+    "remove": "Remove attribute {{index}}"
+  },
+  "savedFilters": {
+    "title": "Saved views",
+    "empty": "No saved views.",
+    "saveCurrent": "Save current filters…",
+    "saveTitle": "Save view",
+    "saveBody": "The search and filters are stored under this name and can be applied with one click.",
+    "name": "View name",
+    "remove": "Delete view {{name}}"
+  },
+  "units": {
+    "title": "Units",
+    "description": "Manage units of measure and the conversion factors between them.",
+    "tabUnits": "Units",
+    "tabConversions": "Conversion table",
+    "new": "New unit",
+    "newTitle": "New unit",
+    "editTitle": "Edit unit",
+    "edit": "Edit unit {{code}}"
+  },
+  "conversions": {
+    "title": "Unit conversion table",
+    "help": "Enter how many column units one row unit equals. One direction is enough; the reverse is shown faded.",
+    "fromTo": "1 unit =",
+    "identity": "Same unit",
+    "cellLabel": "1 {{from}} in {{to}}",
+    "needUnits": "At least two active units are needed to define conversions.",
+    "pending_one": "{{count}} unsaved change",
+    "pending_other": "{{count}} unsaved changes",
+    "noChanges": "No unsaved changes",
+    "save": "Save conversions",
+    "partialFailure_one": "{{count}} cell could not be saved; see the message below it.",
+    "partialFailure_other": "{{count}} cells could not be saved; see the messages below them."
+  },
+  "categories": {
+    "title": "Item categories",
+    "description": "Organise categories as a tree. Drag to move, or use “Move”.",
+    "new": "New category",
+    "newTitle": "New category",
+    "editTitle": "Edit category",
+    "empty": "No categories yet.",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "keyboardHint": "Use the arrow keys; → expands, ← collapses, Enter edits.",
+    "dropRoot": "Drop here to move to the top level",
+    "addChild": "Add category under {{name}}",
+    "edit": "Edit category {{name}}",
+    "move": "Move category {{name}}",
+    "delete": "Delete category {{name}}",
+    "deleteTitle": "Delete category?",
+    "deleteBody": "{{name}} will be deleted. A category with subcategories or items cannot be deleted.",
+    "deleted": "{{name}} deleted.",
+    "moved": "{{name}} moved.",
+    "moveTitle": "Move category {{name}}",
+    "moveBody": "Choose the new parent. Leave it empty to move the category to the top level.",
+    "root": "Top level",
+    "parentHelp": "Leave empty to place the category at the top level.",
+    "cycleHint": "Itself or a subcategory; cannot be selected",
+    "cycle": {
+      "self": "{{name}} cannot be moved under itself.",
+      "descendant": "{{parent}} is a subcategory of {{name}}. This move would create a cycle.",
+      "same": "{{name}} is already under this category."
+    }
+  },
+  "items": {
+    "title": "Items",
+    "description": "Stock and service items. Search covers code, name, SKU and barcode.",
+    "new": "New item",
+    "newTitle": "New item",
+    "editTitle": "Item",
+    "notFound": "Item not found.",
+    "barcodeSearch": "Searching by barcode",
+    "saveFirst": "Save the item first to add variants, barcodes and alternate units.",
+    "baseUnitLocked": "The base unit cannot be changed once the item has movements.",
+    "taxHelp": "Documents use this tax code by default.",
+    "serviceNoStock": "Services are not stock tracked.",
+    "activeHelp": "Deactivate used items instead of deleting them.",
+    "deleted": "Item deleted.",
+    "deleteTitle": "Delete item?",
+    "deleteBody": "{{name}} will be deleted. Items with movements cannot be deleted; deactivate them instead.",
+    "tabs": {
+      "general": "General",
+      "variants": "Variants",
+      "barcodes": "Barcodes",
+      "units": "Alternate units"
+    }
+  },
+  "variants": {
+    "help": "Sub-items that differ by attributes such as colour or size. SKUs are unique across the company.",
+    "add": "Add variant",
+    "empty": "This item has no variants.",
+    "newTitle": "New variant",
+    "editTitle": "Edit variant",
+    "edit": "Edit variant {{sku}}",
+    "remove": "Delete variant {{sku}}",
+    "removeTitle": "Delete variant?",
+    "removeBody": "{{sku}} will be deleted."
+  },
+  "barcode": {
+    "help": "The check digit of EAN-13, EAN-8 and UPC-A barcodes is verified before saving.",
+    "add": "Add barcode",
+    "empty": "No barcodes defined for this item.",
+    "newTitle": "New barcode",
+    "primary": "Primary",
+    "primaryLabel": "Primary barcode",
+    "primaryHelp": "Labels and documents use this barcode.",
+    "allVariants": "All variants",
+    "makePrimary": "Make {{code}} the primary barcode",
+    "remove": "Delete barcode {{code}}",
+    "removeTitle": "Delete barcode?",
+    "removeBody": "{{code}} will be deleted.",
+    "valid": "Check digit is correct.",
+    "expectedDigit": "The check digit should be {{digit}}.",
+    "lengthHint_one": "Must be {{count}} digit long.",
+    "lengthHint_other": "Must be {{count}} digits long.",
+    "type": {
+      "ean13": "EAN-13",
+      "ean8": "EAN-8",
+      "upca": "UPC-A",
+      "other": "Other"
+    },
+    "problem": {
+      "empty": "Barcode is required.",
+      "digits": "This barcode type contains digits only.",
+      "length": "The length does not match this barcode type.",
+      "checkDigit": "The check digit is wrong."
+    }
+  },
+  "itemUnits": {
+    "help": "Define units such as boxes or packs with a factor to the base unit ({{base}}).",
+    "add": "Add unit",
+    "empty": "No alternate units.",
+    "newTitle": "Add alternate unit",
+    "editTitle": "Edit alternate unit",
+    "edit": "Edit unit {{unit}}",
+    "remove": "Remove unit {{unit}}",
+    "removeTitle": "Remove alternate unit?",
+    "removeBody": "{{unit}} will be removed from this item.",
+    "equation": "Conversion",
+    "equationText": "1 {{unit}} = {{factor}} {{base}}",
+    "factorLabel": "1 {{unit}} in {{base}}",
+    "inverse": "1 {{base}} = {{inverse}} {{unit}}",
+    "preview": "Conversion preview",
+    "sampleQty": "Quantity ({{unit}})",
+    "previewResult": "{{qty}} {{unit}} = {{result}} {{base}}",
+    "previewEmpty": "Enter a valid factor to see the preview."
+  },
+  "priceLists": {
+    "title": "Price lists",
+    "description": "Sales price lists; a party's own list takes precedence over the default list.",
+    "new": "New price list",
+    "newTitle": "New price list",
+    "editTitle": "Price list",
+    "notFound": "Price list not found.",
+    "header": "List details",
+    "default": "Default",
+    "isDefault": "Default list",
+    "isDefaultHelp": "Used when the party has no list of its own. Only one list can be the default.",
+    "taxIncluded": "VAT included",
+    "taxExcluded": "VAT excluded",
+    "taxInclusiveHelp": "Prices are entered including tax.",
+    "saveFirst": "Save the list first to add lines.",
+    "saveHeader": "Save list details",
+    "deleteTitle": "Delete price list?",
+    "deleteBody": "{{name}} and all of its lines will be deleted."
+  },
+  "priceLines": {
+    "title": "Price lines",
+    "hint": "Enter moves to the next cell and opens a new line from the last one; Ctrl+S saves all lines.",
+    "anyVariant": "All variants",
+    "save": "Save lines",
+    "unsaved": "There are unsaved changes.",
+    "saved_one": "{{count}} line saved.",
+    "saved_other": "{{count}} lines saved.",
+    "count_one": "{{count}} line",
+    "count_other": "{{count}} lines",
+    "failedRows": "Lines with errors: {{rows}}",
+    "cellLabel": "Line {{row}}, {{field}}",
+    "field": {
+      "item_id": "Item",
+      "variant_id": "Variant",
+      "unit_id": "Unit",
+      "min_qty": "Minimum quantity",
+      "price": "Price",
+      "valid_from": "Valid from",
+      "valid_to": "Valid to"
+    }
+  },
+  "discounts": {
+    "title": "Discount rules",
+    "description": "Percentage discounts for items, categories or parties. The highest priority wins.",
+    "new": "New rule",
+    "newTitle": "New discount rule",
+    "editTitle": "Edit discount rule",
+    "edit": "Edit rule {{code}}",
+    "remove": "Delete rule {{code}}",
+    "removeTitle": "Delete rule?",
+    "removeBody": "{{code}} will be deleted.",
+    "validity": "Validity",
+    "allHelp": "The rule applies to all items.",
+    "partyHelp": "When set, the rule only applies to this party.",
+    "minQtyHelp": "Leave empty to apply at any quantity.",
+    "priorityHelp": "When several rules match, the one with the highest priority applies.",
+    "stackableHelp": "When checked, applies together with other stackable rules.",
+    "scopeRef": {
+      "item": "Item",
+      "category": "Category",
+      "party": "Party",
+      "all": "Scope"
+    }
+  },
+  "pricing": {
+    "title": "Price calculator",
+    "description": "See which price and discount the system picks for an item, party, quantity and date.",
+    "inputs": "Inputs",
+    "partyHelp": "Leave empty to use the default list.",
+    "resolve": "Calculate price",
+    "failed": "The price could not be calculated",
+    "empty": "Fill in the inputs and press “Calculate price”.",
+    "result": "Result",
+    "noPrice": "No valid price was found for these conditions.",
+    "unitPrice": "List price",
+    "netUnitPrice": "Net unit price",
+    "lineTotal": "Amount for {{qty}} units",
+    "source": "Source",
+    "priceList": "Price list",
+    "rules": "Applied discounts",
+    "sources": {
+      "party_price_list": "Party's own list",
+      "default_price_list": "Default list",
+      "none": "No price found"
+    },
+    "precedence": "Precedence",
+    "precedenceHelp": "The resolver applies the steps in this order; the first match wins.",
+    "state": {
+      "decided": "Decisive",
+      "passed": "Applied",
+      "skipped": "Skipped",
+      "none": "No effect"
+    },
+    "steps": {
+      "partyList": {
+        "title": "Party price list",
+        "body": "If the party has its own list and the item is on it, that list is used first."
+      },
+      "defaultList": {
+        "title": "Default price list",
+        "body": "Without a party price, the company's default list is used."
+      },
+      "validity": {
+        "title": "Validity date",
+        "body": "The validity period of the list and the line must include the chosen date."
+      },
+      "minQty": {
+        "title": "Best quantity tier",
+        "body": "Among lines whose minimum quantity does not exceed the requested quantity, the highest tier is chosen."
+      },
+      "discount": {
+        "title": "Discount rule",
+        "body": "Of the matching rules, the one with the highest priority applies."
+      },
+      "stacking": {
+        "title": "Stacking",
+        "body": "Discounts are not added up; only rules marked “stackable” apply together."
+      }
+    },
+    "trace": "Server trace",
+    "traceOutcome": {
+      "matched": "matched",
+      "skipped": "skipped",
+      "rejected": "rejected"
+    }
+  }
+}

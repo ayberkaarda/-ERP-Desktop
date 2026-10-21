@@ -1,0 +1,396 @@
+{
+  "nav": {
+    "catalog": "Katalog",
+    "items": "Stok kartları",
+    "units": "Birimler ve dönüşümler",
+    "categories": "Stok kategorileri",
+    "priceLists": "Fiyat listeleri",
+    "discountRules": "İndirim kuralları",
+    "pricing": "Fiyat hesaplama"
+  },
+  "palette": {
+    "newItem": "Yeni stok kartı",
+    "newPriceList": "Yeni fiyat listesi"
+  },
+  "actions": {
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "close": "Kapat",
+    "delete": "Sil",
+    "back": "Listeye dön",
+    "retry": "Tekrar dene",
+    "discard": "Değişiklikleri geri al"
+  },
+  "common": {
+    "actions": "İşlemler",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "yes": "Evet",
+    "no": "Hayır"
+  },
+  "toast": {
+    "saved": "Kaydedildi.",
+    "deleted": "Silindi."
+  },
+  "errors": {
+    "loadFailed": "Veriler yüklenemedi.",
+    "saveFailed": "Kayıt yapılamadı.",
+    "deleteFailed": "Silinemedi."
+  },
+  "conflict": {
+    "title": "Kayıt başka biri tarafından değiştirildi",
+    "body": "Siz düzenlerken bu kayıt güncellendi. Son hâlini yükleyip değişikliklerinizi yeniden uygulayın.",
+    "reload": "Son hâli yükle"
+  },
+  "validation": {
+    "number": "Geçerli bir sayı girin.",
+    "factorPositive": "Çarpan sıfırdan büyük olmalıdır.",
+    "duplicateKey": "Bu özellik adı zaten kullanılıyor.",
+    "dateOrder": "Bitiş tarihi başlangıçtan önce olamaz.",
+    "percentRange": "İndirim oranı 0'dan büyük, en fazla 100 olmalıdır.",
+    "integer": "Tam sayı girin.",
+    "scopeRef": "Kapsam için bir kayıt seçin.",
+    "code": "Kod yalnızca harf, rakam, nokta, tire ve alt çizgi içerebilir."
+  },
+  "fields": {
+    "code": "Kod",
+    "name": "Ad",
+    "symbol": "Sembol",
+    "status": "Durum",
+    "isActive": "Aktif",
+    "type": "Tür",
+    "category": "Kategori",
+    "parent": "Üst kategori",
+    "baseUnit": "Temel birim",
+    "unit": "Birim",
+    "tracking": "Takip",
+    "hasExpiry": "Son kullanma tarihi izlenir",
+    "minStock": "Asgari stok",
+    "reorderPoint": "Yeniden sipariş noktası",
+    "defaultTaxCode": "Satış vergi kodu",
+    "purchaseTaxCode": "Alış vergi kodu",
+    "attributes": "Özellikler",
+    "sku": "SKU",
+    "barcode": "Barkod",
+    "barcodeType": "Barkod türü",
+    "variant": "Varyant",
+    "factor": "Çarpan",
+    "currency": "Para birimi",
+    "taxInclusive": "KDV dahil",
+    "validFrom": "Geçerlilik başlangıcı",
+    "validTo": "Geçerlilik bitişi",
+    "item": "Stok",
+    "minQty": "Asgari miktar",
+    "price": "Fiyat",
+    "scope": "Kapsam",
+    "party": "Cari",
+    "discountPercent": "İndirim %",
+    "priority": "Öncelik",
+    "stackable": "Birleştirilebilir",
+    "qty": "Miktar",
+    "date": "Tarih"
+  },
+  "itemType": {
+    "stock": "Stoklu",
+    "service": "Hizmet"
+  },
+  "tracking": {
+    "none": "Takipsiz",
+    "lot": "Lot takipli",
+    "serial": "Seri no takipli"
+  },
+  "scope": {
+    "item": "Stok",
+    "category": "Kategori",
+    "party": "Cari",
+    "all": "Tümü"
+  },
+  "pickers": {
+    "rate": "Oran %{{rate}}"
+  },
+  "itemCombobox": {
+    "details": "Birim: {{unit}} · Vergi kodu: {{tax}}",
+    "noTax": "yok"
+  },
+  "attributes": {
+    "empty": "Henüz özellik yok.",
+    "add": "Özellik ekle",
+    "key": "{{index}}. özellik adı",
+    "value": "{{index}}. özellik değeri",
+    "keyPlaceholder": "Ad (ör. renk)",
+    "valuePlaceholder": "Değer (ör. kırmızı)",
+    "remove": "{{index}}. özelliği sil"
+  },
+  "savedFilters": {
+    "title": "Kayıtlı görünümler",
+    "empty": "Kayıtlı görünüm yok.",
+    "saveCurrent": "Geçerli filtreleri kaydet…",
+    "saveTitle": "Görünümü kaydet",
+    "saveBody": "Arama ve filtreler bu adla saklanır; listeden tek tıkla uygulanır.",
+    "name": "Görünüm adı",
+    "remove": "{{name}} görünümünü sil"
+  },
+  "units": {
+    "title": "Birimler",
+    "description": "Ölçü birimlerini ve aralarındaki dönüşüm çarpanlarını yönetin.",
+    "tabUnits": "Birimler",
+    "tabConversions": "Dönüşüm tablosu",
+    "new": "Yeni birim",
+    "newTitle": "Yeni birim",
+    "editTitle": "Birimi düzenle",
+    "edit": "{{code}} birimini düzenle"
+  },
+  "conversions": {
+    "title": "Birim dönüşüm tablosu",
+    "help": "Satırdaki 1 birimin, sütundaki birimden kaç tane ettiğini yazın. Bir yönü girmeniz yeterli; ters yön soluk olarak gösterilir.",
+    "fromTo": "1 birim =",
+    "identity": "Aynı birim",
+    "cellLabel": "1 {{from}} kaç {{to}}",
+    "needUnits": "Dönüşüm tanımlamak için en az iki aktif birim gerekir.",
+    "pending_one": "{{count}} değişiklik kaydedilmedi",
+    "pending_other": "{{count}} değişiklik kaydedilmedi",
+    "noChanges": "Kaydedilmemiş değişiklik yok",
+    "save": "Dönüşümleri kaydet",
+    "partialFailure_one": "{{count}} hücre kaydedilemedi; ayrıntılar hücrenin altında.",
+    "partialFailure_other": "{{count}} hücre kaydedilemedi; ayrıntılar hücrelerin altında."
+  },
+  "categories": {
+    "title": "Stok kategorileri",
+    "description": "Kategorileri ağaç olarak düzenleyin. Taşımak için sürükleyin ya da “Taşı” işlemini kullanın.",
+    "new": "Yeni kategori",
+    "newTitle": "Yeni kategori",
+    "editTitle": "Kategoriyi düzenle",
+    "empty": "Henüz kategori yok.",
+    "expandAll": "Tümünü aç",
+    "collapseAll": "Tümünü kapat",
+    "keyboardHint": "Ok tuşlarıyla gezinin; → açar, ← kapatır, Enter düzenler.",
+    "dropRoot": "En üst düzeye taşımak için buraya bırakın",
+    "addChild": "{{name}} altına kategori ekle",
+    "edit": "{{name}} kategorisini düzenle",
+    "move": "{{name}} kategorisini taşı",
+    "delete": "{{name}} kategorisini sil",
+    "deleteTitle": "Kategori silinsin mi?",
+    "deleteBody": "{{name}} silinecek. Alt kategorisi ya da stok kartı olan kategori silinemez.",
+    "deleted": "{{name}} silindi.",
+    "moved": "{{name}} taşındı.",
+    "moveTitle": "{{name}} kategorisini taşı",
+    "moveBody": "Yeni üst kategoriyi seçin. Boş bırakırsanız kategori en üst düzeye taşınır.",
+    "root": "En üst düzey",
+    "parentHelp": "Boş bırakılırsa kategori en üst düzeyde olur.",
+    "cycleHint": "Kendisi ya da alt kategorisi; seçilemez",
+    "cycle": {
+      "self": "{{name}} kendi altına taşınamaz.",
+      "descendant": "{{parent}}, {{name}} kategorisinin alt kategorisi. Bu taşıma döngü oluşturur.",
+      "same": "{{name}} zaten bu kategorinin altında."
+    }
+  },
+  "items": {
+    "title": "Stok kartları",
+    "description": "Stok ve hizmet kartları. Arama kod, ad, SKU ve barkodda yapılır.",
+    "new": "Yeni stok kartı",
+    "newTitle": "Yeni stok kartı",
+    "editTitle": "Stok kartı",
+    "notFound": "Stok kartı bulunamadı.",
+    "barcodeSearch": "Barkodla aranıyor",
+    "saveFirst": "Varyant, barkod ve alternatif birim eklemek için önce kartı kaydedin.",
+    "baseUnitLocked": "Temel birim hareket gördükten sonra değiştirilemez.",
+    "taxHelp": "Belgelerde varsayılan olarak bu vergi kodu gelir.",
+    "serviceNoStock": "Hizmetlerde stok takibi yapılmaz.",
+    "activeHelp": "Kullanılmış kartları silmek yerine pasife alın.",
+    "deleted": "Stok kartı silindi.",
+    "deleteTitle": "Stok kartı silinsin mi?",
+    "deleteBody": "{{name}} silinecek. Hareket görmüş kartlar silinemez; pasife alın.",
+    "tabs": {
+      "general": "Genel",
+      "variants": "Varyantlar",
+      "barcodes": "Barkodlar",
+      "units": "Alternatif birimler"
+    }
+  },
+  "variants": {
+    "help": "Renk, beden gibi özelliklerle ayrışan alt kartlar. SKU şirket genelinde tekildir.",
+    "add": "Varyant ekle",
+    "empty": "Bu kartın varyantı yok.",
+    "newTitle": "Yeni varyant",
+    "editTitle": "Varyantı düzenle",
+    "edit": "{{sku}} varyantını düzenle",
+    "remove": "{{sku}} varyantını sil",
+    "removeTitle": "Varyant silinsin mi?",
+    "removeBody": "{{sku}} silinecek."
+  },
+  "barcode": {
+    "help": "EAN-13, EAN-8 ve UPC-A barkodlarının kontrol hanesi kaydetmeden önce doğrulanır.",
+    "add": "Barkod ekle",
+    "empty": "Bu karta barkod tanımlanmamış.",
+    "newTitle": "Yeni barkod",
+    "primary": "Birincil",
+    "primaryLabel": "Birincil barkod",
+    "primaryHelp": "Etiket ve belgelerde bu barkod kullanılır.",
+    "allVariants": "Tüm varyantlar",
+    "makePrimary": "{{code}} barkodunu birincil yap",
+    "remove": "{{code}} barkodunu sil",
+    "removeTitle": "Barkod silinsin mi?",
+    "removeBody": "{{code}} silinecek.",
+    "valid": "Kontrol hanesi doğru.",
+    "expectedDigit": "Kontrol hanesi {{digit}} olmalı.",
+    "lengthHint_one": "{{count}} hane olmalı.",
+    "lengthHint_other": "{{count}} hane olmalı.",
+    "type": {
+      "ean13": "EAN-13",
+      "ean8": "EAN-8",
+      "upca": "UPC-A",
+      "other": "Diğer"
+    },
+    "problem": {
+      "empty": "Barkod zorunludur.",
+      "digits": "Bu barkod türü yalnızca rakam içerir.",
+      "length": "Barkod uzunluğu bu tür için uygun değil.",
+      "checkDigit": "Kontrol hanesi hatalı."
+    }
+  },
+  "itemUnits": {
+    "help": "Koli, paket gibi birimleri temel birime ({{base}}) çevirme çarpanıyla tanımlayın.",
+    "add": "Birim ekle",
+    "empty": "Alternatif birim yok.",
+    "newTitle": "Alternatif birim ekle",
+    "editTitle": "Alternatif birimi düzenle",
+    "edit": "{{unit}} birimini düzenle",
+    "remove": "{{unit}} birimini kaldır",
+    "removeTitle": "Alternatif birim kaldırılsın mı?",
+    "removeBody": "{{unit}} bu karttan kaldırılacak.",
+    "equation": "Dönüşüm",
+    "equationText": "1 {{unit}} = {{factor}} {{base}}",
+    "factorLabel": "1 {{unit}} kaç {{base}}",
+    "inverse": "1 {{base}} = {{inverse}} {{unit}}",
+    "preview": "Dönüşüm önizlemesi",
+    "sampleQty": "Miktar ({{unit}})",
+    "previewResult": "{{qty}} {{unit}} = {{result}} {{base}}",
+    "previewEmpty": "Önizleme için geçerli bir çarpan girin."
+  },
+  "priceLists": {
+    "title": "Fiyat listeleri",
+    "description": "Satış fiyat listeleri; cariye bağlı liste varsayılan listenin önüne geçer.",
+    "new": "Yeni fiyat listesi",
+    "newTitle": "Yeni fiyat listesi",
+    "editTitle": "Fiyat listesi",
+    "notFound": "Fiyat listesi bulunamadı.",
+    "header": "Liste bilgileri",
+    "default": "Varsayılan",
+    "isDefault": "Varsayılan liste",
+    "isDefaultHelp": "Cariye özel liste yoksa bu liste kullanılır. Yalnızca bir liste varsayılan olabilir.",
+    "taxIncluded": "KDV dahil",
+    "taxExcluded": "KDV hariç",
+    "taxInclusiveHelp": "Fiyatlar vergi dahil girilir.",
+    "saveFirst": "Satır eklemek için önce listeyi kaydedin.",
+    "saveHeader": "Liste bilgilerini kaydet",
+    "deleteTitle": "Fiyat listesi silinsin mi?",
+    "deleteBody": "{{name}} ve tüm satırları silinecek."
+  },
+  "priceLines": {
+    "title": "Fiyat satırları",
+    "hint": "Enter sonraki hücreye geçer, son hücrede yeni satır açar; Ctrl+S tüm satırları kaydeder.",
+    "anyVariant": "Tüm varyantlar",
+    "save": "Satırları kaydet",
+    "unsaved": "Kaydedilmemiş değişiklikler var.",
+    "saved_one": "{{count}} satır kaydedildi.",
+    "saved_other": "{{count}} satır kaydedildi.",
+    "count_one": "{{count}} satır",
+    "count_other": "{{count}} satır",
+    "failedRows": "Hatalı satırlar: {{rows}}",
+    "cellLabel": "{{row}}. satır, {{field}}",
+    "field": {
+      "item_id": "Stok",
+      "variant_id": "Varyant",
+      "unit_id": "Birim",
+      "min_qty": "Asgari miktar",
+      "price": "Fiyat",
+      "valid_from": "Geçerlilik başlangıcı",
+      "valid_to": "Geçerlilik bitişi"
+    }
+  },
+  "discounts": {
+    "title": "İndirim kuralları",
+    "description": "Stok, kategori ya da cariye uygulanan oransal indirimler. Öncelik yüksek olan kazanır.",
+    "new": "Yeni kural",
+    "newTitle": "Yeni indirim kuralı",
+    "editTitle": "İndirim kuralını düzenle",
+    "edit": "{{code}} kuralını düzenle",
+    "remove": "{{code}} kuralını sil",
+    "removeTitle": "Kural silinsin mi?",
+    "removeBody": "{{code}} silinecek.",
+    "validity": "Geçerlilik",
+    "allHelp": "Kural tüm stoklara uygulanır.",
+    "partyHelp": "Doldurulursa kural yalnızca bu cariye uygulanır.",
+    "minQtyHelp": "Boşsa her miktarda uygulanır.",
+    "priorityHelp": "Birden çok kural uyarsa en yüksek öncelikli olan uygulanır.",
+    "stackableHelp": "İşaretliyse diğer birleştirilebilir kurallarla birlikte uygulanır.",
+    "scopeRef": {
+      "item": "Stok",
+      "category": "Kategori",
+      "party": "Cari",
+      "all": "Kapsam"
+    }
+  },
+  "pricing": {
+    "title": "Fiyat hesaplama",
+    "description": "Bir stok, cari, miktar ve tarih için sistemin hangi fiyatı ve indirimi seçtiğini görün.",
+    "inputs": "Girdiler",
+    "partyHelp": "Boş bırakılırsa varsayılan liste kullanılır.",
+    "resolve": "Fiyatı hesapla",
+    "failed": "Fiyat hesaplanamadı",
+    "empty": "Girdileri doldurup “Fiyatı hesapla”ya basın.",
+    "result": "Sonuç",
+    "noPrice": "Bu koşullarda geçerli bir fiyat bulunamadı.",
+    "unitPrice": "Liste fiyatı",
+    "netUnitPrice": "Net birim fiyat",
+    "lineTotal": "{{qty}} birim tutarı",
+    "source": "Kaynak",
+    "priceList": "Fiyat listesi",
+    "rules": "Uygulanan indirimler",
+    "sources": {
+      "party_price_list": "Cariye özel liste",
+      "default_price_list": "Varsayılan liste",
+      "none": "Fiyat bulunamadı"
+    },
+    "precedence": "Öncelik sırası",
+    "precedenceHelp": "Çözümleyici adımları bu sırayla uygular; ilk eşleşen kazanır.",
+    "state": {
+      "decided": "Belirleyici",
+      "passed": "Uygulandı",
+      "skipped": "Atlandı",
+      "none": "Etkisiz"
+    },
+    "steps": {
+      "partyList": {
+        "title": "Cariye özel fiyat listesi",
+        "body": "Cari kartında bir liste varsa ve stok bu listede bulunuyorsa önce o kullanılır."
+      },
+      "defaultList": {
+        "title": "Varsayılan fiyat listesi",
+        "body": "Cariye özel fiyat yoksa şirketin varsayılan listesine bakılır."
+      },
+      "validity": {
+        "title": "Geçerlilik tarihi",
+        "body": "Liste ve satırın geçerlilik aralığı seçilen tarihi kapsamalıdır."
+      },
+      "minQty": {
+        "title": "En uygun miktar kademesi",
+        "body": "Asgari miktarı istenen miktarı aşmayan satırlar arasından en yüksek kademe seçilir."
+      },
+      "discount": {
+        "title": "İndirim kuralı",
+        "body": "Uyan kurallardan en yüksek öncelikli olan uygulanır."
+      },
+      "stacking": {
+        "title": "Birleştirme",
+        "body": "İndirimler toplanmaz; yalnızca “birleştirilebilir” işaretli kurallar birlikte uygulanır."
+      }
+    },
+    "trace": "Sunucu izi",
+    "traceOutcome": {
+      "matched": "eşleşti",
+      "skipped": "atlandı",
+      "rejected": "elendi"
+    }
+  }
+}
