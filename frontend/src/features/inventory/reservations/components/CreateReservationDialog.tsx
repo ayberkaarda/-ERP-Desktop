@@ -106,6 +106,8 @@ export function CreateReservationDialog({
       return reservationsApi.create(input, keyFor(input))
     },
     onSuccess: (res, { company }) => {
+      // The reservation exists now: an identical submit later is a new reservation, not a retry.
+      keyFor.reset()
       invalidateStockEffects(queryClient, company)
       if (activeCompany() !== company) return
       const shortage = res.meta?.shortage
