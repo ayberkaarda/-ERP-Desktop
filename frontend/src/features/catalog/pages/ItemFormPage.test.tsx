@@ -179,6 +179,19 @@ describe('ItemFormPage', () => {
     expect(await screen.findByText('kaplama: siyah')).toBeInTheDocument()
   })
 
+  it('keeps unsaved general edits across tab switches', async () => {
+    setupCatalog()
+    const user = userEvent.setup()
+    renderCatalog(`/catalog/items/${ITEM_BOLT}`)
+    const name = await screen.findByLabelText(/^Ad/)
+    await waitFor(() => expect(name).toHaveValue('Cıvata M8'))
+    await user.type(name, ' kalın')
+    await user.click(screen.getByRole('tab', { name: 'Varyantlar' }))
+    expect(await screen.findByText('CVT-M8-ZN')).toBeInTheDocument()
+    await user.click(screen.getByRole('tab', { name: 'Genel' }))
+    expect(screen.getByLabelText(/^Ad/)).toHaveValue('Cıvata M8 kalın')
+  })
+
   it('is read-only without items.update', async () => {
     setupCatalog({ permissions: ['items.view'] })
     renderCatalog(`/catalog/items/${ITEM_BOLT}`)

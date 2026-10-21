@@ -3,6 +3,8 @@ import {
   conversionMatrix,
   convertQty,
   diffMatrix,
+  factorProblem,
+  fractionDigits,
   inverseFactor,
   isPositiveFactor,
   normalize,
@@ -36,7 +38,9 @@ describe('unit conversion math', () => {
   })
 
   it('inverts at the API scale', () => {
-    expect(inverseFactor('12')).toBe('0.083333')
+    expect(inverseFactor('12')).toBe('0.0833333')
+    // Large factors keep a visible reciprocal instead of rounding to 0.
+    expect(inverseFactor('10000000')).toBe('0.0000001')
     expect(inverseFactor('1000')).toBe('0.001')
     expect(inverseFactor('0')).toBeNull()
   })
@@ -44,8 +48,23 @@ describe('unit conversion math', () => {
   it('builds a matrix with implied reverse cells', () => {
     const m = conversionMatrix([conv('1', 'box', 'pc', '12'), conv('2', 'kg', 'g', '1000')])
     expect(m.get(pairKey('box', 'pc'))?.conversion?.id).toBe('1')
-    expect(m.get(pairKey('pc', 'box'))?.implied).toBe('0.083333')
+    expect(m.get(pairKey('pc', 'box'))?.implied).toBe('0.0833333')
     expect(m.get(pairKey('g', 'kg'))?.implied).toBe('0.001')
+  })
+
+  it('reports factor problems including the numeric(20,6) limit', () => {
+    expect(factorProblem('12')).toBeNull()
+    expect(factorProblem('#invalid')).toBe('number')
+    expect(factorProblem('0')).toBe('positive')
+    expect(factorProblem('1.0000001')).toBe('scale')
+    expect(factorProblem('99999999999999.999999')).toBeNull()
+    expect(factorProblem('100000000000000')).toBe('max')
+    expect(fractionDigits('0.0000001')).toBe(7)
+  })
+
+  it('ignores unparsed drafts instead of throwing', () => {
+    const stored = [conv('1', 'box', 'pc', '12')]
+    expect(diffMatrix(stored, { 'box>pc': '#invalid', 'pc>box': 'abc' })).toEqual([])
   })
 
   it('diffs edits into operations', () => {

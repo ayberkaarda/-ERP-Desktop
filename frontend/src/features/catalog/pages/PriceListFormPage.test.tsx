@@ -1,5 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/test/msw/server'
 import { ITEM_BOLT, ITEM_SERVICE, PL_DEFAULT, U_PCS } from '@/test/handlers/catalog'
 import type { PriceListLine } from '../types'
 import { renderCatalog, setupCatalog } from '../testing'
@@ -105,6 +107,52 @@ describe('price lists', () => {
       min_qty: '1',
     })
     expect(db.lines[PL_DEFAULT]?.[0]?.item_id).toBe(ITEM_BOLT)
+  })
+
+  it('keeps unsaved edits when the lines change elsewhere and offers an explicit reload', async () => {
+    const db = setupCatalog()
+    const user = userEvent.setup()
+    const { queryClient } = renderCatalog(`/catalog/price-lists/${PL_DEFAULT}`)
+    const table = await screen.findByRole('table', { name: 'Fiyat satırları' })
+    await within(table).findByLabelText('Fiyat, 1. satır')
+
+    // Not dirty: a refetch quietly shows the new server rows.
+    const first = db.lines[PL_DEFAULT]?.[0]
+    if (first) first.price = '13.000000'
+    await queryClient.invalidateQueries()
+    await waitFor(() =>
+      expect(within(table).getByLabelText('Fiyat, 1. satır')).toHaveValue('13,00'),
+    )
+
+    const price1 = within(table).getByLabelText('Fiyat, 1. satır')
+    await user.clear(price1)
+    await user.type(price1, '14')
+    if (first) first.price = '15.000000'
+    await queryClient.invalidateQueries()
+    expect(
+      await screen.findByText(/Satırlar siz düzenlerken başka bir yerde değişti/),
+    ).toBeInTheDocument()
+    expect(within(table).getByLabelText('Fiyat, 1. satır')).toHaveValue('14')
+    expect(screen.getByRole('button', { name: 'Satırları kaydet' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Sunucudaki satırları yükle' }))
+    await waitFor(() =>
+      expect(within(table).getByLabelText('Fiyat, 1. satır')).toHaveValue('15,00'),
+    )
+    expect(screen.getByRole('button', { name: 'Satırları kaydet' })).toBeEnabled()
+    expect(db.calls.some((c) => c.method === 'PUT')).toBe(false)
+  })
+
+  it('refuses to edit a list too large to load completely', async () => {
+    setupCatalog()
+    server.use(
+      http.get('*/api/v1/price-lists/:id/lines', () =>
+        HttpResponse.json({ data: [], meta: { total: 60000, last_page: 600 } }),
+      ),
+    )
+    renderCatalog(`/catalog/price-lists/${PL_DEFAULT}`)
+    expect(await screen.findByText(/Bu listede 50000 satırdan fazlası var/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Satırları kaydet' })).not.toBeInTheDocument()
   })
 
   it('reads lines without editing rights', async () => {

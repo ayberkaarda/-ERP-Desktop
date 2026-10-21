@@ -4,6 +4,9 @@ export interface CategoryNode {
   category: ItemCategory
   children: CategoryNode[]
   depth: number
+  /** 1-based position among siblings and the sibling count (aria-posinset/aria-setsize). */
+  pos: number
+  size: number
 }
 
 const byCode = (a: ItemCategory, b: ItemCategory) =>
@@ -20,22 +23,29 @@ export function buildTree(categories: readonly ItemCategory[]): CategoryNode[] {
     children.set(parent, list)
   }
   const seen = new Set<string>()
-  const build = (parent: string | null, depth: number): CategoryNode[] =>
-    (children.get(parent) ?? [])
-      .filter((c) => !seen.has(c.id))
-      .sort(byCode)
-      .map((c) => {
-        seen.add(c.id)
-        return { category: c, depth, children: build(c.id, depth + 1) }
-      })
+  const build = (parent: string | null, depth: number): CategoryNode[] => {
+    const list = (children.get(parent) ?? []).filter((c) => !seen.has(c.id)).sort(byCode)
+    for (const c of list) seen.add(c.id)
+    return list.map((c, i) => ({
+      category: c,
+      depth,
+      pos: i + 1,
+      size: list.length,
+      children: build(c.id, depth + 1),
+    }))
+  }
   const roots = build(null, 0)
   // Rows only reachable through a cycle in bad data still appear, as roots.
   for (const c of [...categories].sort(byCode)) {
     if (!seen.has(c.id)) {
       seen.add(c.id)
-      roots.push({ category: c, depth: 0, children: build(c.id, 1) })
+      roots.push({ category: c, depth: 0, pos: 0, size: 0, children: build(c.id, 1) })
     }
   }
+  roots.forEach((n, i) => {
+    n.pos = i + 1
+    n.size = roots.length
+  })
   return roots
 }
 

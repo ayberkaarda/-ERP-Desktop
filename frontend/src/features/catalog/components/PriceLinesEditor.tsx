@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, RotateCcw, Save } from 'lucide-react'
-import { useMemo, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, type KeyboardEvent } from 'react'
 import { useForm, useFormState } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import {
@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePermission } from '@/lib/permissions'
 import { isApiError, platform } from '@/platform'
-import { priceListsApi } from '../api/client'
+import { INCOMPLETE_LOAD, LIMIT_EXCEEDED, MAX_PAGES, priceListsApi } from '../api/client'
 import { catalogKeys } from '../api/keys'
 import { usePriceListLines, useVariants } from '../hooks/queries'
 import { isVersionConflict } from '../lib/errors'
@@ -40,20 +40,40 @@ import { VersionConflictAlert } from './VersionConflictAlert'
 
 /** Lines grid: keyboard entry via DocumentLinesEditor, saved in one PUT (replace all). */
 export function PriceLinesEditor({ priceList }: { priceList: PriceList }) {
-  const { t } = useTranslation('catalog')
   const lines = usePriceListLines(priceList.id)
   if (lines.isPending) return <Skeleton className="h-48 w-full" />
-  if (lines.isError) {
-    return (
-      <div role="alert" className="flex items-center gap-3 text-sm text-danger">
-        {t('errors.loadFailed')}
-        <Button size="sm" variant="secondary" onClick={() => void lines.refetch()}>
-          {t('actions.retry')}
-        </Button>
-      </div>
-    )
+  // Without a complete load there is no grid: saving replaces every line on the server.
+  if (lines.isError && !lines.data) {
+    return <LoadError error={lines.error} onRetry={() => void lines.refetch()} />
   }
-  return <LinesForm key={lines.dataUpdatedAt} priceList={priceList} initial={lines.data} />
+  return (
+    <LinesForm
+      key={priceList.id}
+      priceList={priceList}
+      server={lines.data}
+      loadError={lines.isError ? lines.error : null}
+      onRetry={() => void lines.refetch()}
+    />
+  )
+}
+
+function LoadError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useTranslation('catalog')
+  const code = isApiError(error) ? error.code : ''
+  const text =
+    code === LIMIT_EXCEEDED
+      ? t('priceLines.tooMany', { max: MAX_PAGES * 100 })
+      : code === INCOMPLETE_LOAD
+        ? t('priceLines.incomplete')
+        : t('errors.loadFailed')
+  return (
+    <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-danger">
+      {text}
+      <Button size="sm" variant="secondary" onClick={onRetry}>
+        {t('actions.retry')}
+      </Button>
+    </div>
+  )
 }
 
 const LINE_FIELDS = [
@@ -76,15 +96,34 @@ function lineErrorRows(error: unknown): number[] {
   return [...rows].sort((a, b) => a - b)
 }
 
-function LinesForm({ priceList, initial }: { priceList: PriceList; initial: PriceListLine[] }) {
+function LinesForm({
+  priceList,
+  server,
+  loadError,
+  onRetry,
+}: {
+  priceList: PriceList
+  server: PriceListLine[]
+  loadError: unknown
+  onRetry: () => void
+}) {
   const { t } = useTranslation('catalog')
   const queryClient = useQueryClient()
   const canEdit = usePermission('price_lists.update')
+  const serverValues = useMemo(() => server.map(toLineValues), [server])
   const form = useForm<PriceLinesValues>({
     resolver: zodResolver(priceLinesSchema),
-    defaultValues: { lines: initial.map(toLineValues) },
+    defaultValues: { lines: serverValues },
   })
-  const { isDirty } = useFormState({ control: form.control })
+  const { isDirty, defaultValues } = useFormState({ control: form.control })
+
+  // A refetch with new rows only replaces the grid when nothing is being edited.
+  useEffect(() => {
+    if (!form.formState.isDirty) form.reset({ lines: serverValues })
+  }, [serverValues, form])
+  const changedElsewhere =
+    isDirty && JSON.stringify(defaultValues?.lines ?? []) !== JSON.stringify(serverValues)
+  const blocked = changedElsewhere || loadError !== null
 
   const save = useMutation({
     mutationFn: (v: PriceLinesValues) =>
@@ -99,7 +138,10 @@ function LinesForm({ priceList, initial }: { priceList: PriceList; initial: Pric
 
   const reload = async () => {
     save.reset()
-    await queryClient.invalidateQueries({ queryKey: catalogKeys.priceListLines(priceList.id) })
+    const key = catalogKeys.priceListLines(priceList.id)
+    await queryClient.refetchQueries({ queryKey: key })
+    const fresh = queryClient.getQueryData<PriceListLine[]>(key)
+    if (fresh) form.reset({ lines: fresh.map(toLineValues) })
   }
 
   const columns = useMemo<LineColumn<PriceLineValues>[]>(
@@ -230,7 +272,7 @@ function LinesForm({ priceList, initial }: { priceList: PriceList; initial: Pric
     // Ctrl/Cmd+S saves the whole grid, as in desktop price editors.
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault()
-      if (canEdit && !save.isPending) void form.handleSubmit((v) => save.mutate(v))()
+      if (canEdit && !save.isPending && !blocked) void form.handleSubmit((v) => save.mutate(v))()
     }
   }
 
@@ -246,10 +288,32 @@ function LinesForm({ priceList, initial }: { priceList: PriceList; initial: Pric
       </div>
       <Form
         form={form}
-        onSubmit={(v) => save.mutate(v)}
+        onSubmit={(v) => {
+          if (!blocked) save.mutate(v)
+        }}
         onKeyDown={onKeyDown}
         className="space-y-3"
       >
+        {loadError !== null && <LoadError error={loadError} onRetry={onRetry} />}
+        {changedElsewhere && (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center gap-3 rounded-md border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground"
+          >
+            <span className="min-w-0 flex-1">{t('priceLines.changedElsewhere')}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                save.reset()
+                form.reset({ lines: serverValues })
+              }}
+            >
+              {t('priceLines.loadServer')}
+            </Button>
+          </div>
+        )}
         {isVersionConflict(save.error) ? (
           <VersionConflictAlert onReload={() => void reload()} />
         ) : (
@@ -295,13 +359,13 @@ function LinesForm({ priceList, initial }: { priceList: PriceList; initial: Pric
               disabled={!isDirty || save.isPending}
               onClick={() => {
                 save.reset()
-                form.reset()
+                form.reset({ lines: serverValues })
               }}
             >
               <RotateCcw aria-hidden="true" />
               {t('actions.discard')}
             </Button>
-            <Button type="submit" disabled={save.isPending}>
+            <Button type="submit" disabled={save.isPending || blocked}>
               {save.isPending ? (
                 <Loader2 className="animate-spin" aria-hidden="true" />
               ) : (

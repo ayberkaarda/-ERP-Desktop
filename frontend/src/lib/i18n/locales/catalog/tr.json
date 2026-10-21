@@ -45,6 +45,7 @@
   "validation": {
     "number": "Geçerli bir sayı girin.",
     "factorPositive": "Çarpan sıfırdan büyük olmalıdır.",
+    "factorRange": "Çarpan en fazla 14 tam ve 6 ondalık basamak olabilir.",
     "duplicateKey": "Bu özellik adı zaten kullanılıyor.",
     "dateOrder": "Bitiş tarihi başlangıçtan önce olamaz.",
     "percentRange": "İndirim oranı 0'dan büyük, en fazla 100 olmalıdır.",
@@ -163,7 +164,7 @@
     "empty": "Henüz kategori yok.",
     "expandAll": "Tümünü aç",
     "collapseAll": "Tümünü kapat",
-    "keyboardHint": "Ok tuşlarıyla gezinin; → açar, ← kapatır, Enter düzenler.",
+    "keyboardHint": "Ok tuşlarıyla gezinin; → açar, ← kapatır. Enter düzenler, Insert alt kategori ekler, M taşır, Delete siler.",
     "dropRoot": "En üst düzeye taşımak için buraya bırakın",
     "addChild": "{{name}} altına kategori ekle",
     "edit": "{{name}} kategorisini düzenle",
@@ -306,7 +307,11 @@
       "price": "Fiyat",
       "valid_from": "Geçerlilik başlangıcı",
       "valid_to": "Geçerlilik bitişi"
-    }
+    },
+    "tooMany": "Bu listede {{max}} satırdan fazlası var; tarayıcıda düzenlenemez. Satırları içe aktarma ile güncelleyin.",
+    "incomplete": "Satırlar yüklenirken liste değişti; eksik listeyle kayıt yapılmaz. Tekrar yükleyin.",
+    "changedElsewhere": "Satırlar siz düzenlerken başka bir yerde değişti. Kaydetmek için sunucudaki satırları yükleyin; düzenlemeleriniz bu durumda kaybolur.",
+    "loadServer": "Sunucudaki satırları yükle"
   },
   "discounts": {
     "title": "İndirim kuralları",

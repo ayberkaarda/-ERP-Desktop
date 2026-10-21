@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useRef } from 'react'
 import type { ListQueryState } from '@/components/shared/data-table'
-import { createIdempotencyKey } from '@/platform'
+import { createIdempotencyKey, isApiError } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import {
   barcodesApi,
@@ -10,6 +10,7 @@ import {
   discountRulesApi,
   itemsApi,
   itemUnitsApi,
+  LIMIT_EXCEEDED,
   lookupsApi,
   priceListsApi,
   unitsApi,
@@ -125,6 +126,8 @@ export function usePriceListLines(id: string | undefined) {
     queryKey: catalogKeys.priceListLines(id ?? ''),
     queryFn: ({ signal }) => priceListsApi.lines(id ?? '', signal),
     enabled: Boolean(id),
+    // An over-size list stays over-size; retrying only delays the message.
+    retry: (count, error) => !(isApiError(error) && error.code === LIMIT_EXCEEDED) && count < 2,
   })
 }
 

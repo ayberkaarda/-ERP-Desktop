@@ -14,7 +14,7 @@ import { platform } from '@/platform'
 import { itemUnitsApi } from '../../api/client'
 import { catalogKeys } from '../../api/keys'
 import { useIdempotencyKey, useInvalidate, useItemUnits, useUnits } from '../../hooks/queries'
-import { convertQty, inverseFactor, isPositiveFactor } from '../../lib/conversion'
+import { convertQty, factorProblem, fractionDigits, inverseFactor } from '../../lib/conversion'
 import { errorMessage, isVersionConflict } from '../../lib/errors'
 import { itemUnitSchema, type ItemUnitValues } from '../../schemas'
 import type { Item, ItemUnit } from '../../types'
@@ -25,7 +25,13 @@ import { SubTable } from './SubTable'
 
 function useFormatQty() {
   const locale = useIntlLocale()
-  return (value: string) => formatDecimalDisplay(value, { locale, minFraction: 0, maxFraction: 6 })
+  // Previews may need more than 6 digits (1 / 10 000 000); stored values never do.
+  return (value: string) =>
+    formatDecimalDisplay(value, {
+      locale,
+      minFraction: 0,
+      maxFraction: Math.max(6, fractionDigits(value)),
+    })
 }
 
 export function ItemUnitsTab({ item }: { item: Item }) {
@@ -152,7 +158,7 @@ function ItemUnitDialog({
   })
   const [unitId, factor] = useWatch({ control: form.control, name: ['unit_id', 'factor'] })
   const unitCode = units.data?.find((u) => u.id === unitId)?.code ?? '?'
-  const converted = isPositiveFactor(factor) ? convertQty(sample, factor) : null
+  const converted = factorProblem(factor) === null ? convertQty(sample, factor) : null
   const inverse = inverseFactor(factor)
 
   const save = useMutation({

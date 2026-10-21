@@ -79,6 +79,36 @@ describe('CategoriesPage', () => {
     )
   })
 
+  it('exposes position in set and keyboard row actions', async () => {
+    const db = setupCatalog()
+    const user = userEvent.setup()
+    renderCatalog('/catalog/categories')
+    const root = await screen.findByRole('treeitem', { name: 'HM Hammadde' })
+    expect(root).toHaveAttribute('aria-posinset', '1')
+    expect(root).toHaveAttribute('aria-setsize', '2')
+    const service = screen.getByRole('treeitem', { name: 'HZ Hizmet' })
+    expect(service).toHaveAttribute('aria-posinset', '2')
+
+    service.focus()
+    await user.keyboard('{Delete}')
+    const confirm = await screen.findByRole('alertdialog')
+    expect(confirm).toHaveTextContent('Hizmet silinecek.')
+    await user.click(within(confirm).getByRole('button', { name: 'Sil' }))
+    await waitFor(() => expect(db.categories.some((c) => c.id === 'cat-service')).toBe(false))
+
+    const rootAgain = screen.getByRole('treeitem', { name: 'HM Hammadde' })
+    rootAgain.focus()
+    await user.keyboard('{Insert}')
+    expect(await screen.findByRole('dialog', { name: 'Yeni kategori' })).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    screen.getByRole('treeitem', { name: 'HM Hammadde' }).focus()
+    await user.keyboard('m')
+    expect(
+      await screen.findByRole('dialog', { name: 'Hammadde kategorisini taşı' }),
+    ).toBeInTheDocument()
+  })
+
   it('adds a child category under the chosen parent', async () => {
     const db = setupCatalog()
     const user = userEvent.setup()

@@ -45,6 +45,7 @@
   "validation": {
     "number": "Geben Sie eine gültige Zahl ein.",
     "factorPositive": "Der Faktor muss größer als null sein.",
+    "factorRange": "Der Faktor darf höchstens 14 Vor- und 6 Nachkommastellen haben.",
     "duplicateKey": "Dieser Merkmalsname wird bereits verwendet.",
     "dateOrder": "Das Enddatum darf nicht vor dem Startdatum liegen.",
     "percentRange": "Der Rabatt muss größer als 0 und höchstens 100 sein.",
@@ -163,7 +164,7 @@
     "empty": "Noch keine Kategorien.",
     "expandAll": "Alle aufklappen",
     "collapseAll": "Alle zuklappen",
-    "keyboardHint": "Mit den Pfeiltasten navigieren; → klappt auf, ← klappt zu, Enter bearbeitet.",
+    "keyboardHint": "Mit den Pfeiltasten navigieren; → klappt auf, ← klappt zu. Enter bearbeitet, Einfg fügt eine Unterkategorie hinzu, M verschiebt, Entf löscht.",
     "dropRoot": "Hier ablegen, um auf die oberste Ebene zu verschieben",
     "addChild": "Kategorie unter {{name}} hinzufügen",
     "edit": "Kategorie {{name}} bearbeiten",
@@ -306,7 +307,11 @@
       "price": "Preis",
       "valid_from": "Gültig ab",
       "valid_to": "Gültig bis"
-    }
+    },
+    "tooMany": "Diese Liste hat mehr als {{max}} Positionen und kann im Browser nicht bearbeitet werden. Aktualisieren Sie die Positionen per Import.",
+    "incomplete": "Die Liste hat sich beim Laden geändert; eine unvollständige Liste wird nicht gespeichert. Erneut laden.",
+    "changedElsewhere": "Die Positionen wurden während Ihrer Bearbeitung anderswo geändert. Laden Sie die Serverpositionen, um zu speichern; Ihre Änderungen gehen dabei verloren.",
+    "loadServer": "Serverpositionen laden"
   },
   "discounts": {
     "title": "Rabattregeln",

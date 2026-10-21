@@ -15,7 +15,8 @@ import { useConversions, useIdempotencyKey, useUnits } from '../hooks/queries'
 import {
   conversionMatrix,
   diffMatrix,
-  isPositiveFactor,
+  factorProblem,
+  fractionDigits,
   pairKey,
   type MatrixChange,
 } from '../lib/conversion'
@@ -51,8 +52,10 @@ export function ConversionMatrix() {
     const out: Record<string, string> = {}
     for (const [key, value] of Object.entries(edits)) {
       if (value === '') continue
-      if (value === INVALID_DECIMAL) out[key] = t('validation.number')
-      else if (!isPositiveFactor(value)) out[key] = t('validation.factorPositive')
+      const problem = value === INVALID_DECIMAL ? 'number' : factorProblem(value)
+      if (problem === 'number') out[key] = t('validation.number')
+      else if (problem === 'positive') out[key] = t('validation.factorPositive')
+      else if (problem) out[key] = t('validation.factorRange')
     }
     return out
   }, [edits, t])
@@ -200,7 +203,7 @@ export function ConversionMatrix() {
                   const error = localErrors[key] ?? cellErrors[key]
                   const errorId = `conv-${key}-error`
                   const placeholder = cell?.implied
-                    ? `≈ ${formatDecimalDisplay(cell.implied, { locale, minFraction: 0, maxFraction: 6 })}`
+                    ? `≈ ${formatDecimalDisplay(cell.implied, { locale, minFraction: 0, maxFraction: Math.max(6, fractionDigits(cell.implied)) })}`
                     : undefined
                   return (
                     <td key={to.id} className="min-w-32 border-b border-border p-1 align-top">

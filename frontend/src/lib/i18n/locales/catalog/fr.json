@@ -45,6 +45,7 @@
   "validation": {
     "number": "Saisissez un nombre valide.",
     "factorPositive": "Le facteur doit être supérieur à zéro.",
+    "factorRange": "Le facteur peut comporter au plus 14 chiffres entiers et 6 décimales.",
     "duplicateKey": "Ce nom d’attribut est déjà utilisé.",
     "dateOrder": "La date de fin ne peut pas précéder la date de début.",
     "percentRange": "La remise doit être supérieure à 0 et au plus 100.",
@@ -163,7 +164,7 @@
     "empty": "Aucune catégorie pour l’instant.",
     "expandAll": "Tout déplier",
     "collapseAll": "Tout replier",
-    "keyboardHint": "Utilisez les flèches ; → déplie, ← replie, Entrée modifie.",
+    "keyboardHint": "Utilisez les flèches ; → déplie, ← replie. Entrée modifie, Inser ajoute une sous-catégorie, M déplace, Suppr supprime.",
     "dropRoot": "Déposez ici pour placer au premier niveau",
     "addChild": "Ajouter une catégorie sous {{name}}",
     "edit": "Modifier la catégorie {{name}}",
@@ -306,7 +307,11 @@
       "price": "Prix",
       "valid_from": "Valable du",
       "valid_to": "Valable jusqu’au"
-    }
+    },
+    "tooMany": "Cette liste compte plus de {{max}} lignes et ne peut pas être modifiée dans le navigateur. Mettez les lignes à jour par import.",
+    "incomplete": "La liste a changé pendant le chargement ; une liste incomplète ne peut pas être enregistrée. Rechargez.",
+    "changedElsewhere": "Les lignes ont été modifiées ailleurs pendant votre saisie. Chargez les lignes du serveur pour enregistrer ; vos modifications seront perdues.",
+    "loadServer": "Charger les lignes du serveur"
   },
   "discounts": {
     "title": "Règles de remise",

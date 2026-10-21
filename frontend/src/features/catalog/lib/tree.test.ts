@@ -52,6 +52,16 @@ describe('category tree', () => {
     expect(reparentProblem('b', null, data)).toBeNull()
   })
 
+  it('numbers siblings for aria-posinset/aria-setsize', () => {
+    const tree = buildTree(data)
+    expect(tree.map((n) => [n.pos, n.size])).toEqual([
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ])
+    expect(tree[0]?.children[0]).toMatchObject({ pos: 1, size: 1 })
+  })
+
   it('renders paths', () => {
     expect(categoryPath('c', data)).toBe('A / B / C')
   })

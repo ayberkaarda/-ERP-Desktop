@@ -24,10 +24,34 @@ export function convertQty(qty: string, factor: string, scale = QTY_SCALE): stri
   return normalize(new Decimal(qty).times(factor), scale)
 }
 
-/** 1 / factor, the reverse direction of a conversion. */
-export function inverseFactor(factor: string, scale = QTY_SCALE): string | null {
+/** Largest value numeric(20,6) holds: 14 integer digits, 6 fraction digits. */
+export const MAX_QTY = '99999999999999.999999'
+
+export type FactorProblem = 'number' | 'scale' | 'positive' | 'max'
+
+/** Why a factor string cannot be stored (null when it can); safe on any input. */
+export function factorProblem(value: string): FactorProblem | null {
+  if (!isDecimalString(value)) return 'number'
+  const d = new Decimal(value)
+  if (d.decimalPlaces() > QTY_SCALE) return 'scale'
+  if (!d.greaterThan(0)) return 'positive'
+  if (d.greaterThan(MAX_QTY)) return 'max'
+  return null
+}
+
+/**
+ * 1 / factor for display, the reverse direction of a conversion. Six significant digits, so a
+ * large factor (10 000 000) still shows a non-zero reciprocal (0.0000001).
+ */
+export function inverseFactor(factor: string): string | null {
   if (!isPositiveFactor(factor)) return null
-  return normalize(new Decimal(1).dividedBy(factor), scale)
+  return new Decimal(1).dividedBy(factor).toSignificantDigits(6, Decimal.ROUND_HALF_UP).toFixed()
+}
+
+/** Fraction digits of a canonical decimal string (display precision for previews). */
+export function fractionDigits(value: string): number {
+  const dot = value.indexOf('.')
+  return dot < 0 ? 0 : value.length - dot - 1
 }
 
 export const pairKey = (from: string, to: string) => `${from}>${to}`
@@ -74,6 +98,8 @@ export function diffMatrix(
     const [from, to] = key.split('>')
     if (!from || !to || from === to) continue
     const existing = stored.get(key)
+    // Drafts that are not numbers yet (the input's invalid marker) are not operations.
+    if (value !== '' && !isDecimalString(value)) continue
     if (value === '') {
       if (existing) changes.push({ kind: 'delete', conversion: existing })
       continue

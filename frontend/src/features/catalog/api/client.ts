@@ -1,5 +1,5 @@
 import { toListParams, type ListQueryState } from '@/components/shared/data-table'
-import { platform, withIdempotency } from '@/platform'
+import { ApiError, platform, withIdempotency } from '@/platform'
 import type {
   CurrencyRef,
   DiscountRule,
@@ -33,18 +33,38 @@ const seg = (id: string) => encodeURIComponent(id)
 
 type Params = Record<string, string | number>
 
-/** Every page of a small master-data list (units, categories): 100 per page, bounded. */
-export async function fetchAll<T>(url: string, params: Params = {}, signal?: AbortSignal) {
+export const LIMIT_EXCEEDED = 'LIMIT_EXCEEDED'
+export const INCOMPLETE_LOAD = 'INCOMPLETE_LOAD'
+/** 500 pages × 100 rows: above this a full in-browser list is not workable. */
+export const MAX_PAGES = 500
+
+/**
+ * Every page of a list, 100 per page. Never returns a partial list: more pages than `maxPages`
+ * throws LIMIT_EXCEEDED, and fewer rows than the server's total throws INCOMPLETE_LOAD, so
+ * callers that replace the whole set (price list lines) never save over rows they did not see.
+ */
+export async function fetchAll<T>(
+  url: string,
+  params: Params = {},
+  signal?: AbortSignal,
+  maxPages = MAX_PAGES,
+) {
   const out: T[] = []
-  for (let page = 1; page <= 50; page++) {
+  let total: number
+  for (let page = 1; ; page++) {
     const res = await http().get<Paginated<T>>(url, {
       params: { ...params, page, per_page: 100 },
       signal,
     })
+    total = res.meta.total
+    const last = res.meta.last_page ?? Math.ceil(total / 100)
+    if (last > maxPages) {
+      throw new ApiError(0, LIMIT_EXCEEDED, `More than ${maxPages * 100} rows.`)
+    }
     out.push(...res.data)
-    const last = res.meta.last_page ?? Math.ceil(res.meta.total / 100)
     if (page >= last || res.data.length === 0) break
   }
+  if (out.length < total) throw new ApiError(0, INCOMPLETE_LOAD, 'List changed while loading.')
   return out
 }
 

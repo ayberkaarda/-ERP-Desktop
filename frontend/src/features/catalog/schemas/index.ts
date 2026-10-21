@@ -2,6 +2,7 @@ import Decimal from 'decimal.js'
 import { z } from 'zod'
 import { decimalString, MSG, requiredString } from '@/lib/forms'
 import { validateBarcode } from '../lib/barcode'
+import { factorProblem, MAX_QTY } from '../lib/conversion'
 import {
   BARCODE_TYPES,
   DISCOUNT_SCOPES,
@@ -42,18 +43,20 @@ export const unitSchema = z.object({
 })
 export type UnitValues = z.infer<typeof unitSchema>
 
-/** Matrix cell / alternate-unit factor: decimal(20,6) strictly above zero. */
+const FACTOR_MESSAGE = {
+  number: MSG.number,
+  scale: MSG.scale,
+  positive: CMSG.factorPositive,
+  max: CMSG.factorRange,
+} as const
+
+/** Matrix cell / alternate-unit factor: numeric(20,6), strictly above zero. */
 export const factorString = z
   .string()
   .min(1, MSG.required)
   .superRefine((value, ctx) => {
-    if (!/^-?\d+(?:\.\d+)?$/.test(value)) {
-      ctx.addIssue({ code: 'custom', message: MSG.number })
-      return
-    }
-    const d = new Decimal(value)
-    if (d.decimalPlaces() > 6) ctx.addIssue({ code: 'custom', message: MSG.scale })
-    else if (!d.greaterThan(0)) ctx.addIssue({ code: 'custom', message: CMSG.factorPositive })
+    const problem = factorProblem(value)
+    if (problem) ctx.addIssue({ code: 'custom', message: FACTOR_MESSAGE[problem] })
   })
 
 // Categories ----------------------------------------------------------------------------------
@@ -76,8 +79,8 @@ export const itemSchema = z.object({
   purchase_tax_code_id: z.string(),
   tracking: z.enum(TRACKING_MODES),
   has_expiry: z.boolean(),
-  min_stock: optionalDecimal({ nonNegative: true, scale: 6 }),
-  reorder_point: optionalDecimal({ nonNegative: true, scale: 6 }),
+  min_stock: optionalDecimal({ nonNegative: true, scale: 6, max: MAX_QTY }),
+  reorder_point: optionalDecimal({ nonNegative: true, scale: 6, max: MAX_QTY }),
   is_active: z.boolean(),
   attributes: attributeRows,
 })
@@ -199,8 +202,8 @@ export const priceLineSchema = z
     item_id: z.string().min(1, MSG.required),
     variant_id: z.string(),
     unit_id: z.string().min(1, MSG.required),
-    min_qty: decimalString({ nonNegative: true, scale: 6 }),
-    price: decimalString({ positive: true, scale: 6 }),
+    min_qty: decimalString({ nonNegative: true, scale: 6, max: MAX_QTY }),
+    price: decimalString({ positive: true, scale: 6, max: MAX_QTY }),
     valid_from: optionalDate,
     valid_to: optionalDate,
   })
@@ -256,7 +259,7 @@ export const discountRuleSchema = z
     scope: z.enum(DISCOUNT_SCOPES),
     scope_ref: z.string(),
     party_id: z.string(),
-    min_qty: optionalDecimal({ nonNegative: true, scale: 6 }),
+    min_qty: optionalDecimal({ nonNegative: true, scale: 6, max: MAX_QTY }),
     discount_percent: decimalString({ scale: 4 }),
     priority: z.string().regex(/^\d{1,6}$/, CMSG.integer),
     valid_from: optionalDate,
@@ -317,7 +320,7 @@ export const playgroundSchema = z.object({
   item_id: z.string().min(1, MSG.required),
   variant_id: z.string(),
   party_id: z.string(),
-  qty: decimalString({ positive: true, scale: 6 }),
+  qty: decimalString({ positive: true, scale: 6, max: MAX_QTY }),
   unit_id: z.string(),
   date: z.string().min(1, MSG.required),
   currency: z.string(),

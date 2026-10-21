@@ -1,6 +1,7 @@
 import {
   detectBarcodeType,
   gs1CheckDigit,
+  isAsciiDigits,
   isValidEan13,
   isValidEan8,
   isValidUpcA,
@@ -17,6 +18,14 @@ describe('GS1 check digits', () => {
 
   it('rejects non-digit payloads', () => {
     expect(() => gs1CheckDigit('12a')).toThrow()
+    // Regression: a trailing newline or other whitespace is not a digit.
+    expect(() => gs1CheckDigit('123\n')).toThrow()
+    expect(() => gs1CheckDigit('12 3')).toThrow()
+    expect(() => gs1CheckDigit('')).toThrow()
+    expect(() => gs1CheckDigit('１２３')).toThrow()
+    expect(isAsciiDigits('0123456789')).toBe(true)
+    expect(isAsciiDigits('12\n')).toBe(false)
+    expect(validateBarcode('40063813339\n1', 'ean13')).toMatchObject({ problem: 'digits' })
   })
 
   it('validates EAN-13, EAN-8 and UPC-A', () => {

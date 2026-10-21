@@ -45,6 +45,7 @@
   "validation": {
     "number": "Enter a valid number.",
     "factorPositive": "The factor must be greater than zero.",
+    "factorRange": "The factor can have at most 14 integer and 6 decimal digits.",
     "duplicateKey": "This attribute name is already used.",
     "dateOrder": "The end date cannot be before the start date.",
     "percentRange": "The discount must be greater than 0 and at most 100.",
@@ -163,7 +164,7 @@
     "empty": "No categories yet.",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
-    "keyboardHint": "Use the arrow keys; → expands, ← collapses, Enter edits.",
+    "keyboardHint": "Use the arrow keys; → expands, ← collapses. Enter edits, Insert adds a subcategory, M moves, Delete deletes.",
     "dropRoot": "Drop here to move to the top level",
     "addChild": "Add category under {{name}}",
     "edit": "Edit category {{name}}",
@@ -306,7 +307,11 @@
       "price": "Price",
       "valid_from": "Valid from",
       "valid_to": "Valid to"
-    }
+    },
+    "tooMany": "This list has more than {{max}} lines and cannot be edited in the browser. Update the lines by import.",
+    "incomplete": "The list changed while loading; saving an incomplete list is not allowed. Load again.",
+    "changedElsewhere": "The lines changed elsewhere while you were editing. Load the server lines to save; your edits will be lost.",
+    "loadServer": "Load server lines"
   },
   "discounts": {
     "title": "Discount rules",

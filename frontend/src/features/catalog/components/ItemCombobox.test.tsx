@@ -51,6 +51,28 @@ describe('ItemCombobox', () => {
     expect(input).toHaveValue('STK000001 · Cıvata M8')
   })
 
+  it('returns the picked search record, not an older cached copy', async () => {
+    const db = setupCatalog()
+    const user = userEvent.setup()
+    const onPick = vi.fn()
+    renderRoutes([{ path: '/', element: <Harness initial={ITEM_BOLT} onPick={onPick} /> }])
+    await waitFor(() =>
+      expect(screen.getByRole('combobox', { name: 'Stok' })).toHaveValue('STK000001 · Cıvata M8'),
+    )
+    const input = screen.getByRole('combobox', { name: 'Stok' })
+    const bolt = db.items.find((i) => i.id === ITEM_BOLT)
+    if (bolt) bolt.name = 'Cıvata M8 (yeni)'
+    await user.clear(input)
+    await user.type(input, 'yeni')
+    await waitFor(() =>
+      expect(
+        db.calls.some((c) => c.path === '/items' && c.url.searchParams.get('q') === 'yeni'),
+      ).toBe(true),
+    )
+    await user.click(await screen.findByRole('option', { name: /Cıvata M8 \(yeni\)/ }))
+    expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Cıvata M8 (yeni)' }))
+  })
+
   it('labels a stored value from the item record', async () => {
     setupCatalog()
     renderRoutes([{ path: '/', element: <Harness initial={ITEM_BOLT} onPick={() => undefined} /> }])

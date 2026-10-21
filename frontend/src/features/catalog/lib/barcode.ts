@@ -4,9 +4,19 @@ import type { BarcodeType } from '../types'
 
 const LENGTH: Record<Exclude<BarcodeType, 'other'>, number> = { ean13: 13, ean8: 8, upca: 12 }
 
+/** Every character is ASCII 0-9: no whitespace, newline or non-Latin digits slip through. */
+export function isAsciiDigits(value: string): boolean {
+  if (value.length === 0) return false
+  for (let i = 0; i < value.length; i++) {
+    const c = value.charCodeAt(i)
+    if (c < 48 || c > 57) return false
+  }
+  return true
+}
+
 /** Check digit for the payload digits (all but the last): weights 3,1,3,... from the right. */
 export function gs1CheckDigit(payload: string): number {
-  if (!/^\d+$/.test(payload)) throw new Error('digits only')
+  if (!isAsciiDigits(payload)) throw new Error('digits only')
   let sum = 0
   for (let i = 0; i < payload.length; i++) {
     const digit = payload.charCodeAt(payload.length - 1 - i) - 48
@@ -30,7 +40,7 @@ export function validateBarcode(value: string, type: BarcodeType): BarcodeCheck 
   if (code === '') return { ok: false, problem: 'empty' }
   if (type === 'other') return { ok: true }
   const expectedLength = LENGTH[type]
-  if (!/^\d+$/.test(code)) return { ok: false, problem: 'digits', expectedLength }
+  if (!isAsciiDigits(code)) return { ok: false, problem: 'digits', expectedLength }
   if (code.length !== expectedLength) return { ok: false, problem: 'length', expectedLength }
   const expected = gs1CheckDigit(code.slice(0, -1))
   if (Number(code.at(-1)) !== expected) {

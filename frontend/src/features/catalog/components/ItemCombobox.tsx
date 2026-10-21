@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Ref } from 'react'
+import { useRef, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
 import { DEFAULT_LIST_QUERY } from '@/components/shared/data-table'
 import {
@@ -48,7 +48,9 @@ export function ItemCombobox({
   const { t } = useTranslation('catalog')
   const { data: units = [] } = useUnits()
   const queryClient = useQueryClient()
-  // Search results seed the detail cache, so a picked row needs no extra request.
+  // Rows of the latest search: a pick returns exactly the record the user saw.
+  const lastResults = useRef(new Map<string, Item>())
+  // A picked row seeds the detail cache, so labelling it needs no extra request.
   const current = useQuery({
     queryKey: catalogKeys.item(value ?? ''),
     queryFn: ({ signal }) => itemsApi.get(value ?? '', signal),
@@ -71,10 +73,7 @@ export function ItemCombobox({
     if (!includeInactive) filters.is_active = 'true'
     if (type) filters.type = type
     const res = await itemsApi.list({ ...DEFAULT_LIST_QUERY, perPage: 20, q, filters }, signal)
-    for (const item of res.data) {
-      if (!queryClient.getQueryData(catalogKeys.item(item.id)))
-        queryClient.setQueryData(catalogKeys.item(item.id), item)
-    }
+    lastResults.current = new Map(res.data.map((item) => [item.id, item]))
     return res.data.map(toOption)
   }
 
@@ -86,9 +85,15 @@ export function ItemCombobox({
       clearable={clearable}
       initialOption={known ? toOption(known) : value ? { value, label: value } : null}
       loadOptions={loadOptions}
-      onChange={(id) =>
-        onChange(id, id ? (queryClient.getQueryData<Item>(catalogKeys.item(id)) ?? null) : null)
-      }
+      onChange={(id) => {
+        const picked = id ? lastResults.current.get(id) : undefined
+        // The search row is newer than any cached detail; it also labels the field.
+        if (picked) queryClient.setQueryData(catalogKeys.item(picked.id), picked)
+        onChange(
+          id,
+          picked ?? (id ? (queryClient.getQueryData<Item>(catalogKeys.item(id)) ?? null) : null),
+        )
+      }}
     />
   )
 }

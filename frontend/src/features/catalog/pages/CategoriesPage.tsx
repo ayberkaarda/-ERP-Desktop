@@ -164,6 +164,17 @@ export function CategoriesPage() {
       case 'Enter':
         setDialog({ kind: 'edit', category: node.category })
         break
+      case 'Delete':
+        setDeleting(node.category)
+        break
+      case 'Insert':
+        setDialog({ kind: 'create', parentId: id })
+        break
+      case 'm':
+      case 'M':
+        if (e.ctrlKey || e.metaKey || e.altKey) return
+        setDialog({ kind: 'move', category: node.category })
+        break
       default:
         return
     }
@@ -242,7 +253,9 @@ export function CategoriesPage() {
               <ChevronsDownUp aria-hidden="true" />
               {t('categories.collapseAll')}
             </Button>
-            <p className="ml-auto text-xs text-muted-foreground">{t('categories.keyboardHint')}</p>
+            <p id="cat-tree-hint" className="ml-auto text-xs text-muted-foreground">
+              {t('categories.keyboardHint')}
+            </p>
           </div>
           <div
             className={cn(
@@ -256,7 +269,13 @@ export function CategoriesPage() {
           >
             {t('categories.dropRoot')}
           </div>
-          <ul ref={treeRef} role="tree" aria-label={t('categories.title')} className="py-1">
+          <ul
+            ref={treeRef}
+            role="tree"
+            aria-label={t('categories.title')}
+            aria-describedby="cat-tree-hint"
+            className="py-1"
+          >
             {visible.map((node) => {
               const c = node.category
               const hasChildren = node.children.length > 0
@@ -267,6 +286,8 @@ export function CategoriesPage() {
                   role="treeitem"
                   data-node={c.id}
                   aria-level={node.depth + 1}
+                  aria-posinset={node.pos}
+                  aria-setsize={node.size}
                   aria-expanded={hasChildren ? open : undefined}
                   aria-selected={current === c.id}
                   aria-label={`${c.code} ${c.name}`}

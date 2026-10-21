@@ -5,6 +5,7 @@ import { calendarDate, decimalString, MSG } from '@/lib/forms'
 export const CMSG = {
   duplicateKey: 'catalog:validation.duplicateKey',
   factorPositive: 'catalog:validation.factorPositive',
+  factorRange: 'catalog:validation.factorRange',
   dateOrder: 'catalog:validation.dateOrder',
   percentRange: 'catalog:validation.percentRange',
   integer: 'catalog:validation.integer',

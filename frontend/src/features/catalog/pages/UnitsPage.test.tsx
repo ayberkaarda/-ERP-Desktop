@@ -96,6 +96,25 @@ describe('UnitsPage', () => {
     expect(await screen.findByText('Kaydedilmemiş değişiklik yok')).toBeInTheDocument()
   })
 
+  it('keeps rendering when a stored cell holds unparsed text, and enforces numeric(20,6)', async () => {
+    setupCatalog()
+    const user = userEvent.setup()
+    renderCatalog('/catalog/units?tab=conversions')
+    const cell = await screen.findByLabelText('1 KG kaç GR')
+    await user.clear(cell)
+    await user.type(cell, 'abc')
+    expect(await screen.findByText('Geçerli bir sayı girin.')).toBeInTheDocument()
+    expect(screen.getByRole('table', { name: 'Birim dönüşüm tablosu' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dönüşümleri kaydet' })).toBeDisabled()
+
+    await user.clear(cell)
+    await user.type(cell, '100000000000000')
+    expect(
+      await screen.findByText('Çarpan en fazla 14 tam ve 6 ondalık basamak olabilir.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Dönüşümleri kaydet' })).toBeDisabled()
+  })
+
   it('is forbidden without units.manage', async () => {
     setupCatalog({ permissions: ['items.view'] })
     renderCatalog('/catalog/units')

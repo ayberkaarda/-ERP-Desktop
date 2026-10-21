@@ -100,7 +100,8 @@ export function ItemFormPage() {
             </TabsTrigger>
           </TabsList>
           {!id && <p className="pt-2 text-xs text-muted-foreground">{t('items.saveFirst')}</p>}
-          <TabsContent value="general">
+          {/* Kept mounted so unsaved edits survive a visit to another tab. */}
+          <TabsContent value="general" forceMount className="data-[state=inactive]:hidden">
             <GeneralForm key={item.data?.id ?? 'new'} item={item.data} />
           </TabsContent>
           {item.data && (
