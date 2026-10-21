@@ -36,7 +36,14 @@ import {
 } from '../lib/selection'
 
 /** Step one of a return: pick invoice lines and quantities, then create the draft. */
-export function ReturnCreate({ invoice }: { invoice: Invoice }) {
+export function ReturnCreate({
+  invoice,
+  returned,
+}: {
+  invoice: Invoice
+  /** Quantity per invoice line on the invoice's other returns. */
+  returned: Readonly<Record<string, string>>
+}) {
   const { t } = useTranslation('sales-docs')
   const locale = useIntlLocale()
   const navigate = useNavigate()
@@ -49,8 +56,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
   const resolver: Resolver<ReturnValues> = useMemo(
     () => (values) => {
       const errors: Record<string, unknown> = {}
-      if (!values.warehouseId)
-        errors.warehouseId = { type: 'required', message: t('validation.warehouse') }
       if (!values.documentDate)
         errors.documentDate = { type: 'required', message: t('validation.date') }
       if (!values.lines.some((l) => l.selected))
@@ -77,7 +82,7 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
   )
   const form = useForm<ReturnValues>({
     resolver,
-    defaultValues: valuesFromInvoice(invoice.lines, invoice.warehouse_id ?? ''),
+    defaultValues: valuesFromInvoice(invoice.lines, invoice.warehouse_id ?? '', returned),
   })
   const values = useWatch({ control: form.control }) as ReturnValues
   const selected = values.lines.filter((l) => l.selected).length
@@ -110,9 +115,7 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
     const m = /^lines\.(\d+)\.([a-z_]+)/.exec(path)
     if (m) {
       const index = sent[Number(m[1])]
-      return index === undefined
-        ? 'lines'
-        : `lines.${index}.${m[2] === 'reason' ? 'reason' : 'quantity'}`
+      return index === undefined ? 'lines' : `lines.${index}.quantity`
     }
     return (
       ({ document_date: 'documentDate', warehouse_id: 'warehouseId' } as Record<string, string>)[
@@ -175,7 +178,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
           <FormField<ReturnValues, 'warehouseId'>
             name="warehouseId"
             label={t('fields.returnWarehouse')}
-            required
             render={({ field, control }) => (
               <WarehouseSelect
                 {...control}
@@ -206,7 +208,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
                 <th className={thr}>{t('fields.invoicedQuantity')}</th>
                 <th className={thr}>{t('fields.returnable')}</th>
                 <th className={thr}>{t('fields.returnQuantity')}</th>
-                <th className={th}>{t('fields.lineReason')}</th>
                 <th className={thr}>{t('fields.unitPrice')}</th>
               </tr>
             </thead>
@@ -256,21 +257,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
                               </p>
                             )}
                           </>
-                        )}
-                      />
-                    </td>
-                    <td className={`${td} w-56`}>
-                      <Controller
-                        control={form.control}
-                        name={`lines.${i}.reason`}
-                        render={({ field }) => (
-                          <Input
-                            {...field}
-                            aria-label={t('return.reasonFor', { item: l.itemLabel })}
-                            maxLength={500}
-                            disabled={!l.selected}
-                            className="h-control-sm"
-                          />
                         )}
                       />
                     </td>

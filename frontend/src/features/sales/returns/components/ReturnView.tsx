@@ -41,6 +41,7 @@ export function ReturnView({ ret, onReload }: { ret: SalesReturn; onReload: () =
   const canStep = usePermission(step ? STEP_PERM[step] : undefined)
   const canCancel = usePermission(SALES_PERMS.returns.update)
   const canDelete = usePermission(SALES_PERMS.returns.delete)
+  const canStock = usePermission(SALES_PERMS.stockDocumentView)
   const StepIcon = step ? STEP_ICON[step] : null
   const cur = ret.currency_code
 
@@ -74,13 +75,17 @@ export function ReturnView({ ret, onReload }: { ret: SalesReturn; onReload: () =
   if (ret.stock_document_id)
     facts.push([
       t('fields.stockDocument'),
-      <Link
-        key="s"
-        to={linkTo('stock_document', ret.stock_document_id)}
-        className="text-primary hover:underline"
-      >
-        {t('view.open')}
-      </Link>,
+      canStock ? (
+        <Link
+          key="s"
+          to={linkTo('stock_document', ret.stock_document_id)}
+          className="text-primary hover:underline"
+        >
+          {t('view.open')}
+        </Link>
+      ) : (
+        t('view.posted')
+      ),
     ])
   if (ret.credit_invoice_id)
     facts.push([
@@ -180,7 +185,6 @@ export function ReturnView({ ret, onReload }: { ret: SalesReturn; onReload: () =
               <th className={thr}>{t('fields.quantity')}</th>
               <th className={th}>{t('fields.unit')}</th>
               <th className={th}>{t('fields.lotSerial')}</th>
-              <th className={th}>{t('fields.lineReason')}</th>
               <th className={thr}>{t('fields.lineTotal')}</th>
             </tr>
           </thead>
@@ -197,7 +201,6 @@ export function ReturnView({ ret, onReload }: { ret: SalesReturn; onReload: () =
                 <td className={`${td} font-code`}>
                   {[l.lot_no, ...l.serial_numbers].filter(Boolean).join(', ')}
                 </td>
-                <td className={td}>{l.reason ?? ''}</td>
                 <td className={tdr}>{money(l.line_total, locale, cur)}</td>
               </tr>
             ))}

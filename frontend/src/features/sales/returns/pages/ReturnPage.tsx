@@ -8,7 +8,7 @@ import { POSTED_STATUSES } from '../../invoices/types'
 import { useInvoice } from '../../invoices/queries'
 import { ReturnCreate } from '../components/ReturnCreate'
 import { ReturnView } from '../components/ReturnView'
-import { useReturn } from '../queries'
+import { useReturn, useReturnedPerLine } from '../queries'
 
 function Loading() {
   return (
@@ -27,6 +27,7 @@ export function ReturnPage() {
   const invoiceId = id ? undefined : (search.get('invoice') ?? undefined)
   const ret = useReturn(id)
   const invoice = useInvoice(invoiceId)
+  const returned = useReturnedPerLine(invoice.data)
   const wrap = (node: ReactNode) => <div className="mx-auto max-w-[1440px] px-6 py-6">{node}</div>
 
   if (!id) {
@@ -35,7 +36,10 @@ export function ReturnPage() {
       const inv = invoice.data
       if (inv.invoice_type !== 'sale' || !POSTED_STATUSES.includes(inv.status))
         return wrap(<EmptyState description={t('return.notReturnable')} />)
-      return <ReturnCreate invoice={inv} />
+      if (returned.data) return <ReturnCreate invoice={inv} returned={returned.data} />
+      if (returned.isError)
+        return wrap(<LoadError error={returned.error} onRetry={() => void returned.refetch()} />)
+      return <Loading />
     }
     if (invoice.isPending) return <Loading />
     return wrap(<LoadError error={invoice.error} onRetry={() => void invoice.refetch()} />)

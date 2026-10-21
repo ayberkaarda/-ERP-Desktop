@@ -15,7 +15,6 @@ export interface ReturnLineValues {
   /** Invoiced minus already returned (never negative). */
   returnable: string
   quantity: string
-  reason: string
 }
 
 export interface ReturnValues {
@@ -26,18 +25,23 @@ export interface ReturnValues {
   lines: ReturnLineValues[]
 }
 
-export function returnableOf(line: Pick<InvoiceLine, 'quantity' | 'returned_quantity'>): string {
-  const r = dec(line.quantity).minus(dec(line.returned_quantity ?? '0'))
+/** Invoiced minus what other non-cancelled returns already hold (never negative). */
+export function returnableOf(line: Pick<InvoiceLine, 'quantity'>, returned = '0'): string {
+  const r = dec(line.quantity).minus(dec(returned))
   return r.isNegative() ? '0' : r.toString()
 }
 
 const label = (code?: string | null, name?: string | null, text?: string | null) =>
   [code, name ?? text].filter((x) => x).join(' · ')
 
-/** Every invoice line, unselected, at its returnable quantity (fully returned lines disabled). */
+/**
+ * Every invoice line, unselected, at its returnable quantity (fully returned lines disabled).
+ * `returned`: quantity per invoice line on the invoice's other returns.
+ */
 export function valuesFromInvoice(
   lines: readonly InvoiceLine[],
   warehouseId: string,
+  returned: Readonly<Record<string, string>> = {},
 ): ReturnValues {
   return {
     documentDate: toIsoDate(new Date()),
@@ -45,7 +49,7 @@ export function valuesFromInvoice(
     reason: '',
     notes: '',
     lines: lines.map((l) => {
-      const returnable = returnableOf(l)
+      const returnable = returnableOf(l, returned[l.id])
       return {
         invoiceLineId: l.id,
         selected: false,
@@ -56,7 +60,6 @@ export function valuesFromInvoice(
         invoiced: l.quantity,
         returnable,
         quantity: returnable,
-        reason: '',
       }
     }),
   }
@@ -83,7 +86,7 @@ export function selectionProblems(values: ReturnValues): ReturnLineProblem[] {
 export function toReturnInput(values: ReturnValues): ReturnInput {
   return {
     document_date: values.documentDate,
-    warehouse_id: values.warehouseId,
+    warehouse_id: values.warehouseId || null,
     reason: values.reason.trim() || null,
     notes: values.notes.trim() || null,
     lines: values.lines
@@ -91,7 +94,6 @@ export function toReturnInput(values: ReturnValues): ReturnInput {
       .map((l) => ({
         invoice_line_id: l.invoiceLineId,
         quantity: l.quantity,
-        reason: l.reason.trim() || null,
         lot_no: null,
         serial_numbers: [],
       })),
