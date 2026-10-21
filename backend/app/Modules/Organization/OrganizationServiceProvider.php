@@ -35,5 +35,9 @@ final class OrganizationServiceProvider extends ModuleServiceProvider
         Gate::policy(Company::class, CompanyPolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(Department::class, DepartmentPolicy::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([Console\RepairMasterDataOrphans::class, Console\AuditMasterDataTenancy::class]);
+        }
     }
 }
