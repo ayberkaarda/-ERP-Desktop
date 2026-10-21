@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Parties;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Modules\Parties\Contracts\PartyAddressLookup;
 use App\Modules\Parties\Contracts\PartyLookup;
 use App\Modules\Parties\Contracts\PartyUsageChecker;
 use App\Modules\Parties\Models\Party;
@@ -12,6 +13,7 @@ use App\Modules\Parties\Models\PartyAddress;
 use App\Modules\Parties\Models\PartyBankAccount;
 use App\Modules\Parties\Models\PartyContact;
 use App\Modules\Parties\Policies\PartyPolicy;
+use App\Modules\Parties\Services\EloquentPartyAddressLookup;
 use App\Modules\Parties\Services\EloquentPartyLookup;
 use App\Modules\Parties\Services\PartyCodeGenerator;
 use App\Modules\Parties\Services\TaggedPartyUsageChecker;
@@ -46,6 +48,7 @@ final class PartiesServiceProvider extends ModuleServiceProvider
     {
         $this->mergeConfigFrom(__DIR__.'/config/parties.php', 'parties');
         $this->app->bind(PartyLookup::class, EloquentPartyLookup::class);
+        $this->app->bind(PartyAddressLookup::class, EloquentPartyAddressLookup::class);
         $this->app->bind(PartyUsageChecker::class, TaggedPartyUsageChecker::class);
         $this->app->bind(ReferenceGuards::class, static fn ($app): ReferenceGuards => new ReferenceGuards($app));
 
