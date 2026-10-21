@@ -1,0 +1,454 @@
+{
+  "source": {
+    "registry": "SWIFT IBAN Registry (ISO 13616-2), Release 99, December 2024; BBAN structures cross-checked against the Wikipedia table citing that release; lengths and electronic-format examples cross-checked against iban.com (data of 8 May 2026)",
+    "retrieved": "2026-10-21",
+    "notation": "bban_pattern: n = digits, a = upper case letters, c = upper case letters or digits; adjacent parts of the same type are merged; length is the full IBAN length"
+  },
+  "countries": {
+    "AD": {
+      "length": 24,
+      "bban_pattern": "8n12c",
+      "example": "AD1400080001001234567890"
+    },
+    "AE": {
+      "length": 23,
+      "bban_pattern": "19n",
+      "example": "AE460090000000123456789"
+    },
+    "AL": {
+      "length": 28,
+      "bban_pattern": "8n16c",
+      "example": "AL35202111090000000001234567"
+    },
+    "AT": {
+      "length": 20,
+      "bban_pattern": "16n",
+      "example": "AT483200000012345864"
+    },
+    "AZ": {
+      "length": 28,
+      "bban_pattern": "4a20c",
+      "example": "AZ77VTBA00000000001234567890"
+    },
+    "BA": {
+      "length": 20,
+      "bban_pattern": "16n",
+      "example": "BA393385804800211234"
+    },
+    "BE": {
+      "length": 16,
+      "bban_pattern": "12n",
+      "example": "BE71096123456769"
+    },
+    "BG": {
+      "length": 22,
+      "bban_pattern": "4a6n8c",
+      "example": "BG19STSA93000123456789"
+    },
+    "BH": {
+      "length": 22,
+      "bban_pattern": "4a14c",
+      "example": "BH02CITI00001077181611"
+    },
+    "BI": {
+      "length": 27,
+      "bban_pattern": "23n",
+      "example": "BI1320001100010000123456789"
+    },
+    "BR": {
+      "length": 29,
+      "bban_pattern": "23n1a1c",
+      "example": "BR1500000000000010932840814P2"
+    },
+    "BY": {
+      "length": 28,
+      "bban_pattern": "4c4n16c",
+      "example": "BY86AKBB10100000002966000000"
+    },
+    "CH": {
+      "length": 21,
+      "bban_pattern": "5n12c",
+      "example": "CH5604835012345678009"
+    },
+    "CR": {
+      "length": 22,
+      "bban_pattern": "18n",
+      "example": "CR23015108410026012345"
+    },
+    "CY": {
+      "length": 28,
+      "bban_pattern": "8n16c",
+      "example": "CY21002001950000357001234567"
+    },
+    "CZ": {
+      "length": 24,
+      "bban_pattern": "20n",
+      "example": "CZ5508000000001234567899"
+    },
+    "DE": {
+      "length": 22,
+      "bban_pattern": "18n",
+      "example": "DE75512108001245126199"
+    },
+    "DJ": {
+      "length": 27,
+      "bban_pattern": "23n",
+      "example": "DJ2110002010010409943020008"
+    },
+    "DK": {
+      "length": 18,
+      "bban_pattern": "14n",
+      "example": "DK9520000123456789"
+    },
+    "DO": {
+      "length": 28,
+      "bban_pattern": "4c20n",
+      "example": "DO22ACAU00000000000123456789"
+    },
+    "EE": {
+      "length": 20,
+      "bban_pattern": "16n",
+      "example": "EE471000001020145685"
+    },
+    "EG": {
+      "length": 29,
+      "bban_pattern": "25n",
+      "example": "EG800002000156789012345180002"
+    },
+    "ES": {
+      "length": 24,
+      "bban_pattern": "20n",
+      "example": "ES7921000813610123456789"
+    },
+    "FI": {
+      "length": 18,
+      "bban_pattern": "14n",
+      "example": "FI1410093000123458"
+    },
+    "FK": {
+      "length": 18,
+      "bban_pattern": "2a12n",
+      "example": "FK12SC987654321098"
+    },
+    "FO": {
+      "length": 18,
+      "bban_pattern": "14n",
+      "example": "FO0664600004330406"
+    },
+    "FR": {
+      "length": 27,
+      "bban_pattern": "10n11c2n",
+      "example": "FR7630006000011234567890189"
+    },
+    "GB": {
+      "length": 22,
+      "bban_pattern": "4a14n",
+      "example": "GB33BUKB20201555555555"
+    },
+    "GE": {
+      "length": 22,
+      "bban_pattern": "2a16n",
+      "example": "GE60NB0000000123456789"
+    },
+    "GI": {
+      "length": 23,
+      "bban_pattern": "4a15c",
+      "example": "GI56XAPO000001234567890"
+    },
+    "GL": {
+      "length": 18,
+      "bban_pattern": "14n",
+      "example": "GL9264710002171039"
+    },
+    "GR": {
+      "length": 27,
+      "bban_pattern": "7n16c",
+      "example": "GR9608100010000001234567890"
+    },
+    "GT": {
+      "length": 28,
+      "bban_pattern": "24c",
+      "example": "GT20AGRO00000000001234567890"
+    },
+    "HN": {
+      "length": 28,
+      "bban_pattern": "4a20n",
+      "example": "HN54PISA00000000000000123124"
+    },
+    "HR": {
+      "length": 21,
+      "bban_pattern": "17n",
+      "example": "HR1723600001101234565"
+    },
+    "HU": {
+      "length": 28,
+      "bban_pattern": "24n",
+      "example": "HU93116000060000000012345676"
+    },
+    "IE": {
+      "length": 22,
+      "bban_pattern": "4a14n",
+      "example": "IE06BOFI90008412345671"
+    },
+    "IL": {
+      "length": 23,
+      "bban_pattern": "19n",
+      "example": "IL170108000000012612345"
+    },
+    "IQ": {
+      "length": 23,
+      "bban_pattern": "4a15n",
+      "example": "IQ20CBIQ861800101010500"
+    },
+    "IS": {
+      "length": 26,
+      "bban_pattern": "22n",
+      "example": "IS750001121234563108962099"
+    },
+    "IT": {
+      "length": 27,
+      "bban_pattern": "1a10n12c",
+      "example": "IT60X0542811101000000123456"
+    },
+    "JO": {
+      "length": 30,
+      "bban_pattern": "4a4n18c",
+      "example": "JO71CBJO0000000000001234567890"
+    },
+    "KW": {
+      "length": 30,
+      "bban_pattern": "4a22c",
+      "example": "KW81CBKU0000000000001234560101"
+    },
+    "KZ": {
+      "length": 20,
+      "bban_pattern": "3n13c",
+      "example": "KZ244350000012344567"
+    },
+    "LB": {
+      "length": 28,
+      "bban_pattern": "4n20c",
+      "example": "LB92000700000000123123456123"
+    },
+    "LC": {
+      "length": 32,
+      "bban_pattern": "4a24c",
+      "example": "LC14BOSL123456789012345678901234"
+    },
+    "LI": {
+      "length": 21,
+      "bban_pattern": "5n12c",
+      "example": "LI7408806123456789012"
+    },
+    "LT": {
+      "length": 20,
+      "bban_pattern": "16n",
+      "example": "LT601010012345678901"
+    },
+    "LU": {
+      "length": 20,
+      "bban_pattern": "3n13c",
+      "example": "LU120010001234567891"
+    },
+    "LV": {
+      "length": 21,
+      "bban_pattern": "4a13c",
+      "example": "LV97HABA0012345678910"
+    },
+    "LY": {
+      "length": 25,
+      "bban_pattern": "21n",
+      "example": "LY38021001000000123456789"
+    },
+    "MC": {
+      "length": 27,
+      "bban_pattern": "10n11c2n",
+      "example": "MC5810096180790123456789085"
+    },
+    "MD": {
+      "length": 24,
+      "bban_pattern": "20c",
+      "example": "MD21EX000000000001234567"
+    },
+    "ME": {
+      "length": 22,
+      "bban_pattern": "18n",
+      "example": "ME25510000012345678920"
+    },
+    "MK": {
+      "length": 19,
+      "bban_pattern": "3n10c2n",
+      "example": "MK07200002785123453"
+    },
+    "MN": {
+      "length": 20,
+      "bban_pattern": "16n",
+      "example": "MN580050099123456789"
+    },
+    "MR": {
+      "length": 27,
+      "bban_pattern": "23n",
+      "example": "MR1300020001010000123456753"
+    },
+    "MT": {
+      "length": 31,
+      "bban_pattern": "4a5n18c",
+      "example": "MT31MALT01100000000000000000123"
+    },
+    "MU": {
+      "length": 30,
+      "bban_pattern": "4a19n3a",
+      "example": "MU43BOMM0101123456789101000MUR"
+    },
+    "NI": {
+      "length": 28,
+      "bban_pattern": "4a20n",
+      "example": "NI79BAMC00000000000003123123"
+    },
+    "NL": {
+      "length": 18,
+      "bban_pattern": "4a10n",
+      "example": "NL02ABNA0123456789"
+    },
+    "NO": {
+      "length": 15,
+      "bban_pattern": "11n",
+      "example": "NO8330001234567"
+    },
+    "OM": {
+      "length": 23,
+      "bban_pattern": "3n16c",
+      "example": "OM040280000012345678901"
+    },
+    "PK": {
+      "length": 24,
+      "bban_pattern": "4a16c",
+      "example": "PK36SCBL0000001123456702"
+    },
+    "PL": {
+      "length": 28,
+      "bban_pattern": "24n",
+      "example": "PL10105000997603123456789123"
+    },
+    "PS": {
+      "length": 29,
+      "bban_pattern": "4a21c",
+      "example": "PS92PALS000000000400123456702"
+    },
+    "PT": {
+      "length": 25,
+      "bban_pattern": "21n",
+      "example": "PT50003310311234567890197"
+    },
+    "QA": {
+      "length": 29,
+      "bban_pattern": "4a21c",
+      "example": "QA54QNBA000000000000693123456"
+    },
+    "RO": {
+      "length": 24,
+      "bban_pattern": "4a16c",
+      "example": "RO66BACX0000001234567890"
+    },
+    "RS": {
+      "length": 22,
+      "bban_pattern": "18n",
+      "example": "RS35105008123123123173"
+    },
+    "RU": {
+      "length": 33,
+      "bban_pattern": "14n15c",
+      "example": "RU0204452560040702810412345678901"
+    },
+    "SA": {
+      "length": 24,
+      "bban_pattern": "2n18c",
+      "example": "SA4420000001234567891234"
+    },
+    "SC": {
+      "length": 31,
+      "bban_pattern": "4a20n3a",
+      "example": "SC74MCBL01031234567890123456USD"
+    },
+    "SD": {
+      "length": 18,
+      "bban_pattern": "14n",
+      "example": "SD8811123456789012"
+    },
+    "SE": {
+      "length": 24,
+      "bban_pattern": "20n",
+      "example": "SE7280000810340009783242"
+    },
+    "SI": {
+      "length": 19,
+      "bban_pattern": "15n",
+      "example": "SI56192001234567892"
+    },
+    "SK": {
+      "length": 24,
+      "bban_pattern": "20n",
+      "example": "SK8975000000000012345671"
+    },
+    "SM": {
+      "length": 27,
+      "bban_pattern": "1a10n12c",
+      "example": "SM76P0854009812123456789123"
+    },
+    "SO": {
+      "length": 23,
+      "bban_pattern": "19n",
+      "example": "SO061000001123123456789"
+    },
+    "ST": {
+      "length": 25,
+      "bban_pattern": "21n",
+      "example": "ST23000200000289355710148"
+    },
+    "SV": {
+      "length": 28,
+      "bban_pattern": "4a20n",
+      "example": "SV43ACAT00000000000000123123"
+    },
+    "TL": {
+      "length": 23,
+      "bban_pattern": "19n",
+      "example": "TL380010012345678910106"
+    },
+    "TN": {
+      "length": 24,
+      "bban_pattern": "20n",
+      "example": "TN5904018104004942712345"
+    },
+    "TR": {
+      "length": 26,
+      "bban_pattern": "6n16c",
+      "example": "TR190006200009112345678901"
+    },
+    "UA": {
+      "length": 29,
+      "bban_pattern": "6n19c",
+      "example": "UA903052992990004149123456789"
+    },
+    "VA": {
+      "length": 22,
+      "bban_pattern": "18n",
+      "example": "VA59001123000012345678"
+    },
+    "VG": {
+      "length": 24,
+      "bban_pattern": "4a16n",
+      "example": "VG07ABVI0000000123456789"
+    },
+    "XK": {
+      "length": 20,
+      "bban_pattern": "16n",
+      "example": "XK051212012345678906"
+    },
+    "YE": {
+      "length": 30,
+      "bban_pattern": "4a4n18c",
+      "example": "YE20ALMF0000000000001234560101"
+    }
+  }
+}
