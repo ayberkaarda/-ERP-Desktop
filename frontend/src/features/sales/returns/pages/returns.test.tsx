@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { INVOICE_ISSUED, RETURN_DRAFT } from '@/test/handlers/salesDocs'
+import { addSerialInvoiceLine, INVOICE_ISSUED, RETURN_DRAFT } from '@/test/handlers/salesDocs'
 import { renderSales, setupSales } from '../../invoices/kit/testing'
 import type { ReturnInput } from '../types'
 import './ReturnListPage'
@@ -75,6 +75,28 @@ describe('return from an invoice', () => {
         .closest('tr')
       expect(row && within(row).queryByText('5')).toBeInTheDocument()
     })
+  })
+
+  it('returns part of a serial-shipped line by picking its serials', async () => {
+    const db = setupSales()
+    addSerialInvoiceLine(db)
+    const user = userEvent.setup()
+    const { router } = renderSales(`/sales/returns/new?invoice=${INVOICE_ISSUED}`)
+    await screen.findByRole('heading', { name: 'Yeni satış iadesi' })
+    const table = screen.getByRole('table', { name: 'Fatura satırları' })
+    await user.click(within(table).getByLabelText('PHN · Telefon satırını seç'))
+    await user.click(screen.getByRole('button', { name: 'İade taslağı oluştur' }))
+    expect(
+      await within(table).findByText('İade edilecek seri numaralarını seçin.'),
+    ).toBeInTheDocument()
+    await user.click(within(table).getByRole('checkbox', { name: 'S2 seri numarasını iade et' }))
+    expect(within(table).getByLabelText('PHN · Telefon iade miktarı')).toHaveValue('1')
+    await user.click(screen.getByRole('button', { name: 'İade taslağı oluştur' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sales/returns/return-1'))
+    const call = db.calls.find((c) => c.path === `/sales-invoices/${INVOICE_ISSUED}/returns`)
+    expect((call?.body as ReturnInput).lines).toEqual([
+      { invoice_line_id: 'il-phone', quantity: '1', lot_no: null, serial_numbers: ['S2'] },
+    ])
   })
 
   it('explains that returns start from an invoice', async () => {

@@ -229,7 +229,8 @@
     "discount": "Discount must be between 0 and 100.",
     "taxCode": "Choose a tax code.",
     "selectLines": "Select at least one line to return.",
-    "overReturnable": "Exceeds the returnable quantity."
+    "overReturnable": "Exceeds the returnable quantity.",
+    "pickSerials": "Pick the serial numbers to return."
   },
   "fefo": {
     "suggest": "Suggest first-expiring lots for line {{index}}",
@@ -348,7 +349,9 @@
     "invoice": "Invoice",
     "creditNote": "Credit note",
     "steps": "Return steps",
-    "lines": "Return lines"
+    "lines": "Return lines",
+    "serialsFor": "Serial numbers to return for {{item}}",
+    "pickSerial": "Return serial number {{serial}}"
   },
   "returnAction": {
     "approve": {

@@ -70,7 +70,9 @@ export function ReturnCreate({
               message:
                 p.message === 'quantity'
                   ? t('validation.quantityPositive')
-                  : t('validation.overReturnable'),
+                  : p.message === 'serials'
+                    ? t('validation.pickSerials')
+                    : t('validation.overReturnable'),
             },
           }
         }
@@ -232,7 +234,39 @@ export function ReturnCreate({
                         }
                       />
                     </td>
-                    <td className={td}>{l.itemLabel}</td>
+                    <td className={td}>
+                      {l.itemLabel}
+                      {l.serials.length > 0 && (
+                        <fieldset
+                          className="mt-1 flex flex-wrap gap-x-3 gap-y-1"
+                          disabled={!l.selected}
+                        >
+                          <legend className="sr-only">
+                            {t('return.serialsFor', { item: l.itemLabel })}
+                          </legend>
+                          {l.serials.map((serial) => (
+                            <label key={serial} className="flex items-center gap-1 text-xs">
+                              <Checkbox
+                                aria-label={t('return.pickSerial', { serial })}
+                                checked={l.pickedSerials.includes(serial)}
+                                onChange={(e) => {
+                                  const picked = e.target.checked
+                                    ? [...l.pickedSerials, serial]
+                                    : l.pickedSerials.filter((x) => x !== serial)
+                                  form.setValue(`lines.${i}.pickedSerials`, picked, {
+                                    shouldDirty: true,
+                                  })
+                                  form.setValue(`lines.${i}.quantity`, String(picked.length), {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                              />
+                              <span className="font-mono">{serial}</span>
+                            </label>
+                          ))}
+                        </fieldset>
+                      )}
+                    </td>
                     <td className={tdr}>
                       {qty(l.invoiced, locale)} {l.unitCode}
                     </td>
@@ -250,7 +284,7 @@ export function ReturnCreate({
                               scale={6}
                               displayMinFraction={0}
                               value={field.value}
-                              disabled={!l.selected}
+                              disabled={!l.selected || l.serials.length > 0}
                               className="h-control-sm"
                               onChange={field.onChange}
                               onBlur={field.onBlur}

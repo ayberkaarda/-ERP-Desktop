@@ -62,6 +62,8 @@ export interface ApiInvoiceLine extends ApiLine {
   delivery_line_id: string | null
   /** Credit notes: the sale invoice line credited. */
   original_line_id: string | null
+  /** Sale invoice detail: shipped serials no non-cancelled return holds (pick these to return). */
+  returnable_serials?: string[]
 }
 
 export type RawInvoice = Omit<ApiHeader, 'status'> &

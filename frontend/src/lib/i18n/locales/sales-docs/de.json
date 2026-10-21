@@ -229,7 +229,8 @@
     "discount": "Der Rabatt muss zwischen 0 und 100 liegen.",
     "taxCode": "Steuerschlüssel wählen.",
     "selectLines": "Mindestens eine Position für die Retoure wählen.",
-    "overReturnable": "Übersteigt die retournierbare Menge."
+    "overReturnable": "Übersteigt die retournierbare Menge.",
+    "pickSerials": "Wählen Sie die zurückzugebenden Seriennummern."
   },
   "fefo": {
     "suggest": "Früheste Chargen für Position {{index}} vorschlagen",
@@ -348,7 +349,9 @@
     "invoice": "Rechnung",
     "creditNote": "Gutschrift",
     "steps": "Retourenschritte",
-    "lines": "Retourenpositionen"
+    "lines": "Retourenpositionen",
+    "serialsFor": "Zurückzugebende Seriennummern für {{item}}",
+    "pickSerial": "Seriennummer {{serial}} zurückgeben"
   },
   "returnAction": {
     "approve": {

@@ -15,6 +15,10 @@ export interface ReturnLineValues {
   /** Invoiced minus already returned (never negative). */
   returnable: string
   quantity: string
+  /** Shipped serials still returnable (serial-shipped lines return by serial). */
+  serials: string[]
+  /** Serials picked for this return; the quantity follows their count. */
+  pickedSerials: string[]
 }
 
 export interface ReturnValues {
@@ -49,7 +53,11 @@ export function valuesFromInvoice(
     reason: '',
     notes: '',
     lines: lines.map((l) => {
-      const returnable = returnableOf(l, returned[l.id])
+      const serials = l.returnable_serials ?? []
+      const left = returnableOf(l, returned[l.id])
+      // Serial-shipped lines can only give back serials no other return holds.
+      const returnable =
+        serials.length > 0 && dec(left).greaterThan(serials.length) ? String(serials.length) : left
       return {
         invoiceLineId: l.id,
         selected: false,
@@ -59,7 +67,9 @@ export function valuesFromInvoice(
         netAmount: l.net_amount,
         invoiced: l.quantity,
         returnable,
-        quantity: returnable,
+        quantity: serials.length > 0 ? '0' : returnable,
+        serials,
+        pickedSerials: [],
       }
     }),
   }
@@ -67,15 +77,17 @@ export function valuesFromInvoice(
 
 export interface ReturnLineProblem {
   index: number
-  message: 'quantity' | 'overReturnable'
+  message: 'quantity' | 'overReturnable' | 'serials'
 }
 
-/** Selected lines need 0 < quantity <= returnable. */
+/** Selected lines need 0 < quantity <= returnable; serial-shipped lines need picked serials. */
 export function selectionProblems(values: ReturnValues): ReturnLineProblem[] {
   const out: ReturnLineProblem[] = []
   values.lines.forEach((l, index) => {
     if (!l.selected) return
-    if (!isDecimal(l.quantity) || dec(l.quantity).lessThanOrEqualTo(0))
+    if (l.serials.length > 0 && l.pickedSerials.length === 0)
+      out.push({ index, message: 'serials' })
+    else if (!isDecimal(l.quantity) || dec(l.quantity).lessThanOrEqualTo(0))
       out.push({ index, message: 'quantity' })
     else if (dec(l.quantity).greaterThan(dec(l.returnable)))
       out.push({ index, message: 'overReturnable' })
@@ -93,9 +105,9 @@ export function toReturnInput(values: ReturnValues): ReturnInput {
       .filter((l) => l.selected)
       .map((l) => ({
         invoice_line_id: l.invoiceLineId,
-        quantity: l.quantity,
+        quantity: l.serials.length > 0 ? String(l.pickedSerials.length) : l.quantity,
         lot_no: null,
-        serial_numbers: [],
+        serial_numbers: l.serials.length > 0 ? [...l.pickedSerials] : [],
       })),
   }
 }

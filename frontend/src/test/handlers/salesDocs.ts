@@ -87,6 +87,8 @@ export interface SalesDocsDb {
   idempotency: Map<string, { body: string; response: unknown; status: number }>
   seq: number
   numberSeq: Record<string, number>
+  /** Serials shipped per delivery line not seeded as a delivery (returnable_serials source). */
+  shippedSerials: Record<string, string[]>
 }
 
 const audit = [
@@ -645,6 +647,7 @@ export function createSalesDocsDb(overrides: Partial<SalesDocsDb> = {}): SalesDo
     idempotency: new Map(),
     seq: 0,
     numberSeq: {},
+    shippedSerials: {},
     ...overrides,
   }
 }
@@ -733,6 +736,30 @@ function link(d: ApiHeader & { status: string; invoice_type?: string }): ApiLink
     total: d.total,
     currency_code: d.currency_code,
   }
+}
+
+/** Adds a serial-shipped phone line (2 units, serials S1 and S2) to the issued invoice. */
+export function addSerialInvoiceLine(db: SalesDocsDb) {
+  const inv = db.invoices.find((x) => x.id === INVOICE_ISSUED)
+  if (!inv) return
+  inv.lines.push(
+    invoiceLine({
+      id: 'il-phone',
+      line_no: inv.lines.length + 1,
+      item_id: ITEM_PHONE,
+      description: 'Telefon',
+      quantity: '2.000000',
+      base_quantity: '2.000000',
+      unit_price: '100.000000',
+      gross_amount: '200.0000',
+      net_amount: '200.0000',
+      tax_amount: '40.0000',
+      line_total: '240.0000',
+      order_line_id: null,
+      delivery_line_id: 'dl-phone',
+    }),
+  )
+  db.shippedSerials['dl-phone'] = ['S1', 'S2']
 }
 
 export function salesDocsHandlers(db: SalesDocsDb) {
@@ -824,6 +851,22 @@ export function salesDocsHandlers(db: SalesDocsDb) {
   const detail = (doc: RawDelivery | RawInvoice | RawReturn) => ({
     data: { ...doc, links: linksOf(doc), warnings: [], audit: doc.audit ?? [] },
   })
+
+  const shippedOn = (deliveryLineId: string | null): string[] =>
+    deliveryLineId === null
+      ? []
+      : (db.shippedSerials[deliveryLineId] ??
+        db.deliveries.flatMap((d) => d.lines).find((l) => l.id === deliveryLineId)
+          ?.serial_numbers ??
+        [])
+  const returnableSerials = (deliveryLineId: string | null): string[] => {
+    const taken = db.returns
+      .filter((r) => r.status !== 'cancelled')
+      .flatMap((r) => r.lines)
+      .filter((l) => deliveryLineId !== null && l.delivery_line_id === deliveryLineId)
+      .flatMap((l) => l.serial_numbers)
+    return shippedOn(deliveryLineId).filter((x) => !taken.includes(x))
+  }
 
   const filterDocs = <
     T extends { status: string; party_id: string; document_date: string; number: string | null },
@@ -1369,7 +1412,17 @@ export function salesDocsHandlers(db: SalesDocsDb) {
     http.get(`${base}/sales-invoices/:id`, async ({ request, params }) => {
       await record(request)
       const inv = db.invoices.find((x) => x.id === params.id)
-      return inv ? HttpResponse.json(detail(inv)) : notFound()
+      if (!inv) return notFound()
+      const body = detail(inv)
+      // Like the API: sale invoice lines list the shipped serials no live return holds.
+      const lines =
+        inv.invoice_type === 'return'
+          ? inv.lines
+          : inv.lines.map((l) => ({
+              ...l,
+              returnable_serials: returnableSerials(l.delivery_line_id),
+            }))
+      return HttpResponse.json({ data: { ...body.data, lines } })
     }),
     http.post(`${base}/sales-invoices`, async ({ request }) => {
       const { body } = await record(request)
@@ -1658,6 +1711,20 @@ export function salesDocsHandlers(db: SalesDocsDb) {
           if (D(l.quantity).greaterThan(left))
             return validation({
               [`lines.${i}.quantity`]: [`İade edilebilir miktar ${left.toString()}.`],
+            })
+          // Serial-shipped lines return exactly quantity serials of those still returnable.
+          const picked = l.serial_numbers ?? []
+          const free = returnableSerials(il.delivery_line_id)
+          if (shippedOn(il.delivery_line_id).length > 0) {
+            if (picked.length !== Number(l.quantity) || picked.some((x) => !free.includes(x)))
+              return validation({
+                [`lines.${i}.serial_numbers`]: [
+                  'Seri numaraları sevk edilen ve iade edilmemiş olmalı.',
+                ],
+              })
+          } else if (picked.length > 0)
+            return validation({
+              [`lines.${i}.serial_numbers`]: ['Bu satır seri ile sevk edilmedi.'],
             })
         }
         const id = newId('return')

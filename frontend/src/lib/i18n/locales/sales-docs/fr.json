@@ -229,7 +229,8 @@
     "discount": "La remise doit être comprise entre 0 et 100.",
     "taxCode": "Choisissez un code taxe.",
     "selectLines": "Sélectionnez au moins une ligne à retourner.",
-    "overReturnable": "Dépasse la quantité retournable."
+    "overReturnable": "Dépasse la quantité retournable.",
+    "pickSerials": "Choisissez les numéros de série à retourner."
   },
   "fefo": {
     "suggest": "Proposer les lots à péremption la plus proche pour la ligne {{index}}",
@@ -348,7 +349,9 @@
     "invoice": "Facture",
     "creditNote": "Avoir",
     "steps": "Étapes du retour",
-    "lines": "Lignes de retour"
+    "lines": "Lignes de retour",
+    "serialsFor": "Numéros de série à retourner pour {{item}}",
+    "pickSerial": "Retourner le numéro de série {{serial}}"
   },
   "returnAction": {
     "approve": {

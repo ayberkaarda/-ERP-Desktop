@@ -229,7 +229,8 @@
     "discount": "İskonto 0 ile 100 arasında olmalı.",
     "taxCode": "Vergi kodu seçin.",
     "selectLines": "İade edilecek en az bir satır seçin.",
-    "overReturnable": "İade edilebilir miktarı aşıyor."
+    "overReturnable": "İade edilebilir miktarı aşıyor.",
+    "pickSerials": "İade edilecek seri numaralarını seçin."
   },
   "fefo": {
     "suggest": "{{index}}. satır için ilk son kullanma tarihli lotları öner",
@@ -348,7 +349,9 @@
     "invoice": "Fatura",
     "creditNote": "İade faturası",
     "steps": "İade adımları",
-    "lines": "İade satırları"
+    "lines": "İade satırları",
+    "serialsFor": "{{item}} için iade edilecek seri numaraları",
+    "pickSerial": "{{serial}} seri numarasını iade et"
   },
   "returnAction": {
     "approve": {
