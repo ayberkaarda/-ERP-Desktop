@@ -230,6 +230,8 @@ const orZero = (v: string) => (v.trim() === '' ? '0' : v.trim())
 
 export function lineToInput(l: LineValues): SalesLineInput {
   return {
+    // A stored line is sent with its id so the server keeps its row, provenance and copied price.
+    ...(l.id ? { id: l.id } : {}),
     item_id: l.itemId,
     variant_id: orNull(l.variantId),
     description: orNull(l.description),

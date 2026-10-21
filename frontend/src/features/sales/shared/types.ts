@@ -374,6 +374,8 @@ export interface SalesOrderSummary {
 
 /** Line of a create/PATCH/revise body; unit_price null lets the server resolve the price. */
 export interface SalesLineInput {
+  /** Id of a stored line of the edited draft (PATCH / revise). */
+  id?: string
   item_id: string
   variant_id: string | null
   description: string | null

@@ -95,8 +95,8 @@ describe('document form mapping', () => {
     const input = toInput(v, 'order')
     const lines = input.lines ?? []
     expect(lines).toHaveLength(2)
-    // Line ids are not part of the API body (lines are replaced as a whole).
-    expect(lines[0]).not.toHaveProperty('id')
+    // A stored line carries its id (the server keeps its row and provenance); new lines none.
+    expect(lines[0]).toHaveProperty('id', 'stored-1')
     expect(lines[0]).toMatchObject({
       unit_price: null,
       discount_percent: '5',

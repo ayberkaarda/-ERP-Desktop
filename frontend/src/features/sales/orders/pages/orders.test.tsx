@@ -372,4 +372,20 @@ describe('order fulfilment', () => {
     expect(patch).toMatchObject({ notes: 'Kapıda teslim', version: 1 })
     expect(patch).not.toHaveProperty('lines')
   })
+  it('sends edited stored lines with their ids so the server keeps their provenance', async () => {
+    const db = setupSales({ db: { creditMode: 'off' } })
+    const stored = db.orders.find((o) => o.id === ORDER_DRAFT)?.lines[0]?.id
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}20')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() => expect(db.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = db.calls.find((c) => c.method === 'PATCH')?.body as {
+      lines?: { id?: string; quantity: string }[]
+    }
+    expect(stored).toBeTruthy()
+    expect(patch.lines?.[0]).toMatchObject({ id: stored, quantity: '20.000000' })
+  })
 })
