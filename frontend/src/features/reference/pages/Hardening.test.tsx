@@ -218,7 +218,7 @@ describe('rate status banner', () => {
 
     const alert = await screen.findByText('Kur durumu alınamadı.')
     await user.click(
-      within(alert.closest('[role="alert"]') as HTMLElement).getByRole('button', {
+      within(alert.closest('[role="alert"]')!).getByRole('button', {
         name: 'Tekrar dene',
       }),
     )
