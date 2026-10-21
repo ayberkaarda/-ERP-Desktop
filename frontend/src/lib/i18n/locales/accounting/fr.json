@@ -1,0 +1,433 @@
+{
+  "common": {
+    "nav": {
+      "title": "Comptabilité",
+      "accounts": "Plan comptable",
+      "fiscalYears": "Exercices",
+      "periods": "Périodes",
+      "determination": "Détermination des comptes"
+    },
+    "commands": {
+      "accounts": "Plan comptable",
+      "accountsFlat": "Liste des comptes (vue à plat)",
+      "accountsImport": "Importer le plan comptable",
+      "fiscalYears": "Exercices",
+      "fiscalYearNew": "Créer un exercice",
+      "periods": "Périodes comptables",
+      "determination": "Règles de détermination des comptes"
+    },
+    "actions": "Actions",
+    "all": "Tous",
+    "yes": "Oui",
+    "no": "Non",
+    "done": "Terminé",
+    "retry": "Réessayer",
+    "reload": "Charger la dernière version",
+    "loading": "Chargement…",
+    "loadFailed": "Impossible de charger les données.",
+    "limitExceeded": "Il y a plus d’enregistrements que cet écran ne peut afficher ; affinez le filtre.",
+    "actionFailed": "L’action n’a pas pu aboutir.",
+    "uncertain": "Aucune réponse du serveur ; l’action a peut-être été appliquée. Actualisez la liste pour vérifier.",
+    "conflictTitle": "L’enregistrement a été modifié par quelqu’un d’autre",
+    "conflictBody": "L’enregistrement a été mis à jour pendant votre saisie. Chargez la dernière version et refaites votre modification.",
+    "reason": "Motif",
+    "reasonTooShort": "Le motif doit comporter au moins {{min}} caractères.",
+    "savedViews": "Vues enregistrées",
+    "noSavedViews": "Aucune vue enregistrée.",
+    "saveView": "Enregistrer cette vue",
+    "saveViewBody": "La recherche, les filtres et le choix de vue sont enregistrés sous ce nom.",
+    "viewName": "Nom de la vue",
+    "removeView": "Supprimer la vue {{name}}"
+  },
+  "accounts": {
+    "title": "Plan comptable",
+    "subtitle": "Comptes fondés sur le plan comptable uniforme turc ; vue arborescente et liste.",
+    "treeView": "Arbre",
+    "flatView": "Liste",
+    "viewMode": "Vue",
+    "new": "Nouveau compte",
+    "newTitle": "Nouveau compte",
+    "editTitle": "Modifier le compte {{code}}",
+    "edit": "Modifier",
+    "editNamed": "Modifier le compte {{code}}",
+    "addChild": "Ajouter un sous-compte",
+    "addChildNamed": "Ajouter un compte sous {{code}}",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer le compte {{code}} ?",
+    "deleteBody": "Les comptes mouvementés ou ayant des sous-comptes ne peuvent pas être supprimés ; désactivez-les plutôt.",
+    "importAction": "Importer",
+    "search": "Rechercher",
+    "searchPlaceholder": "Numéro ou libellé (ex. 120, Clients)",
+    "empty": "Le plan comptable est vide",
+    "emptyBody": "Ajoutez des comptes ou importez-les depuis un fichier CSV/XLSX.",
+    "noMatch": "Aucun compte ne correspond à la recherche.",
+    "visibleCount": "Comptes affichés : {{count}}",
+    "header": "Compte de regroupement",
+    "postable": "Mouvementable",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "system": "Système",
+    "systemNote": "Compte système : numéro, compte parent et classification non modifiables.",
+    "noGroup": "Déduire du numéro",
+    "tdhpGroupOption": "{{group}} · {{name}}",
+    "flagsLegend": "Options du compte",
+    "fields": {
+      "code": "Numéro de compte",
+      "name": "Libellé du compte",
+      "parent": "Compte parent",
+      "type": "Type de compte",
+      "normalBalance": "Solde normal",
+      "isPostable": "Mouvementable",
+      "isActive": "Actif",
+      "tdhpGroup": "Groupe TDHP",
+      "currency": "Devise",
+      "requiresParty": "Tiers obligatoire",
+      "requiresCostCenter": "Centre de coût obligatoire",
+      "requiresProject": "Projet obligatoire",
+      "isRevaluable": "Soumis à la réévaluation de change",
+      "notes": "Notes",
+      "status": "Statut"
+    },
+    "hints": {
+      "code": "Unique dans la société ; les sous-comptes commencent généralement par le numéro du parent (120.01).",
+      "parent": "Laisser vide pour un compte principal.",
+      "currency": "Uniquement pour les comptes en devises (USD, EUR…).",
+      "postable": "Seuls les comptes sans sous-comptes peuvent recevoir des lignes d’écriture.",
+      "revaluable": "Inclus dans la réévaluation de change de fin de période ; nécessite une devise."
+    },
+    "types": {
+      "asset": "Actif",
+      "liability": "Passif externe",
+      "equity": "Capitaux propres",
+      "revenue": "Produit",
+      "expense": "Charge",
+      "cost": "Coût",
+      "memo": "Hors bilan"
+    },
+    "normal": {
+      "debit": "Solde débiteur",
+      "credit": "Solde créditeur"
+    },
+    "side": {
+      "debit": "Débit",
+      "credit": "Crédit",
+      "zero": "Aucun solde"
+    },
+    "tdhp": {
+      "1": "Actifs circulants",
+      "2": "Actifs immobilisés",
+      "3": "Dettes à court terme",
+      "4": "Dettes à long terme",
+      "5": "Capitaux propres",
+      "6": "Comptes de résultat",
+      "7": "Comptes de coûts",
+      "8": "Libre",
+      "9": "Comptes hors bilan"
+    },
+    "integrity": {
+      "title": "Règles du plan comptable",
+      "codeTaken": "Ce numéro est déjà utilisé ({{name}}).",
+      "cycle": "Un compte ne peut pas être placé sous lui-même ou sous l’un de ses sous-comptes.",
+      "nonLeafPostable": "Un compte ayant des sous-comptes ne peut pas être mouvementable ({{count}} sous-comptes).",
+      "hasPostings": "Un compte mouvementé ne peut pas devenir un compte de regroupement.",
+      "parentInactive": "Le compte parent {{code}} est inactif ; ce compte risque d’être inutilisable.",
+      "parentBecomesHeader": "Le compte parent {{code}} est mouvementable ; il devient compte de regroupement dès l’ajout d’un sous-compte.",
+      "parentHasPostings": "Le compte parent {{code}} est mouvementé ; le serveur peut refuser l’ajout d’un sous-compte.",
+      "prefix": "Le numéro ne commence pas par celui du parent {{code}} (peut être exigé par les paramètres de la société).",
+      "typeDiffers": "Le type de compte diffère de celui du parent {{code}}.",
+      "unusualBalance": "Le solde normal est inhabituel pour ce type de compte."
+    },
+    "tree": {
+      "expand": "Déplier les sous-comptes de {{code}}",
+      "collapse": "Replier les sous-comptes de {{code}}",
+      "expandAll": "Tout déplier",
+      "collapseAll": "Tout replier",
+      "hint": "Flèches : se déplacer · Droite/Gauche : déplier/replier · Entrée : détails · F2 : modifier · Inser : sous-compte"
+    },
+    "combobox": {
+      "empty": "Aucun compte correspondant",
+      "header": "compte de regroupement"
+    },
+    "detail": {
+      "title": "Détails du compte {{code}}",
+      "close": "Fermer les détails",
+      "balance": "Solde",
+      "asOf": "À la date du",
+      "debit": "Débit",
+      "credit": "Crédit",
+      "net": "Solde",
+      "fxBalance": "Solde en devise : {{amount}} {{currency}}",
+      "balanceFailed": "Impossible de charger le solde."
+    },
+    "toast": {
+      "created": "Compte créé.",
+      "updated": "Compte mis à jour.",
+      "deleted": "Compte supprimé."
+    },
+    "importWizard": {
+      "title": "Importer le plan comptable",
+      "progress": "Étapes de l’import",
+      "stepNames": {
+        "file": "Fichier",
+        "review": "Contrôle",
+        "done": "Résultat"
+      },
+      "steps": {
+        "file": "Choisissez un fichier CSV ou XLSX ; une simulation est lancée d’abord et ne modifie rien.",
+        "review": "Résultat de la simulation : corrigez les lignes en erreur et rechargez le fichier, ou importez.",
+        "done": "L’import est terminé."
+      },
+      "file": "Fichier",
+      "fileHelp": "CSV (UTF-8) ou XLSX, 10 Mo au maximum.",
+      "badType": "Seuls les fichiers .csv et .xlsx sont acceptés.",
+      "tooLarge": "Le fichier dépasse la limite de {{mb}} Mo.",
+      "columnsTitle": "Colonnes attendues",
+      "template": "Télécharger le modèle",
+      "dryRun": "Lancer la simulation",
+      "commit": "Importer",
+      "summary": "Synthèse",
+      "counts": {
+        "total": "Lignes",
+        "created": "Nouveaux",
+        "updated": "À mettre à jour",
+        "skipped": "Ignorées",
+        "failed": "En erreur"
+      },
+      "onlyErrors": "Lignes en erreur uniquement",
+      "downloadReport": "Télécharger le rapport d’erreurs",
+      "reportFile": "plan-comptable-rapport-erreurs",
+      "resultsCaption": "Résultats de la simulation par ligne",
+      "columns": {
+        "row": "Ligne",
+        "status": "Résultat",
+        "errors": "Erreurs"
+      },
+      "status": {
+        "create": "Nouveau",
+        "update": "Mise à jour",
+        "skip": "Ignorée",
+        "error": "Erreur"
+      },
+      "noRows": "Aucune ligne à afficher.",
+      "fixFirst": "L’import est impossible tant que des lignes sont en erreur. Téléchargez le rapport, corrigez le fichier et rechargez-le.",
+      "doneToast": "Comptes importés : {{count}}.",
+      "doneBody": "Comptes ajoutés : {{created}}, mis à jour : {{updated}}, lignes ignorées : {{skipped}}."
+    }
+  },
+  "fiscal": {
+    "title": "Exercices",
+    "subtitle": "Exercices comptables, clôture annuelle et réouverture.",
+    "new": "Nouvel exercice",
+    "empty": "Aucun exercice défini",
+    "emptyBody": "Créez un exercice avant de saisir des écritures.",
+    "defaultName": "Exercice {{code}}",
+    "planned": "À créer",
+    "openBoard": "Aller au tableau des périodes",
+    "periodsLink": "Périodes",
+    "editTitle": "Modifier l’exercice {{code}}",
+    "editNamed": "Modifier l’exercice {{code}}",
+    "fields": {
+      "code": "Code de l’exercice",
+      "name": "Nom",
+      "start": "Début",
+      "end": "Fin",
+      "range": "Période couverte",
+      "status": "Statut",
+      "adjustment": "Créer la période 13 (écritures d’inventaire)"
+    },
+    "hints": {
+      "adjustment": "Une période d’ajustement distincte, de durée nulle, le dernier jour de l’exercice.",
+      "dates": "Les dates ne sont modifiables que tant qu’aucune écriture n’est validée.",
+      "datesLocked": "Cet exercice contient des écritures validées ; ses dates ne sont pas modifiables."
+    },
+    "wizard": {
+      "title": "Nouvel exercice",
+      "body": "La création de l’exercice ouvre automatiquement 12 périodes (et une 13e en option).",
+      "preview": "Périodes à créer",
+      "noPreview": "Saisissez une plage de dates valide.",
+      "overlap": "La plage de dates chevauche l’exercice {{code}}.",
+      "created": "Exercice {{code}} créé ; périodes ouvertes : {{count}}.",
+      "generated": "Périodes créées"
+    },
+    "close": {
+      "action": "Clôturer l’exercice",
+      "title": "Clôturer l’exercice {{code}} ?",
+      "body": "La clôture solde les comptes de résultat, reporte le résultat en capitaux propres et crée l’écriture d’ouverture de l’exercice suivant.",
+      "confirm": "Clôturer l’exercice",
+      "ack": "Je comprends que des écritures de clôture seront créées et qu’aucune écriture ne pourra plus être saisie sur cet exercice.",
+      "previewTitle": "Aperçu de la clôture",
+      "previewFailed": "Impossible de charger l’aperçu.",
+      "noPreview": "Le serveur ne fournit pas d’aperçu. La clôture applique ces étapes :",
+      "step1": "Les comptes de résultat 6xx sont virés au compte 690 Résultat de la période.",
+      "step2": "Les comptes de coûts 7xx sont soldés via les comptes de résultat correspondants.",
+      "step3": "Le résultat est porté au compte 590 Bénéfice net / 591 Perte nette de la période.",
+      "step4": "Les comptes de bilan sont reportés par l’écriture d’ouverture de l’exercice suivant.",
+      "result": "Résultat de la période : {{amount}} ({{side}}) → {{account}}",
+      "entry": "Écriture",
+      "date": "Date",
+      "lines": "Lignes",
+      "total": "Montant",
+      "types": {
+        "closing": "Écriture de clôture",
+        "opening": "Écriture d’ouverture"
+      },
+      "openPeriods": "Périodes non clôturées : {{count}}. Il est recommandé de les clôturer avant la clôture annuelle."
+    },
+    "reopen": {
+      "action": "Rouvrir",
+      "title": "Rouvrir l’exercice {{code}} ?",
+      "body": "Les écritures de clôture et d’ouverture sont annulées. Le motif est inscrit au journal d’audit.",
+      "confirm": "Rouvrir l’exercice"
+    },
+    "toast": {
+      "created": "Exercice {{code}} créé.",
+      "updated": "Exercice {{code}} mis à jour.",
+      "closed": "Exercice {{code}} clôturé.",
+      "reopened": "Exercice {{code}} rouvert."
+    }
+  },
+  "periods": {
+    "title": "Périodes comptables",
+    "subtitle": "Clôturez provisoirement ou définitivement les périodes, ou rouvrez-les avec un motif.",
+    "year": "Exercice",
+    "boardLabel": "Périodes de {{code}}",
+    "adjustment": "13 · Écritures d’inventaire",
+    "current": "Période en cours",
+    "none": "Aucune période ne correspond à ce filtre.",
+    "yearClosed": "Cet exercice est clôturé ; rouvrez-le avant de modifier les périodes.",
+    "drafts": "Brouillons d’écriture : {{count}}",
+    "fields": {
+      "number": "Période",
+      "start": "Début",
+      "end": "Fin",
+      "status": "Statut"
+    },
+    "status": {
+      "open": "Ouverte",
+      "soft_closed": "Clôture provisoire",
+      "closed": "Clôturée"
+    },
+    "actions": {
+      "softClose": "Clôture provisoire",
+      "softCloseTitle": "Clôturer provisoirement {{period}} ?",
+      "softCloseBody": "{{start}} – {{end}} : seuls les utilisateurs habilités peuvent encore saisir.",
+      "softCloseNamed": "Clôturer provisoirement la période {{period}}",
+      "close": "Clôturer la période",
+      "closeTitle": "Clôturer {{period}} ?",
+      "closeBody": "{{start}} – {{end}} : aucune écriture ne peut être saisie sur une période clôturée. Les brouillons bloquent la clôture.",
+      "closeNamed": "Clôturer la période {{period}}",
+      "reopen": "Rouvrir",
+      "reopenTitle": "Rouvrir {{period}} ?",
+      "reopenBody": "{{start}} – {{end}} : le motif est inscrit au journal d’audit.",
+      "reopenNamed": "Rouvrir la période {{period}}"
+    },
+    "blocked": {
+      "title": "La période ne peut pas être clôturée",
+      "drafts": "Brouillons d’écriture dans la période : {{count}}.",
+      "upFront": "Cette période contient des brouillons d’écriture.",
+      "hint": "Validez, déplacez ou supprimez les brouillons, puis réessayez."
+    },
+    "toast": {
+      "softClose": "{{period}} clôturée provisoirement.",
+      "close": "{{period}} clôturée.",
+      "reopen": "{{period}} rouverte."
+    }
+  },
+  "determination": {
+    "title": "Détermination des comptes",
+    "subtitle": "Règles qui choisissent le compte utilisé lors de la comptabilisation des documents.",
+    "new": "Nouvelle règle",
+    "newTitle": "Nouvelle règle de détermination",
+    "editTitle": "Modifier la règle",
+    "dialogBody": "La règle de plus haute priorité dont les conditions correspondent est retenue ; une règle sans condition est la règle par défaut.",
+    "systemNote": "Règle système : seuls le compte, le sens et la description sont modifiables.",
+    "search": "Rechercher",
+    "searchPlaceholder": "Événement, compte ou valeur de condition",
+    "group": "Groupe",
+    "showEmpty": "Afficher les événements sans règle",
+    "empty": "Aucune règle à afficher",
+    "noRules": "Aucune règle pour cet événement ; la comptabilisation échouera.",
+    "addRule": "Ajouter une règle",
+    "addFor": "Ajouter une règle pour {{event}}",
+    "tableCaption": "Règles de {{event}} (par priorité)",
+    "default": "Par défaut",
+    "system": "Système",
+    "sideAny": "Non précisé",
+    "moveUp": "Monter la règle {{n}} de {{event}}",
+    "moveDown": "Descendre la règle {{n}} de {{event}}",
+    "editN": "Modifier la règle {{n}} de {{event}}",
+    "deleteN": "Supprimer la règle {{n}} de {{event}}",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer la règle ?",
+    "deleteBody": "Cette règle de l’événement {{event}} sera supprimée.",
+    "fields": {
+      "event": "Événement",
+      "priority": "Priorité",
+      "conditions": "Conditions",
+      "account": "Compte",
+      "side": "Sens",
+      "description": "Description"
+    },
+    "hints": {
+      "priority": "Les nombres les plus élevés sont essayés en premier."
+    },
+    "conditions": {
+      "title": "Conditions",
+      "help": "Toutes les conditions doivent correspondre ; séparez plusieurs alternatives d’une valeur par des virgules.",
+      "none": "Aucune condition : cette règle sert de règle par défaut.",
+      "key": "Clé",
+      "value": "Valeur",
+      "keyN": "Clé de la condition {{n}}",
+      "valueN": "Valeur de la condition {{n}}",
+      "add": "Ajouter une condition",
+      "remove": "Retirer la condition {{n}}"
+    },
+    "conditionKeys": {
+      "party_group": "Groupe de tiers",
+      "item_category": "Catégorie d’article",
+      "currency": "Devise",
+      "tax_code": "Code de taxe"
+    },
+    "groups": {
+      "sales": "Ventes",
+      "purchase": "Achats",
+      "inventory": "Stocks",
+      "treasury": "Trésorerie",
+      "fx": "Écarts de change",
+      "payroll": "Paie"
+    },
+    "events": {
+      "sales_receivable": "Créance client",
+      "sales_revenue_goods": "Ventes de marchandises",
+      "sales_revenue_services": "Prestations de services",
+      "sales_vat_output": "TVA collectée",
+      "sales_returns": "Retours sur ventes",
+      "purchase_payable": "Dette fournisseur",
+      "purchase_expense": "Charge d’achat",
+      "purchase_vat_input": "TVA déductible",
+      "purchase_vat_withholding": "Retenue de TVA",
+      "inventory_stock": "Valeur du stock",
+      "inventory_cogs": "Coût des marchandises vendues",
+      "treasury_cash": "Caisse",
+      "treasury_bank": "Banque",
+      "treasury_cheque_portfolio": "Chèques en portefeuille",
+      "fx_gain": "Gain de change",
+      "fx_loss": "Perte de change"
+    },
+    "test": {
+      "title": "Test des règles",
+      "body": "Saisissez un événement et un contexte ; le compte qui serait utilisé s’affiche, rien n’est enregistré.",
+      "run": "Tester",
+      "resolved": "Compte déterminé",
+      "byRule": "Règle conditionnelle",
+      "byDefault": "Règle par défaut",
+      "matched": "Retenue",
+      "failed": "Aucun compte n’a pu être déterminé."
+    },
+    "toast": {
+      "created": "Règle ajoutée.",
+      "updated": "Règle mise à jour.",
+      "deleted": "Règle supprimée."
+    }
+  }
+}

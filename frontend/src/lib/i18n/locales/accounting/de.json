@@ -1,0 +1,433 @@
+{
+  "common": {
+    "nav": {
+      "title": "Buchhaltung",
+      "accounts": "Kontenplan",
+      "fiscalYears": "Geschäftsjahre",
+      "periods": "Perioden",
+      "determination": "Kontenfindung"
+    },
+    "commands": {
+      "accounts": "Kontenplan",
+      "accountsFlat": "Kontenliste (flache Ansicht)",
+      "accountsImport": "Kontenplan importieren",
+      "fiscalYears": "Geschäftsjahre",
+      "fiscalYearNew": "Geschäftsjahr anlegen",
+      "periods": "Buchungsperioden",
+      "determination": "Regeln der Kontenfindung"
+    },
+    "actions": "Aktionen",
+    "all": "Alle",
+    "yes": "Ja",
+    "no": "Nein",
+    "done": "Fertig",
+    "retry": "Erneut versuchen",
+    "reload": "Neuesten Stand laden",
+    "loading": "Wird geladen…",
+    "loadFailed": "Die Daten konnten nicht geladen werden.",
+    "limitExceeded": "Es gibt mehr Datensätze, als diese Ansicht anzeigen kann; Filter eingrenzen.",
+    "actionFailed": "Die Aktion konnte nicht abgeschlossen werden.",
+    "uncertain": "Keine Antwort vom Server; die Aktion wurde eventuell ausgeführt. Liste aktualisieren und prüfen.",
+    "conflictTitle": "Der Datensatz wurde von jemand anderem geändert",
+    "conflictBody": "Der Datensatz wurde während Ihrer Bearbeitung aktualisiert. Laden Sie den neuesten Stand und wiederholen Sie Ihre Änderung.",
+    "reason": "Begründung",
+    "reasonTooShort": "Die Begründung muss mindestens {{min}} Zeichen lang sein.",
+    "savedViews": "Gespeicherte Ansichten",
+    "noSavedViews": "Noch keine gespeicherten Ansichten.",
+    "saveView": "Diese Ansicht speichern",
+    "saveViewBody": "Suche, Filter und Ansichtsauswahl werden unter diesem Namen gespeichert.",
+    "viewName": "Name der Ansicht",
+    "removeView": "Ansicht {{name}} entfernen"
+  },
+  "accounts": {
+    "title": "Kontenplan",
+    "subtitle": "Konten auf Basis des türkischen Einheitskontenrahmens; Baum- und Listenansicht.",
+    "treeView": "Baum",
+    "flatView": "Liste",
+    "viewMode": "Ansicht",
+    "new": "Neues Konto",
+    "newTitle": "Neues Konto",
+    "editTitle": "Konto {{code}} bearbeiten",
+    "edit": "Bearbeiten",
+    "editNamed": "Konto {{code}} bearbeiten",
+    "addChild": "Unterkonto anlegen",
+    "addChildNamed": "Konto unter {{code}} anlegen",
+    "delete": "Löschen",
+    "deleteTitle": "Konto {{code}} löschen?",
+    "deleteBody": "Konten mit Buchungen oder Unterkonten können nicht gelöscht werden; deaktivieren Sie sie stattdessen.",
+    "importAction": "Importieren",
+    "search": "Suchen",
+    "searchPlaceholder": "Nummer oder Name (z. B. 120, Forderungen)",
+    "empty": "Der Kontenplan ist leer",
+    "emptyBody": "Konten anlegen oder aus einer CSV-/XLSX-Datei importieren.",
+    "noMatch": "Kein Konto entspricht der Suche.",
+    "visibleCount": "Angezeigte Konten: {{count}}",
+    "header": "Sammelkonto",
+    "postable": "Bebuchbar",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "system": "System",
+    "systemNote": "Systemkonto: Nummer, übergeordnetes Konto und Klassifizierung sind nicht änderbar.",
+    "noGroup": "Aus der Nummer ableiten",
+    "tdhpGroupOption": "{{group}} · {{name}}",
+    "flagsLegend": "Kontoeigenschaften",
+    "fields": {
+      "code": "Kontonummer",
+      "name": "Kontobezeichnung",
+      "parent": "Übergeordnetes Konto",
+      "type": "Kontoart",
+      "normalBalance": "Normaler Saldo",
+      "isPostable": "Bebuchbar",
+      "isActive": "Aktiv",
+      "tdhpGroup": "TDHP-Gruppe",
+      "currency": "Währung",
+      "requiresParty": "Geschäftspartner erforderlich",
+      "requiresCostCenter": "Kostenstelle erforderlich",
+      "requiresProject": "Projekt erforderlich",
+      "isRevaluable": "Fremdwährungsbewertung",
+      "notes": "Notizen",
+      "status": "Status"
+    },
+    "hints": {
+      "code": "Im Unternehmen eindeutig; Unterkonten beginnen meist mit der Nummer des übergeordneten Kontos (120.01).",
+      "parent": "Leer lassen für ein Hauptkonto.",
+      "currency": "Nur für Fremdwährungskonten (USD, EUR…).",
+      "postable": "Nur Konten ohne Unterkonten können Buchungszeilen erhalten.",
+      "revaluable": "Fließt in die Fremdwährungsbewertung zum Periodenende ein; erfordert eine Währung."
+    },
+    "types": {
+      "asset": "Aktiva",
+      "liability": "Fremdkapital",
+      "equity": "Eigenkapital",
+      "revenue": "Ertrag",
+      "expense": "Aufwand",
+      "cost": "Kosten",
+      "memo": "Merkposten"
+    },
+    "normal": {
+      "debit": "Soll-Saldo",
+      "credit": "Haben-Saldo"
+    },
+    "side": {
+      "debit": "Soll",
+      "credit": "Haben",
+      "zero": "Kein Saldo"
+    },
+    "tdhp": {
+      "1": "Umlaufvermögen",
+      "2": "Anlagevermögen",
+      "3": "Kurzfristige Verbindlichkeiten",
+      "4": "Langfristige Verbindlichkeiten",
+      "5": "Eigenkapital",
+      "6": "Erfolgskonten",
+      "7": "Kostenkonten",
+      "8": "Frei",
+      "9": "Merkposten"
+    },
+    "integrity": {
+      "title": "Regeln des Kontenplans",
+      "codeTaken": "Diese Nummer wird bereits verwendet ({{name}}).",
+      "cycle": "Ein Konto kann nicht unter sich selbst oder eines seiner Unterkonten verschoben werden.",
+      "nonLeafPostable": "Ein Konto mit Unterkonten kann nicht bebuchbar sein ({{count}} Unterkonten).",
+      "hasPostings": "Ein Konto mit Buchungen kann nicht zum Sammelkonto werden.",
+      "parentInactive": "Das übergeordnete Konto {{code}} ist inaktiv; dieses Konto ist eventuell nicht nutzbar.",
+      "parentBecomesHeader": "Das übergeordnete Konto {{code}} ist derzeit bebuchbar; mit einem Unterkonto wird es zum Sammelkonto.",
+      "parentHasPostings": "Das übergeordnete Konto {{code}} hat Buchungen; der Server kann ein Unterkonto ablehnen.",
+      "prefix": "Die Nummer beginnt nicht mit {{code}} (je nach Unternehmenseinstellung erforderlich).",
+      "typeDiffers": "Die Kontoart weicht vom übergeordneten Konto {{code}} ab.",
+      "unusualBalance": "Der normale Saldo ist für diese Kontoart ungewöhnlich."
+    },
+    "tree": {
+      "expand": "Unterkonten von {{code}} aufklappen",
+      "collapse": "Unterkonten von {{code}} zuklappen",
+      "expandAll": "Alle aufklappen",
+      "collapseAll": "Alle zuklappen",
+      "hint": "Pfeiltasten: bewegen · Rechts/Links: auf-/zuklappen · Enter: Details · F2: bearbeiten · Einfg: Unterkonto"
+    },
+    "combobox": {
+      "empty": "Kein passendes Konto",
+      "header": "Sammelkonto"
+    },
+    "detail": {
+      "title": "Details zu Konto {{code}}",
+      "close": "Details schließen",
+      "balance": "Saldo",
+      "asOf": "Stichtag",
+      "debit": "Soll",
+      "credit": "Haben",
+      "net": "Saldo",
+      "fxBalance": "Fremdwährungssaldo: {{amount}} {{currency}}",
+      "balanceFailed": "Der Saldo konnte nicht geladen werden."
+    },
+    "toast": {
+      "created": "Konto angelegt.",
+      "updated": "Konto aktualisiert.",
+      "deleted": "Konto gelöscht."
+    },
+    "importWizard": {
+      "title": "Kontenplan importieren",
+      "progress": "Importschritte",
+      "stepNames": {
+        "file": "Datei",
+        "review": "Prüfung",
+        "done": "Ergebnis"
+      },
+      "steps": {
+        "file": "CSV- oder XLSX-Datei wählen; zuerst läuft ein Probelauf, der nichts ändert.",
+        "review": "Ergebnis des Probelaufs: fehlerhafte Zeilen korrigieren und erneut hochladen oder importieren.",
+        "done": "Der Import ist abgeschlossen."
+      },
+      "file": "Datei",
+      "fileHelp": "CSV (UTF-8) oder XLSX, höchstens 10 MB.",
+      "badType": "Nur .csv- und .xlsx-Dateien werden akzeptiert.",
+      "tooLarge": "Die Datei überschreitet die Grenze von {{mb}} MB.",
+      "columnsTitle": "Erwartete Spalten",
+      "template": "Beispielvorlage herunterladen",
+      "dryRun": "Probelauf starten",
+      "commit": "Importieren",
+      "summary": "Zusammenfassung",
+      "counts": {
+        "total": "Zeilen",
+        "created": "Neu",
+        "updated": "Zu aktualisieren",
+        "skipped": "Übersprungen",
+        "failed": "Fehlerhaft"
+      },
+      "onlyErrors": "Nur fehlerhafte Zeilen",
+      "downloadReport": "Fehlerbericht herunterladen",
+      "reportFile": "kontenplan-fehlerbericht",
+      "resultsCaption": "Zeilenergebnisse des Probelaufs",
+      "columns": {
+        "row": "Zeile",
+        "status": "Ergebnis",
+        "errors": "Fehler"
+      },
+      "status": {
+        "create": "Neu",
+        "update": "Aktualisierung",
+        "skip": "Übersprungen",
+        "error": "Fehler"
+      },
+      "noRows": "Keine Zeilen anzuzeigen.",
+      "fixFirst": "Solange Zeilen fehlerhaft sind, ist kein Import möglich. Fehlerbericht herunterladen, Datei korrigieren und erneut hochladen.",
+      "doneToast": "{{count}} Konten importiert.",
+      "doneBody": "{{created}} Konten hinzugefügt, {{updated}} aktualisiert, {{skipped}} Zeilen übersprungen."
+    }
+  },
+  "fiscal": {
+    "title": "Geschäftsjahre",
+    "subtitle": "Geschäftsjahre, Jahresabschluss und Wiedereröffnung.",
+    "new": "Neues Geschäftsjahr",
+    "empty": "Kein Geschäftsjahr angelegt",
+    "emptyBody": "Legen Sie ein Geschäftsjahr an, bevor Sie buchen.",
+    "defaultName": "Geschäftsjahr {{code}}",
+    "planned": "Wird angelegt",
+    "openBoard": "Zur Periodenübersicht",
+    "periodsLink": "Perioden",
+    "editTitle": "Geschäftsjahr {{code}} bearbeiten",
+    "editNamed": "Geschäftsjahr {{code}} bearbeiten",
+    "fields": {
+      "code": "Jahreskennung",
+      "name": "Name",
+      "start": "Beginn",
+      "end": "Ende",
+      "range": "Zeitraum",
+      "status": "Status",
+      "adjustment": "Periode 13 (Abschlussbuchungen) anlegen"
+    },
+    "hints": {
+      "adjustment": "Eine eigene Abschlussperiode ohne Dauer am letzten Tag des Jahres.",
+      "dates": "Die Daten sind nur änderbar, solange keine gebuchten Belege existieren.",
+      "datesLocked": "Dieses Jahr hat gebuchte Belege; die Daten sind nicht änderbar."
+    },
+    "wizard": {
+      "title": "Neues Geschäftsjahr",
+      "body": "Beim Anlegen werden 12 Perioden (optional eine 13.) automatisch eröffnet.",
+      "preview": "Anzulegende Perioden",
+      "noPreview": "Geben Sie einen gültigen Zeitraum ein.",
+      "overlap": "Der Zeitraum überschneidet sich mit Geschäftsjahr {{code}}.",
+      "created": "Geschäftsjahr {{code}} angelegt; {{count}} Perioden eröffnet.",
+      "generated": "Angelegte Perioden"
+    },
+    "close": {
+      "action": "Jahr abschließen",
+      "title": "Geschäftsjahr {{code}} abschließen?",
+      "body": "Der Abschluss schließt die Erfolgskonten, überträgt das Ergebnis ins Eigenkapital und erstellt die Eröffnungsbuchung des Folgejahres.",
+      "confirm": "Jahr abschließen",
+      "ack": "Mir ist bewusst, dass Abschlussbuchungen erstellt werden und nach dem Abschluss keine Buchungen in diesem Jahr mehr möglich sind.",
+      "previewTitle": "Abschlussvorschau",
+      "previewFailed": "Die Vorschau konnte nicht geladen werden.",
+      "noPreview": "Der Server bietet keine Vorschau. Beim Abschluss werden diese Schritte ausgeführt:",
+      "step1": "Die Erfolgskonten 6xx werden auf 690 Periodengewinn oder -verlust übertragen.",
+      "step2": "Die Kostenkonten 7xx werden über die zugehörigen Erfolgskonten abgeschlossen.",
+      "step3": "Das Ergebnis wird auf 590 Jahresüberschuss / 591 Jahresfehlbetrag übertragen.",
+      "step4": "Die Bilanzkonten werden mit der Eröffnungsbuchung ins Folgejahr vorgetragen.",
+      "result": "Periodenergebnis: {{amount}} ({{side}}) → {{account}}",
+      "entry": "Beleg",
+      "date": "Datum",
+      "lines": "Zeilen",
+      "total": "Betrag",
+      "types": {
+        "closing": "Abschlussbuchung",
+        "opening": "Eröffnungsbuchung"
+      },
+      "openPeriods": "Nicht abgeschlossene Perioden: {{count}}. Es wird empfohlen, sie vor dem Jahresabschluss zu schließen."
+    },
+    "reopen": {
+      "action": "Wieder öffnen",
+      "title": "Geschäftsjahr {{code}} wieder öffnen?",
+      "body": "Abschluss- und Eröffnungsbuchungen werden zurückgenommen. Die Begründung wird im Prüfprotokoll vermerkt.",
+      "confirm": "Jahr wieder öffnen"
+    },
+    "toast": {
+      "created": "Geschäftsjahr {{code}} angelegt.",
+      "updated": "Geschäftsjahr {{code}} aktualisiert.",
+      "closed": "Geschäftsjahr {{code}} abgeschlossen.",
+      "reopened": "Geschäftsjahr {{code}} wieder geöffnet."
+    }
+  },
+  "periods": {
+    "title": "Buchungsperioden",
+    "subtitle": "Perioden vorläufig oder endgültig schließen oder mit Begründung wieder öffnen.",
+    "year": "Geschäftsjahr",
+    "boardLabel": "Perioden {{code}}",
+    "adjustment": "13 · Abschlussbuchungen",
+    "current": "Aktuelle Periode",
+    "none": "Keine Periode entspricht diesem Filter.",
+    "yearClosed": "Dieses Geschäftsjahr ist abgeschlossen; öffnen Sie zuerst das Jahr wieder.",
+    "drafts": "Belegentwürfe: {{count}}",
+    "fields": {
+      "number": "Periode",
+      "start": "Beginn",
+      "end": "Ende",
+      "status": "Status"
+    },
+    "status": {
+      "open": "Offen",
+      "soft_closed": "Vorläufig geschlossen",
+      "closed": "Geschlossen"
+    },
+    "actions": {
+      "softClose": "Vorläufig schließen",
+      "softCloseTitle": "{{period}} vorläufig schließen?",
+      "softCloseBody": "{{start}} – {{end}}: nur berechtigte Benutzer können noch buchen.",
+      "softCloseNamed": "Periode {{period}} vorläufig schließen",
+      "close": "Periode schließen",
+      "closeTitle": "{{period}} schließen?",
+      "closeBody": "{{start}} – {{end}}: in einer geschlossenen Periode kann nicht gebucht werden. Belegentwürfe verhindern das Schließen.",
+      "closeNamed": "Periode {{period}} schließen",
+      "reopen": "Wieder öffnen",
+      "reopenTitle": "{{period}} wieder öffnen?",
+      "reopenBody": "{{start}} – {{end}}: die Begründung wird im Prüfprotokoll vermerkt.",
+      "reopenNamed": "Periode {{period}} wieder öffnen"
+    },
+    "blocked": {
+      "title": "Die Periode kann nicht geschlossen werden",
+      "drafts": "Belegentwürfe in der Periode: {{count}}.",
+      "upFront": "Diese Periode enthält Belegentwürfe.",
+      "hint": "Entwürfe buchen, in eine andere Periode verschieben oder löschen und erneut versuchen."
+    },
+    "toast": {
+      "softClose": "{{period}} vorläufig geschlossen.",
+      "close": "{{period}} geschlossen.",
+      "reopen": "{{period}} wieder geöffnet."
+    }
+  },
+  "determination": {
+    "title": "Kontenfindung",
+    "subtitle": "Regeln, die beim Buchen von Belegen das zu verwendende Konto bestimmen.",
+    "new": "Neue Regel",
+    "newTitle": "Neue Regel der Kontenfindung",
+    "editTitle": "Regel bearbeiten",
+    "dialogBody": "Gewählt wird die Regel mit der höchsten Priorität, deren Bedingungen zutreffen; eine Regel ohne Bedingungen ist der Standard.",
+    "systemNote": "Systemregel: nur Konto, Seite und Beschreibung sind änderbar.",
+    "search": "Suchen",
+    "searchPlaceholder": "Ereignis, Konto oder Bedingungswert",
+    "group": "Gruppe",
+    "showEmpty": "Ereignisse ohne Regeln anzeigen",
+    "empty": "Keine Regeln anzuzeigen",
+    "noRules": "Keine Regel für dieses Ereignis; das Buchen schlägt fehl.",
+    "addRule": "Regel hinzufügen",
+    "addFor": "Regel für {{event}} hinzufügen",
+    "tableCaption": "Regeln für {{event}} (nach Priorität)",
+    "default": "Standard",
+    "system": "System",
+    "sideAny": "Nicht angegeben",
+    "moveUp": "Regel {{n}} von {{event}} nach oben",
+    "moveDown": "Regel {{n}} von {{event}} nach unten",
+    "editN": "Regel {{n}} von {{event}} bearbeiten",
+    "deleteN": "Regel {{n}} von {{event}} löschen",
+    "delete": "Löschen",
+    "deleteTitle": "Regel löschen?",
+    "deleteBody": "Diese Regel des Ereignisses {{event}} wird gelöscht.",
+    "fields": {
+      "event": "Ereignis",
+      "priority": "Priorität",
+      "conditions": "Bedingungen",
+      "account": "Konto",
+      "side": "Seite",
+      "description": "Beschreibung"
+    },
+    "hints": {
+      "priority": "Höhere Zahlen werden zuerst geprüft."
+    },
+    "conditions": {
+      "title": "Bedingungen",
+      "help": "Alle Bedingungen müssen zutreffen; mehrere Alternativen eines Werts durch Kommas trennen.",
+      "none": "Keine Bedingungen: diese Regel gilt als Standard.",
+      "key": "Schlüssel",
+      "value": "Wert",
+      "keyN": "Schlüssel der Bedingung {{n}}",
+      "valueN": "Wert der Bedingung {{n}}",
+      "add": "Bedingung hinzufügen",
+      "remove": "Bedingung {{n}} entfernen"
+    },
+    "conditionKeys": {
+      "party_group": "Partnergruppe",
+      "item_category": "Artikelkategorie",
+      "currency": "Währung",
+      "tax_code": "Steuerkennzeichen"
+    },
+    "groups": {
+      "sales": "Verkauf",
+      "purchase": "Einkauf",
+      "inventory": "Bestand",
+      "treasury": "Finanzen",
+      "fx": "Kursdifferenzen",
+      "payroll": "Lohn"
+    },
+    "events": {
+      "sales_receivable": "Forderung aus Verkauf",
+      "sales_revenue_goods": "Umsatzerlöse Waren",
+      "sales_revenue_services": "Umsatzerlöse Dienstleistungen",
+      "sales_vat_output": "Umsatzsteuer",
+      "sales_returns": "Erlösminderungen aus Rücksendungen",
+      "purchase_payable": "Lieferantenverbindlichkeit",
+      "purchase_expense": "Einkaufsaufwand",
+      "purchase_vat_input": "Vorsteuer",
+      "purchase_vat_withholding": "Umsatzsteuereinbehalt",
+      "inventory_stock": "Bestandswert",
+      "inventory_cogs": "Wareneinsatz",
+      "treasury_cash": "Kasse",
+      "treasury_bank": "Bank",
+      "treasury_cheque_portfolio": "Schecks im Bestand",
+      "fx_gain": "Kursgewinn",
+      "fx_loss": "Kursverlust"
+    },
+    "test": {
+      "title": "Regeltest",
+      "body": "Ereignis und Kontext eingeben; angezeigt wird das Konto, das beim Buchen verwendet würde. Es wird nichts gebucht.",
+      "run": "Testen",
+      "resolved": "Ermitteltes Konto",
+      "byRule": "Bedingte Regel",
+      "byDefault": "Standardregel",
+      "matched": "Getroffen",
+      "failed": "Es konnte kein Konto ermittelt werden."
+    },
+    "toast": {
+      "created": "Regel hinzugefügt.",
+      "updated": "Regel aktualisiert.",
+      "deleted": "Regel gelöscht."
+    }
+  }
+}
