@@ -13,8 +13,7 @@
       "movements": "Lagerbewegungen",
       "lots": "Chargen und Verfall",
       "serials": "Seriennummern",
-      "warehouses": "Lager und Lagerplätze",
-      "warehouseNew": "Neues Lager"
+      "warehouses": "Lager und Lagerplätze"
     },
     "actions": "Aktionen",
     "active": "Aktiv",
@@ -27,7 +26,6 @@
     "clearFilters": "Alle Filter zurücksetzen",
     "retry": "Erneut versuchen",
     "loadFailed": "Die Daten konnten nicht geladen werden.",
-    "limitExceeded": "Zu viele Datensätze; bitte die Filter einschränken.",
     "conflictTitle": "Jemand anderes hat diesen Datensatz geändert",
     "conflictBody": "Der Datensatz wurde während Ihrer Bearbeitung aktualisiert. Laden Sie den neuesten Stand und wiederholen Sie Ihre Änderungen.",
     "reload": "Neu laden",
@@ -60,7 +58,6 @@
     "available": "Verfügbar",
     "avgCost": "Durchschn. Kosten",
     "value": "Wert",
-    "reorderPoint": "Meldebestand",
     "occurredAt": "Datum",
     "movementType": "Bewegungsart",
     "direction": "Richtung",
@@ -76,31 +73,13 @@
   },
   "warehouses": {
     "title": "Lager",
-    "description": "Lager, ihre Lagerplatzstruktur und Bestandsregeln.",
-    "new": "Neues Lager",
-    "newTitle": "Neues Lager",
-    "newBody": "Lagerplätze können nach dem Speichern angelegt werden.",
-    "editTitle": "Lager {{code}} bearbeiten",
+    "description": "Lager aus Sicht des Bestands: Reservierungsregel und Lagerplätze. Lagerstamm und Lagerplätze werden unter Referenz gepflegt.",
+    "editTitle": "Reservierungsregel von {{code}}",
     "viewTitle": "Lager {{code}}",
-    "edit": "Lager {{code}} bearbeiten",
-    "delete": "Lager {{code}} löschen",
+    "edit": "Reservierungsregel von {{code}} ändern",
     "openLocations": "Lagerplätze von {{code}} öffnen",
-    "created": "Lager {{code}} angelegt.",
-    "updated": "Lager {{code}} aktualisiert.",
-    "deleted": "Lager {{code}} gelöscht.",
-    "deleteFailed": "Das Lager konnte nicht gelöscht werden.",
-    "deleteTitle": "{{code}} löschen?",
-    "deleteBody": "Nur Lager ohne Lagerbewegungen können gelöscht werden. Lager mit Bewegungen bitte deaktivieren.",
-    "deleteConfirm": "Lager löschen",
-    "deleteDefault": "Das Standardlager kann nicht gelöscht werden.",
-    "deleteMoved": "Ein Lager mit Bewegungen kann nicht gelöscht werden; bitte deaktivieren.",
+    "updated": "Reservierungsregel von {{code}} aktualisiert.",
     "default": "Standard",
-    "settings": "Bestandsregeln",
-    "defaultHelp": "Wird verwendet, wenn ein Beleg kein Lager nennt. Ein Unternehmen hat genau ein Standardlager.",
-    "defaultLocked": "Dies ist das Standardlager. Machen Sie ein anderes Lager zum Standard, um es zu ändern.",
-    "defaultMoves": "Beim Speichern ist {{code}} nicht mehr Standard.",
-    "allowNegativeHelp": "Wenn aktiv, dürfen Abgänge den Bestand übersteigen; ein negativer Bestand wird beim nächsten Zugang nicht automatisch korrigiert.",
-    "activeHelp": "Inaktive Lager sind in neuen Belegen nicht wählbar; die Historie bleibt erhalten.",
     "tabs": {
       "general": "Allgemein",
       "locations": "Lagerplätze"
@@ -108,13 +87,10 @@
     "fields": {
       "code": "Code",
       "name": "Name",
-      "address": "Adresse",
       "isDefault": "Standardlager",
-      "allowNegative": "Negativbestand",
-      "isActive": "Aktiv",
       "reservationPolicy": "Reservierungsregel",
-      "locations": "Lagerplätze",
-      "status": "Status"
+      "status": "Status",
+      "negativeStock": "Negativer Bestand"
     },
     "policy": {
       "none": "Keine",
@@ -125,35 +101,34 @@
       "none": "Keine Reservierungen; verfügbar entspricht dem Bestand.",
       "soft": "Reservierungen über die verfügbare Menge hinaus sind erlaubt und werden gemeldet.",
       "hard": "Reservierungen über die verfügbare Menge hinaus werden abgelehnt."
+    },
+    "manageInReference": "In Referenz verwalten",
+    "openInReference": "{{code}} in Referenz öffnen",
+    "masterData": "Lagerstamm",
+    "masterDataHint": "Code, Name, Adresse, Regel für negativen Bestand, Standardlager und Lagerplätze werden im Lagerstamm unter Referenz geändert.",
+    "hasMovements": "Dieses Lager hat Lagerbewegungen.",
+    "noMovements": "In diesem Lager gibt es noch keine Lagerbewegungen.",
+    "negative": {
+      "allow": "Erlaubt",
+      "warn": "Mit Warnung",
+      "block": "Gesperrt"
     }
   },
   "locations": {
     "treeLabel": "Lagerplätze von {{code}}",
     "count": "{{count}} Lagerplätze",
-    "add": "Lagerplatz hinzufügen",
-    "addChild": "Lagerplatz unter {{code}} hinzufügen",
-    "edit": "Lagerplatz {{code}} bearbeiten",
-    "delete": "Lagerplatz {{code}} löschen",
     "expand": "{{code}} aufklappen",
     "collapse": "{{code}} zuklappen",
     "expandAll": "Alle aufklappen",
     "collapseAll": "Alle zuklappen",
-    "newTitle": "Neuer Lagerplatz",
-    "editTitle": "Lagerplatz {{code}}",
-    "codeHelp": "Ebenen mit Bindestrich, Punkt oder Schrägstrich trennen (A-01-03 → A › A-01).",
-    "saved": "Lagerplatz {{code}} gespeichert.",
-    "deleted": "Lagerplatz {{code}} gelöscht.",
-    "deleteFailed": "Der Lagerplatz konnte nicht gelöscht werden.",
-    "deleteTitle": "{{code}} löschen?",
-    "deleteBody": "Lagerplätze mit Bestand oder Bewegungen können nicht gelöscht werden; bitte deaktivieren.",
-    "deleteConfirm": "Lagerplatz löschen",
     "emptyTitle": "Noch keine Lagerplätze",
-    "emptyBody": "Legen Sie Lagerplätze an, um den Bestand je Regal oder Fach zu führen.",
-    "keyboardHint": "Mit den Pfeiltasten bewegen, rechts/links auf- oder zuklappen, Enter zum Bearbeiten.",
-    "fields": {
-      "code": "Code",
-      "name": "Name",
-      "isActive": "Aktiv"
+    "emptyBody": "Lagerplätze werden im Lagerstamm unter Referenz angelegt.",
+    "keyboardHint": "Mit den Pfeiltasten navigieren, rechts/links zum Auf- und Zuklappen.",
+    "types": {
+      "aisle": "Gang",
+      "rack": "Regal",
+      "shelf": "Fach",
+      "bin": "Platz"
     }
   },
   "stock": {
@@ -161,16 +136,13 @@
     "description": "Bestand, reservierte und verfügbare Mengen mit Kosten je Artikel und Lager.",
     "groupBy": "Detail",
     "groups": {
-      "item_warehouse": "Artikel × Lager",
-      "location": "Nach Lagerplatz",
-      "lot": "Nach Charge"
+      "warehouse": "Artikel × Lager",
+      "item": "Artikel (alle Lager)",
+      "detail": "Lagerplatz und Charge"
     },
-    "onlyBelowReorder": "Nur unter Meldebestand",
-    "hideZero": "Nullbestände ausblenden",
-    "belowReorder": "Unter dem Meldebestand",
     "noLocation": "Ohne Lagerplatz",
     "openItem": "Bestandsdetails von {{code}} öffnen",
-    "totalValue": "Gesamter Lagerwert:"
+    "includeZero": "Auch Nullbestände anzeigen"
   },
   "drawer": {
     "title": "Artikelbestand",
@@ -180,8 +152,7 @@
     "recent": "Letzte Bewegungen",
     "noStock": "Dieser Artikel hat keinen Bestand.",
     "noMovements": "Noch keine Bewegungen.",
-    "allMovements": "Alle Bewegungen anzeigen",
-    "belowReorder": "Die verfügbare Menge liegt unter dem Meldebestand."
+    "allMovements": "Alle Bewegungen anzeigen"
   },
   "movements": {
     "title": "Lagerbewegungen",
@@ -232,12 +203,8 @@
     "expired": "Verfallen",
     "expiresToday": "Verfällt heute",
     "expiresIn": "noch {{count}} Tage",
-    "expiryFilter": {
-      "expired": "Verfallen",
-      "expiring": "Verfällt in {{days}} Tagen",
-      "valid": "Gültig",
-      "none": "Ohne Verfallsdatum"
-    }
+    "onlyExpired": "Nur abgelaufene",
+    "expiresBefore": "Ablauf bis"
   },
   "trace": {
     "title": "Chargenverfolgung",

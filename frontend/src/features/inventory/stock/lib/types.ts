@@ -1,5 +1,7 @@
-// Response shapes of the Inventory API used by the warehouse, stock, movement and lot screens
-// (PHASE4 "HTTP API"). Money and quantities always travel as decimal strings.
+// Response shapes of the Inventory API used by the stock, movement and lot screens, as sent by
+// backend Modules/Inventory (StockBalanceResource, StockMovementResource, StockLotResource,
+// StockSerialResource, StockBalanceController::item, TraceController::lotTrace). Money and
+// quantities always travel as decimal strings. Warehouses: see ../../shared/warehouses.ts.
 
 export interface Pagination {
   current_page: number
@@ -8,71 +10,24 @@ export interface Pagination {
   last_page: number
 }
 
-export interface ListResponse<T, M = object> {
+export interface ListResponse<T> {
   data: T[]
-  meta: { pagination: Pagination } & M
+  meta: { pagination: Pagination }
 }
 
 export interface ItemResponse<T> {
   data: T
 }
 
-/** Cursor paginated list (ledger): `cursor` param in, next/prev cursors out. */
+/** GET /stock-movements meta: pass next_cursor (a seq) back as `cursor`; null on the last page. */
 export interface CursorMeta {
-  next_cursor: string | null
-  prev_cursor: string | null
+  next_cursor: number | null
   per_page: number
 }
 
 export interface CursorResponse<T> {
   data: T[]
-  meta: CursorMeta | { pagination: CursorMeta }
-}
-
-export type ReservationPolicy = 'none' | 'soft' | 'hard'
-
-export const RESERVATION_POLICIES: readonly ReservationPolicy[] = ['none', 'soft', 'hard']
-
-export interface Warehouse {
-  id: string
-  code: string
-  name: string
-  address: string | null
-  is_active: boolean
-  is_default: boolean
-  allow_negative_stock: boolean
-  reservation_policy: ReservationPolicy
-  version: number
-  locations_count?: number
-  /** True once stock moved through it: deletion is refused, deactivate instead. */
-  has_movements?: boolean
-}
-
-export interface WarehouseInput {
-  code: string
-  name: string
-  address: string | null
-  is_active: boolean
-  is_default: boolean
-  allow_negative_stock: boolean
-  reservation_policy: ReservationPolicy
-}
-
-export interface WarehouseLocation {
-  id: string
-  warehouse_id: string
-  code: string
-  name: string
-  is_active: boolean
-  /** Not in the PHASE4 schema; when the API sends it, the tree follows it instead of codes. */
-  parent_id?: string | null
-  version?: number
-}
-
-export interface LocationInput {
-  code: string
-  name: string
-  is_active: boolean
+  meta: CursorMeta
 }
 
 export interface CodeRef {
@@ -81,23 +36,13 @@ export interface CodeRef {
   name: string
 }
 
-export type TrackingMode = 'none' | 'lot' | 'serial'
+/**
+ * Granularity of /stock-balances rows (`group_by`): item x warehouse (default), item over all
+ * warehouses, or item x warehouse x location x lot.
+ */
+export type StockGrouping = 'warehouse' | 'item' | 'detail'
 
-export interface ItemRef extends CodeRef {
-  tracking?: TrackingMode
-  base_unit_code?: string | null
-}
-
-export interface LotRef {
-  id: string
-  lot_no: string
-  expiry_date: string | null
-}
-
-/** Granularity of /stock-balances rows. */
-export type StockGrouping = 'item_warehouse' | 'location' | 'lot'
-
-export const STOCK_GROUPINGS: readonly StockGrouping[] = ['item_warehouse', 'location', 'lot']
+export const STOCK_GROUPINGS: readonly StockGrouping[] = ['warehouse', 'item', 'detail']
 
 export interface StockFigures {
   on_hand: string
@@ -107,37 +52,44 @@ export interface StockFigures {
   value: string
 }
 
+/** One stock status row. Warehouse fields are null when grouped by item. */
 export interface StockBalance extends StockFigures {
   item_id: string
-  item: ItemRef
+  item_code: string
+  item_name: string
+  base_unit_id: string
   warehouse_id: string
-  warehouse: CodeRef
+  warehouse_code: string | null
+  warehouse_name: string | null
   location_id: string | null
-  location?: CodeRef | null
+  location_code: string | null
   lot_id: string | null
-  lot?: LotRef | null
-  reorder_point?: string | null
-}
-
-export interface StockBalanceTotals {
-  on_hand?: string
-  value: string
+  lot_no: string | null
+  expiry_date: string | null
 }
 
 export interface ItemStockWarehouse extends StockFigures {
-  warehouse: CodeRef
+  warehouse_id: string
+  warehouse_code: string | null
+  warehouse_name: string | null
 }
 
+/** Lot totals of one item over all warehouses. */
 export interface ItemStockLot {
-  lot: LotRef
-  warehouse: CodeRef
+  lot_id: string
+  lot_no: string
+  expiry_date: string | null
   on_hand: string
+  reserved: string
+  available: string
 }
 
 /** GET /items/{id}/stock */
-export interface ItemStock {
-  item: ItemRef & { min_stock?: string | null; reorder_point?: string | null }
-  totals: StockFigures
+export interface ItemStock extends StockFigures {
+  item_id: string
+  item_code: string
+  item_name: string
+  base_unit_id: string | null
   warehouses: ItemStockWarehouse[]
   lots: ItemStockLot[]
 }
@@ -160,55 +112,66 @@ export type MovementType = (typeof MOVEMENT_TYPES)[number]
 
 export type Direction = 'in' | 'out'
 
+/** One ledger row; references are ids plus the item, lot, serial and document numbers. */
 export interface StockMovement {
   id: string
   seq: number
   item_id: string
-  item: ItemRef
+  item_code: string | null
+  item_name: string | null
   warehouse_id: string
-  warehouse: CodeRef
-  location?: CodeRef | null
-  lot?: LotRef | null
-  serial?: { id: string; serial_no: string } | null
+  location_id: string | null
+  lot_id: string | null
+  lot_no: string | null
+  serial_id: string | null
+  serial_no: string | null
   movement_type: MovementType
   direction: Direction
+  /** Always positive; signed_quantity is negative for outbound rows. */
   quantity: string
+  signed_quantity: string
   unit_cost: string
   total_cost: string
+  /** Posting date, YYYY-MM-DD. */
   occurred_at: string
-  document_type: string | null
-  document_id: string | null
-  document_number?: string | null
-  document_line_id?: string | null
+  document_type: string
+  document_id: string
+  document_number: string | null
+  document_doc_type: string | null
+  document_line_id: string | null
   journal_entry_id: string | null
   reverses_id: string | null
-  created_by?: { id: string; name: string } | null
+  /** User id. */
+  created_by: string | null
+  created_at: string | null
 }
 
 export interface StockLot {
   id: string
   item_id: string
-  item: ItemRef
+  item_code: string | null
+  item_name: string | null
   lot_no: string
   expiry_date: string | null
   manufacture_date: string | null
-  created_at: string
   /** Current quantity over all warehouses. */
   on_hand: string
+  is_expired: boolean
+  created_at: string | null
 }
 
-export interface LotTraceBalance {
-  warehouse: CodeRef
-  location: CodeRef | null
+/** Received and issued totals of a lot in one warehouse. */
+export interface LotTraceSummary {
+  warehouse_id: string
+  received: string
+  issued: string
   on_hand: string
 }
 
-/** GET /stock-lots/{id}/trace: where the lot came in and where it went. */
+/** GET /stock-lots/{id}/trace: the lot, per-warehouse totals and every movement in order. */
 export interface LotTrace {
   lot: StockLot
-  received: string
-  issued: string
-  balances: LotTraceBalance[]
+  summary: LotTraceSummary[]
   movements: StockMovement[]
 }
 
@@ -218,11 +181,14 @@ export type SerialStatus = (typeof SERIAL_STATUSES)[number]
 export interface StockSerial {
   id: string
   item_id: string
-  item: ItemRef
+  item_code: string | null
+  item_name: string | null
   serial_no: string
   lot_id: string | null
-  lot: LotRef | null
+  lot_no: string | null
   status: SerialStatus
-  warehouse: CodeRef | null
-  location: CodeRef | null
+  warehouse_id: string | null
+  location_id: string | null
+  created_at: string | null
+  updated_at: string | null
 }

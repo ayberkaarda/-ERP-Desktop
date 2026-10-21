@@ -26,13 +26,6 @@ export function isNegative(value: string): boolean {
   return d !== null && d.isNegative() && !d.isZero()
 }
 
-/** True when `value` is below `threshold` (both decimal strings); false when either is missing. */
-export function isBelow(value: string, threshold: string | null | undefined): boolean {
-  if (threshold === null || threshold === undefined || threshold === '') return false
-  const d = dec(value)
-  return d !== null && dec(threshold) !== null && d.lessThan(threshold)
-}
-
 /** Formatters bound to the UI locale; the object is stable while the locale stays the same. */
 export function useFormatters() {
   const locale = useIntlLocale()

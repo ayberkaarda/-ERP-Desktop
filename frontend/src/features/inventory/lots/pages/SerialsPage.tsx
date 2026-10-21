@@ -4,7 +4,6 @@ import { Link } from 'react-router'
 import {
   DataTable,
   setFilter,
-  toListParams,
   updateListQuery,
   useUrlListQuery,
   type DataTableColumn,
@@ -14,21 +13,19 @@ import { StatusBadge, type StatusDefinition } from '@/components/shared/StatusBa
 import { Button } from '@/components/ui/button'
 import { ItemCombobox } from '@/features/catalog'
 import { usePermission } from '@/lib/permissions'
-import { ExpiryBadge } from '../../stock/components/ExpiryBadge'
-import { ExportButtons } from '../../stock/components/ExportButtons'
 import { InventoryShell } from '../../stock/components/common'
 import { SavedViewsMenu } from '../../stock/components/SavedViewsMenu'
 import { WarehouseSelect } from '../../stock/components/WarehouseSelect'
-import { INV_PATHS } from '../../stock/lib/api'
 import { acceptFilters, anyValue } from '../../stock/lib/filters'
 import { useInvT } from '../../stock/lib/i18n'
 import { lotPath } from '../../stock/lib/navigation'
 import { useSerialList } from '../../stock/lib/queries'
-import { knownWarehouses } from '../../stock/lib/warehouseOptions'
+import { useWarehouseLookup } from '../../stock/lib/warehouseLookup'
 import { SERIAL_STATUSES, type StockSerial } from '../../stock/lib/types'
 import { SerialHistoryDrawer } from '../components/SerialHistoryDrawer'
 
 const VIEW_KEY = 'inventory.serials'
+/** Filters of TraceController::serials. */
 const FILTER_KEYS = ['item_id', 'warehouse_id', 'status'] as const
 const TONES = {
   in_stock: 'success',
@@ -58,10 +55,7 @@ export function SerialsPage() {
     [urlQuery, canPickItems],
   )
   const list = useSerialList(query)
-  const warehouseOptions = useMemo(
-    () => knownWarehouses((list.data?.data ?? []).map((s) => s.warehouse)),
-    [list.data],
-  )
+  const warehouseOf = useWarehouseLookup()
   const [history, setHistory] = useState<StockSerial | null>(null)
   const filter = (key: string) => query.filters[key] ?? ''
   const change = (key: string, value: string) => setQuery(setFilter(query, key, value))
@@ -74,13 +68,6 @@ export function SerialsPage() {
       ),
     [t],
   )
-
-  const exportParams = useMemo(() => {
-    const p = toListParams(query)
-    delete p.page
-    delete p.per_page
-    return p
-  }, [query])
 
   const columns = useMemo<DataTableColumn<StockSerial>[]>(
     () => [
@@ -96,13 +83,12 @@ export function SerialsPage() {
       {
         id: 'item_code',
         header: t('fields.item'),
-        enableSorting: true,
         size: 260,
         meta: { label: t('fields.item') },
         cell: ({ row }) => (
           <span>
-            <span className="font-code">{row.original.item.code}</span>{' '}
-            <span className="text-muted-foreground">{row.original.item.name}</span>
+            <span className="font-code">{row.original.item_code}</span>{' '}
+            <span className="text-muted-foreground">{row.original.item_name}</span>
           </span>
         ),
       },
@@ -112,15 +98,10 @@ export function SerialsPage() {
         size: 220,
         meta: { label: t('fields.lot') },
         cell: ({ row }) =>
-          row.original.lot ? (
-            <span className="inline-flex items-center gap-2">
-              <Link to={lotPath(row.original.lot.id)} className="font-code hover:underline">
-                {row.original.lot.lot_no}
-              </Link>
-              {row.original.lot.expiry_date && (
-                <ExpiryBadge expiry={row.original.lot.expiry_date} />
-              )}
-            </span>
+          row.original.lot_id ? (
+            <Link to={lotPath(row.original.lot_id)} className="font-code hover:underline">
+              {row.original.lot_no ?? row.original.lot_id}
+            </Link>
           ) : (
             <span className="text-muted-foreground">—</span>
           ),
@@ -128,6 +109,7 @@ export function SerialsPage() {
       {
         id: 'status',
         header: t('fields.status'),
+        enableSorting: true,
         size: 120,
         meta: {
           label: t('fields.status'),
@@ -144,15 +126,9 @@ export function SerialsPage() {
         size: 160,
         meta: { label: t('fields.warehouse') },
         cell: ({ row }) =>
-          row.original.warehouse ? (
-            <span>
-              <span className="font-code">{row.original.warehouse.code}</span>
-              {row.original.location && (
-                <span className="font-code text-muted-foreground">
-                  {' '}
-                  / {row.original.location.code}
-                </span>
-              )}
+          row.original.warehouse_id ? (
+            <span className="font-code" title={warehouseOf(row.original.warehouse_id)?.name}>
+              {warehouseOf(row.original.warehouse_id)?.code ?? '—'}
             </span>
           ) : (
             <span className="text-muted-foreground">—</span>
@@ -176,7 +152,7 @@ export function SerialsPage() {
         ),
       },
     ],
-    [t, statusDefs],
+    [t, statusDefs, warehouseOf],
   )
 
   return (
@@ -198,11 +174,6 @@ export function SerialsPage() {
                 }),
               )
             }
-          />
-          <ExportButtons
-            path={INV_PATHS.serials}
-            params={exportParams}
-            filename="seri-numaralari"
           />
         </>
       }
@@ -230,7 +201,6 @@ export function SerialsPage() {
             <WarehouseSelect
               {...control}
               value={filter('warehouse_id')}
-              known={warehouseOptions}
               onChange={(v) => change('warehouse_id', v)}
             />
           )}

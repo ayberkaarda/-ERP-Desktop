@@ -13,15 +13,14 @@ import { ExportButtons } from '../../stock/components/ExportButtons'
 import { InventoryShell, LoadError, NativeSelect } from '../../stock/components/common'
 import { SavedViewsMenu } from '../../stock/components/SavedViewsMenu'
 import { WarehouseSelect } from '../../stock/components/WarehouseSelect'
-import { INV_PATHS, movementsApi } from '../../stock/lib/api'
+import { INV_PATHS, movementFilterParams, movementsApi } from '../../stock/lib/api'
 import { useInvT } from '../../stock/lib/i18n'
 import { useInvKeys } from '../../stock/lib/keys'
-import { knownWarehouses } from '../../stock/lib/warehouseOptions'
 import { MOVEMENT_TYPES } from '../../stock/lib/types'
 import { MovementsTable } from '../components/MovementsTable'
 
 const PAGE_SIZE = 100
-/** Filters the ledger understands; they live in the URL as filter[name]. */
+/** Filters of StockMovementController; they live in the URL as filter[name]. */
 const MOVEMENT_FILTERS = [
   'item_id',
   'warehouse_id',
@@ -32,6 +31,7 @@ const MOVEMENT_FILTERS = [
   'document_id',
   'lot_id',
   'serial_id',
+  'location_id',
 ] as const
 
 const FILTER_PARAM = /^filter\[([^\]]+)\]$/
@@ -59,13 +59,12 @@ export function MovementsPage() {
   const ledger = useInfiniteQuery({
     queryKey: keys.movementList(filters),
     queryFn: ({ pageParam, signal }) => movementsApi.page(filters, pageParam, PAGE_SIZE, signal),
-    initialPageParam: null as string | null,
+    initialPageParam: null as number | null,
     getNextPageParam: (last) => last.next,
     enabled: !dateError,
   })
   const rows = useMemo(() => ledger.data?.pages.flatMap((p) => p.rows) ?? [], [ledger.data])
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = ledger
-  const warehouseOptions = useMemo(() => knownWarehouses(rows.map((m) => m.warehouse)), [rows])
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
 
   const setFilters = (next: Record<string, string>) =>
@@ -84,9 +83,7 @@ export function MovementsPage() {
   const f = (key: string) => filters[key] ?? ''
   const filtered = Object.keys(filters).length > 0
 
-  const exportParams = Object.fromEntries(
-    Object.entries(filters).map(([k, v]) => [`filter[${k}]`, v]),
-  )
+  const exportParams = movementFilterParams(filters)
 
   return (
     <InventoryShell
@@ -146,7 +143,6 @@ export function MovementsPage() {
             <WarehouseSelect
               {...control}
               value={f('warehouse_id')}
-              known={warehouseOptions}
               onChange={(v) => change('warehouse_id', v)}
             />
           )}
@@ -199,6 +195,7 @@ export function MovementsPage() {
       {(filters.document_id ??
         filters.lot_id ??
         filters.serial_id ??
+        filters.location_id ??
         (canPickItems ? undefined : filters.item_id)) && (
         <p className="mb-2 text-sm text-muted-foreground" role="status">
           {t('movements.scoped')}

@@ -27,7 +27,7 @@ export function SerialHistoryDrawer({
   const history = useInfiniteQuery({
     queryKey: keys.movementList(filters),
     queryFn: ({ pageParam, signal }) => movementsApi.page(filters, pageParam, PAGE_SIZE, signal),
-    initialPageParam: null as string | null,
+    initialPageParam: null as number | null,
     getNextPageParam: (last) => last.next,
     enabled: serial !== null,
   })
@@ -40,7 +40,7 @@ export function SerialHistoryDrawer({
       open={serial !== null}
       onOpenChange={(open) => !open && onClose()}
       title={serial ? t('serials.historyTitle', { serial: serial.serial_no }) : ''}
-      description={serial ? `${serial.item.code} · ${serial.item.name}` : undefined}
+      description={serial ? `${serial.item_code ?? ''} · ${serial.item_name ?? ''}` : undefined}
       className="max-w-3xl"
     >
       {history.isPending ? (

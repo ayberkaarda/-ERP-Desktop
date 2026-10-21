@@ -13,8 +13,7 @@
       "movements": "Mouvements de stock",
       "lots": "Lots et péremption",
       "serials": "Numéros de série",
-      "warehouses": "Entrepôts et emplacements",
-      "warehouseNew": "Nouvel entrepôt"
+      "warehouses": "Entrepôts et emplacements"
     },
     "actions": "Actions",
     "active": "Actif",
@@ -27,7 +26,6 @@
     "clearFilters": "Effacer tous les filtres",
     "retry": "Réessayer",
     "loadFailed": "Impossible de charger les données.",
-    "limitExceeded": "Trop d’enregistrements à afficher ; affinez les filtres.",
     "conflictTitle": "Quelqu’un d’autre a modifié cet enregistrement",
     "conflictBody": "L’enregistrement a été mis à jour pendant votre saisie. Chargez la dernière version et refaites vos modifications.",
     "reload": "Recharger",
@@ -60,7 +58,6 @@
     "available": "Disponible",
     "avgCost": "Coût moyen",
     "value": "Valeur",
-    "reorderPoint": "Point de commande",
     "occurredAt": "Date",
     "movementType": "Type de mouvement",
     "direction": "Sens",
@@ -76,31 +73,13 @@
   },
   "warehouses": {
     "title": "Entrepôts",
-    "description": "Entrepôts, structure des emplacements et règles de stock.",
-    "new": "Nouvel entrepôt",
-    "newTitle": "Nouvel entrepôt",
-    "newBody": "Vous pourrez ajouter des emplacements après l’enregistrement.",
-    "editTitle": "Modifier l’entrepôt {{code}}",
+    "description": "Les entrepôts vus par le stock : politique de réservation et emplacements. La fiche entrepôt et les emplacements se gèrent dans Référentiel.",
+    "editTitle": "Politique de réservation de {{code}}",
     "viewTitle": "Entrepôt {{code}}",
-    "edit": "Modifier l’entrepôt {{code}}",
-    "delete": "Supprimer l’entrepôt {{code}}",
+    "edit": "Modifier la politique de réservation de {{code}}",
     "openLocations": "Ouvrir les emplacements de {{code}}",
-    "created": "Entrepôt {{code}} créé.",
-    "updated": "Entrepôt {{code}} mis à jour.",
-    "deleted": "Entrepôt {{code}} supprimé.",
-    "deleteFailed": "L’entrepôt n’a pas pu être supprimé.",
-    "deleteTitle": "Supprimer {{code}} ?",
-    "deleteBody": "Seuls les entrepôts sans mouvement de stock peuvent être supprimés. Désactivez un entrepôt qui a eu des mouvements.",
-    "deleteConfirm": "Supprimer l’entrepôt",
-    "deleteDefault": "L’entrepôt par défaut ne peut pas être supprimé.",
-    "deleteMoved": "Un entrepôt avec des mouvements ne peut pas être supprimé ; désactivez-le.",
+    "updated": "Politique de réservation de {{code}} mise à jour.",
     "default": "Par défaut",
-    "settings": "Règles de stock",
-    "defaultHelp": "Utilisé lorsqu’une pièce n’indique pas d’entrepôt. Une société a exactement un entrepôt par défaut.",
-    "defaultLocked": "C’est l’entrepôt par défaut. Définissez un autre entrepôt par défaut pour le changer.",
-    "defaultMoves": "À l’enregistrement, {{code}} ne sera plus l’entrepôt par défaut.",
-    "allowNegativeHelp": "Si activé, les sorties peuvent dépasser le stock ; un solde négatif n’est pas corrigé automatiquement à l’entrée suivante.",
-    "activeHelp": "Les entrepôts inactifs ne peuvent pas être choisis sur les nouvelles pièces ; l’historique est conservé.",
     "tabs": {
       "general": "Général",
       "locations": "Emplacements"
@@ -108,13 +87,10 @@
     "fields": {
       "code": "Code",
       "name": "Nom",
-      "address": "Adresse",
       "isDefault": "Entrepôt par défaut",
-      "allowNegative": "Stock négatif",
-      "isActive": "Actif",
       "reservationPolicy": "Politique de réservation",
-      "locations": "Emplacements",
-      "status": "Statut"
+      "status": "Statut",
+      "negativeStock": "Stock négatif"
     },
     "policy": {
       "none": "Aucune",
@@ -125,35 +101,34 @@
       "none": "Pas de réservation ; le disponible est égal au stock.",
       "soft": "Les réservations au-delà du disponible sont permises et signalées.",
       "hard": "Les réservations au-delà du disponible sont refusées."
+    },
+    "manageInReference": "Gérer dans Référentiel",
+    "openInReference": "Ouvrir {{code}} dans Référentiel",
+    "masterData": "Fiche entrepôt",
+    "masterDataHint": "Le code, le nom, l'adresse, la règle de stock négatif, l'entrepôt par défaut et les emplacements se modifient sur la fiche entrepôt dans Référentiel.",
+    "hasMovements": "Cet entrepôt a des mouvements de stock.",
+    "noMovements": "Aucun mouvement de stock dans cet entrepôt pour l'instant.",
+    "negative": {
+      "allow": "Autorisé",
+      "warn": "Avec alerte",
+      "block": "Bloqué"
     }
   },
   "locations": {
     "treeLabel": "Emplacements de {{code}}",
     "count": "{{count}} emplacements",
-    "add": "Ajouter un emplacement",
-    "addChild": "Ajouter un emplacement sous {{code}}",
-    "edit": "Modifier l’emplacement {{code}}",
-    "delete": "Supprimer l’emplacement {{code}}",
     "expand": "Déplier {{code}}",
     "collapse": "Replier {{code}}",
     "expandAll": "Tout déplier",
     "collapseAll": "Tout replier",
-    "newTitle": "Nouvel emplacement",
-    "editTitle": "Emplacement {{code}}",
-    "codeHelp": "Séparez les niveaux par un tiret, un point ou une barre oblique (A-01-03 → A › A-01).",
-    "saved": "Emplacement {{code}} enregistré.",
-    "deleted": "Emplacement {{code}} supprimé.",
-    "deleteFailed": "L’emplacement n’a pas pu être supprimé.",
-    "deleteTitle": "Supprimer {{code}} ?",
-    "deleteBody": "Les emplacements avec du stock ou des mouvements ne peuvent pas être supprimés ; désactivez-les.",
-    "deleteConfirm": "Supprimer l’emplacement",
     "emptyTitle": "Aucun emplacement",
-    "emptyBody": "Ajoutez des emplacements pour suivre le stock par étagère ou casier.",
-    "keyboardHint": "Flèches pour se déplacer, droite/gauche pour déplier ou replier, Entrée pour modifier.",
-    "fields": {
-      "code": "Code",
-      "name": "Nom",
-      "isActive": "Actif"
+    "emptyBody": "Les emplacements s'ajoutent sur la fiche entrepôt dans Référentiel.",
+    "keyboardHint": "Flèches pour se déplacer, droite/gauche pour déplier et replier.",
+    "types": {
+      "aisle": "Allée",
+      "rack": "Rayonnage",
+      "shelf": "Étagère",
+      "bin": "Casier"
     }
   },
   "stock": {
@@ -161,16 +136,13 @@
     "description": "Quantités en stock, réservées et disponibles avec coût, par article et entrepôt.",
     "groupBy": "Détail",
     "groups": {
-      "item_warehouse": "Article × entrepôt",
-      "location": "Par emplacement",
-      "lot": "Par lot"
+      "warehouse": "Article × entrepôt",
+      "item": "Article (tous les entrepôts)",
+      "detail": "Emplacement et lot"
     },
-    "onlyBelowReorder": "Sous le point de commande uniquement",
-    "hideZero": "Masquer les soldes nuls",
-    "belowReorder": "Sous le point de commande",
     "noLocation": "Sans emplacement",
     "openItem": "Ouvrir le détail de stock de {{code}}",
-    "totalValue": "Valeur totale du stock :"
+    "includeZero": "Afficher aussi les soldes nuls"
   },
   "drawer": {
     "title": "Stock de l’article",
@@ -180,8 +152,7 @@
     "recent": "Derniers mouvements",
     "noStock": "Cet article n’a pas de stock.",
     "noMovements": "Aucun mouvement pour l’instant.",
-    "allMovements": "Afficher tous les mouvements",
-    "belowReorder": "La quantité disponible est sous le point de commande."
+    "allMovements": "Afficher tous les mouvements"
   },
   "movements": {
     "title": "Mouvements de stock",
@@ -232,12 +203,8 @@
     "expired": "Périmé",
     "expiresToday": "Périme aujourd’hui",
     "expiresIn": "{{count}} jours restants",
-    "expiryFilter": {
-      "expired": "Périmés",
-      "expiring": "Périment sous {{days}} jours",
-      "valid": "Valides",
-      "none": "Sans date de péremption"
-    }
+    "onlyExpired": "Périmés uniquement",
+    "expiresBefore": "Expire au plus tard le"
   },
   "trace": {
     "title": "Traçabilité du lot",

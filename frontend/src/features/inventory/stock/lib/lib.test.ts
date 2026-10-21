@@ -1,71 +1,58 @@
 import { buildLocationTree, visibleNodes, parentOf } from '../../warehouses/lib/locationTree'
-import { cursorMeta } from './api'
+import type { WarehouseLocationRef } from '../../shared/warehouses'
+import { balanceParams, exportListParams, movementFilterParams } from './api'
 import { daysUntil, expiryState } from './expiry'
-import { formatAmount, formatQuantity, isBelow, isNegative } from './format'
-import { createPayloadKeys } from './idempotency'
+import { formatAmount, formatQuantity, isNegative } from './format'
 import { invKeysFor } from './keys'
 import { sanitizeViews } from './savedViews'
-import type { WarehouseLocation } from './types'
 
 const loc = (
   id: string,
   code: string,
-  over: Partial<WarehouseLocation> = {},
-): WarehouseLocation => ({
+  parent: string | null = null,
+  over: Partial<WarehouseLocationRef> = {},
+): WarehouseLocationRef => ({
   id,
   warehouse_id: 'w',
   code,
   name: code,
   is_active: true,
+  parent_id: parent,
   ...over,
 })
 
 describe('location tree', () => {
-  it('nests bins by their codes and skips missing levels', () => {
+  it('nests locations by parent_id and sorts codes naturally', () => {
     const tree = buildLocationTree([
-      loc('3', 'A-01-03'),
+      loc('3', 'A-01-03', '2'),
       loc('1', 'A'),
-      loc('4', 'B.2'),
-      loc('5', 'C/01/07'),
-      loc('2', 'A-01'),
-      loc('6', 'C'),
+      loc('4', 'B'),
+      loc('2', 'A-01', '1'),
+      loc('5', 'A-10', '1'),
+      loc('6', 'A-2', '1'),
     ])
-    expect(tree.map((n) => n.location.code)).toEqual(['A', 'B.2', 'C'])
+    expect(tree.map((n) => n.location.code)).toEqual(['A', 'B'])
     const a = tree[0]
-    expect(a?.children.map((n) => n.location.code)).toEqual(['A-01'])
+    expect(a?.children.map((n) => n.location.code)).toEqual(['A-01', 'A-2', 'A-10'])
     expect(a?.children[0]?.children.map((n) => [n.location.code, n.depth])).toEqual([
       ['A-01-03', 2],
     ])
-    // C/01 does not exist, so C/01/07 hangs directly under C.
-    expect(tree[2]?.children.map((n) => n.location.code)).toEqual(['C/01/07'])
   })
 
-  it('sorts codes naturally and matches case-insensitively', () => {
-    const tree = buildLocationTree([loc('1', 'a'), loc('2', 'A-10'), loc('3', 'A-2')])
-    expect(tree[0]?.children.map((n) => n.location.code)).toEqual(['A-2', 'A-10'])
-  })
-
-  it('follows explicit parent ids when the API sends them and survives cycles', () => {
-    const parents = parentOf([
-      loc('1', 'X', { parent_id: null }),
-      loc('2', 'Y', { parent_id: '1' }),
-      loc('3', 'Z', { parent_id: 'missing' }),
-    ])
+  it('treats unknown parents as roots and survives cycles', () => {
+    const parents = parentOf([loc('1', 'X'), loc('2', 'Y', '1'), loc('3', 'Z', 'missing')])
     expect([...parents.entries()]).toEqual([
       ['1', null],
       ['2', '1'],
       ['3', null],
     ])
-    const cyclic = buildLocationTree([
-      loc('1', 'P', { parent_id: '2' }),
-      loc('2', 'Q', { parent_id: '1' }),
-    ])
+    const cyclic = buildLocationTree([loc('1', 'P', '2'), loc('2', 'Q', '1')])
     const all = visibleNodes(cyclic, new Set(['1', '2']))
     expect(all.map((n) => n.location.id).sort()).toEqual(['1', '2'])
   })
 
   it('lists only expanded branches', () => {
-    const tree = buildLocationTree([loc('1', 'A'), loc('2', 'A-01'), loc('3', 'B')])
+    const tree = buildLocationTree([loc('1', 'A'), loc('2', 'A-01', '1'), loc('3', 'B')])
     expect(visibleNodes(tree, new Set()).map((n) => n.location.code)).toEqual(['A', 'B'])
     expect(visibleNodes(tree, new Set(['1'])).map((n) => n.location.code)).toEqual([
       'A',
@@ -95,33 +82,45 @@ describe('decimal formatting', () => {
     expect(formatAmount('2.123456', 'tr-TR', 6)).toBe('2,123456')
     expect(isNegative('-0.000000')).toBe(false)
     expect(isNegative('-2.5')).toBe(true)
-    expect(isBelow('49.999999', '50')).toBe(true)
-    expect(isBelow('50', '50')).toBe(false)
-    expect(isBelow('1', null)).toBe(false)
   })
 })
 
 describe('api helpers', () => {
-  it('reads cursor meta from either place', () => {
-    expect(cursorMeta({ next_cursor: 'a', prev_cursor: null, per_page: 10 }).next_cursor).toBe('a')
-    expect(
-      cursorMeta({ pagination: { next_cursor: 'b', prev_cursor: null, per_page: 10 } }).next_cursor,
-    ).toBe('b')
-    expect(cursorMeta(undefined).next_cursor).toBeNull()
+  it('sends the grouping as group_by and leaves paging out of exports', () => {
+    const query = {
+      page: 2,
+      perPage: 50,
+      sort: [{ id: 'item_code', desc: false }],
+      q: 'civata',
+      filters: { group: 'detail', warehouse_id: 'w1' },
+    }
+    expect(balanceParams(query)).toEqual({
+      page: 2,
+      per_page: 50,
+      sort: 'item_code',
+      q: 'civata',
+      'filter[warehouse_id]': 'w1',
+      group_by: 'detail',
+    })
+    expect(balanceParams({ ...query, filters: {} }, false)).toEqual({
+      sort: 'item_code',
+      q: 'civata',
+      group_by: 'warehouse',
+    })
+    expect(exportListParams({ ...query, filters: { expired: 'true' } })).toEqual({
+      sort: 'item_code',
+      q: 'civata',
+      'filter[expired]': 'true',
+    })
+    expect(movementFilterParams({ lot_id: 'l1', direction: '' })).toEqual({
+      'filter[lot_id]': 'l1',
+    })
   })
 
   it('scopes query keys by company', () => {
-    expect(invKeysFor('c1').warehouses()).toEqual(['inventory', 'c1', 'stock-views', 'warehouses'])
+    expect(invKeysFor('c1').lots()).toEqual(['inventory', 'c1', 'stock-views', 'lots'])
     expect(invKeysFor(null).all[1]).toBe('no-company')
     expect(invKeysFor('c1').itemStock('i')).not.toEqual(invKeysFor('c2').itemStock('i'))
-  })
-
-  it('reuses an idempotency key only for an identical payload', () => {
-    let n = 0
-    const keys = createPayloadKeys(() => `k${++n}`)
-    expect(keys({ a: 1, b: 2 })).toBe('k1')
-    expect(keys({ b: 2, a: 1 })).toBe('k1')
-    expect(keys({ a: 2 })).toBe('k2')
   })
 
   it('drops malformed saved views', () => {

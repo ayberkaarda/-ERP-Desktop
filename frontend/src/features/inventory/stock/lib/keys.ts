@@ -2,7 +2,7 @@ import type { ListQueryState } from '@/components/shared/data-table'
 import { useCompanyStore } from '@/stores/company'
 
 /**
- * TanStack Query keys of the warehouse/stock screens for one company. Every key starts with
+ * TanStack Query keys of the stock, movement and lot screens for one company. Every key starts with
  * ["inventory", companyId, "stock-views"], so another company's data is never served after a
  * switch and the documents lane can use its own branch under ["inventory", companyId].
  */
@@ -12,10 +12,6 @@ export function invKeysFor(company: string | null) {
   return {
     company: scope,
     all: base,
-    warehouses: () => [...base, 'warehouses'] as const,
-    warehouseList: (query: ListQueryState) => [...base, 'warehouses', 'list', query] as const,
-    warehouseAll: () => [...base, 'warehouses', 'all'] as const,
-    locations: (warehouseId: string) => [...base, 'warehouses', 'locations', warehouseId] as const,
     balances: () => [...base, 'balances'] as const,
     balanceList: (query: ListQueryState) => [...base, 'balances', 'list', query] as const,
     itemStock: (itemId: string) => [...base, 'balances', 'item', itemId] as const,

@@ -1,7 +1,6 @@
 import { isApiError } from '@/platform'
 
 export const VERSION_CONFLICT = 'VERSION_CONFLICT'
-export const LIMIT_EXCEEDED = 'LIMIT_EXCEEDED'
 
 /** Someone else saved the record first (409 VERSION_CONFLICT from HasVersion). */
 export function isVersionConflict(error: unknown): boolean {

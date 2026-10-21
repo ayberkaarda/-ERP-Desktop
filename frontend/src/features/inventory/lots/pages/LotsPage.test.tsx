@@ -21,12 +21,29 @@ describe('lots', () => {
     const fresh = within(grid).getByRole('link', { name: 'L-2402' }).closest('tr') as HTMLElement
     expect(within(fresh).getByText('10 gün kaldı')).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('Son kullanma'), 'expired')
+    await user.click(screen.getByLabelText('Yalnızca süresi dolmuşlar'))
     await waitFor(() =>
       expect(within(grid).queryByRole('link', { name: 'L-2402' })).not.toBeInTheDocument(),
     )
     const call = db.calls.filter((c) => c.path === '/stock-lots').at(-1)
-    expect(call?.url.searchParams.get('filter[expiry_status]')).toBe('expired')
+    expect(call?.url.searchParams.get('filter[expired]')).toBe('true')
+    expect(call?.url.searchParams.get('sort')).toBe('expiry_date')
+    // Lots have no export endpoint.
+    expect(screen.queryByRole('button', { name: 'CSV' })).not.toBeInTheDocument()
+  })
+
+  it('sends the expiry date and stock filters TraceController knows', async () => {
+    const db = setupInventoryStock()
+    renderInventoryStock(
+      '/inventory/lots?filter[expires_before]=2099-01-01&filter[with_stock]=true&filter[expiry_status]=expired',
+    )
+    const grid = await screen.findByRole('grid', { name: 'Partiler' })
+    expect(await within(grid).findByRole('link', { name: 'L-2402' })).toBeInTheDocument()
+    const call = db.calls.filter((c) => c.path === '/stock-lots').at(-1)
+    expect(call?.url.searchParams.get('filter[expires_before]')).toBe('2099-01-01')
+    expect(call?.url.searchParams.get('filter[with_stock]')).toBe('true')
+    expect(call?.url.searchParams.has('filter[expiry_status]')).toBe(false)
+    expect(screen.getByLabelText('Yalnızca stokta olanlar')).toBeChecked()
   })
 
   it('traces a lot: received, issued, where it is and its movements', async () => {
@@ -36,11 +53,12 @@ describe('lots', () => {
     await user.click(await screen.findByRole('link', { name: 'L-2401' }))
     await waitFor(() => expect(router.state.location.pathname).toBe(`/inventory/lots/${LOT_OLD}`))
     expect(await screen.findByRole('heading', { name: 'L-2401 partisi' })).toBeInTheDocument()
-    const figures = screen.getByText('Giren').closest('dl') as HTMLElement
+    const figures = screen.getByText('Giren', { selector: 'dt' }).closest('dl') as HTMLElement
     expect(within(figures).getByText('10')).toBeInTheDocument()
     expect(within(figures).getByText('4')).toBeInTheDocument()
     const where = screen.getByRole('table', { name: 'Şu an nerede' })
-    expect(within(where).getByText('Merkez depo')).toBeInTheDocument()
+    expect(within(where).getByText('Merkez depo', { exact: false })).toBeInTheDocument()
+    expect(within(where).getByText('MRK')).toBeInTheDocument()
     const history = screen.getByRole('table', { name: 'Hareket geçmişi' })
     expect(within(history).getByText('CKS-2026-000001')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Stok defterinde göster/ })).toHaveAttribute(
@@ -64,7 +82,7 @@ describe('serials', () => {
     const grid = await screen.findByRole('grid', { name: 'Seri numaraları' })
     const unit = (await within(grid).findByText('MTK-0001')).closest('tr') as HTMLElement
     expect(within(unit).getByText('Stokta')).toBeInTheDocument()
-    expect(within(unit).getByText('A-01', { exact: false })).toBeInTheDocument()
+    expect(within(unit).getByText('MRK')).toBeInTheDocument()
     expect(within(grid).getByText('Çıkışı yapıldı')).toBeInTheDocument()
 
     await user.click(within(unit).getByRole('button', { name: 'MTK-0001 geçmişini aç' }))
@@ -88,7 +106,8 @@ describe('serial history paging', () => {
       ...base,
       id: `mv-sn-${i + 1}`,
       seq: i + 1,
-      serial: { id: 'sn-1', serial_no: 'MTK-0001' },
+      serial_id: 'sn-1',
+      serial_no: 'MTK-0001',
     }))
     const db = setupInventoryStock({ db: { movements } })
     const user = userEvent.setup()
