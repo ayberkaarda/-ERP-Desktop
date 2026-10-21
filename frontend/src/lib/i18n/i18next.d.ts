@@ -3,6 +3,7 @@ import type accountingTr from './locales/accounting/tr.json'
 import type accountingJournalTr from './locales/accounting-journal/tr.json'
 import type catalogTr from './locales/catalog/tr.json'
 import type commonTr from './locales/common/tr.json'
+import type inventoryStockTr from './locales/inventory-stock/tr.json'
 import type partiesTr from './locales/parties/tr.json'
 import type referenceTr from './locales/reference/tr.json'
 import type tr from './locales/tr.json'
@@ -19,6 +20,7 @@ declare module 'i18next' {
       parties: typeof partiesTr
       reference: typeof referenceTr
       accountingJournal: typeof accountingJournalTr
+      'inventory-stock': typeof inventoryStockTr
     }
   }
 }
