@@ -9,6 +9,9 @@ export default defineConfig((env) =>
       setupFiles: ['./src/test/setup.ts'],
       include: ['src/**/*.test.{ts,tsx}'],
       css: false,
+      // Page-level tests render large trees; cold or parallel runs can exceed the 5s default.
+      testTimeout: 20000,
+      hookTimeout: 20000,
     },
   }),
 )
