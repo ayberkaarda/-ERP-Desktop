@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 return [
     'invalid_reference' => 'La valeur référencée est indisponible ou invalide.',
+    'warehouse_has_movements' => 'L’entrepôt a des mouvements de stock et ne peut pas être supprimé ; désactivez-le plutôt.',
     'rate_not_found' => 'Aucun taux de change disponible dans les sept jours.',
     'invalid_feed' => 'Les données de change sont invalides.',
     'incomplete_feed_row' => 'Les données de change ne contiennent pas le cours acheteur ou vendeur pour :currency ; rien n’a été importé.',

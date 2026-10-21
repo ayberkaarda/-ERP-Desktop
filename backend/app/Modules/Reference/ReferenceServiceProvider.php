@@ -32,6 +32,7 @@ final class ReferenceServiceProvider extends ModuleServiceProvider
     {
         $this->app->bindIf(Services\ExternalReferences::BRANCH_LOOKUP, Services\NullLookup::class);
         $this->app->bindIf(Services\ExternalReferences::PARTY_LOOKUP, Services\NullLookup::class);
+        $this->app->bindIf(Services\ExternalReferences::STOCK_WAREHOUSE_LOOKUP, Services\NullLookup::class);
         $this->app->bind(Contracts\CurrencyLookup::class, Services\DatabaseCurrencyLookup::class);
         $this->app->bind(Contracts\TaxCodeLookup::class, Services\DatabaseTaxCodeLookup::class);
         $this->app->bind(Contracts\PaymentTermLookup::class, Services\DatabasePaymentTermLookup::class);

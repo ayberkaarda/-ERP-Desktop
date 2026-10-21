@@ -21,13 +21,18 @@ final class WarehouseDirectory implements WarehouseLookup
 {
     public function __construct(private readonly CompanyContext $company) {}
 
-    public function find(string $warehouseId): ?WarehouseData
+    /**
+     * @param  bool  $share  hold a share lock on the warehouse row until commit (postings), so a
+     *                       concurrent Reference delete waits and then sees the new movements
+     */
+    public function find(string $warehouseId, bool $share = false): ?WarehouseData
     {
         if (! Str::isUuid($warehouseId)) {
             return null;
         }
 
-        $row = $this->query()->where('w.id', $warehouseId)->first();
+        $query = $this->query()->where('w.id', $warehouseId);
+        $row = ($share ? $query->lock('for share of w') : $query)->first();
 
         return $row === null ? null : self::data($row);
     }

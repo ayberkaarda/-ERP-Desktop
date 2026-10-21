@@ -138,6 +138,10 @@ final class ReferenceWriter
             if ($record instanceof Warehouse && Location::query()->where('warehouse_id', $record->getKey())->exists()) {
                 $this->invalid('is_active');
             }
+            if ($record instanceof Warehouse && $this->external->warehouseHasMovements((string) $record->getKey())) {
+                // The stock ledger is append-only: a warehouse with movements is deactivated instead.
+                throw ValidationException::withMessages(['is_active' => [__('reference::messages.warehouse_has_movements')]]);
+            }
             if ($record instanceof Location && Location::query()->where('parent_id', $record->getKey())->exists()) {
                 $this->invalid('is_active');
             }
