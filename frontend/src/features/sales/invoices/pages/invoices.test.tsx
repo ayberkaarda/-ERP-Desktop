@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { INVOICE_DRAFT, INVOICE_ISSUED } from '@/test/handlers/salesDocs'
+import { INVOICE_DRAFT, INVOICE_ISSUED, PARTY_ACME } from '@/test/handlers/salesDocs'
 import { ALL_SALES2_PERMISSIONS, renderSales, setupSales } from '../kit/testing'
 import type { PreviewInput } from '../types'
 import './InvoiceListPage'
@@ -123,6 +123,32 @@ describe('invoice editor', () => {
     expect(await screen.findByText('Risk limiti aşıldı (uyarı).')).toBeInTheDocument()
     const issue = db.calls.find((c) => c.path === `/sales-invoices/${INVOICE_DRAFT}/issue`)
     expect(issue?.body).toEqual({ version: 3 })
+  })
+
+  it('does not subtract a TRY invoice from a EUR risk limit', async () => {
+    setupSales({
+      db: {
+        exposure: {
+          [PARTY_ACME]: {
+            limit: '100.0000',
+            currency: 'EUR',
+            open_invoices: '20.0000',
+            open_orders: '0.0000',
+            total: '20.0000',
+            available: '80.0000',
+          },
+        },
+      },
+    })
+    const user = userEvent.setup()
+    renderSales(`/sales/invoices/${INVOICE_DRAFT}`)
+    await screen.findByRole('heading', { name: 'Satış faturası (taslak)' })
+    await user.click(screen.getByRole('button', { name: 'Faturayı kes' }))
+    const exposure = await within(await screen.findByRole('dialog')).findByTestId('exposure')
+    expect(exposure).toHaveTextContent('100,00 EUR')
+    // The invoice is shown in its own currency; no EUR availability is derived from TRY.
+    expect(exposure).toHaveTextContent('1.200,00 TRY')
+    expect(exposure).not.toHaveTextContent('Kesildikten sonra kalan')
   })
 
   it('stops at the credit limit in block mode without the override permission', async () => {

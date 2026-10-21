@@ -169,6 +169,8 @@ export interface CustomerExposure {
   total: string
   /** null when the party has no risk limit (unlimited). */
   available: string | null
+  /** With ?document_id: that document's amount converted to the risk currency. */
+  document_amount?: string | null
 }
 
 /** API limit per document. */

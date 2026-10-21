@@ -22,8 +22,10 @@ import { VersionConflictAlert } from '../kit/components/VersionConflictAlert'
 import { isCreditBlocked, isVersionConflict } from '../kit/http'
 import { usePayloadKeys } from '../kit/idempotency'
 import { activeCompany, invalidateSalesEffects, salesDocsKeys } from '../kit/keys'
-import { dec, money } from '../kit/money'
+import { money } from '../kit/money'
 import { SALES_PERMS } from '../kit/permissions'
+import { useCompanyCurrency } from '../kit/viewKey'
+import { documentInRisk } from '../lib/exposure'
 import { useExposure } from '../queries'
 
 interface IssueDialogProps {
@@ -46,7 +48,8 @@ export function IssueDialog({ invoice, open, onOpenChange, onIssued, onReload }:
   const keyFor = usePayloadKeys()
   const canOverride = usePermission(SALES_PERMS.creditOverride)
   const isSale = invoice.invoice_type === 'sale'
-  const exposure = useExposure(invoice.party_id, open && isSale)
+  const companyCurrency = useCompanyCurrency()
+  const exposure = useExposure(invoice.party_id, open && isSale, invoice.id)
   const [reason, setReason] = useState('')
 
   const issue = useMutation({
@@ -71,8 +74,9 @@ export function IssueDialog({ invoice, open, onOpenChange, onIssued, onReload }:
   const blocked = isCreditBlocked(issue.error)
   const conflict = isVersionConflict(issue.error)
   const e = exposure.data
-  const docTotal = invoice.total_local ?? invoice.total
-  const after = e?.available != null ? dec(e.available).minus(dec(docTotal)) : null
+  // Only amounts in the risk currency are compared with the limit (lib/exposure).
+  const risk = e ? documentInRisk(e, invoice, companyCurrency) : null
+  const after = risk?.after ?? null
   const busy = issue.isPending
 
   return (
@@ -104,7 +108,9 @@ export function IssueDialog({ invoice, open, onOpenChange, onIssued, onReload }:
             <dt className="text-muted-foreground">{t('exposure.openOrders')}</dt>
             <dd className="text-right tabular-nums">{money(e.open_orders, locale, e.currency)}</dd>
             <dt className="text-muted-foreground">{t('exposure.thisDocument')}</dt>
-            <dd className="text-right tabular-nums">{money(docTotal, locale)}</dd>
+            <dd className="text-right tabular-nums">
+              {risk ? money(risk.amount, locale, risk.currency) : ''}
+            </dd>
             {after !== null && (
               <>
                 <dt className="font-medium">{t('exposure.availableAfter')}</dt>

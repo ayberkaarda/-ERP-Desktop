@@ -73,8 +73,12 @@ export const invoicesApi = {
     http()
       .post<Envelope<PreviewResult>>('/sales-documents/preview-totals', input, { signal })
       .then((r) => r.data),
-  exposure: (partyId: string, signal?: AbortSignal) =>
+  /** With documentId the answer also carries document_amount in the risk currency. */
+  exposure: (partyId: string, signal?: AbortSignal, documentId?: string) =>
     http()
-      .get<Envelope<CustomerExposure>>(`/customers/${seg(partyId)}/exposure`, { signal })
+      .get<Envelope<CustomerExposure>>(`/customers/${seg(partyId)}/exposure`, {
+        params: documentId ? { document_id: documentId } : undefined,
+        signal,
+      })
       .then((r) => r.data),
 }

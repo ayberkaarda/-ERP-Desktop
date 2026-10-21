@@ -29,11 +29,15 @@ export function useInvoice(id: string | undefined) {
   })
 }
 
-export function useExposure(partyId: string | null | undefined, enabled = true) {
+export function useExposure(
+  partyId: string | null | undefined,
+  enabled = true,
+  documentId?: string,
+) {
   useCompany()
   return useQuery({
-    queryKey: salesDocsKeys.exposure(partyId ?? ''),
-    queryFn: ({ signal }) => invoicesApi.exposure(partyId ?? '', signal),
+    queryKey: [...salesDocsKeys.exposure(partyId ?? ''), documentId ?? ''],
+    queryFn: ({ signal }) => invoicesApi.exposure(partyId ?? '', signal, documentId),
     enabled: enabled && Boolean(partyId),
     staleTime: 15_000,
   })
