@@ -32,7 +32,7 @@ const schema = z
     name: requiredString().max(255, MSG.max),
     start_date: calendarDate(),
     end_date: calendarDate(),
-    with_adjustment_period: z.boolean(),
+    adjustment_period: z.boolean(),
   })
   .refine((v) => v.end_date > v.start_date, { path: ['end_date'], message: MSG.min })
 
@@ -138,13 +138,13 @@ export function FiscalYearWizard({
     defaultValues: {
       ...suggestion,
       name: t('fiscal.defaultName', { code: suggestion.code }),
-      with_adjustment_period: false,
+      adjustment_period: false,
     },
   })
   const v = useWatch({ control: form.control })
   const planned = useMemo(
-    () => planPeriods(v.start_date ?? '', v.end_date ?? '', Boolean(v.with_adjustment_period)),
-    [v.start_date, v.end_date, v.with_adjustment_period],
+    () => planPeriods(v.start_date ?? '', v.end_date ?? '', Boolean(v.adjustment_period)),
+    [v.start_date, v.end_date, v.adjustment_period],
   )
   const clash = years.find(
     (y) =>
@@ -176,7 +176,7 @@ export function FiscalYearWizard({
     name: t('fiscal.fields.name'),
     start_date: t('fiscal.fields.start'),
     end_date: t('fiscal.fields.end'),
-    with_adjustment_period: t('fiscal.fields.adjustment'),
+    adjustment_period: t('fiscal.fields.adjustment'),
   }
 
   if (created) {
@@ -234,8 +234,8 @@ export function FiscalYearWizard({
           />
         ))}
         <CheckboxField<Values>
-          name="with_adjustment_period"
-          label={labels.with_adjustment_period}
+          name="adjustment_period"
+          label={labels.adjustment_period}
           description={t('fiscal.hints.adjustment')}
           className="sm:col-span-2"
         />

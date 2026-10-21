@@ -54,14 +54,19 @@ export interface Account {
   is_revaluable: boolean
   notes: string | null
   version: number
-  /** Present on tree responses and some lists; computed by the API. */
+  created_at?: string | null
+  updated_at?: string | null
+  /**
+   * Not sent by the API (the tree derives children from nesting); kept optional so the client
+   * integrity mirror can use them when known. The server enforces the rules either way.
+   */
   has_children?: boolean
   children_count?: number
   /** True once posted lines reference it (it can then neither be deleted nor made non-postable). */
   has_postings?: boolean
 }
 
-/** GET /accounts/tree may nest children; flat rows with parent_id are accepted too. */
+/** GET /accounts/tree nests children (flat rows with parent_id are accepted too). */
 export type AccountTreeRow = Account & { children?: AccountTreeRow[] }
 
 export interface AccountInput {
@@ -81,7 +86,19 @@ export interface AccountInput {
   notes: string | null
 }
 
-/** GET /accounts/{id}/balance?as_of= */
+/** GET /accounts/{id}/balance?as_of= as the API sends it: balance is signed (debit - credit). */
+export interface AccountBalanceResponse {
+  account_id: string
+  as_of: string | null
+  debit: string
+  credit: string
+  balance: string
+  balance_side: NormalBalance | null
+  currency_code: string | null
+  fx_balance: string | null
+}
+
+/** Balance as the screens use it (see accountsApi.balance). */
 export interface AccountBalance {
   account_id: string
   as_of: string
@@ -97,7 +114,7 @@ export interface AccountBalance {
 export type ImportRowStatus = 'create' | 'update' | 'skip' | 'error'
 
 export interface ImportRowResult {
-  /** 1-based row number in the uploaded sheet (header excluded). */
+  /** Row number in the uploaded sheet (the header is row 1). */
   row: number
   code: string | null
   name: string | null
@@ -105,7 +122,19 @@ export interface ImportRowResult {
   errors: string[]
 }
 
-/** POST /accounts/import (multipart: file, dry_run) */
+/**
+ * POST /accounts/import (multipart: file, dry_run) as the API sends it. Existing codes are errors
+ * (never overwritten); a real import with any error is refused with 422 and fields
+ * rows.<row>.<field>.
+ */
+export interface ImportResponse {
+  dry_run: boolean
+  total: number
+  created: number
+  errors: { row: number; field: string; message: string }[]
+}
+
+/** Import report as the wizard shows it (see accountsApi.import). */
 export interface ImportResult {
   dry_run: boolean
   total: number
@@ -130,18 +159,22 @@ export interface FiscalYear {
   closed_at: string | null
   closed_by: string | null
   version: number
-  /** Some responses embed the generated periods. */
+  /** Embedded by the list, show and create responses. */
   periods?: AccountingPeriod[]
+  /** Not sent by the API; the server refuses date changes with posted entries (start_date). */
   has_posted_entries?: boolean
+  created_at?: string | null
+  updated_at?: string | null
 }
 
 export interface FiscalYearInput {
   code: string
+  /** The API uses the code when empty. */
   name: string
   start_date: string
   end_date: string
   /** Generates period 13 (year-end adjustments). */
-  with_adjustment_period: boolean
+  adjustment_period: boolean
 }
 
 export type PeriodStatus = 'open' | 'soft_closed' | 'closed'
@@ -155,23 +188,26 @@ export interface AccountingPeriod {
   end_date: string
   status: PeriodStatus
   version: number
-  /** Drafts block close; the API may report the count up front. */
-  draft_entries_count?: number
-  posted_entries_count?: number
+  /** Number 13, the year-end adjustment period. */
+  is_adjustment?: boolean
+  closed_at?: string | null
+  closed_by?: string | null
+  /** Drafts block close; the list and show responses carry the count. */
+  draft_count?: number
 }
 
 export type PeriodAction = 'soft-close' | 'close' | 'reopen'
 
 /**
- * Optional GET /fiscal-years/{id}/close-preview: what the closing procedure would generate.
- * The UI shows it when the API provides it and says so when it does not.
+ * GET /fiscal-years/{id}/close-preview (accounting.year.close): what the closing procedure would
+ * generate, with warnings for unmet preconditions. A missing endpoint (404/405/501) is tolerated.
  */
 export interface ClosingPreview {
   result: string
   result_side: NormalBalance | null
   result_account_code: string | null
   entries: ClosingPreviewEntry[]
-  warnings?: string[]
+  warnings: string[]
 }
 
 export interface ClosingPreviewEntry {
@@ -204,9 +240,21 @@ export const DETERMINATION_EVENTS = [
   'fx.loss',
 ] as const
 
-/** Context keys the resolver matches on (PHASE3: party group, item category, currency, tax code). */
-export const CONDITION_KEYS = ['party_group', 'item_category', 'currency', 'tax_code'] as const
+/** Context keys the resolver accepts in rule conditions (RuleDeterminer); others are refused. */
+export const CONDITION_KEYS = [
+  'party_group',
+  'party_id',
+  'item_category',
+  'item_id',
+  'currency',
+  'tax_code',
+  'warehouse_id',
+  'branch_id',
+] as const
 export type ConditionKey = (typeof CONDITION_KEYS)[number]
+
+/** Keys the test panel offers as inputs (the common ones; ids are rarely typed by hand). */
+export const TEST_CONTEXT_KEYS = ['party_group', 'item_category', 'currency', 'tax_code'] as const
 
 export type RuleConditions = Record<string, string | string[]>
 
@@ -222,10 +270,15 @@ export interface DeterminationRule {
   priority: number
   conditions: RuleConditions | null
   account_id: string
+  /** Sent by the list and show responses (the account is loaded there). */
+  account_code?: string
+  account_name?: string
+  /** Built by rulesApi from account_code/account_name. */
   account?: AccountRef | null
   side: NormalBalance | null
   description: string | null
   is_system: boolean
+  is_active?: boolean
   version: number
 }
 
@@ -238,12 +291,20 @@ export interface DeterminationRuleInput {
   description: string | null
 }
 
-/** POST /account-determination/test */
+/** POST /account-determination/test as the API sends it. */
+export interface DeterminationTestResponse {
+  event_key: string
+  account: AccountRef
+  side: NormalBalance | null
+  rule_id: string | null
+}
+
+/** Test result as the panel uses it (see rulesApi.test). */
 export interface DeterminationTestResult {
   account_id: string
   account?: AccountRef | null
   rule_id: string | null
   side?: NormalBalance | null
-  /** 'rule' when a conditional rule matched, 'default' for the fallback rule. */
+  /** 'rule' when a conditional rule matched, 'default' for the fallback rule (set by the panel). */
   source?: 'rule' | 'default'
 }

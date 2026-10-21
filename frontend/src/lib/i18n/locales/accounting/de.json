@@ -402,9 +402,13 @@
     },
     "conditionKeys": {
       "party_group": "Partnergruppe",
+      "party_id": "Geschäftspartner",
       "item_category": "Artikelkategorie",
+      "item_id": "Artikel",
       "currency": "Währung",
-      "tax_code": "Steuerkennzeichen"
+      "tax_code": "Steuerkennzeichen",
+      "warehouse_id": "Lager",
+      "branch_id": "Niederlassung"
     },
     "groups": {
       "sales": "Verkauf",

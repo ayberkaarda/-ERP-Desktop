@@ -402,9 +402,13 @@
     },
     "conditionKeys": {
       "party_group": "Cari grubu",
+      "party_id": "Cari",
       "item_category": "Stok kategorisi",
+      "item_id": "Stok kartı",
       "currency": "Para birimi",
-      "tax_code": "Vergi kodu"
+      "tax_code": "Vergi kodu",
+      "warehouse_id": "Depo",
+      "branch_id": "Şube"
     },
     "groups": {
       "sales": "Satış",

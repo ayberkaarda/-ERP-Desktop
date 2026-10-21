@@ -406,7 +406,7 @@ export function DeterminationPage() {
           ))}
         </div>
         <div className="lg:sticky lg:top-4 lg:self-start">
-          <TestPanel events={events} onResult={setMatched} />
+          <TestPanel events={events} rules={rules.data ?? []} onResult={setMatched} />
         </div>
       </div>
       {editor && (

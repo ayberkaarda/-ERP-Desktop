@@ -18,25 +18,35 @@ export interface BlockedReason {
   details: string[]
 }
 
+/** Words of the API's localized period_has_drafts message (tr/en/de/fr). */
+const DRAFT_WORDS = /draft|taslak|entw(u|ü)rf|brouillon/i
+
 /**
- * Recognizes the API's refusal to close a period that still has draft entries. The code is not
- * fixed by the contract, so any 409/422 whose code or fields mention drafts counts.
+ * Recognizes the API's refusal to close a period that still has draft entries: 422
+ * VALIDATION_ERROR with the localized message on `status` ("The period still has 2 draft journal
+ * entries."). The board's own up-front check uses a `draft_entries` field. Other refusals on
+ * `status` (wrong transition, closed year) are not draft refusals.
  */
 export function readBlockedReason(error: unknown): BlockedReason | null {
   if (!isApiError(error) || (error.status !== 409 && error.status !== 422)) return null
   const fieldKeys = Object.keys(error.fields)
-  const mentionsDrafts = /DRAFT/i.test(error.code) || fieldKeys.some((k) => /draft/i.test(k))
-  if (!mentionsDrafts) return null
+  const draftKeys = fieldKeys.filter(
+    (k) =>
+      /draft/i.test(k) ||
+      (k === 'status' && (error.fields[k] ?? []).some((m) => DRAFT_WORDS.test(m))),
+  )
+  if (!/DRAFT/i.test(error.code) && draftKeys.length === 0) return null
   let draftCount: number | null = null
-  for (const key of fieldKeys) {
-    if (!/draft/i.test(key)) continue
+  for (const key of draftKeys) {
     for (const m of error.fields[key] ?? []) {
       const n = /\d+/.exec(m)
       if (n) draftCount = Number(n[0])
     }
   }
-  // Bare counts are shown through draftCount, not repeated as text.
-  const details = fieldKeys.flatMap((k) => error.fields[k] ?? []).filter((m) => !/^\d+$/.test(m))
+  // Bare counts are shown through draftCount and the message once, not repeated as details.
+  const details = fieldKeys
+    .flatMap((k) => error.fields[k] ?? [])
+    .filter((m) => !/^\d+$/.test(m) && m !== error.message)
   return { message: error.message, draftCount, details }
 }
 

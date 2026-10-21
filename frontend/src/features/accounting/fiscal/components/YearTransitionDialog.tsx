@@ -67,7 +67,7 @@ function PreviewBlock({ preview }: { preview: ClosingPreview }) {
           ))}
         </tbody>
       </table>
-      {preview.warnings && preview.warnings.length > 0 && (
+      {preview.warnings.length > 0 && (
         <ul className="list-disc pl-5 text-sm text-warning-soft-foreground">
           {preview.warnings.map((w) => (
             <li key={w}>{w}</li>

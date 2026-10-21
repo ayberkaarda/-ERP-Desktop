@@ -72,15 +72,8 @@ describe('ImportWizard', () => {
   it('reports rows that failed during the real import and offers the error report', async () => {
     setupAccounting({
       db: {
-        commitFailures: [
-          {
-            row: 9,
-            code: '151',
-            name: 'Yarı Mamul',
-            status: 'error',
-            errors: ['Kilit çakışması.'],
-          },
-        ],
+        // The API rolls the whole file back and answers 422 rows.<row>.<field>.
+        commitFailures: [{ row: 9, field: 'code', message: 'Kilit çakışması.' }],
       },
     })
     const { user, dialog } = await openWizard()
@@ -97,7 +90,8 @@ describe('ImportWizard', () => {
   it('pages large result tables instead of rendering every row', async () => {
     setupAccounting()
     const { user, dialog } = await openWizard()
-    const lines = Array.from({ length: 250 }, (_, i) => `${900000 + i},Hesap ${i}`).join('\n')
+    // The API lists failed rows only: 250 rows without a name.
+    const lines = Array.from({ length: 250 }, (_, i) => `${900000 + i},`).join('\n')
     await user.upload(within(dialog).getByLabelText('Dosya'), csv(`code,name\n${lines}\n`))
     const run = within(dialog).getByRole('button', { name: 'Deneme çalıştır' })
     await waitFor(() => expect(run).toBeEnabled())
@@ -108,6 +102,7 @@ describe('ImportWizard', () => {
     expect(within(table).getAllByRole('row')).toHaveLength(101)
     expect(within(dialog).getByText('Sayfa 1 / 3')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Sonraki' }))
-    expect(within(table).getByText('900100')).toBeInTheDocument()
+    // Sheet row 102 is data row 101 (the header is row 1).
+    expect(within(table).getByRole('cell', { name: '102' })).toBeInTheDocument()
   })
 })

@@ -8,17 +8,23 @@ import { NativeSelect } from '../../shared/components'
 import { errorMessage } from '../../shared/errors'
 import { useAccT } from '../../shared/i18n'
 import { rulesApi } from '../../shared/api'
-import { CONDITION_KEYS, type DeterminationTestResult } from '../../shared/types'
+import {
+  TEST_CONTEXT_KEYS,
+  type DeterminationRule,
+  type DeterminationTestResult,
+} from '../../shared/types'
 
 interface TestPanelProps {
   events: readonly string[]
   initialEvent?: string
+  /** Loaded rules: a matched rule without conditions is the fallback (default) rule. */
+  rules?: readonly DeterminationRule[]
   /** Highlights the matched rule in the table. */
   onResult: (result: DeterminationTestResult | null) => void
 }
 
 /** Resolves an event + context through POST /account-determination/test without posting. */
-export function TestPanel({ events, initialEvent, onResult }: TestPanelProps) {
+export function TestPanel({ events, initialEvent, rules = [], onResult }: TestPanelProps) {
   const t = useAccT()
   const headingId = useId()
   const [eventKey, setEventKey] = useState(initialEvent ?? events[0] ?? '')
@@ -51,8 +57,15 @@ export function TestPanel({ events, initialEvent, onResult }: TestPanelProps) {
     setPending(true)
     onResult(null)
     rulesApi.test(eventKey, ctx).then(
-      (r) => {
+      (answer) => {
         if (runId.current !== mine) return
+        const matched = rules.find((x) => x.id === answer.rule_id)
+        const r: DeterminationTestResult = matched
+          ? {
+              ...answer,
+              source: Object.keys(matched.conditions ?? {}).length > 0 ? 'rule' : 'default',
+            }
+          : answer
         setResult(r)
         setPending(false)
         onResult(r)
@@ -89,7 +102,7 @@ export function TestPanel({ events, initialEvent, onResult }: TestPanelProps) {
             />
           )}
         </FieldShell>
-        {CONDITION_KEYS.map((key) => (
+        {TEST_CONTEXT_KEYS.map((key) => (
           <FieldShell key={key} label={t(`determination.conditionKeys.${key}`)}>
             {(control) => (
               <Input

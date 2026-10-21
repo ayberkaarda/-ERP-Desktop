@@ -402,9 +402,13 @@
     },
     "conditionKeys": {
       "party_group": "Party group",
+      "party_id": "Party",
       "item_category": "Item category",
+      "item_id": "Item",
       "currency": "Currency",
-      "tax_code": "Tax code"
+      "tax_code": "Tax code",
+      "warehouse_id": "Warehouse",
+      "branch_id": "Branch"
     },
     "groups": {
       "sales": "Sales",
