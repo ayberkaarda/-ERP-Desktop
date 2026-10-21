@@ -13,6 +13,14 @@ import type {
 // Resources carry ids only (no item/warehouse labels), like the API. Errors use the envelope
 // {errors: {message, code, fields?}}.
 
+const WAREHOUSE_READERS = [
+  'inventory.warehouses.view',
+  'inventory.warehouses.manage',
+  'inventory.stock.view',
+  'inventory.documents.view',
+  'inventory.reservations.manage',
+]
+
 export interface InvItem {
   id: string
   code: string
@@ -1113,8 +1121,13 @@ export function invDocsHandlers(db: InvDocsDb) {
   return [
     record,
     // ---- lookups --------------------------------------------------------------------------
+    // WarehouseSettingPolicy::viewAny: the pickers' readers.
     http.get(`${API}/stock-warehouses`, () =>
-      HttpResponse.json({ data: [...db.warehouses].sort((a, b) => a.code.localeCompare(b.code)) }),
+      WAREHOUSE_READERS.some((p) => db.permissions.includes(p))
+        ? HttpResponse.json({
+            data: [...db.warehouses].sort((a, b) => a.code.localeCompare(b.code)),
+          })
+        : error(403, 'FORBIDDEN', 'Bu işlem için yetkiniz yok.'),
     ),
     http.get(`${API}/warehouses/:id/locations`, ({ request, params }) =>
       HttpResponse.json(

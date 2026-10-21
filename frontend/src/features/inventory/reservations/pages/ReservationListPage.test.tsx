@@ -61,6 +61,44 @@ describe('stock reservations', () => {
     expect(await screen.findByText(/3 kullanılabilir stoğu aşıyor/)).toBeInTheDocument()
   })
 
+  it('creates a second identical reservation with a new idempotency key', async () => {
+    const db = setupInvDocs()
+    const user = userEvent.setup()
+    renderInvDocs('/inventory/reservations')
+    await screen.findByRole('grid', { name: 'Rezervasyonlar' })
+    const reserve = async () => {
+      await user.click(screen.getByRole('button', { name: 'Yeni rezervasyon' }))
+      const dialog = await screen.findByRole('dialog', { name: 'Stok rezerve et' })
+      await user.type(within(dialog).getByLabelText(/^Stok kartı/), 'STK-001')
+      await user.click(await screen.findByRole('option', { name: /STK-001 · Cıvata M8/ }))
+      await user.type(within(dialog).getByLabelText(/^Depo/), 'ANA')
+      await user.click(await screen.findByRole('option', { name: 'ANA · Ana depo' }))
+      await user.click(within(dialog).getByLabelText(/^Miktar/))
+      await user.keyboard('1')
+      await user.click(within(dialog).getByRole('button', { name: 'Rezerve et' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    }
+    await reserve()
+    await reserve()
+    const keys = db.calls
+      .filter((c) => c.method === 'POST' && c.path === '/stock-reservations')
+      .map((c) => c.headers.get('Idempotency-Key'))
+    expect(keys).toHaveLength(2)
+    expect(keys[0]).toBeTruthy()
+    expect(keys[1]).not.toBe(keys[0])
+  })
+
+  it('offers warehouses to a reservation manager without other inventory read rights', async () => {
+    setupInvDocs({ permissions: ['inventory.reservations.manage', 'items.view'] })
+    const user = userEvent.setup()
+    renderInvDocs('/inventory/reservations')
+    await screen.findByRole('grid', { name: 'Rezervasyonlar' })
+    await user.click(screen.getByRole('button', { name: 'Yeni rezervasyon' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Stok rezerve et' })
+    await user.type(within(dialog).getByLabelText(/^Depo/), 'ANA')
+    expect(await screen.findByRole('option', { name: 'ANA · Ana depo' })).toBeInTheDocument()
+  })
+
   it('opens for stock viewers without the release action', async () => {
     setupInvDocs({ permissions: ['inventory.stock.view'] })
     renderInvDocs('/inventory/reservations')

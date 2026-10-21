@@ -48,6 +48,8 @@ export const WAREHOUSE_READ = anyOf(
   'inventory.warehouses.manage',
   'inventory.stock.view',
   'inventory.documents.view',
+  // Creating a reservation needs a warehouse to pick.
+  'inventory.reservations.manage',
 )
 
 const seg = (id: string) => encodeURIComponent(id)

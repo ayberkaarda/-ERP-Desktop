@@ -30,7 +30,7 @@ it('answers 403 without the permission on every endpoint', function (string $met
 
     Inv::as($user, $this->company)->json($method, '/api/v1/'.$uri, [], $headers)->assertForbidden();
 })->with([
-    'warehouses list' => ['GET', 'stock-warehouses', ['inventory.warehouses.view', 'inventory.warehouses.manage', 'inventory.stock.view', 'inventory.documents.view']],
+    'warehouses list' => ['GET', 'stock-warehouses', ['inventory.warehouses.view', 'inventory.warehouses.manage', 'inventory.stock.view', 'inventory.documents.view', 'inventory.reservations.manage']],
     'warehouse policy' => ['PATCH', 'stock-warehouses/{wh}', ['inventory.warehouses.manage']],
     'documents list' => ['GET', 'stock-documents', ['inventory.documents.view']],
     'document show' => ['GET', 'stock-documents/{doc}', ['inventory.documents.view']],
@@ -55,13 +55,13 @@ it('answers 403 without the permission on every endpoint', function (string $met
     'reorder' => ['GET', 'reports/reorder-suggestions', ['inventory.stock.view']],
 ]);
 
-it('lets stock and document viewers read warehouses for pickers but not change them', function (string $permission): void {
+it('lets stock and document viewers and reservation managers read warehouses for pickers but not change them', function (string $permission): void {
     $user = Actors::user([$permission]);
 
     Inv::as($user, $this->company)->getJson('/api/v1/stock-warehouses')->assertOk()->assertJsonCount(1, 'data');
     Inv::as($user, $this->company)->getJson("/api/v1/stock-warehouses/{$this->wh->id}")->assertOk();
     Inv::as($user, $this->company)->patchJson("/api/v1/stock-warehouses/{$this->wh->id}", ['reservation_policy' => 'hard', 'version' => 1])->assertForbidden();
-})->with(['inventory.stock.view', 'inventory.documents.view']);
+})->with(['inventory.stock.view', 'inventory.documents.view', 'inventory.reservations.manage']);
 
 it('isolates companies', function (): void {
     $user = Actors::user(Inv::ALL);
