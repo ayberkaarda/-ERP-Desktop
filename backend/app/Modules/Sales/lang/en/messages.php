@@ -21,6 +21,7 @@ return [
     'delivery_invoiced_elsewhere' => 'Delivery :delivery is also invoiced by another invoice.',
     'delivery_not_posted' => 'Only posted deliveries can be invoiced.',
     'dimension_unknown' => 'The cost center or project does not exist.',
+    'exposure_document_unknown' => 'No order or sales invoice of this customer has this id.',
     'direct_delivery_disabled' => 'Deliveries without an order are not allowed for this company.',
     'document_not_editable' => 'Only draft documents can be edited.',
     'export_too_large' => 'The export exceeds :max rows; narrow the filters.',

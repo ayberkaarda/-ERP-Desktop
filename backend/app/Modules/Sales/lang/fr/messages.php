@@ -21,6 +21,7 @@ return [
     'delivery_invoiced_elsewhere' => 'Le bon de livraison :delivery est aussi facturé par une autre facture.',
     'delivery_not_posted' => 'Seuls les bons de livraison comptabilisés peuvent être facturés.',
     'dimension_unknown' => 'Le centre de coût ou le projet n\'existe pas.',
+    'exposure_document_unknown' => 'Aucune commande ni facture de vente de ce client ne porte cet identifiant.',
     'direct_delivery_disabled' => 'Les livraisons sans commande ne sont pas autorisées pour cette société.',
     'document_not_editable' => 'Seuls les brouillons peuvent être modifiés.',
     'export_too_large' => 'L\'export dépasse :max lignes ; affinez les filtres.',

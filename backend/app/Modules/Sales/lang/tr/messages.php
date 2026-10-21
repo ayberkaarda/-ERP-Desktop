@@ -21,6 +21,7 @@ return [
     'delivery_invoiced_elsewhere' => ':delivery numaralı irsaliye başka bir faturada da kullanıldı.',
     'delivery_not_posted' => 'Yalnızca kaydedilmiş irsaliyeler faturalanabilir.',
     'dimension_unknown' => 'Masraf merkezi veya proje bulunamadı.',
+    'exposure_document_unknown' => 'Bu müşteriye ait bu kimlikte bir sipariş veya satış faturası bulunamadı.',
     'direct_delivery_disabled' => 'Bu şirkette siparişsiz irsaliyeye izin verilmiyor.',
     'document_not_editable' => 'Yalnızca taslak belgeler düzenlenebilir.',
     'export_too_large' => 'Dışa aktarım :max satırı aşıyor; filtreleri daraltın.',

@@ -12,12 +12,16 @@ use App\Modules\Sales\Enums\InvoiceStatus;
 use App\Modules\Sales\Enums\OrderStatus;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesOrder;
+use App\Modules\Sales\Services\CreditControl;
 use App\Modules\Sales\Services\DocumentLinks;
 use App\Modules\Sales\Services\ExposureCalculator;
+use App\Modules\Sales\Services\InvoiceService;
+use App\Modules\Sales\Support\Messages;
 use App\Modules\Sales\Support\SalesSettings;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
@@ -36,12 +40,27 @@ final class CustomerController
         private readonly CompanyContext $company,
     ) {}
 
-    public function exposure(string $id, CustomerExposure $exposure): JsonResponse
+    /**
+     * `?document_id=` (an order or sale invoice of this customer the caller may view) adds
+     * document_amount: what that document adds to the exposure at confirmation / issue, in the risk
+     * currency (its total less the open order value it replaces). Null without document_id.
+     */
+    public function exposure(Request $request, string $id, CustomerExposure $exposure, CreditControl $credit, InvoiceService $invoices): JsonResponse
     {
         Gate::authorize('sales-customer-view');
         $party = $this->party($id);
+        $data = $exposure->exposure($this->company->id(), $party)->toArray();
+        $data['document_amount'] = null;
+        $documentId = $request->query('document_id');
 
-        return ApiResponse::success($exposure->exposure($this->company->id(), $party)->toArray());
+        if ($documentId !== null) {
+            $document = $this->exposureDocument($documentId, $party);
+            Gate::authorize('view', $document);
+            $covered = $document instanceof SalesInvoice ? $invoices->coveredLocal($document) : '0';
+            $data['document_amount'] = $credit->documentAmount((string) $data['currency'], (string) $document->total_local, $covered);
+        }
+
+        return ApiResponse::success($data);
     }
 
     public function summary(string $id, ExposureCalculator $exposure): JsonResponse
@@ -80,6 +99,18 @@ final class CustomerController
             'recent_invoices' => SalesInvoice::query()->where('party_id', $party)->orderByDesc('document_date')->orderByDesc('id')->limit(5)->get()
                 ->map(static fn (SalesInvoice $i): array => [...DocumentLinks::link($i), 'balance_due' => (string) $i->balance_due])->values()->all(),
         ]);
+    }
+
+    private function exposureDocument(mixed $id, string $party): SalesOrder|SalesInvoice
+    {
+        $document = null;
+
+        if (is_string($id) && Str::isUuid($id)) {
+            $document = SalesOrder::query()->whereKey($id)->where('party_id', $party)->first()
+                ?? SalesInvoice::query()->whereKey($id)->where('party_id', $party)->where('invoice_type', 'sale')->first();
+        }
+
+        return $document ?? Messages::fail('document_id', 'exposure_document_unknown');
     }
 
     private function party(string $id): string

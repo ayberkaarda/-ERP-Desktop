@@ -45,9 +45,7 @@ final class CreditControl
         }
         [$invoices, $orders] = $this->exposure->localParts($companyId, $party->id, $excludeOrderId);
         $exposure = $this->exposure->inRiskCurrency($party->id, $party->riskLimit, $party->riskCurrencyCode, $invoices, $orders);
-        $rate = $this->exposure->toRisk($this->settings->baseCurrency(), $exposure->currency);
-        $document = RoundingPolicy::currency(BigDecimal::of($documentLocal)->minus($coveredLocal)->multipliedBy($rate));
-        $document = $document->isNegative() ? BigDecimal::zero()->toScale(2) : $document;
+        $document = BigDecimal::of($this->documentAmount($exposure->currency, $documentLocal, $coveredLocal));
         $total = BigDecimal::of($exposure->total)->plus($document);
 
         if ($exposure->limit === null) {
@@ -65,6 +63,18 @@ final class CreditControl
         }
 
         return $check;
+    }
+
+    /**
+     * What a document adds to the exposure, in the risk currency at scale 2 (never negative): its
+     * company currency total less the open order value it replaces.
+     */
+    public function documentAmount(string $riskCurrency, string $documentLocal, string $coveredLocal = '0'): string
+    {
+        $rate = $this->exposure->toRisk($this->settings->baseCurrency(), $riskCurrency);
+        $document = RoundingPolicy::currency(BigDecimal::of($documentLocal)->minus($coveredLocal)->multipliedBy($rate));
+
+        return (string) ($document->isNegative() ? BigDecimal::zero()->toScale(2) : $document);
     }
 
     /**
