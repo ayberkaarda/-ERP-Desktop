@@ -562,6 +562,18 @@ final class InvoiceService extends DocumentService
     }
 
     /**
+     * Unlocked read of the open order value a draft sale invoice replaces (credit previews only).
+     */
+    public function coveredLocal(SalesInvoice $invoice): string
+    {
+        $lines = $invoice->lines()->get();
+        $ids = array_values(array_unique($this->orderIdsOfLines($lines)));
+        $orders = $ids === [] ? [] : SalesOrder::query()->whereIn('id', $ids)->get()->keyBy('id')->all();
+
+        return $this->coveredByOrders($lines, $orders);
+    }
+
+    /**
      * Open order value the invoice replaces (so it is not counted twice in the credit check), local.
      *
      * @param  Collection<int, SalesInvoiceLine>  $lines
