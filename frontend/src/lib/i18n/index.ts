@@ -12,6 +12,10 @@ import partiesDe from './locales/parties/de.json'
 import partiesEn from './locales/parties/en.json'
 import partiesFr from './locales/parties/fr.json'
 import partiesTr from './locales/parties/tr.json'
+import referenceDe from './locales/reference/de.json'
+import referenceEn from './locales/reference/en.json'
+import referenceFr from './locales/reference/fr.json'
+import referenceTr from './locales/reference/tr.json'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
@@ -33,12 +37,36 @@ function storedLanguage(): Language {
 
 void i18n.use(initReactI18next).init({
   resources: {
-    tr: { translation: tr, common: commonTr, catalog: catalogTr, parties: partiesTr },
-    en: { translation: en, common: commonEn, catalog: catalogEn, parties: partiesEn },
-    de: { translation: de, common: commonDe, catalog: catalogDe, parties: partiesDe },
-    fr: { translation: fr, common: commonFr, catalog: catalogFr, parties: partiesFr },
+    tr: {
+      translation: tr,
+      common: commonTr,
+      catalog: catalogTr,
+      parties: partiesTr,
+      reference: referenceTr,
+    },
+    en: {
+      translation: en,
+      common: commonEn,
+      catalog: catalogEn,
+      parties: partiesEn,
+      reference: referenceEn,
+    },
+    de: {
+      translation: de,
+      common: commonDe,
+      catalog: catalogDe,
+      parties: partiesDe,
+      reference: referenceDe,
+    },
+    fr: {
+      translation: fr,
+      common: commonFr,
+      catalog: catalogFr,
+      parties: partiesFr,
+      reference: referenceFr,
+    },
   },
-  ns: ['translation', 'common', 'catalog', 'parties'],
+  ns: ['translation', 'common', 'catalog', 'parties', 'reference'],
   lng: storedLanguage(),
   fallbackLng: 'tr',
   supportedLngs: SUPPORTED_LANGUAGES,

@@ -1,46 +1,11 @@
-import {
-  Activity,
-  BookOpenText,
-  Boxes,
-  LayoutDashboard,
-  ReceiptText,
-  ShoppingBasket,
-  UsersRound,
-  WalletCards,
-  type LucideIcon,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { NavLink } from 'react-router'
 import { KeystoneLogo, KeystoneMark } from '@/components/brand/Logo'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { hasPermission, usePermissionContext } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { useUiStore } from '@/stores/ui'
-
-type NavKey =
-  'dashboard' | 'sales' | 'purchasing' | 'inventory' | 'accounting' | 'treasury' | 'hr' | 'health'
-
-interface NavItem {
-  key: NavKey
-  icon: LucideIcon
-  to?: string
-}
-
-// Items without `to` are modules scheduled for later phases.
-const SECTIONS: { key: 'main' | 'system'; items: NavItem[] }[] = [
-  {
-    key: 'main',
-    items: [
-      { key: 'dashboard', icon: LayoutDashboard, to: '/' },
-      { key: 'sales', icon: ReceiptText },
-      { key: 'purchasing', icon: ShoppingBasket },
-      { key: 'inventory', icon: Boxes },
-      { key: 'accounting', icon: BookOpenText },
-      { key: 'treasury', icon: WalletCards },
-      { key: 'hr', icon: UsersRound },
-    ],
-  },
-  { key: 'system', items: [{ key: 'health', icon: Activity, to: '/system/health' }] },
-]
+import { NAV_SECTIONS, type NavItem, type NavSection } from './navigation'
 
 const itemClass =
   'group flex h-8 items-center gap-2.5 rounded-md px-2.5 text-[0.8125rem] font-medium transition-colors duration-150'
@@ -51,10 +16,22 @@ interface SidebarProps {
   onNavigate?: () => void
 }
 
+/** Sections with the entries the active company may open; empty sections disappear. */
+function useVisibleSections(): NavSection[] {
+  const permissions = usePermissionContext()
+  return NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter(
+      (item) => item.permission === undefined || hasPermission(permissions, item.permission),
+    ),
+  })).filter((section) => section.items.length > 0)
+}
+
 export function Sidebar({ variant = 'rail', onNavigate }: SidebarProps) {
   const { t } = useTranslation()
   const railCollapsed = useUiStore((s) => s.sidebarCollapsed)
   const collapsed = variant === 'rail' && railCollapsed
+  const sections = useVisibleSections()
 
   return (
     <aside
@@ -76,24 +53,43 @@ export function Sidebar({ variant = 'rail', onNavigate }: SidebarProps) {
         )}
       </div>
 
-      <nav aria-label={t('nav.main')} className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
-        {SECTIONS.map((section) => (
-          <div key={section.key} className="space-y-0.5">
-            {!collapsed && (
-              <p className="px-2.5 pb-1.5 text-2xs font-medium tracking-[0.08em] text-sidebar-muted uppercase">
-                {t(`nav.${section.key}`)}
-              </p>
-            )}
-            {section.items.map((item) => (
-              <SidebarItem
-                key={item.key}
-                item={item}
-                collapsed={collapsed}
-                onNavigate={onNavigate}
-              />
-            ))}
-          </div>
-        ))}
+      <nav
+        aria-label={t('nav.main')}
+        className={cn('flex-1 overflow-y-auto px-2.5 py-4', collapsed ? 'space-y-3' : 'space-y-5')}
+      >
+        {sections.map((section, index) => {
+          const headingId = `nav-${variant}-${section.key}`
+          return (
+            <div
+              key={section.key}
+              role="group"
+              aria-labelledby={collapsed ? undefined : headingId}
+              aria-label={collapsed ? t(`nav.${section.key}`) : undefined}
+              className="space-y-0.5"
+            >
+              {collapsed ? (
+                index > 0 && (
+                  <div aria-hidden="true" className="mx-2 mb-3 border-t border-sidebar-border" />
+                )
+              ) : (
+                <p
+                  id={headingId}
+                  className="px-2.5 pb-1.5 text-2xs font-medium tracking-[0.08em] text-sidebar-muted uppercase"
+                >
+                  {t(`nav.${section.key}`)}
+                </p>
+              )}
+              {section.items.map((item) => (
+                <SidebarItem
+                  key={item.key}
+                  item={item}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                />
+              ))}
+            </div>
+          )
+        })}
       </nav>
     </aside>
   )
