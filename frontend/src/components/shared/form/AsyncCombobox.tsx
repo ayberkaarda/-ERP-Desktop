@@ -13,6 +13,11 @@ export interface AsyncComboboxProps extends Omit<
   initialOption?: ComboboxOption | null
   minQueryLength?: number
   debounceMs?: number
+  /**
+   * Identity of whatever else the loader depends on (a role filter, a parent id). A change re-runs
+   * the search for the same text and drops results loaded under the old scope.
+   */
+  scopeKey?: string
 }
 
 interface Result {
@@ -27,6 +32,7 @@ export function AsyncCombobox({
   initialOption = null,
   minQueryLength = 0,
   debounceMs = 250,
+  scopeKey = '',
   onChange,
   emptyText,
   ...props
@@ -38,27 +44,29 @@ export function AsyncCombobox({
   const [picked, setPicked] = useState<ComboboxOption | null>(initialOption)
   const debounced = useDebouncedValue(query, debounceMs)
   const ready = open && debounced.length >= minQueryLength
-  const key = ready ? `q:${debounced}` : ''
+  const key = ready ? JSON.stringify([scopeKey, debounced]) : ''
 
   useEffect(() => {
     if (!ready) return
     const controller = new AbortController()
     loadOptions(debounced, controller.signal).then(
       (options) => {
-        if (!controller.signal.aborted) setResult({ key: `q:${debounced}`, options, failed: false })
+        if (!controller.signal.aborted) setResult({ key, options, failed: false })
       },
       () => {
-        if (!controller.signal.aborted)
-          setResult({ key: `q:${debounced}`, options: [], failed: true })
+        if (!controller.signal.aborted) setResult({ key, options: [], failed: true })
       },
     )
     return () => controller.abort()
     // The loader is usually an inline closure; re-running on its identity would refetch per render.
+    // `key` covers the text and the scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, debounced])
+  }, [ready, key])
 
   const fresh = result.key === key
-  const loading = ready && (!fresh || query !== debounced)
+  // Results for an older text are never pickable: Enter/Tab while typing must not select them.
+  const current = fresh && query === debounced
+  const loading = ready && !current
   const selectedOption =
     picked?.value === props.value
       ? picked
@@ -68,12 +76,12 @@ export function AsyncCombobox({
 
   let empty = emptyText
   if (!ready) empty = t('combobox.typeToSearch')
-  else if (fresh && result.failed) empty = t('combobox.loadFailed')
+  else if (current && result.failed) empty = t('combobox.loadFailed')
 
   return (
     <Combobox
       {...props}
-      options={fresh ? result.options : []}
+      options={current ? result.options : []}
       selectedOption={selectedOption}
       filter={false}
       loading={loading}

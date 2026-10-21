@@ -4,6 +4,10 @@ import commonDe from './locales/common/de.json'
 import commonEn from './locales/common/en.json'
 import commonFr from './locales/common/fr.json'
 import commonTr from './locales/common/tr.json'
+import partiesDe from './locales/parties/de.json'
+import partiesEn from './locales/parties/en.json'
+import partiesFr from './locales/parties/fr.json'
+import partiesTr from './locales/parties/tr.json'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
@@ -25,12 +29,12 @@ function storedLanguage(): Language {
 
 void i18n.use(initReactI18next).init({
   resources: {
-    tr: { translation: tr, common: commonTr },
-    en: { translation: en, common: commonEn },
-    de: { translation: de, common: commonDe },
-    fr: { translation: fr, common: commonFr },
+    tr: { translation: tr, common: commonTr, parties: partiesTr },
+    en: { translation: en, common: commonEn, parties: partiesEn },
+    de: { translation: de, common: commonDe, parties: partiesDe },
+    fr: { translation: fr, common: commonFr, parties: partiesFr },
   },
-  ns: ['translation', 'common'],
+  ns: ['translation', 'common', 'parties'],
   lng: storedLanguage(),
   fallbackLng: 'tr',
   supportedLngs: SUPPORTED_LANGUAGES,
