@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Reference\Services;
 
+use App\Core\Company\CompanyContext;
 use App\Modules\Reference\Contracts\ExchangeRateProvider;
 use App\Modules\Reference\Exceptions\RateNotFound;
 use App\Modules\Reference\Models\Currency;
@@ -13,6 +14,7 @@ use Brick\Math\RoundingMode;
 use DateInterval;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Illuminate\Database\Eloquent\Builder;
 
 final class DatabaseExchangeRateProvider implements ExchangeRateProvider
 {
@@ -45,9 +47,18 @@ final class DatabaseExchangeRateProvider implements ExchangeRateProvider
         if ($currency === 'TRY') {
             return '1.000000';
         }
-        // Manual corrections take precedence over the central-bank fixing.
-        $value = ExchangeRate::query()->where('currency_code', $currency)->where('rate_date', $date)
-            ->whereNotNull('forex_selling')->orderByRaw("CASE WHEN source = 'manual' THEN 0 ELSE 1 END")
+        // The active company's manual rate for the day beats the global TCMB fixing of that day;
+        // other companies' manual rates are never candidates.
+        $company = app(CompanyContext::class)->idOrNull();
+        $value = ExchangeRate::query()->withoutGlobalScope('visible')
+            ->where('currency_code', $currency)->where('rate_date', $date)->whereNotNull('forex_selling')
+            ->where(function (Builder $owner) use ($company): void {
+                $owner->where(fn (Builder $q) => $q->where('source', 'tcmb')->whereNull('company_id'));
+                if ($company !== null) {
+                    $owner->orWhere(fn (Builder $q) => $q->where('source', 'manual')->where('company_id', $company));
+                }
+            })
+            ->orderByRaw("CASE WHEN source = 'manual' THEN 0 ELSE 1 END")
             ->value('forex_selling');
 
         return is_string($value) && BigDecimal::of($value)->isGreaterThan(0) ? $value : null;

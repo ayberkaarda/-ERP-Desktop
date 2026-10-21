@@ -15,6 +15,6 @@ final class ExchangeRateFactory extends Factory
     /** @return array<string, mixed> */
     public function definition(): array
     {
-        return ['currency_code' => 'USD', 'rate_date' => '2026-10-20', 'forex_buying' => '34.000000', 'forex_selling' => '35.000000', 'source' => 'manual'];
+        return ['currency_code' => 'USD', 'rate_date' => '2026-10-20', 'forex_buying' => '34.000000', 'forex_selling' => '35.000000', 'source' => 'tcmb'];
     }
 }

@@ -87,7 +87,8 @@ final class ReferenceWriter
             }
             if ($record instanceof ExchangeRate && ! $record->exists && ExchangeRate::query()
                 ->where('currency_code', $record->getAttribute('currency_code'))
-                ->where('rate_date', $record->getAttribute('rate_date'))->where('source', 'manual')->exists()) {
+                ->where('rate_date', $record->getAttribute('rate_date'))->where('source', 'manual')
+                ->where('company_id', app(CompanyContext::class)->id())->exists()) {
                 $this->invalid('rate_date');
             }
             if ($record->getAttribute('code') !== null) {
