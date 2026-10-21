@@ -174,9 +174,14 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
     }
   })
 
-  /** Unsaved changes are saved first; the confirmation then posts the stored draft. */
+  /**
+   * Unsaved changes are saved first; the confirmation then posts the stored draft. Posting an
+   * unchanged stored draft needs only the post permission (JournalEntryPolicy::post); creating
+   * or saving changes needs the create permission as well.
+   */
   const submitPost = form.handleSubmit(async (values) => {
     if (!balanceOf(values.lines).balanced) return
+    if ((!base || isDirty) && !canEdit) return
     const started = company
     try {
       if (!base) {
@@ -287,7 +292,7 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
                 {t('editor.saveDraft')}
               </Button>
             )}
-            {canEdit && canPost && (
+            {canPost && (canEdit || entry) && (
               <Button
                 type="button"
                 disabled={busy || !balance.balanced}
