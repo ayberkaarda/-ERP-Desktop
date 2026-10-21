@@ -1,0 +1,5731 @@
+[
+  {
+    "code": "1",
+    "name": "Dönen Varlıklar",
+    "parent_code": null,
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "10",
+    "name": "Hazır Değerler",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "100",
+    "name": "Kasa",
+    "parent_code": "10",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "101",
+    "name": "Alınan Çekler",
+    "parent_code": "10",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "102",
+    "name": "Bankalar",
+    "parent_code": "10",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "103",
+    "name": "Verilen Çekler ve Ödeme Emirleri (-)",
+    "parent_code": "10",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "108",
+    "name": "Diğer Hazır Değerler",
+    "parent_code": "10",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "11",
+    "name": "Menkul Kıymetler",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "110",
+    "name": "Hisse Senetleri",
+    "parent_code": "11",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "111",
+    "name": "Özel Kesim Tahvil, Senet ve Bonoları",
+    "parent_code": "11",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "112",
+    "name": "Kamu Kesimi Tahvil, Senet ve Bonoları",
+    "parent_code": "11",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "118",
+    "name": "Diğer Menkul Kıymetler",
+    "parent_code": "11",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "119",
+    "name": "Menkul Kıymetler Değer Düşüklüğü Karşılığı (-)",
+    "parent_code": "11",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "12",
+    "name": "Ticari Alacaklar",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "120",
+    "name": "Alıcılar",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "121",
+    "name": "Alacak Senetleri",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "122",
+    "name": "Alacak Senetleri Reeskontu (-)",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "124",
+    "name": "Kazanılmamış Finansal Kiralama Faiz Gelirleri (-)",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-11"
+  },
+  {
+    "code": "126",
+    "name": "Verilen Depozito ve Teminatlar",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "127",
+    "name": "Diğer Ticari Alacaklar",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "128",
+    "name": "Şüpheli Ticari Alacaklar",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "129",
+    "name": "Şüpheli Ticari Alacaklar Karşılığı (-)",
+    "parent_code": "12",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "13",
+    "name": "Diğer Alacaklar",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "131",
+    "name": "Ortaklardan Alacaklar",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "132",
+    "name": "İştiraklerden Alacaklar",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "133",
+    "name": "Bağlı Ortaklıklardan Alacaklar",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "135",
+    "name": "Personelden Alacaklar",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "136",
+    "name": "Diğer Çeşitli Alacaklar",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "137",
+    "name": "Diğer Alacak Senetleri Reeskontu (-)",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "138",
+    "name": "Şüpheli Diğer Alacaklar",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "139",
+    "name": "Şüpheli Diğer Alacaklar Karşılığı (-)",
+    "parent_code": "13",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "15",
+    "name": "Stoklar",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "150",
+    "name": "İlk Madde ve Malzeme",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "151",
+    "name": "Yarı Mamuller - Üretim",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "152",
+    "name": "Mamuller",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "153",
+    "name": "Ticari Mallar",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "157",
+    "name": "Diğer Stoklar",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "158",
+    "name": "Stok Değer Düşüklüğü Karşılığı (-)",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "159",
+    "name": "Verilen Sipariş Avansları",
+    "parent_code": "15",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "17",
+    "name": "Yıllara Yaygın İnşaat ve Onarım Maliyetleri",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "170",
+    "name": "Yıllara Yaygın İnşaat ve Onarım Maliyetleri",
+    "parent_code": "17",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "178",
+    "name": "Yıllara Yaygın İnşaat Enflasyon Düzeltme Hesabı",
+    "parent_code": "17",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "179",
+    "name": "Taşeronlara Verilen Avanslar",
+    "parent_code": "17",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "18",
+    "name": "Gelecek Aylara Ait Giderler ve Gelir Tahakkukları",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "180",
+    "name": "Gelecek Aylara Ait Giderler",
+    "parent_code": "18",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "181",
+    "name": "Gelir Tahakkukları",
+    "parent_code": "18",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "19",
+    "name": "Diğer Dönen Varlıklar",
+    "parent_code": "1",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "190",
+    "name": "Devreden Katma Değer Vergisi",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "191",
+    "name": "İndirilecek Katma Değer Vergisi",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "192",
+    "name": "Diğer Katma Değer Vergisi",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "193",
+    "name": "Peşin Ödenen Vergiler ve Fonlar",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "195",
+    "name": "İş Avansları",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "196",
+    "name": "Personel Avansları",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "197",
+    "name": "Sayım ve Tesellüm Noksanları",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "198",
+    "name": "Diğer Çeşitli Dönen Varlıklar",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "199",
+    "name": "Diğer Dönen Varlıklar Karşılığı (-)",
+    "parent_code": "19",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 1,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "2",
+    "name": "Duran Varlıklar",
+    "parent_code": null,
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "22",
+    "name": "Ticari Alacaklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "220",
+    "name": "Alıcılar",
+    "parent_code": "22",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "221",
+    "name": "Alacak Senetleri",
+    "parent_code": "22",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "222",
+    "name": "Alacak Senetleri Reeskontu (-)",
+    "parent_code": "22",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "224",
+    "name": "Kazanılmamış Finansal Kiralama Faiz Gelirleri (-)",
+    "parent_code": "22",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-11"
+  },
+  {
+    "code": "226",
+    "name": "Verilen Depozito ve Teminatlar",
+    "parent_code": "22",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "229",
+    "name": "Şüpheli Alacaklar Karşılığı (-)",
+    "parent_code": "22",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "23",
+    "name": "Diğer Alacaklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "231",
+    "name": "Ortaklardan Alacaklar",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "232",
+    "name": "İştiraklerden Alacaklar",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "233",
+    "name": "Bağlı Ortaklıklardan Alacaklar",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "235",
+    "name": "Personelden Alacaklar",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "236",
+    "name": "Diğer Çeşitli Alacaklar",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "237",
+    "name": "Diğer Alacak Senetleri Reeskontu (-)",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "239",
+    "name": "Şüpheli Diğer Alacaklar Karşılığı (-)",
+    "parent_code": "23",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "24",
+    "name": "Mali Duran Varlıklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "240",
+    "name": "Bağlı Menkul Kıymetler",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "241",
+    "name": "Bağlı Menkul Kıymetler Değer Düşüklüğü Karşılığı (-)",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "242",
+    "name": "İştirakler",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "243",
+    "name": "İştiraklere Sermaye Taahhütleri (-)",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "244",
+    "name": "İştirakler Sermaye Payları Değer Düşüklüğü Karşılığı (-)",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "245",
+    "name": "Bağlı Ortaklıklar",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "246",
+    "name": "Bağlı Ortaklıklara Sermaye Taahhütleri (-)",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "247",
+    "name": "Bağlı Ortaklıklar Sermaye Payları Değer Düşüklüğü Karşılığı (-)",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "248",
+    "name": "Diğer Mali Duran Varlıklar",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "249",
+    "name": "Diğer Mali Duran Varlıklar Karşılığı (-)",
+    "parent_code": "24",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "25",
+    "name": "Maddi Duran Varlıklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "250",
+    "name": "Arazi ve Arsalar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "251",
+    "name": "Yer Altı ve Yer Üstü Düzenleri",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "252",
+    "name": "Binalar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "253",
+    "name": "Tesis, Makine ve Cihazlar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "254",
+    "name": "Taşıtlar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "255",
+    "name": "Demirbaşlar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "256",
+    "name": "Diğer Maddi Duran Varlıklar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "257",
+    "name": "Birikmiş Amortismanlar (-)",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "258",
+    "name": "Yapılmakta Olan Yatırımlar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "259",
+    "name": "Verilen Avanslar",
+    "parent_code": "25",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "26",
+    "name": "Maddi Olmayan Duran Varlıklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "260",
+    "name": "Haklar",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "261",
+    "name": "Şerefiye",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "262",
+    "name": "Kuruluş ve Örgütlenme Giderleri",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "263",
+    "name": "Araştırma ve Geliştirme Giderleri",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "264",
+    "name": "Özel Maliyetler",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "267",
+    "name": "Diğer Maddi Olmayan Duran Varlıklar",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "268",
+    "name": "Birikmiş Amortismanlar (-)",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "269",
+    "name": "Verilen Avanslar",
+    "parent_code": "26",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "27",
+    "name": "Özel Tükenmeye Tabi Varlıklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "271",
+    "name": "Arama Giderleri",
+    "parent_code": "27",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "272",
+    "name": "Hazırlık ve Geliştirme Giderleri",
+    "parent_code": "27",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "277",
+    "name": "Diğer Özel Tükenmeye Tabi Varlıklar",
+    "parent_code": "27",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "278",
+    "name": "Birikmiş Tükenme Payları (-)",
+    "parent_code": "27",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "279",
+    "name": "Verilen Avanslar",
+    "parent_code": "27",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "28",
+    "name": "Gelecek Yıllara Ait Giderler ve Gelir Tahakkukları",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "280",
+    "name": "Gelecek Yıllara Ait Giderler",
+    "parent_code": "28",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "281",
+    "name": "Gelir Tahakkukları",
+    "parent_code": "28",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "29",
+    "name": "Diğer Duran Varlıklar",
+    "parent_code": "2",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "291",
+    "name": "Gelecek Yıllarda İndirilecek Katma Değer Vergisi",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "292",
+    "name": "Diğer Katma Değer Vergisi",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "293",
+    "name": "Gelecek Yıllar İhtiyacı Stoklar",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "294",
+    "name": "Elden Çıkarılacak Stoklar ve Maddi Duran Varlıklar",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "295",
+    "name": "Peşin Ödenen Vergiler ve Fonlar",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "297",
+    "name": "Diğer Çeşitli Duran Varlıklar",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "debit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "298",
+    "name": "Stok Değer Düşüklüğü Karşılığı (-)",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "299",
+    "name": "Birikmiş Amortismanlar (-)",
+    "parent_code": "29",
+    "type": "asset",
+    "normal_balance": "credit",
+    "tdhp_group": 2,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "3",
+    "name": "Kısa Vadeli Yabancı Kaynaklar",
+    "parent_code": null,
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "30",
+    "name": "Mali Borçlar",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "300",
+    "name": "Banka Kredileri",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "301",
+    "name": "Finansal Kiralama İşlemlerinden Borçlar",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-11"
+  },
+  {
+    "code": "302",
+    "name": "Ertelenmiş Finansal Kiralama Borçlanma Maliyetleri (-)",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-11"
+  },
+  {
+    "code": "303",
+    "name": "Uzun Vadeli Kredilerin Anapara Taksitleri ve Faizleri",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "304",
+    "name": "Tahvil Anapara Borç, Taksit ve Faizleri",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "305",
+    "name": "Çıkarılmış Bonolar ve Senetler",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "306",
+    "name": "Çıkarılmış Diğer Menkul Kıymetler",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "308",
+    "name": "Menkul Kıymetler İhraç Farkı (-)",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "309",
+    "name": "Diğer Mali Borçlar",
+    "parent_code": "30",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "32",
+    "name": "Ticari Borçlar",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "320",
+    "name": "Satıcılar",
+    "parent_code": "32",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "321",
+    "name": "Borç Senetleri",
+    "parent_code": "32",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "322",
+    "name": "Borç Senetleri Reeskontu (-)",
+    "parent_code": "32",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "326",
+    "name": "Alınan Depozito ve Teminatlar",
+    "parent_code": "32",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "329",
+    "name": "Diğer Ticari Borçlar",
+    "parent_code": "32",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "33",
+    "name": "Diğer Borçlar",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "331",
+    "name": "Ortaklara Borçlar",
+    "parent_code": "33",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "332",
+    "name": "İştiraklere Borçlar",
+    "parent_code": "33",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "333",
+    "name": "Bağlı Ortaklıklara Borçlar",
+    "parent_code": "33",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "335",
+    "name": "Personele Borçlar",
+    "parent_code": "33",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "336",
+    "name": "Diğer Çeşitli Borçlar",
+    "parent_code": "33",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "337",
+    "name": "Diğer Borç Senetleri Reeskontu (-)",
+    "parent_code": "33",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "34",
+    "name": "Alınan Avanslar",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "340",
+    "name": "Alınan Sipariş Avansları",
+    "parent_code": "34",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "349",
+    "name": "Alınan Diğer Avanslar",
+    "parent_code": "34",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "35",
+    "name": "Yıllara Yaygın İnşaat ve Onarım Hakedişleri",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "350",
+    "name": "Yıllara Yaygın İnşaat ve Onarım Hakediş Bedelleri",
+    "parent_code": "35",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "358",
+    "name": "Yıllara Yaygın İnşaat Enflasyon Düzeltme Hesabı",
+    "parent_code": "35",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "36",
+    "name": "Ödenecek Vergi ve Diğer Yükümlülükler",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "360",
+    "name": "Ödenecek Vergi ve Fonlar",
+    "parent_code": "36",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "361",
+    "name": "Ödenecek Sosyal Güvenlik Kesintileri",
+    "parent_code": "36",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "368",
+    "name": "Vadesi Geçmiş Ertelenmiş veya Taksitlendirilmiş Vergi ve Diğer Yükümlülükler",
+    "parent_code": "36",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "369",
+    "name": "Ödenecek Diğer Yükümlülükler",
+    "parent_code": "36",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "37",
+    "name": "Borç ve Gider Karşılıkları",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "370",
+    "name": "Dönem Kârı Vergi ve Diğer Yasal Yükümlülük Karşılıkları",
+    "parent_code": "37",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "371",
+    "name": "Dönem Kârının Peşin Ödenen Vergi ve Diğer Yükümlülükleri (-)",
+    "parent_code": "37",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "372",
+    "name": "Kıdem Tazminatı Karşılığı",
+    "parent_code": "37",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "373",
+    "name": "Maliyet Giderleri Karşılığı",
+    "parent_code": "37",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "379",
+    "name": "Diğer Borç ve Gider Karşılıkları",
+    "parent_code": "37",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "38",
+    "name": "Gelecek Aylara Ait Gelirler ve Gider Tahakkukları",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "380",
+    "name": "Gelecek Aylara Ait Gelirler",
+    "parent_code": "38",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "381",
+    "name": "Gider Tahakkukları",
+    "parent_code": "38",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "39",
+    "name": "Diğer Kısa Vadeli Yabancı Kaynaklar",
+    "parent_code": "3",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "391",
+    "name": "Hesaplanan KDV",
+    "parent_code": "39",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "392",
+    "name": "Diğer KDV",
+    "parent_code": "39",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "393",
+    "name": "Merkez ve Şubeler Cari Hesabı",
+    "parent_code": "39",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "397",
+    "name": "Sayım ve Tesellüm Fazlaları",
+    "parent_code": "39",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "399",
+    "name": "Diğer Çeşitli Yabancı Kaynaklar",
+    "parent_code": "39",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 3,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "4",
+    "name": "Uzun Vadeli Yabancı Kaynaklar",
+    "parent_code": null,
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "40",
+    "name": "Mali Borçlar",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "400",
+    "name": "Banka Kredileri",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "401",
+    "name": "Finansal Kiralama İşlemlerinden Borçlar",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-11"
+  },
+  {
+    "code": "402",
+    "name": "Ertelenmiş Finansal Kiralama Borçlanma Maliyetleri (-)",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-11"
+  },
+  {
+    "code": "405",
+    "name": "Çıkarılmış Tahviller",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "407",
+    "name": "Çıkarılmış Diğer Menkul Kıymetler",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "408",
+    "name": "Menkul Kıymetler İhraç Farkı (-)",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "409",
+    "name": "Diğer Mali Borçlar",
+    "parent_code": "40",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "42",
+    "name": "Ticari Borçlar",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "420",
+    "name": "Satıcılar",
+    "parent_code": "42",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "421",
+    "name": "Borç Senetleri",
+    "parent_code": "42",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "422",
+    "name": "Borç Senetleri Reeskontu (-)",
+    "parent_code": "42",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "426",
+    "name": "Alınan Depozito ve Teminatlar",
+    "parent_code": "42",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "429",
+    "name": "Diğer Ticari Borçlar",
+    "parent_code": "42",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "43",
+    "name": "Diğer Borçlar",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "431",
+    "name": "Ortaklara Borçlar",
+    "parent_code": "43",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "432",
+    "name": "İştiraklere Borçlar",
+    "parent_code": "43",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "433",
+    "name": "Bağlı Ortaklıklara Borçlar",
+    "parent_code": "43",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "436",
+    "name": "Diğer Çeşitli Borçlar",
+    "parent_code": "43",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": true
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "437",
+    "name": "Diğer Borç Senetleri Reeskontu (-)",
+    "parent_code": "43",
+    "type": "liability",
+    "normal_balance": "debit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "438",
+    "name": "Kamuya Olan Ertelenmiş veya Taksitlendirilmiş Borçlar",
+    "parent_code": "43",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "44",
+    "name": "Alınan Avanslar",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "440",
+    "name": "Alınan Sipariş Avansları",
+    "parent_code": "44",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "449",
+    "name": "Alınan Diğer Avanslar",
+    "parent_code": "44",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": true,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "47",
+    "name": "Borç ve Gider Karşılıkları",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "472",
+    "name": "Kıdem Tazminatı Karşılığı",
+    "parent_code": "47",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "479",
+    "name": "Diğer Borç ve Gider Karşılıkları",
+    "parent_code": "47",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "48",
+    "name": "Gelecek Yıllara Ait Gelirler ve Gider Tahakkukları",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "480",
+    "name": "Gelecek Yıllara Ait Gelirler",
+    "parent_code": "48",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "481",
+    "name": "Gider Tahakkukları",
+    "parent_code": "48",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "49",
+    "name": "Diğer Uzun Vadeli Yabancı Kaynaklar",
+    "parent_code": "4",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "492",
+    "name": "Gelecek Yıllara Ertelenen veya Terkin Edilecek Katma Değer Vergisi",
+    "parent_code": "49",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "493",
+    "name": "Tesise Katılma Payları",
+    "parent_code": "49",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "499",
+    "name": "Diğer Çeşitli Uzun Vadeli Yabancı Kaynaklar",
+    "parent_code": "49",
+    "type": "liability",
+    "normal_balance": "credit",
+    "tdhp_group": 4,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "5",
+    "name": "Özkaynaklar",
+    "parent_code": null,
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "50",
+    "name": "Ödenmiş Sermaye",
+    "parent_code": "5",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "500",
+    "name": "Sermaye",
+    "parent_code": "50",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "501",
+    "name": "Ödenmemiş Sermaye (-)",
+    "parent_code": "50",
+    "type": "equity",
+    "normal_balance": "debit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "502",
+    "name": "Sermaye Düzeltmesi Olumlu Farkları",
+    "parent_code": "50",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "503",
+    "name": "Sermaye Düzeltmesi Olumsuz Farkları (-)",
+    "parent_code": "50",
+    "type": "equity",
+    "normal_balance": "debit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "52",
+    "name": "Sermaye Yedekleri",
+    "parent_code": "5",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "520",
+    "name": "Hisse Senetleri İhraç Primleri",
+    "parent_code": "52",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "521",
+    "name": "Hisse Senedi İptal Kârları",
+    "parent_code": "52",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "522",
+    "name": "M.D.V. Yeniden Değerleme Artışları",
+    "parent_code": "52",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "523",
+    "name": "İştirakler Yeniden Değerleme Artışları",
+    "parent_code": "52",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "524",
+    "name": "Maliyet Bedeli Artışları Fonu",
+    "parent_code": "52",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "needs_review",
+    "source_ref": "MSUGT-4"
+  },
+  {
+    "code": "529",
+    "name": "Diğer Sermaye Yedekleri",
+    "parent_code": "52",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "54",
+    "name": "Kâr Yedekleri",
+    "parent_code": "5",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "540",
+    "name": "Yasal Yedekler",
+    "parent_code": "54",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "541",
+    "name": "Statü Yedekleri",
+    "parent_code": "54",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "542",
+    "name": "Olağanüstü Yedekler",
+    "parent_code": "54",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "548",
+    "name": "Diğer Kâr Yedekleri",
+    "parent_code": "54",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "549",
+    "name": "Özel Fonlar",
+    "parent_code": "54",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "57",
+    "name": "Geçmiş Yıllar Kârları",
+    "parent_code": "5",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "570",
+    "name": "Geçmiş Yıllar Kârları",
+    "parent_code": "57",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "58",
+    "name": "Geçmiş Yıllar Zararları (-)",
+    "parent_code": "5",
+    "type": "equity",
+    "normal_balance": "debit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "580",
+    "name": "Geçmiş Yıllar Zararları",
+    "parent_code": "58",
+    "type": "equity",
+    "normal_balance": "debit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "59",
+    "name": "Dönem Net Kârı (Zararı)",
+    "parent_code": "5",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "590",
+    "name": "Dönem Net Kârı",
+    "parent_code": "59",
+    "type": "equity",
+    "normal_balance": "credit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "591",
+    "name": "Dönem Net Zararı (-)",
+    "parent_code": "59",
+    "type": "equity",
+    "normal_balance": "debit",
+    "tdhp_group": 5,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "6",
+    "name": "Gelir Tablosu Hesapları",
+    "parent_code": null,
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "60",
+    "name": "Brüt Satışlar",
+    "parent_code": "6",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "600",
+    "name": "Yurtiçi Satışlar",
+    "parent_code": "60",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "601",
+    "name": "Yurtdışı Satışlar",
+    "parent_code": "60",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "602",
+    "name": "Diğer Gelirler",
+    "parent_code": "60",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "61",
+    "name": "Satış İndirimleri (-)",
+    "parent_code": "6",
+    "type": "revenue",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "610",
+    "name": "Satıştan İadeler (-)",
+    "parent_code": "61",
+    "type": "revenue",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "611",
+    "name": "Satış İskontoları (-)",
+    "parent_code": "61",
+    "type": "revenue",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "612",
+    "name": "Diğer İndirimler (-)",
+    "parent_code": "61",
+    "type": "revenue",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "62",
+    "name": "Satışların Maliyeti (-)",
+    "parent_code": "6",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "620",
+    "name": "Satılan Mamuller Maliyeti (-)",
+    "parent_code": "62",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "621",
+    "name": "Satılan Ticari Mallar Maliyeti (-)",
+    "parent_code": "62",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "622",
+    "name": "Satılan Hizmet Maliyeti (-)",
+    "parent_code": "62",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "623",
+    "name": "Diğer Satışların Maliyeti (-)",
+    "parent_code": "62",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "63",
+    "name": "Faaliyet Giderleri (-)",
+    "parent_code": "6",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "630",
+    "name": "Araştırma ve Geliştirme Giderleri (-)",
+    "parent_code": "63",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "631",
+    "name": "Pazarlama, Satış ve Dağıtım Giderleri (-)",
+    "parent_code": "63",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "632",
+    "name": "Genel Yönetim Giderleri (-)",
+    "parent_code": "63",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "64",
+    "name": "Diğer Faaliyetlerden Olağan Gelir ve Kârlar",
+    "parent_code": "6",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "640",
+    "name": "İştiraklerden Temettü Gelirleri",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "641",
+    "name": "Bağlı Ortaklıklardan Temettü Gelirleri",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "642",
+    "name": "Faiz Gelirleri",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "643",
+    "name": "Komisyon Gelirleri",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "644",
+    "name": "Konusu Kalmayan Karşılıklar",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "645",
+    "name": "Menkul Kıymet Satış Kârları",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "646",
+    "name": "Kambiyo Kârları",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "647",
+    "name": "Reeskont Faiz Gelirleri",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "648",
+    "name": "Enflasyon Düzeltmesi Kârları",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "649",
+    "name": "Diğer Olağan Gelir ve Kârlar",
+    "parent_code": "64",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "65",
+    "name": "Diğer Faaliyetlerden Olağan Gider ve Zararlar (-)",
+    "parent_code": "6",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "653",
+    "name": "Komisyon Giderleri (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "654",
+    "name": "Karşılık Giderleri (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "655",
+    "name": "Menkul Kıymet Satış Zararları (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "656",
+    "name": "Kambiyo Zararları (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "657",
+    "name": "Reeskont Faiz Giderleri (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "658",
+    "name": "Enflasyon Düzeltmesi Zararları (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "659",
+    "name": "Diğer Olağan Gider ve Zararlar (-)",
+    "parent_code": "65",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "66",
+    "name": "Finansman Giderleri (-)",
+    "parent_code": "6",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "660",
+    "name": "Kısa Vadeli Borçlanma Giderleri (-)",
+    "parent_code": "66",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "661",
+    "name": "Uzun Vadeli Borçlanma Giderleri (-)",
+    "parent_code": "66",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "67",
+    "name": "Olağandışı Gelir ve Kârlar",
+    "parent_code": "6",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "671",
+    "name": "Önceki Dönem Gelir ve Kârları",
+    "parent_code": "67",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "679",
+    "name": "Diğer Olağandışı Gelir ve Kârlar",
+    "parent_code": "67",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "68",
+    "name": "Olağandışı Gider ve Zararlar (-)",
+    "parent_code": "6",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "680",
+    "name": "Çalışmayan Kısım Gider ve Zararları (-)",
+    "parent_code": "68",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "681",
+    "name": "Önceki Dönem Gider ve Zararları (-)",
+    "parent_code": "68",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "689",
+    "name": "Diğer Olağandışı Gider ve Zararlar (-)",
+    "parent_code": "68",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "69",
+    "name": "Dönem Net Kârı (Zararı)",
+    "parent_code": "6",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "690",
+    "name": "Dönem Kârı veya Zararı",
+    "parent_code": "69",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "691",
+    "name": "Dönem Kârı Vergi ve Diğer Yasal Yükümlülük Karşılıkları (-)",
+    "parent_code": "69",
+    "type": "expense",
+    "normal_balance": "debit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "692",
+    "name": "Dönem Net Kârı veya Zararı",
+    "parent_code": "69",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "697",
+    "name": "Yıllara Yaygın İnşaat Enflasyon Düzeltme Hesabı",
+    "parent_code": "69",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "698",
+    "name": "Enflasyon Düzeltme Hesabı",
+    "parent_code": "69",
+    "type": "revenue",
+    "normal_balance": "credit",
+    "tdhp_group": 6,
+    "postable": true,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-12"
+  },
+  {
+    "code": "7",
+    "name": "Maliyet Hesapları",
+    "parent_code": null,
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "70",
+    "name": "Maliyet Muhasebesi Bağlantı Hesapları",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "700",
+    "name": "Maliyet Muhasebesi Bağlantı Hesabı",
+    "parent_code": "70",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "701",
+    "name": "Maliyet Muhasebesi Yansıtma Hesabı",
+    "parent_code": "70",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "71",
+    "name": "Direkt İlkmadde ve Malzeme Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "710",
+    "name": "Direkt İlkmadde ve Malzeme Giderleri",
+    "parent_code": "71",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "711",
+    "name": "Direkt İlkmadde ve Malzeme Yansıtma Hesabı",
+    "parent_code": "71",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "712",
+    "name": "Direkt İlkmadde ve Malzeme Fiyat Farkı",
+    "parent_code": "71",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "713",
+    "name": "Direkt İlkmadde ve Malzeme Miktar Farkı",
+    "parent_code": "71",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "72",
+    "name": "Direkt İşçilik Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "720",
+    "name": "Direkt İşçilik Giderleri",
+    "parent_code": "72",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "721",
+    "name": "Direkt İşçilik Giderleri Yansıtma Hesabı",
+    "parent_code": "72",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "722",
+    "name": "Direkt İşçilik Ücret Farkları",
+    "parent_code": "72",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "723",
+    "name": "Direkt İşçilik Süre (Zaman) Farkları",
+    "parent_code": "72",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "73",
+    "name": "Genel Üretim Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "730",
+    "name": "Genel Üretim Giderleri",
+    "parent_code": "73",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "731",
+    "name": "Genel Üretim Giderleri Yansıtma Hesabı",
+    "parent_code": "73",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "732",
+    "name": "Genel Üretim Giderleri Bütçe Farkları",
+    "parent_code": "73",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "733",
+    "name": "Genel Üretim Giderleri Verimlilik Farkları",
+    "parent_code": "73",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "734",
+    "name": "Genel Üretim Giderleri Kapasite Farkları",
+    "parent_code": "73",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "74",
+    "name": "Hizmet Üretim Maliyeti",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "740",
+    "name": "Hizmet Üretim Maliyeti",
+    "parent_code": "74",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "741",
+    "name": "Hizmet Üretim Maliyeti Yansıtma Hesabı",
+    "parent_code": "74",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "742",
+    "name": "Hizmet Üretim Maliyeti Fark Hesapları",
+    "parent_code": "74",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "75",
+    "name": "Araştırma ve Geliştirme Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "750",
+    "name": "Araştırma ve Geliştirme Giderleri",
+    "parent_code": "75",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "751",
+    "name": "Araştırma ve Geliştirme Giderleri Yansıtma Hesabı",
+    "parent_code": "75",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "752",
+    "name": "Araştırma ve Geliştirme Gider Farkları",
+    "parent_code": "75",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "76",
+    "name": "Pazarlama, Satış ve Dağıtım Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "760",
+    "name": "Pazarlama, Satış ve Dağıtım Giderleri",
+    "parent_code": "76",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "761",
+    "name": "Pazarlama, Satış ve Dağıtım Giderleri Yansıtma Hesabı",
+    "parent_code": "76",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "762",
+    "name": "Pazarlama, Satış ve Dağıtım Giderleri Fark Hesabı",
+    "parent_code": "76",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "77",
+    "name": "Genel Yönetim Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "770",
+    "name": "Genel Yönetim Giderleri",
+    "parent_code": "77",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "771",
+    "name": "Genel Yönetim Giderleri Yansıtma Hesabı",
+    "parent_code": "77",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "772",
+    "name": "Genel Yönetim Gider Farkları Hesabı",
+    "parent_code": "77",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "78",
+    "name": "Finansman Giderleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "780",
+    "name": "Finansman Giderleri",
+    "parent_code": "78",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "781",
+    "name": "Finansman Giderleri Yansıtma Hesabı",
+    "parent_code": "78",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "782",
+    "name": "Finansman Giderleri Fark Hesabı",
+    "parent_code": "78",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7A",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "79",
+    "name": "Gider Çeşitleri",
+    "parent_code": "7",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": false,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "790",
+    "name": "İlkmadde ve Malzeme Giderleri",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "791",
+    "name": "İşçi Ücret ve Giderleri",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "792",
+    "name": "Memur Ücret ve Giderleri",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-2"
+  },
+  {
+    "code": "793",
+    "name": "Dışarıdan Sağlanan Fayda ve Hizmetler",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "794",
+    "name": "Çeşitli Giderler",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "795",
+    "name": "Vergi, Resim ve Harçlar",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "796",
+    "name": "Amortismanlar ve Tükenme Payları",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "797",
+    "name": "Finansman Giderleri",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": true,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "798",
+    "name": "Gider Çeşitleri Yansıtma Hesabı",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "credit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "needs_review",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "799",
+    "name": "Üretim Maliyet Hesabı",
+    "parent_code": "79",
+    "type": "cost",
+    "normal_balance": "debit",
+    "tdhp_group": 7,
+    "postable": true,
+    "scheme": "7B",
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  },
+  {
+    "code": "9",
+    "name": "Nazım Hesaplar",
+    "parent_code": null,
+    "type": "memo",
+    "normal_balance": "debit",
+    "tdhp_group": 9,
+    "postable": false,
+    "scheme": null,
+    "flags": {
+      "requires_party": false,
+      "requires_cost_center": false,
+      "is_revaluable": false
+    },
+    "status": "verified",
+    "source_ref": "MSUGT-1"
+  }
+]
