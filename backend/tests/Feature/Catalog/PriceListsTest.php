@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Catalog\Models\PriceList;
 use App\Modules\Catalog\Models\PriceListLine;
+use App\Modules\Reference\Contracts\CurrencyLookup;
+use App\Modules\Reference\Database\seeders\ReferenceSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
@@ -12,6 +14,7 @@ use Tests\Support\Catalog\Catalog;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
+    $this->seed(ReferenceSeeder::class);
     $this->company = Actors::company();
     $this->manager = Actors::user(['price_lists.view', 'price_lists.create', 'price_lists.update', 'price_lists.delete']);
     $this->viewer = Actors::user(['price_lists.view']);
@@ -43,6 +46,14 @@ it('manages price lists and keeps one default per currency', function (): void {
 
     Catalog::as($this->manager, $this->company)->patchJson("/api/v1/price-lists/{$first}", ['is_default' => true, 'version' => 2])->assertOk();
     expect(Catalog::in($this->company, fn () => PriceList::query()->where('is_default', true)->orderBy('code')->pluck('id')->all()))->toBe([$first, $usd]);
+
+    // Currencies are checked through the Reference module; without it any ISO-shaped code is kept.
+    Catalog::post($this->manager, $this->company, 'price-lists', ['code' => 'XYZ-1', 'name' => 'x', 'currency_code' => 'XYZ'])
+        ->assertStatus(422)->assertJsonValidationErrors(['currency_code'], 'errors.fields');
+    $lookup = app(CurrencyLookup::class);
+    app()->offsetUnset(CurrencyLookup::class);
+    Catalog::post($this->manager, $this->company, 'price-lists', ['code' => 'XYZ-1', 'name' => 'x', 'currency_code' => 'XYZ'])->assertCreated();
+    app()->instance(CurrencyLookup::class, $lookup);
 
     Catalog::post($this->manager, $this->company, 'price-lists', ['code' => 'BAD', 'name' => 'x', 'currency_code' => 'try'])
         ->assertStatus(422)->assertJsonValidationErrors(['currency_code'], 'errors.fields');

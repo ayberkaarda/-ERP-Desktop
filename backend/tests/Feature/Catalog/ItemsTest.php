@@ -8,6 +8,9 @@ use App\Modules\Catalog\Events\ItemUpdated;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\ItemBarcode;
 use App\Modules\Identity\Models\Activity;
+use App\Modules\Reference\Contracts\TaxCodeLookup;
+use App\Modules\Reference\Database\seeders\ReferenceSeeder;
+use App\Modules\Reference\Models\TaxCode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -115,10 +118,21 @@ it('validates units, categories and tax codes', function (): void {
     Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => 'KDV20'])
         ->assertStatus(422)->assertJsonValidationErrors(['default_tax_code_id'], 'errors.fields');
 
-    // Tax codes are opaque ids until the Reference module provides its lookup.
-    $tax = (string) Str::uuid7();
-    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $tax])
-        ->assertCreated()->assertJsonPath('data.default_tax_code_id', $tax);
+    // Tax codes are checked through the Reference lookup (seeded official codes).
+    $this->seed(ReferenceSeeder::class);
+    $vat = TaxCode::query()->where('code', 'VAT20')->value('id');
+    $unknown = (string) Str::uuid7();
+    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $unknown])
+        ->assertStatus(422)->assertJsonValidationErrors(['default_tax_code_id'], 'errors.fields');
+    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $vat, 'purchase_tax_code_id' => $vat])
+        ->assertCreated()->assertJsonPath('data.default_tax_code_id', $vat);
+
+    // Without the Reference module the id is kept as an opaque uuid.
+    $lookup = app(TaxCodeLookup::class);
+    app()->offsetUnset(TaxCodeLookup::class);
+    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $unknown])
+        ->assertCreated()->assertJsonPath('data.default_tax_code_id', $unknown);
+    app()->instance(TaxCodeLookup::class, $lookup);
 
     $deleted = Catalog::unit($this->company, 'OLD');
     Catalog::in($this->company, fn () => $deleted->delete());
