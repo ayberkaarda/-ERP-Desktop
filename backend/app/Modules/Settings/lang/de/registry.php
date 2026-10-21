@@ -10,4 +10,7 @@ return [
     'security.require_two_factor' => 'Zwei-Faktor-Authentifizierung erzwingen',
     'notifications.email_enabled' => 'E-Mail-Benachrichtigungen',
     'company.base_currency' => 'Basiswährung',
+    'accounting.expense_scheme' => 'Aufwandsbuchungsschema',
+    'accounting.account_code_prefix_rule' => 'Kontonummern-Präfixregel erzwingen',
+    'accounting.closing_mapping' => 'Zuordnung des Jahresabschlusses',
 ];

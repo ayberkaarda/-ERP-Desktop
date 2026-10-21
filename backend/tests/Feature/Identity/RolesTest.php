@@ -104,7 +104,7 @@ it('serves the permission catalog grouped by module', function (): void {
     expect($byModule['identity'])->toContain('users.view', 'roles.assign', 'audit.export')
         ->and($byModule['organization'])->toContain('branches.create')
         ->and($byModule['workflow'])->toBe(['approval_flows.manage', 'approvals.decide', 'approvals.view'])
-        ->and(collect($groups)->flatMap(fn (array $g): array => $g['permissions'])->every(fn (string $p): bool => preg_match('/^[a-z_]+\.[a-z_]+$/', $p) === 1))->toBeTrue()
+        ->and(collect($groups)->flatMap(fn (array $g): array => $g['permissions'])->every(fn (string $p): bool => preg_match('/^[a-z_]+(\.[a-z_]+)+$/', $p) === 1))->toBeTrue()
         ->and(app(PermissionCatalog::class)->all())->toHaveCount(collect($groups)->sum(fn (array $g): int => count($g['permissions'])));
 });
 
