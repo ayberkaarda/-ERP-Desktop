@@ -22,6 +22,13 @@ final class PartyExport implements FromQuery, WithHeadings, WithMapping
         'default_currency_code', 'risk_limit', 'risk_currency_code', 'is_active', 'tags', 'created_at',
     ];
 
+    /** Only what is written (plus the key); notes and other wide columns are never loaded. */
+    public const array COLUMNS = [
+        'parties.id', 'parties.code', 'parties.name', 'parties.legal_name', 'parties.type', 'parties.roles',
+        'parties.tax_office', 'parties.tax_number', 'parties.country', 'parties.default_currency_code',
+        'parties.risk_limit', 'parties.risk_currency_code', 'parties.is_active', 'parties.tags', 'parties.created_at',
+    ];
+
     private const array TRIGGERS = ['=', '+', '-', '@', "\t", "\r", "\n"];
 
     /**

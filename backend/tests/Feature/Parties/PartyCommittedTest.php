@@ -15,6 +15,7 @@ use App\Modules\Parties\Models\Party;
 use App\Modules\Parties\Models\PartyContact;
 use App\Modules\Parties\Services\PartyChildService;
 use App\Modules\Parties\Services\PartyService;
+use App\Modules\Parties\Support\ExportSnapshot;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -120,4 +121,24 @@ it('makes concurrent party updates conflict instead of losing writes', function 
     expect(fn () => $this->service->update($stale, ['name' => 'Second writer', 'version' => 1]))
         ->toThrow(VersionConflictException::class);
     expect(Party::query()->findOrFail($party->id)->name)->toBe('First writer');
+});
+
+it('runs exports in one repeatable read snapshot', function (): void {
+    $this->service->create($this->data);
+    config(['database.connections.parties_lock' => config('database.connections.pgsql')]);
+    $this->locker = DB::connection('parties_lock');
+
+    [$level, $before, $after] = app(ExportSnapshot::class)->run(function (): array {
+        $level = DB::selectOne("select current_setting('transaction_isolation') as level")->level;
+        $before = Party::query()->count();
+        // A concurrent commit is invisible inside the snapshot.
+        $this->locker->table('parties')->insert([
+            'company_id' => $this->company, 'code' => 'X1', 'name' => 'Concurrent', 'type' => 'company', 'roles' => '["customer"]',
+        ]);
+
+        return [$level, $before, Party::query()->count()];
+    });
+
+    expect($level)->toBe('repeatable read')->and($before)->toBe(1)->and($after)->toBe(1)
+        ->and(Party::query()->count())->toBe(2);
 });

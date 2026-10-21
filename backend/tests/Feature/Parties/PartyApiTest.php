@@ -16,6 +16,7 @@ use App\Modules\Parties\Services\PartyService;
 use App\Modules\Parties\Validation\Tckn;
 use App\Modules\Parties\Validation\Vkn;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -106,7 +107,8 @@ it('refuses client codes and versions on create and needs an idempotency key', f
     expect(Party::withoutCompanyScope()->where('company_id', $this->company)->count())->toBe(1);
 });
 
-it('validates tax numbers by party type and country', function (array $override, ?string $field): void {
+it('validates tax numbers by party type and country', function (array $override, ?string $field, bool $unverified = false): void {
+    config(['parties.allow_unverified_references' => $unverified]);
     $response = partiesCreate($this->manager, $this->company, [...$this->payload, ...$override]);
 
     $field === null
@@ -131,11 +133,17 @@ it('validates tax numbers by party type and country', function (array $override,
     'bad payment term' => [['payment_term_id' => 'net-30'], 'payment_term_id'],
     'negative risk' => [['risk_limit' => '-1', 'risk_currency_code' => 'TRY'], 'risk_limit'],
     'risk without currency' => [['risk_limit' => '1000'], 'risk_currency_code'],
-    'risk with default currency' => [['risk_limit' => '1000', 'default_currency_code' => 'try'], null],
+    'risk with default currency' => [['risk_limit' => '1000', 'default_currency_code' => 'try'], null, true],
+    'unverifiable currency' => [['default_currency_code' => 'TRY'], 'default_currency_code'],
+    'unverifiable payment term' => [['payment_term_id' => '01890000-0000-7000-8000-000000000000'], 'payment_term_id'],
+    'unverifiable price list' => [['price_list_id' => '01890000-0000-7000-8000-000000000000'], 'price_list_id'],
+    'country with trailing newline' => [['country' => 'DE
+', 'tax_number' => 'X1', 'payment_term_id' => null], null],
     'too many tags' => [['tags' => array_map(fn (int $i): string => "t{$i}", range(1, 21))], 'tags'],
 ]);
 
 it('stores money as a scale 4 string and normalizes codes', function (): void {
+    config(['parties.allow_unverified_references' => true]);
     partiesCreate($this->manager, $this->company, [
         ...$this->payload, 'risk_limit' => 1500.5, 'risk_currency_code' => 'usd', 'default_currency_code' => 'eur',
         'tags' => ['vip', 'vip', 'north'], 'payment_term_id' => (string) Str::uuid7(),
@@ -398,4 +406,67 @@ it('generates valid tax numbers in the factory', function (): void {
         expect(Vkn::isValid(PartyFactory::vkn()))->toBeTrue()
             ->and(Tckn::isValid(PartyFactory::tckn()))->toBeTrue();
     }
+});
+
+it('treats spacing, case and separators of foreign tax numbers as the same number', function (): void {
+    $german = [...$this->payload, 'country' => 'DE', 'tax_number' => 'DE123456789'];
+    $id = partiesCreate($this->manager, $this->company, $german)->assertCreated()->json('data.id');
+
+    foreach (['de123456789', 'DE 123456789', 'DE-123.456/789'] as $variant) {
+        partiesCreate($this->manager, $this->company, [...$german, 'tax_number' => $variant])
+            ->assertStatus(422)->assertJsonValidationErrors(['tax_number'], 'errors.fields');
+    }
+
+    app(CompanyContext::class)->set($this->company);
+    expect(fn () => app(PartyService::class)->create([...$german, 'tax_number' => 'de 123 456 789']))
+        ->toThrow(ApiException::class);
+    expect(Party::query()->findOrFail($id)->tax_number_canonical)->toBe('DE123456789');
+
+    partiesAs($this->viewer)->getJson('/api/v1/parties/duplicates?tax_number=de+123.456.789&country=DE', partiesHeaders($this->company))
+        ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $id)->assertJsonPath('data.0.reasons', ['tax_number']);
+});
+
+it('authorizes deletes before validating the version', function (): void {
+    $party = partyIn($this->company);
+    $contact = app(CompanyContext::class)->runAs($this->company, fn () => $party->contacts()->create(['name' => 'C']));
+    $h = partiesHeaders($this->company);
+
+    partiesAs($this->viewer)->deleteJson("/api/v1/parties/{$party->id}", [], $h)->assertForbidden();
+    partiesAs($this->viewer)->deleteJson("/api/v1/parties/{$party->id}/contacts/{$contact->id}", [], $h)->assertForbidden();
+    partiesAs($this->member)->deleteJson("/api/v1/parties/{$party->id}", [], $h)->assertForbidden();
+    partiesAs($this->manager)->deleteJson("/api/v1/parties/{$this->foreignParty->id}", [], $h)->assertNotFound();
+    partiesAs($this->manager)->deleteJson("/api/v1/parties/{$party->id}", [], $h)->assertStatus(422);
+});
+
+it('reads exports in chunks of the exported columns only', function (): void {
+    partyIn($this->company, ['name' => 'Chunked', 'notes' => str_repeat('n', 5000)]);
+    $queries = [];
+    DB::listen(function ($query) use (&$queries): void {
+        $queries[] = $query->sql;
+    });
+
+    $csv = partiesAs($this->manager)->get('/api/v1/parties/export', partiesHeaders($this->company))->assertOk()->streamedContent();
+    $reads = array_values(array_filter($queries, fn (string $sql): bool => str_starts_with($sql, 'select') && str_contains($sql, 'from "parties"') && ! str_contains($sql, 'count(')));
+    $exportRead = end($reads);
+
+    expect($csv)->toContain('Chunked')->not->toContain('nnnnnnnn')
+        ->and($exportRead)->not->toContain('notes')->not->toContain('"parties".*')->not->toContain('select *')
+        ->and($exportRead)->toContain('limit 1000');
+});
+
+it('enforces the export cap inside the snapshot that is streamed', function (): void {
+    config(['parties.export_max_rows' => 2]);
+    partyIn($this->company, ['name' => 'Row One']);
+    partyIn($this->company, ['name' => 'Row Two']);
+    $h = partiesHeaders($this->company);
+
+    $response = partiesAs($this->manager)->get('/api/v1/parties/export', $h)->assertOk();
+    // Rows that arrive after the first check but before streaming must not slip past the cap.
+    partyIn($this->company, ['name' => 'Row Three']);
+    $csv = $response->streamedContent();
+
+    expect($csv)->toContain(__('parties::messages.export_too_large', ['max' => 2]))->not->toContain('Row One');
+
+    partiesAs($this->manager)->get('/api/v1/parties/export', $h)->assertStatus(422);
+    partiesAs($this->manager)->get('/api/v1/parties/export?format=xlsx', $h)->assertStatus(422);
 });
