@@ -52,7 +52,8 @@ final class CreditControl
             return new CreditCheck($mode->value, null, $exposure->currency, $exposure->total, (string) $document, (string) $total, null, false);
         }
 
-        $exceeded = $total->isGreaterThan($exposure->limit);
+        // A document that adds nothing (an invoice of already confirmed order value) never trips the limit again.
+        $exceeded = $document->isPositive() && $total->isGreaterThan($exposure->limit);
         $reason = $overrideReason === null ? null : trim($overrideReason);
         $overridden = $exceeded && $canOverride && $reason !== null && $reason !== '';
         $check = new CreditCheck($mode->value, $exposure->limit, $exposure->currency, $exposure->total, (string) $document, (string) $total,

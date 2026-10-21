@@ -110,3 +110,30 @@ it('accepts attachments on every sales document type by morph alias', function (
         ->assertStatus(422);
     expect(File::query()->withoutCompanyScope()->count())->toBe(5);
 });
+
+it('issues an invoice of overridden order value without asking for another override', function (): void {
+    SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'block');
+    $this->w->user = SalesKit::user(['sales.credit_override']);
+    DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '1000']);
+    $order = SalesKit::post($this->w->user, $this->w->company, 'sales-orders', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-10',
+        'lines' => [['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '1000']],
+    ])->assertCreated()->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertStatus(422)
+        ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded');
+    SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm", ['credit_override_reason' => 'Guarantee letter received'])
+        ->assertOk()->assertJsonPath('data.status', 'confirmed');
+
+    $invoice = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/invoices", ['document_date' => '2027-06-12'])
+        ->assertCreated()->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/issue")->assertOk()
+        ->assertJsonPath('data.status', 'issued');
+
+    // A new direct invoice adds exposure and is still blocked.
+    $direct = SalesKit::post($this->w->user, $this->w->company, 'sales-invoices', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-12',
+        'lines' => [['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '10']],
+    ])->assertCreated()->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$direct['id']}/issue")->assertStatus(422)
+        ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded');
+});
