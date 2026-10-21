@@ -28,10 +28,10 @@ final class SalesReportKit
     /**
      * @return object{w: object, beta: Party, o1: array<string, mixed>, o2: array<string, mixed>, d1: array<string, mixed>, d2: array<string, mixed>, inv1: array<string, mixed>, inv2: array<string, mixed>, inv3: array<string, mixed>, crn: array<string, mixed>}
      */
-    public static function history(): object
+    public static function history(array $permissions = []): object
     {
         $w = SalesKit::world();
-        $user = SalesKit::user(['sales.reports.view']);
+        $user = SalesKit::user(['sales.reports.view', ...$permissions]);
         $w->user = $user;
         $beta = SalesKit::party($w->company, ['name' => 'Beta']);
 
