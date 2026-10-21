@@ -19,7 +19,7 @@
     "activate": "Aktivieren",
     "deactivate": "Deaktivieren",
     "bulkDone": "{{count}} Geschäftspartner aktualisiert.",
-    "bulkFailed": "{{count}} Geschäftspartner konnten nicht aktualisiert werden."
+    "bulkFailed": "{{count}} Geschäftspartner konnten nicht aktualisiert werden; sie bleiben für einen neuen Versuch ausgewählt."
   },
   "fields": {
     "code": "Nummer",
@@ -73,7 +73,9 @@
     "ibanTrFormat": "Ungültiger TR-IBAN-Aufbau (26 Zeichen, Reservestelle 0).",
     "ibanChecksum": "Die IBAN-Prüfziffern stimmen nicht.",
     "swift": "Ein SWIFT-Code hat 8 oder 11 Zeichen.",
-    "tooLong": "Der Text ist zu lang."
+    "tooLong": "Der Text ist zu lang.",
+    "ibanCountry": "Für diesen Ländercode gibt es keine IBAN.",
+    "ibanBban": "Der Bank-/Kontoteil entspricht nicht dem IBAN-Aufbau dieses Landes."
   },
   "form": {
     "createTitle": "Neuer Geschäftspartner",
@@ -88,7 +90,8 @@
     "created": "Geschäftspartner angelegt: {{code}}",
     "saved": "Änderungen gespeichert.",
     "saveFailed": "Speichern fehlgeschlagen.",
-    "subresourcesAfterCreate": "Adressen, Kontakte und Bankverbindungen werden nach dem Speichern erfasst."
+    "subresourcesAfterCreate": "Adressen, Kontakte und Bankverbindungen werden nach dem Speichern erfasst.",
+    "changedElsewhere": "Der Datensatz wurde während Ihrer Bearbeitung von jemand anderem geändert. Beim Speichern wird ein Konflikt gemeldet; Sie können den aktuellen Stand laden."
   },
   "duplicates": {
     "title": "Ähnliche Geschäftspartner vorhanden",
@@ -145,7 +148,8 @@
     "makePrimary": "Als Hauptkontakt",
     "rowLabel": "Zeile {{index}}",
     "newRow": "Neue Zeile",
-    "keyboardHint": "Enter speichert, Esc bricht ab."
+    "keyboardHint": "Enter speichert, Esc bricht ab.",
+    "changedElsewhere": "Diese Zeile wurde anderswo geändert; Speichern meldet einen Konflikt."
   },
   "address": {
     "empty": "Keine Adressen.",

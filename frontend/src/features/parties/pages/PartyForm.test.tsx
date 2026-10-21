@@ -56,13 +56,33 @@ describe('party create form', () => {
     await user.click(screen.getByRole('button', { name: 'Oluştur' }))
     await waitFor(() => expect(router.state.location.pathname).toMatch(/^\/parties\/.+\/edit$/))
     const posts = db.calls.filter((c) => c.method === 'POST')
-    // Retrying the same logical submit reuses the key.
-    expect(posts.at(-1)?.headers.get('Idempotency-Key')).toBe(firstKey)
+    // The payload changed (tax number removed), so the key is new.
+    expect(posts.at(-1)?.headers.get('Idempotency-Key')).not.toBe(firstKey)
     expect(db.parties.find((p) => p.name === 'Yeni Firma')).toMatchObject({
       roles: ['customer'],
       country: 'TR',
       tax_number: null,
     })
+  })
+
+  it('replays an identical retry after a lost response instead of creating twice', async () => {
+    const db = setupParties({ dropNextCreateResponse: true })
+    const user = userEvent.setup()
+    const { router } = renderParties('/parties/new')
+    await user.type(await findName(), 'Kayıp Yanıt Ltd')
+    await user.click(screen.getByRole('button', { name: 'Oluştur' }))
+    // The server stored the party but the response never arrived.
+    await waitFor(() => expect(db.parties).toHaveLength(1))
+    expect(router.state.location.pathname).toBe('/parties/new')
+
+    await user.click(await screen.findByRole('button', { name: 'Oluştur' }))
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/\/edit$/))
+    const keys = db.calls
+      .filter((c) => c.method === 'POST')
+      .map((c) => c.headers.get('Idempotency-Key'))
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
+    expect(db.parties).toHaveLength(1)
   })
 
   it('requires a role', async () => {
@@ -101,5 +121,29 @@ describe('party edit form', () => {
     expect(await screen.findByText('Değişiklikler kaydedildi.')).toBeInTheDocument()
     const patches = db.calls.filter((c) => c.method === 'PATCH')
     expect((patches.at(-1)?.body as { version: number }).version).toBe(4)
+  })
+
+  it('keeps the edit session version when a background refetch brings a newer copy', async () => {
+    const party = makeParty({ name: 'Ege Tekstil', version: 3 })
+    const db = setupParties({ parties: [party] })
+    const user = userEvent.setup()
+    const { queryClient } = renderParties(`/parties/${party.id}/edit`)
+    const name = await findName()
+    await user.clear(name)
+    await user.type(name, 'Benim değişikliğim')
+
+    Object.assign(db.parties[0] as object, { notes: 'başkası', version: 4 })
+    await queryClient.invalidateQueries()
+    expect(
+      await screen.findByText(/siz düzenlerken başka biri tarafından değiştirildi/),
+    ).toBeInTheDocument()
+    // The typed text survives the refetch.
+    expect(getName()).toHaveValue('Benim değişikliğim')
+
+    await user.click(screen.getByRole('button', { name: 'Kaydet' }))
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    const patch = db.calls.filter((c) => c.method === 'PATCH').at(-1)
+    expect((patch?.body as { version: number }).version).toBe(3)
+    expect(db.parties[0]?.notes).toBe('başkası')
   })
 })

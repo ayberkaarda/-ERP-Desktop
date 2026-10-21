@@ -76,6 +76,41 @@ describe('PartyListPage', () => {
     expect(db.parties.filter((p) => !p.is_active)).toHaveLength(3)
   })
 
+  it('keeps the selection after a partial bulk failure and retries only the failed party', async () => {
+    const parties = seed()
+    const failing = must(parties[1])
+    const db = setupParties({ parties, failPatchIds: new Set([failing.id]) })
+    const user = userEvent.setup()
+    renderParties('/parties')
+    await screen.findByRole('grid', { name: 'Cari listesi' })
+    await within(grid()).findByText('Anadolu Makina')
+
+    const row = (name: string) =>
+      must(
+        within(grid())
+          .getAllByRole('row')
+          .find((r) => within(r).queryByText(name)),
+      )
+    await user.click(within(row('Anadolu Makina')).getByRole('checkbox'))
+    await user.click(within(row('Ege Tekstil')).getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Pasifleştir' }))
+
+    expect(await screen.findByText(/1 cari güncellenemedi/)).toBeInTheDocument()
+    expect(screen.getByText('2 kayıt seçildi')).toBeInTheDocument()
+
+    db.failPatchIds.clear()
+    const before = db.calls.filter((c) => c.method === 'PATCH').length
+    // Wait for the refreshed list so the retry knows which parties are already inactive.
+    await waitFor(() =>
+      expect(within(row('Anadolu Makina')).getByText('Pasif')).toBeInTheDocument(),
+    )
+    await user.click(screen.getByRole('button', { name: 'Pasifleştir' }))
+    await waitFor(() => expect(screen.queryByText('2 kayıt seçildi')).not.toBeInTheDocument())
+    const retried = db.calls.filter((c) => c.method === 'PATCH').slice(before)
+    expect(retried.map((c) => c.path)).toEqual([`/api/v1/parties/${failing.id}`])
+    expect(db.parties.find((p) => p.id === failing.id)?.is_active).toBe(false)
+  })
+
   it('hides create and bulk selection without permissions', async () => {
     setupParties({ parties: seed() }, ['parties.view'])
     renderParties('/parties')

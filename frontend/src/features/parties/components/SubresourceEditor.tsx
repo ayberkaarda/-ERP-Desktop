@@ -20,10 +20,11 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { applyServerErrors, readServerError } from '@/lib/forms/serverErrors'
 import { translateMessage } from '@/lib/forms/translate'
-import { createIdempotencyKey, platform } from '@/platform'
+import { platform } from '@/platform'
 import { cn } from '@/lib/utils'
 import type { SubresourceKind } from '../api/parties'
 import { isVersionConflict } from '../hooks/useParties'
+import { usePayloadKeys } from '../lib/idempotency'
 import { useSubresource, type DefaultRule, type SubRow } from '../hooks/useSubresource'
 
 export interface EditorColumn<V> {
@@ -55,7 +56,8 @@ export interface SubresourceEditorProps<T extends SubRow, V extends FieldValues>
   canEdit: boolean
 }
 
-type Editing = { mode: 'new' } | { mode: 'edit'; id: string } | null
+// An edit session pins the version the form was opened with; a refetch never swaps it silently.
+type Editing = { mode: 'new' } | { mode: 'edit'; id: string; version: number | undefined } | null
 
 export function SubresourceEditor<T extends SubRow, V extends FieldValues>(
   props: SubresourceEditorProps<T, V>,
@@ -165,11 +167,12 @@ export function SubresourceEditor<T extends SubRow, V extends FieldValues>(
               label={t('sub.rowLabel', { index: index + 1 })}
               initial={props.toValues(row)}
               busy={update.isPending}
+              stale={row.version !== editing.version}
               onCancel={close}
               onSave={async (values) => {
                 await update.mutateAsync({
                   id: row.id,
-                  input: { ...props.toInput(values), version: row.version },
+                  input: { ...props.toInput(values), version: editing.version },
                 })
                 platform.notify.success(t('sub.saved'))
                 close()
@@ -205,7 +208,7 @@ export function SubresourceEditor<T extends SubRow, V extends FieldValues>(
                     variant="ghost"
                     aria-label={`${t('sub.edit')}: ${t('sub.rowLabel', { index: index + 1 })}`}
                     disabled={editing !== null}
-                    onClick={() => setEditing({ mode: 'edit', id: row.id })}
+                    onClick={() => setEditing({ mode: 'edit', id: row.id, version: row.version })}
                   >
                     <Pencil aria-hidden="true" />
                   </Button>
@@ -231,7 +234,7 @@ export function SubresourceEditor<T extends SubRow, V extends FieldValues>(
             busy={create.isPending}
             onCancel={close}
             onSave={async (values, idemKey) => {
-              await create.mutateAsync({ input: props.toInput(values), idemKey })
+              await create.mutateAsync({ input: props.toInput(values), idemKey: idemKey ?? '' })
               platform.notify.success(t('sub.saved'))
               close()
             }}
@@ -302,7 +305,9 @@ interface RowEditorProps<T extends SubRow, V extends FieldValues> extends Subres
   label: string
   initial: V
   busy: boolean
-  onSave: (values: V, idemKey: string) => Promise<void>
+  /** Set when the row changed on the server after editing started. */
+  stale?: boolean
+  onSave: (values: V, idemKey?: string) => Promise<void>
   onCancel: () => void
   onConflict: () => void
 }
@@ -315,13 +320,15 @@ function RowEditor<T extends SubRow, V extends FieldValues>({
   label,
   initial,
   busy,
+  stale = false,
+  toInput,
   onSave,
   onCancel,
   onConflict,
 }: RowEditorProps<T, V>) {
   const { t, i18n } = useTranslation('parties')
-  // One key per opened editor: a retried save of the same row replays instead of duplicating.
-  const [idemKey] = useState(createIdempotencyKey)
+  // Keys follow the payload: an identical retry replays, an edited row gets a new key.
+  const keyFor = usePayloadKeys()
   const form = useForm<V>({
     resolver: zodResolver(schema as never) as unknown as Resolver<V>,
     defaultValues: initial as DefaultValues<V>,
@@ -330,7 +337,7 @@ function RowEditor<T extends SubRow, V extends FieldValues>({
 
   const submit = form.handleSubmit(async (values) => {
     try {
-      await onSave(values, idemKey)
+      await onSave(values, keyFor(toInput(values)))
     } catch (error) {
       if (isVersionConflict(error)) {
         onConflict()
@@ -437,6 +444,12 @@ function RowEditor<T extends SubRow, V extends FieldValues>({
         <Button size="sm" variant="ghost" onClick={onCancel}>
           {t('sub.cancel')}
         </Button>
+        <p
+          role="status"
+          className="mt-1 max-w-48 text-left text-2xs text-warning whitespace-normal"
+        >
+          {stale ? t('sub.changedElsewhere') : ''}
+        </p>
       </td>
     </tr>
   )

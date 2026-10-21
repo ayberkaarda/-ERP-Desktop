@@ -165,8 +165,14 @@ export function PartyListPage() {
     const known = new Map(rows.map((r) => [r.id, r]))
     const result = await bulk.mutateAsync({ ids, active, known })
     if (result.ok > 0) platform.notify.success(t('list.bulkDone', { count: result.ok }))
-    if (result.failed > 0) platform.notify.error(t('list.bulkFailed', { count: result.failed }))
-    clear()
+    if (result.failed > 0) {
+      // Selection stays so the user can retry; parties already in the target state are skipped,
+      // so a retry only re-sends the failed ones.
+      platform.notify.error(t('list.bulkFailed', { count: result.failed }))
+    } else {
+      clear()
+    }
+    return result.failedIds
   }
 
   return (

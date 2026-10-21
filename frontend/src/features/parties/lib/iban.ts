@@ -1,34 +1,5 @@
 // Client copy of the server rule; the API stays authoritative.
-
-/** Fixed lengths for common countries; others are only checked against 15..34. */
-const LENGTHS: Readonly<Record<string, number>> = {
-  AT: 20,
-  BE: 16,
-  BG: 22,
-  CH: 21,
-  CY: 28,
-  CZ: 24,
-  DE: 22,
-  DK: 18,
-  ES: 24,
-  FI: 18,
-  FR: 27,
-  GB: 22,
-  GE: 22,
-  GR: 27,
-  HU: 28,
-  IE: 22,
-  IT: 27,
-  LU: 20,
-  NL: 18,
-  NO: 15,
-  PL: 28,
-  PT: 25,
-  RO: 24,
-  SE: 24,
-  TR: 26,
-  UA: 29,
-}
+import { ibanLayout } from './ibanRegistry'
 
 /** Uppercase without spaces, as stored by the API. */
 export function normalizeIban(value: string): string {
@@ -52,19 +23,19 @@ export function ibanMod97(iban: string): number {
   return remainder
 }
 
-export type IbanProblem = 'format' | 'length' | 'trFormat' | 'checksum'
+export type IbanProblem = 'format' | 'country' | 'length' | 'bban' | 'trFormat' | 'checksum'
 
-/** Null when valid, else the first rule broken. */
+/** Null when valid, else the first rule broken (registry country, length, BBAN, checksum). */
 export function ibanProblem(value: string): IbanProblem | null {
   const iban = normalizeIban(value)
   if (!/^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(iban)) return 'format'
   const country = iban.slice(0, 2)
-  const expected = LENGTHS[country]
-  const lengthOk =
-    expected !== undefined ? iban.length === expected : iban.length >= 15 && iban.length <= 34
-  if (!lengthOk) return 'length'
-  // TR layout: 5-digit bank code, reserved 0, 16-digit account.
-  if (country === 'TR' && !/^TR\d{7}0\d{16}$/.test(iban)) return 'trFormat'
+  const layout = ibanLayout(country)
+  if (!layout) return 'country'
+  if (iban.length !== layout.length) return 'length'
+  if (!layout.bban.test(iban.slice(4))) return 'bban'
+  // TR: the digit after the 5-digit bank code is reserved and always 0.
+  if (country === 'TR' && iban[9] !== '0') return 'trFormat'
   return ibanMod97(iban) === 1 ? null : 'checksum'
 }
 

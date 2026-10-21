@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Dialog,
@@ -7,8 +6,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { createIdempotencyKey, platform } from '@/platform'
+import { platform } from '@/platform'
 import { useCreateParty } from '../hooks/useParties'
+import { usePayloadKeys } from '../lib/idempotency'
 import { emptyPartyValues, formValuesToInput } from '../schemas/party'
 import type { Party, PartyRole } from '../types'
 import { PartyForm } from './PartyForm'
@@ -47,7 +47,7 @@ function QuickCreateBody({
   onDone,
 }: Omit<PartyQuickCreateProps, 'open' | 'onOpenChange'> & { onDone: () => void }) {
   const { t } = useTranslation('parties')
-  const [key] = useState(createIdempotencyKey)
+  const keyFor = usePayloadKeys()
   const create = useCreateParty()
   return (
     <PartyForm
@@ -57,9 +57,10 @@ function QuickCreateBody({
       submitting={create.isPending}
       serverError={create.error}
       onCancel={onDone}
-      onSubmit={(values) =>
+      onSubmit={(values) => {
+        const input = formValuesToInput(values)
         create.mutate(
-          { input: formValuesToInput(values), key },
+          { input, key: keyFor(input) },
           {
             onSuccess: (party) => {
               platform.notify.success(t('form.created', { code: party.code }))
@@ -68,7 +69,7 @@ function QuickCreateBody({
             },
           },
         )
-      }
+      }}
     />
   )
 }

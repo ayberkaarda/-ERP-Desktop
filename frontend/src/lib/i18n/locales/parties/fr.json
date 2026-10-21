@@ -19,7 +19,7 @@
     "activate": "Activer",
     "deactivate": "Désactiver",
     "bulkDone": "{{count}} tiers mis à jour.",
-    "bulkFailed": "{{count}} tiers n'ont pas pu être mis à jour."
+    "bulkFailed": "{{count}} tiers n'ont pas pu être mis à jour ; ils restent sélectionnés pour réessayer."
   },
   "fields": {
     "code": "Code",
@@ -73,7 +73,9 @@
     "ibanTrFormat": "Structure d'IBAN TR invalide (26 caractères, chiffre réservé 0).",
     "ibanChecksum": "Les chiffres de contrôle de l'IBAN sont incorrects.",
     "swift": "Un code SWIFT comporte 8 ou 11 caractères.",
-    "tooLong": "Le texte est trop long."
+    "tooLong": "Le texte est trop long.",
+    "ibanCountry": "Ce code pays n'utilise pas d'IBAN.",
+    "ibanBban": "La partie banque/compte ne correspond pas au format IBAN de ce pays."
   },
   "form": {
     "createTitle": "Nouveau tiers",
@@ -88,7 +90,8 @@
     "created": "Tiers créé : {{code}}",
     "saved": "Modifications enregistrées.",
     "saveFailed": "Enregistrement impossible.",
-    "subresourcesAfterCreate": "Les adresses, contacts et comptes bancaires s'ajoutent après l'enregistrement."
+    "subresourcesAfterCreate": "Les adresses, contacts et comptes bancaires s'ajoutent après l'enregistrement.",
+    "changedElsewhere": "Quelqu'un d'autre a modifié cette fiche pendant votre saisie. L'enregistrement signalera un conflit ; vous pouvez charger la dernière version."
   },
   "duplicates": {
     "title": "Des tiers similaires existent",
@@ -145,7 +148,8 @@
     "makePrimary": "Définir principal",
     "rowLabel": "Ligne {{index}}",
     "newRow": "Nouvelle ligne",
-    "keyboardHint": "Entrée enregistre, Échap annule."
+    "keyboardHint": "Entrée enregistre, Échap annule.",
+    "changedElsewhere": "Cette ligne a été modifiée ailleurs ; l'enregistrement signalera un conflit."
   },
   "address": {
     "empty": "Aucune adresse.",

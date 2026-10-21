@@ -19,7 +19,7 @@
     "activate": "Aktifleştir",
     "deactivate": "Pasifleştir",
     "bulkDone": "{{count}} cari güncellendi.",
-    "bulkFailed": "{{count}} cari güncellenemedi."
+    "bulkFailed": "{{count}} cari güncellenemedi; seçili bırakıldı, yeniden deneyebilirsiniz."
   },
   "fields": {
     "code": "Kod",
@@ -73,7 +73,9 @@
     "ibanTrFormat": "TR IBAN biçimi hatalı (26 karakter, rezerv hane 0).",
     "ibanChecksum": "IBAN kontrol haneleri tutmuyor.",
     "swift": "SWIFT kodu 8 ya da 11 karakter olmalı.",
-    "tooLong": "Metin çok uzun."
+    "tooLong": "Metin çok uzun.",
+    "ibanCountry": "Bu ülke kodu için IBAN tanımlı değil.",
+    "ibanBban": "IBAN içindeki banka/hesap bölümü bu ülkenin biçimine uymuyor."
   },
   "form": {
     "createTitle": "Yeni cari",
@@ -88,7 +90,8 @@
     "created": "Cari oluşturuldu: {{code}}",
     "saved": "Değişiklikler kaydedildi.",
     "saveFailed": "Kaydedilemedi.",
-    "subresourcesAfterCreate": "Adres, kişi ve banka hesapları kayıttan sonra eklenir."
+    "subresourcesAfterCreate": "Adres, kişi ve banka hesapları kayıttan sonra eklenir.",
+    "changedElsewhere": "Bu kayıt siz düzenlerken başka biri tarafından değiştirildi. Kaydederseniz çakışma uyarısı alırsınız; son hâli yükleyebilirsiniz."
   },
   "duplicates": {
     "title": "Benzer cari kayıtları var",
@@ -145,7 +148,8 @@
     "makePrimary": "Birincil yap",
     "rowLabel": "{{index}}. satır",
     "newRow": "Yeni satır",
-    "keyboardHint": "Enter kaydeder, Esc vazgeçer."
+    "keyboardHint": "Enter kaydeder, Esc vazgeçer.",
+    "changedElsewhere": "Bu satır başka yerde değiştirildi; kaydetmek çakışma verecek."
   },
   "address": {
     "empty": "Adres yok.",

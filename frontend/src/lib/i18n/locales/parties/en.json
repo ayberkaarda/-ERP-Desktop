@@ -19,7 +19,7 @@
     "activate": "Activate",
     "deactivate": "Deactivate",
     "bulkDone": "{{count}} parties updated.",
-    "bulkFailed": "{{count}} parties could not be updated."
+    "bulkFailed": "{{count}} parties could not be updated; they stay selected so you can retry."
   },
   "fields": {
     "code": "Code",
@@ -73,7 +73,9 @@
     "ibanTrFormat": "Invalid TR IBAN layout (26 characters, reserved digit 0).",
     "ibanChecksum": "IBAN check digits do not match.",
     "swift": "A SWIFT code has 8 or 11 characters.",
-    "tooLong": "Text is too long."
+    "tooLong": "Text is too long.",
+    "ibanCountry": "This country code has no IBAN.",
+    "ibanBban": "The bank/account part does not match this country's IBAN layout."
   },
   "form": {
     "createTitle": "New party",
@@ -88,7 +90,8 @@
     "created": "Party created: {{code}}",
     "saved": "Changes saved.",
     "saveFailed": "Could not save.",
-    "subresourcesAfterCreate": "Addresses, contacts and bank accounts are added after saving."
+    "subresourcesAfterCreate": "Addresses, contacts and bank accounts are added after saving.",
+    "changedElsewhere": "Someone else changed this record while you were editing. Saving will report a conflict; you can load the latest version."
   },
   "duplicates": {
     "title": "Similar parties exist",
@@ -145,7 +148,8 @@
     "makePrimary": "Make primary",
     "rowLabel": "Row {{index}}",
     "newRow": "New row",
-    "keyboardHint": "Enter saves, Esc cancels."
+    "keyboardHint": "Enter saves, Esc cancels.",
+    "changedElsewhere": "This row was changed elsewhere; saving will report a conflict."
   },
   "address": {
     "empty": "No addresses.",

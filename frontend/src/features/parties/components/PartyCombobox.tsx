@@ -74,6 +74,7 @@ export function PartyCombobox({
           placeholder={props.placeholder ?? t('combobox.placeholder')}
           value={value}
           initialOption={current ? toOption(current) : null}
+          scopeKey={role ?? ''}
           loadOptions={loadOptions}
           onChange={(id) => {
             const party = id ? (loaded.current.get(id) ?? null) : null

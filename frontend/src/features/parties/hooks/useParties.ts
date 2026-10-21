@@ -80,6 +80,8 @@ export function useDeleteParty() {
 export interface BulkResult {
   ok: number
   failed: number
+  /** Parties to retry; already-updated ones are skipped on a retry. */
+  failedIds: string[]
 }
 
 /** No bulk endpoint: one PATCH per party, each with its own current version. */
@@ -108,8 +110,8 @@ export function useBulkSetActive() {
           queryClient.setQueryData(partyKeys.detail(companyId, r.value.id), r.value)
         }
       }
-      const ok = results.filter((r) => r.status === 'fulfilled').length
-      return { ok, failed: results.length - ok }
+      const failedIds = ids.filter((_, i) => results[i]?.status === 'rejected')
+      return { ok: ids.length - failedIds.length, failed: failedIds.length, failedIds }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: partyKeys.lists(companyId) }),
   })

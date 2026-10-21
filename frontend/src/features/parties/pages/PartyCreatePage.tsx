@@ -1,18 +1,18 @@
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { createIdempotencyKey, platform } from '@/platform'
+import { platform } from '@/platform'
 import { PartyForm } from '../components/PartyForm'
 import { useCreateParty } from '../hooks/useParties'
+import { usePayloadKeys } from '../lib/idempotency'
 import { emptyPartyValues, formValuesToInput } from '../schemas/party'
 
 export function PartyCreatePage() {
   const { t } = useTranslation('parties')
   const navigate = useNavigate()
   const create = useCreateParty()
-  // Same key for every retry of this page's submit; the API replays instead of duplicating.
-  const [key] = useState(createIdempotencyKey)
+  // Identical retries share a key (the API replays); an edited payload gets a new one.
+  const keyFor = usePayloadKeys()
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -26,9 +26,10 @@ export function PartyCreatePage() {
         submitting={create.isPending}
         serverError={create.error}
         onCancel={() => void navigate('/parties')}
-        onSubmit={(values) =>
+        onSubmit={(values) => {
+          const input = formValuesToInput(values)
           create.mutate(
-            { input: formValuesToInput(values), key },
+            { input, key: keyFor(input) },
             {
               onSuccess: (party) => {
                 platform.notify.success(t('form.created', { code: party.code }))
@@ -36,7 +37,7 @@ export function PartyCreatePage() {
               },
             },
           )
-        }
+        }}
         footer={
           <p className="text-xs text-muted-foreground">{t('form.subresourcesAfterCreate')}</p>
         }

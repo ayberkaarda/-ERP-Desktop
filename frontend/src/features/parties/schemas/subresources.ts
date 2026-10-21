@@ -33,7 +33,9 @@ export const contactSchema = z.object({
 
 const IBAN_MESSAGE: Record<IbanProblem, string> = {
   format: V.ibanFormat,
+  country: V.ibanCountry,
   length: V.ibanLength,
+  bban: V.ibanBban,
   trFormat: V.ibanTrFormat,
   checksum: V.ibanChecksum,
 }

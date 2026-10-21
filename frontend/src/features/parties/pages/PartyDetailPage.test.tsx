@@ -87,6 +87,45 @@ describe('PartyDetailPage', () => {
     expect(post?.body).toMatchObject({ iban: 'TR330006100519786457841326', is_default: true })
   })
 
+  it('pins the row version while editing and flags a change made elsewhere', async () => {
+    const party = makeParty()
+    const contact = {
+      id: 'c-1',
+      party_id: party.id,
+      name: 'Ayşe Demir',
+      title: null,
+      email: null,
+      phone: null,
+      is_primary: true,
+      version: 1,
+    }
+    const db = setupParties({ parties: [party], contacts: [contact] })
+    const user = userEvent.setup()
+    const { queryClient } = renderParties(`/parties/${party.id}?tab=contacts`)
+    const table = await screen.findByRole('table', { name: 'Kişiler' })
+    await within(table).findByText('Ayşe Demir')
+    await user.click(within(table).getByRole('button', { name: 'Düzenle: 1. satır' }))
+    const title = within(table).getByRole('textbox', { name: 'Unvan' })
+    await user.type(title, 'Muhasebe')
+
+    Object.assign(must(db.contacts[0]), { phone: '555', version: 2 })
+    await queryClient.invalidateQueries()
+    expect(
+      await within(table).findByText(
+        'Bu satır başka yerde değiştirildi; kaydetmek çakışma verecek.',
+      ),
+    ).toBeInTheDocument()
+    expect(title).toHaveValue('Muhasebe')
+
+    await user.click(within(table).getByRole('button', { name: 'Kaydet' }))
+    expect(
+      await screen.findByText('Satır başka biri tarafından değiştirildi; liste yenilendi.'),
+    ).toBeInTheDocument()
+    const patch = db.calls.filter((c) => c.method === 'PATCH').at(-1)
+    expect(patch?.body).toMatchObject({ version: 1, title: 'Muhasebe' })
+    expect(db.contacts[0]?.title).toBeNull()
+  })
+
   it('reads only without update permission', async () => {
     const party = makeParty()
     setupParties({ parties: [party] }, ['parties.view'])

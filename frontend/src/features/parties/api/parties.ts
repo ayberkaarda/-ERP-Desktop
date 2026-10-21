@@ -1,6 +1,6 @@
 import type { AuditEntry } from '@/components/shared/AuditTrail'
 import { createFilesApi } from '@/components/shared/attachments'
-import { platform, withIdempotency, type HttpRequestOptions } from '@/platform'
+import { platform, withIdempotency } from '@/platform'
 import {
   PARTY_MORPH,
   type ApiActivity,
@@ -99,14 +99,6 @@ export const subresourceApi = {
     platform.http.delete<unknown>(subPath(partyId, kind, id)),
 }
 
-/** File uploads opt in to idempotency on the API, so every POST carries a fresh key. */
-const filesHttp = {
-  get: platform.http.get.bind(platform.http),
-  delete: platform.http.delete.bind(platform.http),
-  post: <T>(url: string, body?: unknown, options?: HttpRequestOptions) =>
-    platform.http.post<T>(url, body, withIdempotency(options)),
-}
-
 export function partyFilesApi(partyId: string) {
-  return createFilesApi(filesHttp, { type: PARTY_MORPH, id: partyId })
+  return createFilesApi(platform.http, { type: PARTY_MORPH, id: partyId })
 }

@@ -26,6 +26,12 @@ export interface PartiesDb {
   audit: (ApiActivity & { subject_id: string })[]
   calls: { method: string; path: string; body: unknown; headers: Headers }[]
   nextCode: number
+  /** Idempotency-Key -> request body + created party, for replays like the API's middleware. */
+  idempotency: Map<string, { body: string; party: Party }>
+  /** The next create succeeds on the server but its response is lost (network error). */
+  dropNextCreateResponse: boolean
+  /** PATCHes to these parties fail with 500. */
+  failPatchIds: Set<string>
 }
 
 let seq = 0
@@ -64,6 +70,9 @@ export function createPartiesDb(overrides: Partial<PartiesDb> = {}): PartiesDb {
     audit: [],
     calls: [],
     nextCode: 100,
+    idempotency: new Map(),
+    dropNextCreateResponse: false,
+    failPatchIds: new Set(),
     ...overrides,
   }
 }
@@ -178,12 +187,26 @@ export function partiesHandlers(db: PartiesDb) {
       if (!request.headers.get('Idempotency-Key')) {
         return fail(400, 'IDEMPOTENCY_KEY_REQUIRED', 'Idempotency-Key gerekli.')
       }
-      const input = (await request.json()) as PartyInput
+      const key = request.headers.get('Idempotency-Key') ?? ''
+      const raw = await request.text()
+      const stored = db.idempotency.get(key)
+      if (stored) {
+        if (stored.body !== raw) {
+          return fail(422, 'IDEMPOTENCY_KEY_REUSED', 'Anahtar farklı bir istekle kullanıldı.')
+        }
+        return HttpResponse.json({ data: stored.party }, { status: 201 })
+      }
+      const input = JSON.parse(raw) as PartyInput
       const party = makeParty({ ...input, code: `P${String(db.nextCode).padStart(6, '0')}` })
       const fields = validateParty(db, party)
       if (Object.keys(fields).length) return validation(fields)
       db.nextCode += 1
       db.parties.push(party)
+      db.idempotency.set(key, { body: raw, party })
+      if (db.dropNextCreateResponse) {
+        db.dropNextCreateResponse = false
+        return HttpResponse.error()
+      }
       return HttpResponse.json({ data: party }, { status: 201 })
     }),
 
@@ -197,6 +220,7 @@ export function partiesHandlers(db: PartiesDb) {
       await record(request)
       const party = find(String(params.id))
       if (!party) return fail(404, 'NOT_FOUND', 'Bulunamadı.')
+      if (db.failPatchIds.has(party.id)) return fail(500, 'SERVER_ERROR', 'Sunucu hatası.')
       const patch = (await request.json()) as Partial<Party> & { version?: number }
       if (patch.version !== party.version) {
         return fail(409, 'VERSION_CONFLICT', 'Kayıt başka biri tarafından değiştirildi.')
