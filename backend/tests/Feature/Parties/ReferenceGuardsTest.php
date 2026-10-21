@@ -6,11 +6,14 @@ use App\Core\Company\CompanyContext;
 use App\Models\User;
 use App\Modules\Parties\Support\ReferenceGuards;
 use App\Modules\Reference\Database\seeders\ReferenceSeeder;
+use App\Modules\Reference\Models\Currency;
 use App\Modules\Reference\Models\PaymentTerm;
+use App\Modules\Reference\Services\CurrencyCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\Actors;
+use Tests\Support\Catalog\Catalog;
 use Tests\Support\Identity;
 
 uses(RefreshDatabase::class);
@@ -34,8 +37,10 @@ beforeEach(function (): void {
     $this->other = Actors::company();
     $this->company = Actors::company();
     $this->manager = Actors::user(['parties.view', 'parties.create', 'parties.update']);
-    $this->term = (string) Str::uuid7();
-    $this->foreignTerm = (string) Str::uuid7();
+    // Real rows: parties.payment_term_id and the currency columns carry foreign keys.
+    CurrencyCatalog::ensure();
+    $this->term = app(CompanyContext::class)->runAs($this->company, fn (): string => PaymentTerm::factory()->create()->id);
+    $this->foreignTerm = app(CompanyContext::class)->runAs($this->other, fn (): string => PaymentTerm::factory()->create()->id);
 });
 
 function guardedParties(): void
@@ -96,9 +101,13 @@ it('rejects unverifiable references unless explicitly allowed', function (): voi
     guardedPost($this->manager, $this->company, ['price_list_id' => (string) Str::uuid7()])
         ->assertStatus(422)->assertJsonValidationErrors(['price_list_id'], 'errors.fields');
 
+    // Allowed: values are kept unverified (they must still satisfy the foreign keys: an inactive
+    // currency and another company's price list, both of which a real lookup would reject).
     config(['parties.allow_unverified_references' => true]);
     expect($guards->currencyExists('XYZ'))->toBeTrue();
-    guardedPost($this->manager, $this->company, ['default_currency_code' => 'XYZ', 'price_list_id' => (string) Str::uuid7()])->assertCreated();
+    Currency::factory()->create(['code' => 'XYZ', 'is_active' => false]);
+    $foreignList = Catalog::priceList($this->other)->id;
+    guardedPost($this->manager, $this->company, ['default_currency_code' => 'XYZ', 'price_list_id' => $foreignList])->assertCreated();
 
     // Without an active company nothing is verified, even when allowed.
     app(CompanyContext::class)->clear();

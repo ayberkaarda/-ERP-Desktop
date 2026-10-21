@@ -12,6 +12,9 @@ use App\Modules\Catalog\Services\ReferenceGuards;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
+/**
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
+ */
 final class ItemRequest extends CatalogRequest
 {
     protected function gate(): array

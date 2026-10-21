@@ -13,6 +13,8 @@ use Illuminate\Validation\Validator;
 /**
  * IBAN is stored in electronic format (no spaces, upper case) and must pass Iban::isValid
  * (mod 97 plus the TR layout for Turkish accounts); unique per party.
+ *
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
  */
 final class BankAccountRequest extends ChildRequest
 {

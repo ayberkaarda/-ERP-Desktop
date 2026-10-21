@@ -6,6 +6,9 @@ namespace App\Modules\Catalog\Http\Requests;
 
 use App\Modules\Catalog\Models\ItemCategory;
 
+/**
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
+ */
 final class ItemCategoryRequest extends CatalogRequest
 {
     protected function gate(): array

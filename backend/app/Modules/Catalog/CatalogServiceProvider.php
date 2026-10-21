@@ -10,6 +10,7 @@ use App\Modules\Catalog\Contracts\ItemUsageChecker;
 use App\Modules\Catalog\Contracts\PriceListLookup;
 use App\Modules\Catalog\Contracts\PriceResolver;
 use App\Modules\Catalog\Contracts\UnitLookup;
+use App\Modules\Catalog\Listeners\SeedDefaultUnits;
 use App\Modules\Catalog\Models\DiscountRule;
 use App\Modules\Catalog\Models\Item;
 use App\Modules\Catalog\Models\ItemBarcode;
@@ -32,7 +33,9 @@ use App\Modules\Catalog\Services\DatabasePriceResolver;
 use App\Modules\Catalog\Services\DatabaseUnitLookup;
 use App\Modules\Catalog\Services\ItemService;
 use App\Modules\Catalog\Services\PriceListItemUsage;
+use App\Modules\Organization\Events\CompanyCreated;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 
 final class CatalogServiceProvider extends ModuleServiceProvider
@@ -75,5 +78,8 @@ final class CatalogServiceProvider extends ModuleServiceProvider
         Gate::policy(Item::class, ItemPolicy::class);
         Gate::policy(PriceList::class, PriceListPolicy::class);
         Gate::policy(DiscountRule::class, DiscountRulePolicy::class);
+
+        // Default units and standard conversions for every new company.
+        Event::listen(CompanyCreated::class, SeedDefaultUnits::class);
     }
 }

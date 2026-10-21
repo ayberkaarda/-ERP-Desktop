@@ -46,10 +46,11 @@ it('validates discount rule scopes, references and ranges', function (): void {
     $rule(['scope' => 'party', 'party_id' => $foreignParty->id])->assertStatus(422)->assertJsonValidationErrors(['party_id'], 'errors.fields');
     $unknown = (string) Str::uuid7();
     $rule(['scope' => 'party', 'party_id' => $unknown])->assertStatus(422)->assertJsonValidationErrors(['party_id'], 'errors.fields');
-    // Without the Parties module the id is kept as an opaque uuid.
+    // Without the Parties module the id is kept as an opaque uuid (one that exists, here another
+    // company's party, since discount_rules.party_id references parties).
     $lookup = app(PartyLookup::class);
     app()->offsetUnset(PartyLookup::class);
-    $rule(['scope' => 'party', 'party_id' => $unknown])->assertCreated();
+    $rule(['scope' => 'party', 'party_id' => $foreignParty->id])->assertCreated();
     app()->instance(PartyLookup::class, $lookup);
 
     Catalog::as($this->manager, $this->company)->patchJson("/api/v1/discount-rules/{$id}", ['scope' => 'all', 'version' => 1])

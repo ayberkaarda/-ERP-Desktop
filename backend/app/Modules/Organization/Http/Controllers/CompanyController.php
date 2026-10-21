@@ -16,6 +16,7 @@ use App\Modules\Organization\Http\Resources\CompanyResource;
 use App\Modules\Organization\Models\Company;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 
 /**
@@ -46,8 +47,13 @@ final class CompanyController
     {
         Gate::authorize('create', Company::class);
 
-        $company = Company::query()->create($request->validated());
-        CompanyCreated::dispatch($company->id, $this->user($request)->id);
+        // The company, its default roles and its master data defaults commit together or not at all.
+        $company = DB::transaction(function () use ($request): Company {
+            $company = Company::query()->create($request->validated());
+            CompanyCreated::dispatch($company->id, $this->user($request)->id);
+
+            return $company;
+        });
 
         return ApiResponse::created((new CompanyResource($company))->resolve($request));
     }
