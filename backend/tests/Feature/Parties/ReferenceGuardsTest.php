@@ -78,8 +78,8 @@ function guardedPost(User $user, string $company, array $payload): TestResponse
 }
 
 it('rejects unverifiable references unless explicitly allowed', function (): void {
-    // Simulate an install without the Reference module: drop its lookup bindings.
-    foreach ([ReferenceGuards::CURRENCY, ReferenceGuards::PAYMENT_TERM] as $contract) {
+    // Simulate an install without the Reference and Catalog modules: drop their lookup bindings.
+    foreach ([ReferenceGuards::CURRENCY, ReferenceGuards::PAYMENT_TERM, ReferenceGuards::PRICE_LIST] as $contract) {
         app()->offsetUnset($contract);
     }
     $guards = app(ReferenceGuards::class);
