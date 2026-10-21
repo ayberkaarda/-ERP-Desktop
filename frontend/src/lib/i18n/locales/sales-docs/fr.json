@@ -368,7 +368,7 @@
     "credit": {
       "button": "Émettre l'avoir",
       "title": "Émettre l'avoir ?",
-      "body": "Un avoir est créé ; la créance et le coût des ventes sont extournés.",
+      "body": "Un avoir est émis et la créance est extournée ; le coût des ventes a déjà été extourné à la réception.",
       "confirm": "Émettre l'avoir",
       "done": "Avoir émis."
     },

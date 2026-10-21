@@ -368,7 +368,7 @@
     "credit": {
       "button": "Gutschrift ausstellen",
       "title": "Gutschrift ausstellen?",
-      "body": "Eine Gutschrift wird erstellt; Forderung und Wareneinsatz werden storniert.",
+      "body": "Eine Gutschrift wird erstellt und die Forderung storniert; der Wareneinsatz wurde bereits beim Wareneingang storniert.",
       "confirm": "Gutschrift ausstellen",
       "done": "Gutschrift ausgestellt."
     },

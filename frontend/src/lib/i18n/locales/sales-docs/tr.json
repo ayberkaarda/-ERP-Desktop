@@ -368,7 +368,7 @@
     "credit": {
       "button": "İade faturası kes",
       "title": "İade faturası kesilsin mi?",
-      "body": "İade faturası oluşturulur, alacak ve satılan malın maliyeti ters çevrilir.",
+      "body": "İade faturası kesilir ve alacak ters çevrilir; satılan malın maliyeti teslim almada zaten ters kaydedildi.",
       "confirm": "İade faturasını kes",
       "done": "İade faturası kesildi."
     },

@@ -368,7 +368,7 @@
     "credit": {
       "button": "Issue credit note",
       "title": "Issue the credit note?",
-      "body": "A credit note is created; the receivable and the cost of goods sold are reversed.",
+      "body": "A credit note is issued and the receivable is reversed; the cost of goods sold was already reversed at receipt.",
       "confirm": "Issue credit note",
       "done": "Credit note issued."
     },
