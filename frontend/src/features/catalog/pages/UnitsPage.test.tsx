@@ -115,8 +115,8 @@ describe('UnitsPage', () => {
     expect(screen.getByRole('button', { name: 'Dönüşümleri kaydet' })).toBeDisabled()
   })
 
-  it('is forbidden without units.manage', async () => {
-    setupCatalog({ permissions: ['items.view'] })
+  it('is forbidden without items.view or units.manage', async () => {
+    setupCatalog({ permissions: ['pricing.view'] })
     renderCatalog('/catalog/units')
     expect(await screen.findByRole('alert')).toHaveTextContent(/yetki|izin/i)
   })

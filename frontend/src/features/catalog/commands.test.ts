@@ -19,7 +19,12 @@ describe('catalog commands and routes', () => {
     const visible = commands.filter((c) =>
       hasPermission({ user, granted: ['items.view'] }, c.permission),
     )
-    expect(visible.map((c) => c.id)).toEqual(['catalog.items'])
+    // Item viewers may also read units and categories (writes stay gated on the pages).
+    expect(visible.map((c) => c.id)).toEqual([
+      'catalog.items',
+      'catalog.units',
+      'catalog.categories',
+    ])
   })
 
   it('navigates to the matching route', () => {

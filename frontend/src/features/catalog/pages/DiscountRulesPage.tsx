@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
+import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
 import { discountRulesApi } from '../api/client'
 import { catalogKeys } from '../api/keys'
@@ -28,6 +29,7 @@ import { CategorySelect, PartyPicker } from '../components/pickers'
 import { RecordDialog } from '../components/RecordDialog'
 import { useDiscountRuleList, useIdempotencyKey, useInvalidate } from '../hooks/queries'
 import { errorMessage, isVersionConflict } from '../lib/errors'
+import { CATALOG_ACCESS } from '../permissions'
 import {
   discountRuleDefaults,
   discountRuleSchema,
@@ -47,6 +49,7 @@ export function DiscountRulesPage() {
     { viewKey: VIEW_KEY },
   )
   const list = useDiscountRuleList(query)
+  const canManage = usePermission(CATALOG_ACCESS.discountRules.manage)
   const [editing, setEditing] = useState<DiscountRule | 'new' | null>(null)
   const [deleting, setDeleting] = useState<DiscountRule | null>(null)
 
@@ -62,6 +65,32 @@ export function DiscountRulesPage() {
   const columns = useMemo(() => {
     const col = createColumnHelper<DiscountRule>()
     const date = (v: string | null) => (v ? formatDate(v, locale) : '—')
+    const actions = col.display({
+      id: 'actions',
+      header: () => <span className="sr-only">{t('common.actions')}</span>,
+      enableHiding: false,
+      size: 90,
+      cell: (c) => (
+        <span className="flex justify-end gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('discounts.edit', { code: c.row.original.code })}
+            onClick={() => setEditing(c.row.original)}
+          >
+            <Pencil aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('discounts.remove', { code: c.row.original.code })}
+            onClick={() => setDeleting(c.row.original)}
+          >
+            <Trash2 aria-hidden="true" />
+          </Button>
+        </span>
+      ),
+    })
     return [
       col.accessor('code', {
         header: t('fields.code'),
@@ -136,34 +165,9 @@ export function DiscountRulesPage() {
         cell: (c) => <StatusBadge status={c.getValue() ? 'active' : 'inactive'} />,
         size: 100,
       }),
-      col.display({
-        id: 'actions',
-        header: () => <span className="sr-only">{t('common.actions')}</span>,
-        enableHiding: false,
-        size: 90,
-        cell: (c) => (
-          <span className="flex justify-end gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('discounts.edit', { code: c.row.original.code })}
-              onClick={() => setEditing(c.row.original)}
-            >
-              <Pencil aria-hidden="true" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('discounts.remove', { code: c.row.original.code })}
-              onClick={() => setDeleting(c.row.original)}
-            >
-              <Trash2 aria-hidden="true" />
-            </Button>
-          </span>
-        ),
-      }),
+      ...(canManage ? [actions] : []),
     ]
-  }, [t, locale])
+  }, [t, locale, canManage])
 
   return (
     <div className="mx-auto max-w-[1440px] px-6 py-6">
@@ -172,10 +176,12 @@ export function DiscountRulesPage() {
         description={t('discounts.description')}
         breadcrumbs={[{ label: t('nav.catalog') }, { label: t('discounts.title') }]}
         actions={
-          <Button onClick={() => setEditing('new')}>
-            <Plus aria-hidden="true" />
-            {t('discounts.new')}
-          </Button>
+          canManage ? (
+            <Button onClick={() => setEditing('new')}>
+              <Plus aria-hidden="true" />
+              {t('discounts.new')}
+            </Button>
+          ) : undefined
         }
       />
       <DataTable<DiscountRule>
@@ -190,7 +196,7 @@ export function DiscountRulesPage() {
         onQueryChange={setQuery}
         getRowId={(r) => r.id}
         viewKey={VIEW_KEY}
-        onRowActivate={(r) => setEditing(r)}
+        onRowActivate={canManage ? (r) => setEditing(r) : undefined}
       />
       {editing !== null && (
         <DiscountRuleDialog

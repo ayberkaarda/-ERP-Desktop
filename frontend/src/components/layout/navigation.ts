@@ -32,6 +32,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { ACC_PERMISSIONS } from '@/features/accounting/shared/permissions'
+import { CATALOG_ACCESS } from '@/features/catalog/permissions'
 import { REF_PERMISSIONS } from '@/features/reference/permissions'
 // Permission names mirror each feature's routes.tsx guards.
 import type { PermissionRequirement } from '@/lib/permissions'
@@ -110,13 +111,13 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'categories',
         icon: FolderTree,
         to: '/catalog/categories',
-        permission: 'item_categories.manage',
+        permission: CATALOG_ACCESS.categories.read,
       },
       {
         key: 'units',
         icon: Ruler,
         to: '/catalog/units',
-        permission: 'units.manage',
+        permission: CATALOG_ACCESS.units.read,
       },
       {
         key: 'priceLists',
@@ -128,7 +129,7 @@ export const NAV_SECTIONS: NavSection[] = [
         key: 'discountRules',
         icon: TicketPercent,
         to: '/catalog/discount-rules',
-        permission: 'discount_rules.manage',
+        permission: CATALOG_ACCESS.discountRules.read,
       },
       {
         key: 'pricing',

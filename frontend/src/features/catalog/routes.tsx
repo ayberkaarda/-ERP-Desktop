@@ -1,20 +1,27 @@
 import type { RouteObject } from 'react-router'
 import { RequireAuth } from '@/app/guards'
+import { RequireReadOrManage } from './components/RequireReadOrManage'
+import { CATALOG_ACCESS, type CatalogAccess } from './permissions'
 
 /** Wraps lazy pages in a permission guard (forbidden state when the company lacks it). */
 function guarded(permission: string | string[], children: RouteObject[]): RouteObject {
   return { element: <RequireAuth permission={permission} />, children }
 }
 
+/** Readers open these pages too; the pages gate their write actions on the manage permission. */
+function readable(access: CatalogAccess, children: RouteObject[]): RouteObject {
+  return { element: <RequireReadOrManage access={access} />, children }
+}
+
 // Mounted under the authenticated shell; paths are relative to "/".
 export const catalogRoutes: RouteObject[] = [
-  guarded('units.manage', [
+  readable(CATALOG_ACCESS.units, [
     {
       path: 'catalog/units',
       lazy: async () => ({ Component: (await import('./pages/UnitsPage')).UnitsPage }),
     },
   ]),
-  guarded('item_categories.manage', [
+  readable(CATALOG_ACCESS.categories, [
     {
       path: 'catalog/categories',
       lazy: async () => ({ Component: (await import('./pages/CategoriesPage')).CategoriesPage }),
@@ -64,7 +71,7 @@ export const catalogRoutes: RouteObject[] = [
       },
     ],
   ),
-  guarded('discount_rules.manage', [
+  readable(CATALOG_ACCESS.discountRules, [
     {
       path: 'catalog/discount-rules',
       lazy: async () => ({
