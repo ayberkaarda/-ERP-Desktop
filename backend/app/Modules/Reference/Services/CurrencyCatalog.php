@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Reference\Services;
 
 use App\Modules\Reference\Models\Currency;
+use Illuminate\Support\Str;
 
 /**
  * ISO 4217 rows the module ships with (code, name, symbol, minor unit digits). Used by the
@@ -28,19 +29,27 @@ final class CurrencyCatalog
     ];
 
     /**
-     * Creates the missing global rows; existing rows (also soft deleted or deactivated ones) are kept as they are.
+     * Creates the missing global rows; existing rows (also soft deleted or deactivated ones) are
+     * kept as they are. One INSERT ... ON CONFLICT (code) DO NOTHING, so two first companies
+     * created at the same time cannot fail on each other's row (no activity log entries for these
+     * shipped reference rows).
      *
      * @param  list<string>|null  $codes  null: every shipped currency
      */
     public static function ensure(?array $codes = null): void
     {
+        $now = now();
+        $rows = [];
         foreach (self::CURRENCIES as [$code, $name, $symbol, $decimals]) {
-            if ($codes !== null && ! in_array($code, $codes, true)) {
-                continue;
+            if ($codes === null || in_array($code, $codes, true)) {
+                $rows[] = [
+                    'id' => (string) Str::uuid7(), 'code' => $code, 'name' => $name, 'symbol' => $symbol, 'decimals' => $decimals,
+                    'is_active' => true, 'version' => 1, 'created_at' => $now, 'updated_at' => $now,
+                ];
             }
-            if (! Currency::query()->withTrashed()->where('code', $code)->exists()) {
-                Currency::query()->create(compact('code', 'name', 'symbol', 'decimals') + ['is_active' => true]);
-            }
+        }
+        if ($rows !== []) {
+            Currency::query()->insertOrIgnore($rows);
         }
     }
 }

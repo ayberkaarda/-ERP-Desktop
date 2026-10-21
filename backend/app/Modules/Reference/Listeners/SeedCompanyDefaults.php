@@ -55,12 +55,15 @@ final class SeedCompanyDefaults
         if (! $event->seedDefaults) {
             return;
         }
-        $this->context->runAs($event->companyId, fn () => $this->db->transaction(function (): void {
+        $this->context->runAs($event->companyId, fn () => $this->db->transaction(function () use ($event): void {
+            // Same per-company lock as the Reference API writes (ReferenceWriter): a concurrent
+            // bootstrap or default-warehouse change waits instead of racing the checks below.
+            $this->db->select('SELECT pg_advisory_xact_lock(hashtext(?))', [self::lockKey($event->companyId)]);
             $locale = $this->locale();
             CurrencyCatalog::ensure(self::CURRENCIES);
             foreach (self::CURRENCIES as $code) {
                 if (! CompanyCurrency::query()->withTrashed()->where('currency_code', $code)->exists()) {
-                    CompanyCurrency::query()->create(['currency_code' => $code, 'is_active' => true]);
+                    CompanyCurrency::query()->createOrFirst(['currency_code' => $code], ['is_active' => true]);
                 }
             }
 
@@ -106,10 +109,16 @@ final class SeedCompanyDefaults
         if ($model::query()->withoutGlobalScope(SoftDeletingScope::class)->where('code', $code)->exists()) {
             return null;
         }
-        $record = new $model(['code' => $code, ...$attributes]);
-        $record->save();
+        // Conflict-safe: a live row inserted meanwhile (unique code index) is taken, not an error.
+        $record = $model::query()->createOrFirst(['code' => $code], $attributes);
 
-        return $record;
+        return $record->wasRecentlyCreated ? $record : null;
+    }
+
+    /** Advisory lock key shared with ReferenceWriter (per company). */
+    public static function lockKey(string $companyId): string
+    {
+        return 'reference:'.$companyId;
     }
 
     private function locale(): string

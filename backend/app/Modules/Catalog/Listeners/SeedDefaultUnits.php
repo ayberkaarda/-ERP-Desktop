@@ -7,6 +7,7 @@ namespace App\Modules\Catalog\Listeners;
 use App\Core\Company\CompanyContext;
 use App\Modules\Catalog\Models\Unit;
 use App\Modules\Catalog\Models\UnitConversion;
+use App\Modules\Catalog\Services\CatalogRules;
 use App\Modules\Organization\Events\CompanyCreated;
 use App\Modules\Settings\Contracts\SettingsReader;
 use Illuminate\Database\ConnectionInterface;
@@ -41,12 +42,14 @@ final class SeedDefaultUnits
             return;
         }
         $this->context->runAs($event->companyId, fn () => $this->db->transaction(function (): void {
+            // Same per-company lock as the unit API (UnitService): concurrent bootstraps or unit
+            // writes wait instead of racing the existence checks below.
+            CatalogRules::lock('units');
             $locale = $this->locale();
             $existing = Unit::query()->withoutGlobalScope(SoftDeletingScope::class)->whereIn('code', self::UNITS)->pluck('code')->all();
             foreach (self::UNITS as $code) {
                 if (! in_array($code, $existing, true)) {
-                    Unit::query()->create([
-                        'code' => $code,
+                    Unit::query()->createOrFirst(['code' => $code], [
                         'name' => __('catalog::defaults.units.'.$code.'.name', [], $locale),
                         'symbol' => __('catalog::defaults.units.'.$code.'.symbol', [], $locale),
                         'is_active' => true,
@@ -60,7 +63,7 @@ final class SeedDefaultUnits
                 if (! isset($ids[$from], $ids[$to]) || $this->converted($ids[$from], $ids[$to])) {
                     continue;
                 }
-                UnitConversion::query()->create(['from_unit_id' => $ids[$from], 'to_unit_id' => $ids[$to], 'factor' => $factor]);
+                UnitConversion::query()->createOrFirst(['from_unit_id' => $ids[$from], 'to_unit_id' => $ids[$to]], ['factor' => $factor]);
             }
         }));
     }
