@@ -26,18 +26,22 @@ import { ItemCombobox } from '@/features/catalog'
 import { useQueryClient } from '@tanstack/react-query'
 import { lookupsApi } from '../api/client'
 import { invDocsKeys } from '../api/keys'
-import { useItemUnits, useLocations } from '../hooks/queries'
+import { useWarehouseLocations } from '../../shared/warehouses'
+import { useItemUnits } from '../hooks/queries'
 import {
   docTotals,
   emptyLine,
+  isInbound,
   parseSerials,
   toItemRef,
   typeRules,
+  usesLot,
   withBaseUnit,
   type DocValues,
   type LineValues,
 } from '../lib/lines'
 import { baseQuantity, lineCost, trimDecimal } from '../lib/quantity'
+import { selectClass } from '../lib/ui'
 import { MAX_LINES, type ItemRef } from '../types'
 import { LocationSelect } from './pickers'
 
@@ -200,8 +204,8 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
   const warehouseId = useWatch({ control, name: 'warehouseId' })
   const targetWarehouseId = useWatch({ control, name: 'targetWarehouseId' })
   const rules = typeRules(docType)
-  const sourceLocations = useLocations(warehouseId)
-  const targetLocations = useLocations(rules.target ? targetWarehouseId : '')
+  const sourceLocations = useWarehouseLocations(warehouseId)
+  const targetLocations = useWarehouseLocations(rules.target ? targetWarehouseId : '')
   const qty = (v: string) =>
     formatDecimalDisplay(trimDecimal(v), { locale, minFraction: 0, maxFraction: 6 })
 
@@ -237,7 +241,7 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
 
   const anyItem = (pick: (i: ItemRef) => boolean) =>
     lines.some((l) => (l.item ? pick(l.item) : false))
-  const showLot = anyItem((i) => i.tracking === 'lot')
+  const showLot = anyItem(usesLot)
   const showExpiry = anyItem((i) => i.has_expiry)
   const showSerials = anyItem((i) => i.tracking === 'serial')
   const showLocation = (sourceLocations.data?.length ?? 0) > 0
@@ -308,7 +312,6 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
               ref={ctx.ref}
               scale={6}
               displayMinFraction={0}
-              allowNegative={rules.signed}
               value={ctx.value}
               disabled={ctx.disabled}
               locale={locale}
@@ -333,6 +336,32 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
     },
   ]
 
+  if (rules.direction) {
+    columns.splice(2, 0, {
+      id: 'direction',
+      header: t('lines.direction'),
+      width: '7.5rem',
+      render: (ctx) => (
+        <select
+          {...ctx.cell}
+          ref={ctx.ref}
+          value={ctx.value}
+          disabled={ctx.disabled}
+          className={`${selectClass} h-control-sm`}
+          onChange={(e) => {
+            ctx.setValue(e.target.value)
+            // Outbound lines leave at the current cost.
+            if (e.target.value === 'out') set(ctx.index, { unitCost: '' })
+          }}
+          onBlur={ctx.onBlur}
+        >
+          <option value="in">{t('lines.directionIn')}</option>
+          <option value="out">{t('lines.directionOut')}</option>
+        </select>
+      ),
+    })
+  }
+
   if (rules.cost) {
     columns.push(
       {
@@ -347,7 +376,7 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
             scale={6}
             displayMinFraction={2}
             value={ctx.value}
-            disabled={ctx.disabled}
+            disabled={ctx.disabled || !isInbound(lines[ctx.index] ?? ctx.line, rules)}
             locale={locale}
             aria-required={rules.costRequired || undefined}
             className="h-control-sm"
@@ -380,15 +409,15 @@ export function StockLinesGrid({ disabled = false }: StockLinesGridProps) {
       header: t('lines.lot'),
       width: '9rem',
       render: (ctx) =>
-        ctx.line.item?.tracking === 'lot' ? (
+        usesLot(ctx.line.item) ? (
           <Input
             {...ctx.cell}
             ref={ctx.ref}
             value={ctx.value}
             disabled={ctx.disabled}
             maxLength={64}
-            placeholder={rules.lotRequired ? undefined : 'FEFO'}
-            title={rules.lotRequired ? undefined : t('lines.fefo')}
+            placeholder={isInbound(ctx.line, rules) ? undefined : 'FEFO'}
+            title={isInbound(ctx.line, rules) ? undefined : t('lines.fefo')}
             className="h-control-sm font-code"
             onChange={(e) => ctx.setValue(e.target.value)}
             onBlur={ctx.onBlur}

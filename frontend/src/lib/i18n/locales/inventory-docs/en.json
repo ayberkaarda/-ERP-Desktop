@@ -43,7 +43,6 @@
     "notes": "Notes",
     "status": "Status",
     "lineCount": "Lines",
-    "totalCost": "Total cost",
     "source": "Source",
     "postedAt": "Posted",
     "journalEntry": "Journal entry",
@@ -92,7 +91,8 @@
     "saved": "Draft saved.",
     "deleted": "Draft deleted.",
     "readOnly": "You may not edit this document.",
-    "header": "Document details"
+    "header": "Document details",
+    "allowExpired": "Allow issuing from expired lots"
   },
   "lines": {
     "title": "Lines",
@@ -115,7 +115,10 @@
     "serialsEntered": "{{count}} entered",
     "maxReached": "A document can have at most {{max}} lines.",
     "count": "{{count}} / {{max}} lines",
-    "fefo": "Left empty, the lot expiring first (FEFO) is used."
+    "fefo": "Left empty, the lot expiring first (FEFO) is used.",
+    "direction": "Direction",
+    "directionIn": "In",
+    "directionOut": "Out"
   },
   "scan": {
     "label": "Scan barcode",
@@ -141,7 +144,6 @@
     "unit": "Choose a unit.",
     "quantity": "Enter a valid quantity.",
     "quantityPositive": "The quantity must be greater than zero.",
-    "quantityNonZero": "The quantity cannot be zero.",
     "unitCost": "Enter a valid unit cost.",
     "lot": "Lot-tracked items need a lot number.",
     "expiry": "The expiry date is required.",
@@ -171,7 +173,8 @@
     "lines": "Lines",
     "audit": "History",
     "reversed": "Reversed on {{date}}: {{reason}}",
-    "journalEntry": "Open journal entry"
+    "journalEntry": "Open journal entry",
+    "yes": "Yes"
   },
   "conflict": {
     "title": "Someone else changed this document",
@@ -188,10 +191,7 @@
     "listDescription": "Start a count, enter counted quantities, review the variances and post.",
     "new": "New count",
     "startTitle": "Start a count",
-    "startBody": "Starting freezes the system quantities of the chosen scope; the count is compared with them.",
-    "scopeLocation": "Location (optional)",
-    "scopeCategory": "Category (optional)",
-    "includeZero": "Also list items with zero system quantity",
+    "startBody": "Starting with a freeze turns the warehouse’s non-zero balances into count lines with their system quantity; the count is compared with them.",
     "start": "Freeze and start",
     "title": "Count {{number}}",
     "frozenAt": "Frozen: {{date}}",
@@ -208,37 +208,47 @@
     "saved": "Count saved.",
     "keys": "Move between cells with the arrow keys and Enter; Ctrl+S saves.",
     "progress": "{{counted}} / {{total}} lines counted",
-    "uncountedWarning": "{{count}} lines are not counted yet; count them or fill them with the system quantity before posting.",
+    "uncountedWarning": "{{count}} lines are not counted yet; uncounted lines are skipped when posting.",
     "summaryGain": "Surplus",
     "summaryLoss": "Shortage",
     "summaryNet": "Net variance",
     "postBody": "Count adjustment movements and a variance journal entry are created for the differences.",
     "postSummary": "{{gain}} surplus · {{loss}} shortage · net {{net}}",
-    "postNeedsCounts": "Every line must be counted before posting.",
+    "postNeedsCounts": "Count at least one line before posting.",
     "empty": "This count has no lines.",
     "notFound": "No lines match the filter.",
     "saveBeforeImport": "Save the count before importing.",
     "summary": "Count summary",
     "prevPage": "Previous page",
     "nextPage": "Next page",
-    "page": "Page {{page}} / {{pages}}"
+    "page": "Page {{page}} / {{pages}}",
+    "freeze": "Freeze current stock (add the system quantities as lines)",
+    "startEmpty": "Start an empty count",
+    "scopeItems": "Only these items (optional)",
+    "scopeItemsHint": "Leave empty to freeze every item in the warehouse.",
+    "removeItem": "Remove {{item}} from the scope",
+    "addLine": "Add line",
+    "addTitle": "Add a count line",
+    "addBody": "For stock not on the list; its system quantity is the on-hand quantity when added. An existing item, location and lot updates that line.",
+    "added": "Line added.",
+    "postSkipsUncounted": "{{count}} uncounted lines will be skipped."
   },
   "import": {
     "action": "Import CSV",
     "title": "Import a count CSV",
-    "body": "Columns: item_code, lot_no, location_code, counted_quantity. A dry run comes first; apply when there are no errors.",
+    "body": "Columns: item_code, counted_quantity and optional location_code, lot_no (comma or semicolon). Matching lines get the count, other rows are added. A dry run comes first; apply when there are no errors.",
     "file": "CSV file",
     "dryRun": "Dry run",
     "apply": "Apply {{count}} rows",
     "row": "Row",
     "result": "Result",
-    "ok": "OK",
-    "error": "Error",
-    "summary": "{{valid}} valid, {{invalid}} invalid rows",
+    "summary": "{{valid}} of {{rows}} rows valid",
     "applied": "{{count}} rows imported.",
     "hasErrors": "Fix the invalid rows and try the file again.",
     "tooLarge": "The file is too large (at most 5 MB).",
-    "wrongType": "Choose a .csv file only."
+    "wrongType": "Choose a .csv file only.",
+    "column": "Column",
+    "message": "Error"
   },
   "reservation": {
     "title": "Reservations",
@@ -251,13 +261,20 @@
     "release": "Release",
     "releaseTitle": "Release the reservation?",
     "releaseBody": "The reserved {{quantity}} of {{item}} becomes available stock again.",
-    "releaseReason": "Reason (optional)",
     "released": "Reservation released.",
     "noExpiry": "No expiry",
     "statusActive": "Active",
     "statusReleased": "Released",
     "statusConsumed": "Consumed",
-    "statusExpired": "Expired"
+    "statusExpired": "Expired",
+    "new": "New reservation",
+    "createTitle": "Reserve stock",
+    "createBody": "Holds a quantity in a warehouse. Under a soft policy the part above the available stock is reported as a warning.",
+    "create": "Reserve",
+    "created": "Reservation created.",
+    "shortage": "Reservation created; {{quantity}} exceeds the available stock.",
+    "anyLot": "Any lot",
+    "manual": "Manual"
   },
   "reports": {
     "hubTitle": "Inventory reports",
@@ -268,8 +285,12 @@
     "empty": "No rows for this report.",
     "total": "Total",
     "rows": "{{count}} rows",
-    "truncated": "Showing the first {{count}} rows; export for all of them.",
-    "required": "Fill in the required parameters."
+    "required": "Fill in the required parameters.",
+    "expired": "Expired",
+    "basisBooked": "Booked values ({{method}}): the amounts the stock account shows.",
+    "basisSimulated": "What-if values recomputed with {{method}}; they may differ from the books.",
+    "basisLayers": "Ages come from the FIFO cost layers.",
+    "basisReceipts": "Ages come from the newest receipts covering the stock."
   },
   "report": {
     "stockStatus": {
@@ -294,15 +315,19 @@
     },
     "abc": {
       "title": "ABC analysis",
-      "description": "A, B and C classes of items by their issue value in the period."
+      "description": "A, B and C classes of the items by consumption value in the period (or stock value at its end)."
     },
     "turnover": {
       "title": "Inventory turnover",
-      "description": "Average inventory, cost of goods sold and turnover in the period."
+      "description": "Opening and closing stock value, consumption, average stock, turnover and days on hand."
     },
     "reorder": {
       "title": "Reorder suggestions",
       "description": "Items whose available quantity fell below the reorder point."
+    },
+    "movementSummary": {
+      "title": "Movement summary",
+      "description": "Opening, in, out and closing quantities and values in the period."
     }
   },
   "param": {
@@ -320,10 +345,16 @@
     "days": "Days",
     "includeExpired": "Include expired lots",
     "basis": "Basis",
-    "basisValue": "Value",
-    "basisQuantity": "Quantity",
     "aThreshold": "A threshold (%)",
-    "bThreshold": "B threshold (%)"
+    "bThreshold": "B threshold (%)",
+    "groupBy": "Group by",
+    "groupItemWarehouse": "Item and warehouse",
+    "groupItem": "Item",
+    "groupWarehouse": "Warehouse",
+    "groupCategory": "Category",
+    "search": "Code or name",
+    "basisConsumption": "Consumption value",
+    "basisStockValue": "Stock value at period end"
   },
   "col": {
     "itemCode": "Code",
@@ -354,19 +385,28 @@
     "b61_90": "61-90 days",
     "b90": "90+ days",
     "expiryDate": "Expiry",
-    "daysLeft": "Days left",
     "share": "Share %",
     "cumulative": "Cumulative %",
     "class": "Class",
     "openingValue": "Opening value",
     "closingValue": "Closing value",
-    "averageInventory": "Average inventory",
-    "cogs": "COGS",
     "turnover": "Turnover",
     "daysOnHand": "Days on hand",
     "reorderPoint": "Reorder point",
     "minStock": "Minimum stock",
-    "suggested": "Suggested quantity"
+    "suggested": "Suggested quantity",
+    "warehouseName": "Warehouse name",
+    "category": "Category",
+    "categoryName": "Category name",
+    "itemCount": "Items",
+    "rank": "Rank",
+    "serial": "Serial no.",
+    "balanceAvgCost": "Avg. cost",
+    "daysToExpiry": "Days left",
+    "consumedValue": "Consumption",
+    "averageValue": "Average stock",
+    "openingQuantity": "Opening quantity",
+    "closingQuantity": "Closing quantity"
   },
   "movementType": {
     "receipt": "Receipt",

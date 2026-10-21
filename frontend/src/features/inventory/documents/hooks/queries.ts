@@ -1,9 +1,11 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
 import type { ListQueryState } from '@/components/shared/data-table'
 import { useCompanyStore } from '@/stores/company'
 import { documentsApi, lookupsApi, reservationsApi } from '../api/client'
-import { invDocsKeys } from '../api/keys'
-import type { ItemRef } from '../types'
+import { activeCompany, invDocsKeys } from '../api/keys'
+import { enrichDocument, resolveItems } from '../lib/enrich'
+import type { ItemRef, StockDocument } from '../types'
 
 /** Re-renders on company switch so keys (which embed the company) move with it. */
 export function useCompany() {
@@ -19,11 +21,28 @@ export function useDocumentList(query: ListQueryState) {
   })
 }
 
+/**
+ * Labels a document returned by the API (items, units, locations) for the company the request
+ * was started in; mutations call it before writing their result to the cache.
+ */
+export function useEnrich() {
+  const queryClient = useQueryClient()
+  return useCallback(
+    (doc: StockDocument, company = activeCompany()) => enrichDocument(queryClient, doc, company),
+    [queryClient],
+  )
+}
+
 export function useDocument(id: string | undefined) {
   useCompany()
+  const queryClient = useQueryClient()
   return useQuery({
     queryKey: invDocsKeys.document(id ?? ''),
-    queryFn: ({ signal }) => documentsApi.get(id ?? '', signal),
+    queryFn: async ({ signal }) => {
+      const company = activeCompany()
+      const doc = await documentsApi.get(id ?? '', signal)
+      return enrichDocument(queryClient, doc, company, signal)
+    },
     enabled: Boolean(id),
   })
 }
@@ -37,22 +56,12 @@ export function useReservationList(query: ListQueryState) {
   })
 }
 
-export function useWarehouses() {
+export function useUnits() {
   useCompany()
   return useQuery({
-    queryKey: invDocsKeys.warehouses(),
-    queryFn: ({ signal }) => lookupsApi.warehouses(signal),
-    staleTime: 60_000,
-  })
-}
-
-export function useLocations(warehouseId: string) {
-  useCompany()
-  return useQuery({
-    queryKey: invDocsKeys.locations(warehouseId),
-    queryFn: ({ signal }) => lookupsApi.locations(warehouseId, signal),
-    enabled: warehouseId !== '',
-    staleTime: 60_000,
+    queryKey: invDocsKeys.units(),
+    queryFn: ({ signal }) => lookupsApi.units(signal),
+    staleTime: 5 * 60_000,
   })
 }
 
@@ -62,6 +71,20 @@ export function useCategories() {
     queryKey: invDocsKeys.categories(),
     queryFn: ({ signal }) => lookupsApi.categories(signal),
     staleTime: 5 * 60_000,
+  })
+}
+
+/** Items of a page of rows (labels for lists the API returns with ids only). */
+export function useItemsById(ids: readonly string[]) {
+  useCompany()
+  const queryClient = useQueryClient()
+  const unique = [...new Set(ids.filter(Boolean))]
+  return useQuery({
+    queryKey: invDocsKeys.items(unique),
+    queryFn: ({ signal }) => resolveItems(queryClient, unique, activeCompany(), signal),
+    enabled: unique.length > 0,
+    staleTime: 5 * 60_000,
+    placeholderData: keepPreviousData,
   })
 }
 

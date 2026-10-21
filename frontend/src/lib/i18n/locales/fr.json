@@ -51,7 +51,16 @@
     "journalBook": "Livre-journal",
     "fiscalYears": "Exercices",
     "accountingPeriods": "Périodes comptables",
-    "accountDetermination": "Détermination des comptes"
+    "accountDetermination": "Détermination des comptes",
+    "stockStatus": "État des stocks",
+    "stockMovements": "Mouvements de stock",
+    "stockDocuments": "Documents de stock",
+    "stockCounts": "Inventaires",
+    "stockReservations": "Réservations",
+    "stockLots": "Lots",
+    "stockSerials": "Numéros de série",
+    "stockWarehouses": "Paramètres de stock des entrepôts",
+    "inventoryReports": "Rapports de stock"
   },
   "topbar": {
     "company": "Société",

@@ -1,54 +1,32 @@
-import type { WarehouseLocation } from '../../stock/lib/types'
+import type { WarehouseLocationRef } from '../../shared/warehouses'
 
 export interface LocationNode {
-  location: WarehouseLocation
+  location: WarehouseLocationRef
   depth: number
   children: LocationNode[]
 }
 
-const SEPARATORS = ['-', '.', '/']
-
-const byCode = (a: WarehouseLocation, b: WarehouseLocation) =>
+const byCode = (a: WarehouseLocationRef, b: WarehouseLocationRef) =>
   a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' })
 
 /**
- * Parent of each location. The PHASE4 schema stores locations flat (warehouse, code, name), so
- * the hierarchy comes from bin codes: "A-01-03" sits under "A-01", which sits under "A" (any of
- * "-", "." or "/" separates levels; a missing level is skipped). If the API ever sends
- * `parent_id`, that wins.
+ * Parent of each location from Reference's parent_id (aisle > rack > shelf > bin). A parent that
+ * is not in the list, or the location itself, makes it a root.
  */
-export function parentOf(locations: readonly WarehouseLocation[]): Map<string, string | null> {
-  const out = new Map<string, string | null>()
+export function parentOf(locations: readonly WarehouseLocationRef[]): Map<string, string | null> {
   const ids = new Set(locations.map((l) => l.id))
-  const explicit = locations.some((l) => l.parent_id !== undefined)
-  if (explicit) {
-    for (const l of locations) {
-      const parent = l.parent_id ?? null
-      out.set(l.id, parent !== null && ids.has(parent) && parent !== l.id ? parent : null)
-    }
-    return out
-  }
-  const byUpperCode = new Map(locations.map((l) => [l.code.toUpperCase(), l]))
+  const out = new Map<string, string | null>()
   for (const l of locations) {
-    const code = l.code.toUpperCase()
-    let parent: string | null = null
-    for (let i = code.length - 1; i > 0; i -= 1) {
-      if (!SEPARATORS.includes(code.charAt(i))) continue
-      const candidate = byUpperCode.get(code.slice(0, i))
-      if (candidate && candidate.id !== l.id) {
-        parent = candidate.id
-        break
-      }
-    }
-    out.set(l.id, parent)
+    const parent = l.parent_id
+    out.set(l.id, parent !== null && ids.has(parent) && parent !== l.id ? parent : null)
   }
   return out
 }
 
 /** Nested nodes sorted by code; cycles in explicit parents are broken at the root. */
-export function buildLocationTree(locations: readonly WarehouseLocation[]): LocationNode[] {
+export function buildLocationTree(locations: readonly WarehouseLocationRef[]): LocationNode[] {
   const parents = parentOf(locations)
-  const children = new Map<string | null, WarehouseLocation[]>()
+  const children = new Map<string | null, WarehouseLocationRef[]>()
   for (const l of locations) {
     const p = parents.get(l.id) ?? null
     const list = children.get(p) ?? []

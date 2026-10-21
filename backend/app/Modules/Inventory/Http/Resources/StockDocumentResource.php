@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Http\Resources;
 
+use App\Modules\Inventory\Enums\DocumentType;
 use App\Modules\Inventory\Models\StockDocument;
+use App\Modules\Inventory\Models\StockDocumentLine;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @mixin StockDocument
@@ -42,9 +45,34 @@ final class StockDocumentResource extends JsonResource
             'created_by' => $this->created_by,
             'version' => $this->version,
             'line_count' => $this->when(isset($this->lines_count), fn (): int => (int) $this->getAttribute('lines_count')),
-            'lines' => $this->whenLoaded('lines', fn (): array => StockDocumentLineResource::collection($this->lines)->resolve($request)),
+            'lines' => $this->whenLoaded('lines', fn (): array => StockDocumentLineResource::collection($this->withCountCosts())->resolve($request)),
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Count lines carry the current moving average of their item in the warehouse as avg_cost, so
+     * the variance can be valued before posting (one query; other document types are unchanged).
+     *
+     * @return iterable<StockDocumentLine>
+     */
+    private function withCountCosts(): iterable
+    {
+        $lines = $this->lines;
+
+        if ($this->doc_type !== DocumentType::Count || $lines->isEmpty()) {
+            return $lines;
+        }
+
+        $costs = DB::table('stock_valuations')->where('company_id', $this->company_id)->where('warehouse_id', $this->warehouse_id)
+            ->whereIn('item_id', $lines->pluck('item_id')->unique()->values()->all())->pluck('avg_cost', 'item_id');
+
+        foreach ($lines as $line) {
+            $cost = $costs[$line->item_id] ?? null;
+            $line->setAttribute('avg_cost', is_numeric($cost) ? (string) $cost : '0');
+        }
+
+        return $lines;
     }
 }

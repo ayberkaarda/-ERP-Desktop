@@ -20,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
-import { formatDecimalDisplay } from '@/lib/money'
 import { Can } from '@/lib/permissions'
 import { ItemCombobox } from '@/features/catalog'
 import { documentsApi } from '../api/client'
@@ -29,6 +28,7 @@ import { DOCS_BASE } from '../components/DocumentEditor'
 import { ExportButtons } from '../components/ExportButtons'
 import { WarehouseSelect } from '../components/pickers'
 import { PresetsMenu } from '../components/PresetsMenu'
+import { useStockWarehouses } from '../../shared/warehouses'
 import { useDocumentList } from '../hooks/queries'
 import { INV_PERMS } from '../permissions'
 import { DOC_STATUSES, DOC_TYPES, EDITABLE_DOC_TYPES, type StockDocumentSummary } from '../types'
@@ -58,9 +58,10 @@ export function StockDocumentListPage({ mode = 'documents' }: ListProps) {
   // The counts list always asks for counts; the type filter is not offered there.
   const query: ListQueryState = counts ? setFilter(urlQuery, 'doc_type', 'count') : urlQuery
   const list = useDocumentList(query)
+  const warehouses = useStockWarehouses()
+  const warehouseData = warehouses.data
   const f = (key: string) => urlQuery.filters[key] ?? ''
   const change = (key: string, value: string) => setQuery(setFilter(urlQuery, key, value))
-  const qty = (v: string | null | undefined) => (v ? formatDecimalDisplay(v, { locale }) : '')
 
   const applyPreset = (params: Record<string, string>) => {
     let next: ListQueryState = updateListQuery(urlQuery, { q: params.q ?? '', filters: {} })
@@ -105,14 +106,20 @@ export function StockDocumentListPage({ mode = 'documents' }: ListProps) {
               cell: (c) => t(`docType.${c.getValue()}`),
             }),
           ]),
-      col.accessor('warehouse_code', {
+      col.accessor('warehouse_id', {
         header: t('fields.warehouse'),
         meta: { label: t('fields.warehouse') },
         size: 200,
         cell: (c) => {
           const r = c.row.original
-          const from = [r.warehouse_code, r.warehouse_name].filter(Boolean).join(' · ')
-          return r.target_warehouse_id ? `${from} → ${r.target_warehouse_code ?? ''}` : from
+          const label = (id: string | null) => {
+            const w = warehouseData?.find((x) => x.id === id)
+            return w ? `${w.code} · ${w.name}` : ''
+          }
+          const target = warehouseData?.find((x) => x.id === r.target_warehouse_id)
+          return r.target_warehouse_id
+            ? `${label(r.warehouse_id)} → ${target?.code ?? ''}`
+            : label(r.warehouse_id)
         },
       }),
       col.accessor('reason', {
@@ -126,12 +133,6 @@ export function StockDocumentListPage({ mode = 'documents' }: ListProps) {
         meta: { label: t('fields.lineCount'), align: 'right' },
         size: 80,
         cell: (c) => <span className="tabular-nums">{c.getValue() ?? ''}</span>,
-      }),
-      col.accessor('total_cost', {
-        header: t('fields.totalCost'),
-        meta: { label: t('fields.totalCost'), align: 'right' },
-        size: 140,
-        cell: (c) => <span className="tabular-nums">{qty(c.getValue())}</span>,
       }),
       col.accessor('status', {
         header: t('fields.status'),
@@ -152,9 +153,7 @@ export function StockDocumentListPage({ mode = 'documents' }: ListProps) {
         cell: (c) => c.getValue() ?? t('list.manual'),
       }),
     ]
-    // qty/locale derive from the same locale.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, locale, counts, base])
+  }, [t, locale, counts, base, warehouseData])
 
   const filtered = FILTERS.some((k) => f(k) !== '') || urlQuery.q !== ''
   const exportParams = Object.fromEntries(

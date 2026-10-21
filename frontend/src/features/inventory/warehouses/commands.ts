@@ -1,8 +1,10 @@
-import { Plus, Warehouse } from 'lucide-react'
+import { Warehouse } from 'lucide-react'
 import { registerCommands, type Command } from '@/features/command-palette/registry'
 import { navCommand } from '../stock/lib/commandUtils'
-import { INV_ACCESS, INV_PERMISSIONS } from '../stock/lib/permissions'
+import { INV_ACCESS } from '../stock/lib/permissions'
 
+// Creating warehouses and locations belongs to Reference (its own palette entries); here only
+// the stock view of warehouses.
 export const warehousesCommands: readonly Command[] = [
   navCommand(
     'warehouses',
@@ -10,16 +12,7 @@ export const warehousesCommands: readonly Command[] = [
     'warehouses',
     INV_ACCESS.warehouses,
     Warehouse,
-    ['depolar', 'ambar', 'raf', 'lokasyon', 'warehouses', 'locations', 'bins'],
-  ),
-  navCommand(
-    'warehouses-new',
-    '/inventory/warehouses?new=1',
-    'warehouseNew',
-    INV_PERMISSIONS.warehouses.manage,
-    Plus,
-    ['yeni depo', 'new warehouse'],
-    'actions',
+    ['depolar', 'ambar', 'raf', 'lokasyon', 'rezervasyon', 'warehouses', 'locations', 'bins'],
   ),
 ]
 

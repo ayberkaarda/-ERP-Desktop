@@ -26,10 +26,7 @@ describe('inventory stock commands', () => {
     const visible = (granted: string[]) =>
       commands.filter((c) => hasPermission({ user, granted }, c.permission)).map((c) => c.id)
     expect(visible(['inventory.warehouses.view'])).toEqual(['inventory.warehouses'])
-    expect(visible(['inventory.warehouses.manage'])).toEqual([
-      'inventory.warehouses',
-      'inventory.warehouses-new',
-    ])
+    expect(visible(['inventory.warehouses.manage'])).toEqual(['inventory.warehouses'])
     expect(visible(['inventory.stock.view'])).toEqual([
       'inventory.stock',
       'inventory.movements',

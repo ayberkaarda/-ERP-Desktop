@@ -1,5 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCheck, ClipboardCopy, FileUp, Loader2, Save, Search, Trash2 } from 'lucide-react'
+import {
+  CheckCheck,
+  ClipboardCopy,
+  FileUp,
+  ListPlus,
+  Loader2,
+  Save,
+  Search,
+  Trash2,
+} from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
@@ -20,9 +29,11 @@ import { invalidateStockEffects, invDocsKeys } from '../../documents/api/keys'
 import { DocStatusBadge } from '../../documents/components/DocStatusBadge'
 import { VersionConflictAlert } from '../../documents/components/VersionConflictAlert'
 import { errorMessage, isVersionConflict } from '../../documents/lib/errors'
+import { useEnrich } from '../../documents/hooks/queries'
 import { usePayloadKeys } from '../../documents/lib/idempotency'
 import { INV_PERMS } from '../../documents/permissions'
-import type { StockDocument } from '../../documents/types'
+import type { CountAddInput, StockDocument } from '../../documents/types'
+import { useStockWarehouses } from '../../shared/warehouses'
 import {
   changedCounts,
   countSummary,
@@ -30,6 +41,7 @@ import {
   initialCounts,
   type Counts,
 } from '../lib/variance'
+import { AddCountLineDialog } from './AddCountLineDialog'
 import { CountGrid } from './CountGrid'
 import { ActionError } from '../../documents/components/ActionError'
 import { CountImportDialog } from './CountImportDialog'
@@ -49,6 +61,8 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const keyFor = usePayloadKeys()
+  const enrich = useEnrich()
+  const warehouses = useStockWarehouses()
   const canEdit = usePermission(INV_PERMS.documents.create)
   const canPost = usePermission(INV_PERMS.documents.post)
   const company = useCompanyStore((s) => s.activeCompanyId)
@@ -62,6 +76,8 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [importing, setImporting] = useState(false)
   const [checking, setChecking] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [addKey, setAddKey] = useState(0)
 
   const changes = changedCounts(base.lines, counts)
   const dirty = changes.length > 0
@@ -79,11 +95,23 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
   }
 
   const save = useMutation({
-    mutationFn: ({ target }: { target: StockDocument; company: string | null }) =>
-      documentsApi.updateCount(target.id, {
-        version: target.version,
-        lines: changedCounts(target.lines, counts),
-      }),
+    mutationFn: async ({
+      target,
+      company: started,
+      add,
+    }: {
+      target: StockDocument
+      company: string | null
+      add?: CountAddInput[]
+    }) =>
+      enrich(
+        await documentsApi.updateCount(target.id, {
+          version: target.version,
+          counts: changedCounts(target.lines, counts),
+          ...(add ? { add } : {}),
+        }),
+        started ?? 'none',
+      ),
     onSuccess: (saved, { company: started }) => {
       queryClient.setQueryData(invDocsKeys.document(saved.id, started ?? 'none'), saved)
       void queryClient.invalidateQueries({ queryKey: invDocsKeys.documents(started ?? 'none') })
@@ -95,11 +123,20 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
   })
 
   const post = useMutation({
-    mutationFn: ({ target }: { target: StockDocument; company: string | null }) =>
-      documentsApi.post(
-        target.id,
-        target.version,
-        keyFor({ post: target.id, version: target.version }),
+    mutationFn: async ({
+      target,
+      company: started,
+    }: {
+      target: StockDocument
+      company: string | null
+    }) =>
+      enrich(
+        await documentsApi.post(
+          target.id,
+          target.version,
+          keyFor({ post: target.id, version: target.version }),
+        ),
+        started ?? 'none',
       ),
     onSuccess: (posted, { company: started }) => {
       queryClient.setQueryData(invDocsKeys.document(posted.id, started ?? 'none'), posted)
@@ -137,9 +174,24 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
     }
   }
 
-  /** Saves pending counts first (create permission); an unchanged draft posts with post alone. */
+  /** Adds a line (with any pending counts) in one PATCH /counts. */
+  const submitAdd = async (line: CountAddInput) => {
+    try {
+      await save.mutateAsync({ target: base, company, add: [line] })
+      setAdding(false)
+      setAddKey((k) => k + 1)
+      platform.notify.success(t('count.added'))
+    } catch {
+      // Shown in the dialog / conflict alert.
+    }
+  }
+
+  /**
+   * Saves pending counts first (create permission); an unchanged draft posts with post alone.
+   * Uncounted lines are skipped by the server.
+   */
   const submitPost = async () => {
-    if (invalid || summary.counted < summary.total) return
+    if (invalid || summary.counted === 0) return
     if (dirty && !canEdit) return
     const started = company
     try {
@@ -195,16 +247,17 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
 
   const busy = save.isPending || post.isPending || checking
   const disabled = !canEdit || busy
-  const actionError = conflict ? null : (save.error ?? post.error)
+  const actionError = conflict || adding ? null : (save.error ?? post.error)
   const uncounted = summary.total - summary.counted
   const title = t('count.title', { number: base.number ?? t('list.unnumbered') })
+  const warehouse = warehouses.data?.find((w) => w.id === base.warehouse_id)
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-4 px-6 py-6" onKeyDown={onKeyDown}>
       <PageHeader
         title={title}
         description={[
-          [base.warehouse_code, base.warehouse_name].filter(Boolean).join(' · '),
+          warehouse ? `${warehouse.code} · ${warehouse.name}` : '',
           formatDate(base.document_date, locale),
           base.frozen_at
             ? t('count.frozenAt', { date: formatDateTime(base.frozen_at, locale) })
@@ -229,6 +282,17 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
               >
                 <Trash2 aria-hidden="true" />
                 {t('editor.delete')}
+              </Button>
+            )}
+            {canEdit && (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy || invalid}
+                onClick={() => setAdding(true)}
+              >
+                <ListPlus aria-hidden="true" />
+                {t('count.addLine')}
               </Button>
             )}
             {canEdit && (
@@ -261,8 +325,8 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
             {canPost && (
               <Button
                 type="button"
-                disabled={busy || invalid || uncounted > 0 || (dirty && !canEdit)}
-                title={uncounted > 0 ? t('count.postNeedsCounts') : undefined}
+                disabled={busy || invalid || summary.counted === 0 || (dirty && !canEdit)}
+                title={summary.counted === 0 ? t('count.postNeedsCounts') : undefined}
                 onClick={() => void submitPost()}
               >
                 {post.isPending ? (
@@ -367,6 +431,11 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
         description={
           <span className="space-y-1">
             <span className="block">{t('count.postBody')}</span>
+            {uncounted > 0 && (
+              <span className="block text-warning-soft-foreground">
+                {t('count.postSkipsUncounted', { count: uncounted })}
+              </span>
+            )}
             <span className="block tabular-nums">
               {t('count.postSummary', {
                 gain: money(summary.gain),
@@ -389,12 +458,20 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
           await remove.mutateAsync({ target: base, company })
         }}
       />
+      <AddCountLineDialog
+        key={addKey}
+        open={adding}
+        warehouseId={base.warehouse_id}
+        pending={save.isPending}
+        error={adding && !conflict ? save.error : null}
+        onOpenChange={setAdding}
+        onAdd={(line) => void submitAdd(line)}
+      />
       <CountImportDialog
         document={base}
         open={importing}
         onOpenChange={setImporting}
         onApplied={(doc, started) => {
-          if (doc) queryClient.setQueryData(invDocsKeys.document(doc.id, started), doc)
           void queryClient.invalidateQueries({ queryKey: invDocsKeys.documents(started) })
           // Finished after a company switch: that company's cache is updated, this screen is not.
           if (!sameCompany(started)) return

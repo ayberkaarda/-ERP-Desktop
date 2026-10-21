@@ -20,7 +20,6 @@ const m: LineMessages = {
   unit: 'unit',
   quantity: 'quantity',
   quantityPositive: 'positive',
-  quantityNonZero: 'nonzero',
   unitCost: 'cost',
   lot: 'lot',
   expiry: 'expiry',
@@ -38,6 +37,17 @@ const ref = (over: Partial<ItemRef> = {}): ItemRef => ({
   tracking: 'none',
   has_expiry: false,
   ...over,
+})
+
+const values0 = () => ({
+  docType: 'adjustment' as const,
+  documentDate: '2026-10-21',
+  warehouseId: 'w1',
+  targetWarehouseId: '',
+  reason: '',
+  notes: '',
+  allowExpired: false,
+  lines: [],
 })
 
 const line = (over: Partial<LineValues> = {}): LineValues => ({
@@ -75,14 +85,37 @@ describe('stock document lines', () => {
     expect(lineProblems(line(), typeRules('issue'), m)).toEqual([])
   })
 
-  it('allows negative quantities only on adjustments', () => {
+  it('keeps quantities positive; adjustments say in or out per line', () => {
+    // The API takes unsigned quantities only (InventoryRequest::QTY).
     expect(lineProblems(line({ quantity: '-3' }), typeRules('issue'), m)).toEqual([
       ['quantity', 'positive'],
     ])
-    expect(lineProblems(line({ quantity: '-3' }), typeRules('adjustment'), m)).toEqual([])
-    expect(lineProblems(line({ quantity: '0' }), typeRules('adjustment'), m)).toEqual([
-      ['quantity', 'nonzero'],
+    expect(lineProblems(line({ quantity: '-3' }), typeRules('adjustment'), m)).toEqual([
+      ['quantity', 'positive'],
     ])
+    expect(lineProblems(line({ quantity: '0' }), typeRules('adjustment'), m)).toEqual([
+      ['quantity', 'positive'],
+    ])
+    const out = toDocInput({
+      docType: 'adjustment',
+      documentDate: '2026-10-21',
+      warehouseId: 'w1',
+      targetWarehouseId: '',
+      reason: '',
+      notes: '',
+      allowExpired: true,
+      lines: [line({ direction: 'out', unitCost: '4' }), line({ direction: 'in', unitCost: '4' })],
+    })
+    expect(out.lines.map((l) => [l.direction, l.unit_cost])).toEqual([
+      ['out', null],
+      ['in', '4'],
+    ])
+    // Out lines take stock out: the expired-lot override is sent with adjustments too.
+    expect(out.allow_expired).toBe(true)
+    expect(typeRules('adjustment').issues).toBe(true)
+    expect(toDocInput({ ...values0(), docType: 'receipt', allowExpired: true })).not.toHaveProperty(
+      'allow_expired',
+    )
   })
 
   it('asks for lot and expiry on inbound lines of tracked items, not on issues (FEFO)', () => {
@@ -93,9 +126,15 @@ describe('stock document lines', () => {
     ])
     expect(lineProblems(line({ item: milk }), typeRules('issue'), m)).toEqual([])
     // An adjustment out takes stock away: no lot needed.
-    expect(lineProblems(line({ item: milk, quantity: '-1' }), typeRules('adjustment'), m)).toEqual(
-      [],
-    )
+    expect(
+      lineProblems(line({ item: milk, direction: 'out' }), typeRules('adjustment'), m),
+    ).toEqual([])
+    // Items with an expiry date need a lot on the way in even without lot tracking.
+    const dated = ref({ has_expiry: true })
+    expect(lineProblems(line({ item: dated, unitCost: '1' }), typeRules('receipt'), m)).toEqual([
+      ['lotNo', 'lot'],
+      ['expiryDate', 'expiry'],
+    ])
   })
 
   it('matches serial numbers to the base quantity and refuses duplicates', () => {
@@ -153,6 +192,7 @@ describe('stock document lines', () => {
       targetWarehouseId: 'w2',
       reason: '  ',
       notes: '',
+      allowExpired: false,
       lines: [line({ unitCost: '9', locationId: 'l1', targetLocationId: 'l9' }), emptyLine()],
     }
     expect(toDocInput(values)).toEqual({
@@ -162,6 +202,7 @@ describe('stock document lines', () => {
       target_warehouse_id: 'w2',
       reason: null,
       notes: null,
+      allow_expired: false,
       lines: [
         {
           item_id: 'i1',
@@ -188,6 +229,7 @@ describe('stock document lines', () => {
       targetWarehouseId: '',
       reason: '',
       notes: '',
+      allowExpired: false,
       lines: [emptyLine(), line(), line()],
     }
     const map = serverFieldMapper(values)

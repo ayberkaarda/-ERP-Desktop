@@ -13,8 +13,7 @@
       "movements": "Stock movements",
       "lots": "Lots and expiry",
       "serials": "Serial numbers",
-      "warehouses": "Warehouses and locations",
-      "warehouseNew": "New warehouse"
+      "warehouses": "Warehouses and locations"
     },
     "actions": "Actions",
     "active": "Active",
@@ -27,7 +26,6 @@
     "clearFilters": "Clear all filters",
     "retry": "Retry",
     "loadFailed": "Could not load the data.",
-    "limitExceeded": "Too many records to show; narrow the filters.",
     "conflictTitle": "Someone else changed this record",
     "conflictBody": "The record was updated while you were editing. Load the latest version and redo your changes.",
     "reload": "Reload",
@@ -60,7 +58,6 @@
     "available": "Available",
     "avgCost": "Avg. cost",
     "value": "Value",
-    "reorderPoint": "Reorder point",
     "occurredAt": "Date",
     "movementType": "Movement type",
     "direction": "Direction",
@@ -76,31 +73,13 @@
   },
   "warehouses": {
     "title": "Warehouses",
-    "description": "Warehouses, their bin structure and stock rules.",
-    "new": "New warehouse",
-    "newTitle": "New warehouse",
-    "newBody": "You can add locations after saving.",
-    "editTitle": "Edit warehouse {{code}}",
+    "description": "Warehouses as stock sees them: reservation policy and locations. Warehouse records and locations are managed in Reference.",
+    "editTitle": "{{code}} reservation policy",
     "viewTitle": "Warehouse {{code}}",
-    "edit": "Edit warehouse {{code}}",
-    "delete": "Delete warehouse {{code}}",
+    "edit": "Change the reservation policy of {{code}}",
     "openLocations": "Open locations of {{code}}",
-    "created": "Warehouse {{code}} created.",
-    "updated": "Warehouse {{code}} updated.",
-    "deleted": "Warehouse {{code}} deleted.",
-    "deleteFailed": "The warehouse could not be deleted.",
-    "deleteTitle": "Delete {{code}}?",
-    "deleteBody": "Only warehouses without stock movements can be deleted. Deactivate a warehouse that has moved stock.",
-    "deleteConfirm": "Delete warehouse",
-    "deleteDefault": "The default warehouse cannot be deleted.",
-    "deleteMoved": "A warehouse with stock movements cannot be deleted; deactivate it.",
+    "updated": "Reservation policy of {{code}} updated.",
     "default": "Default",
-    "settings": "Stock rules",
-    "defaultHelp": "Used when a document names no warehouse. A company has exactly one default warehouse.",
-    "defaultLocked": "This is the default warehouse. Make another warehouse the default to change it.",
-    "defaultMoves": "On save, {{code}} stops being the default.",
-    "allowNegativeHelp": "When on, issues may exceed the stock; a negative balance is not corrected automatically by the next receipt.",
-    "activeHelp": "Inactive warehouses cannot be chosen on new documents; history is kept.",
     "tabs": {
       "general": "General",
       "locations": "Locations"
@@ -108,13 +87,10 @@
     "fields": {
       "code": "Code",
       "name": "Name",
-      "address": "Address",
       "isDefault": "Default warehouse",
-      "allowNegative": "Negative stock",
-      "isActive": "Active",
       "reservationPolicy": "Reservation policy",
-      "locations": "Locations",
-      "status": "Status"
+      "status": "Status",
+      "negativeStock": "Negative stock"
     },
     "policy": {
       "none": "None",
@@ -125,35 +101,34 @@
       "none": "No reservations; available equals on hand.",
       "soft": "Reservations beyond the available quantity are allowed and reported.",
       "hard": "Reservations beyond the available quantity are refused."
+    },
+    "manageInReference": "Manage in Reference",
+    "openInReference": "Open {{code}} in Reference",
+    "masterData": "Warehouse record",
+    "masterDataHint": "Code, name, address, negative stock rule, default warehouse and locations are changed on the warehouse record in Reference.",
+    "hasMovements": "This warehouse has stock movements.",
+    "noMovements": "No stock movements in this warehouse yet.",
+    "negative": {
+      "allow": "Allowed",
+      "warn": "Warned",
+      "block": "Blocked"
     }
   },
   "locations": {
     "treeLabel": "Locations of {{code}}",
     "count": "{{count}} locations",
-    "add": "Add location",
-    "addChild": "Add location under {{code}}",
-    "edit": "Edit location {{code}}",
-    "delete": "Delete location {{code}}",
     "expand": "Expand {{code}}",
     "collapse": "Collapse {{code}}",
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
-    "newTitle": "New location",
-    "editTitle": "Location {{code}}",
-    "codeHelp": "Separate levels with a dash, dot or slash (A-01-03 → A › A-01).",
-    "saved": "Location {{code}} saved.",
-    "deleted": "Location {{code}} deleted.",
-    "deleteFailed": "The location could not be deleted.",
-    "deleteTitle": "Delete {{code}}?",
-    "deleteBody": "Locations holding stock or movements cannot be deleted; deactivate them.",
-    "deleteConfirm": "Delete location",
     "emptyTitle": "No locations yet",
-    "emptyBody": "Add locations to track stock per shelf or bin.",
-    "keyboardHint": "Use the arrow keys to move, right/left to expand or collapse, Enter to edit.",
-    "fields": {
-      "code": "Code",
-      "name": "Name",
-      "isActive": "Active"
+    "emptyBody": "Locations are added on the warehouse record in Reference.",
+    "keyboardHint": "Use the arrow keys to move, right/left to expand and collapse.",
+    "types": {
+      "aisle": "Aisle",
+      "rack": "Rack",
+      "shelf": "Shelf",
+      "bin": "Bin"
     }
   },
   "stock": {
@@ -161,16 +136,13 @@
     "description": "On hand, reserved and available quantities with cost, per item and warehouse.",
     "groupBy": "Detail",
     "groups": {
-      "item_warehouse": "Item × warehouse",
-      "location": "By location",
-      "lot": "By lot"
+      "warehouse": "Item × warehouse",
+      "item": "Item (all warehouses)",
+      "detail": "Location and lot"
     },
-    "onlyBelowReorder": "Below reorder point only",
-    "hideZero": "Hide zero balances",
-    "belowReorder": "Below the reorder point",
     "noLocation": "No location",
     "openItem": "Open stock details of {{code}}",
-    "totalValue": "Total stock value:"
+    "includeZero": "Show zero balances too"
   },
   "drawer": {
     "title": "Item stock",
@@ -180,8 +152,7 @@
     "recent": "Latest movements",
     "noStock": "This item has no stock.",
     "noMovements": "No movements yet.",
-    "allMovements": "Show all movements",
-    "belowReorder": "The available quantity is below the reorder point."
+    "allMovements": "Show all movements"
   },
   "movements": {
     "title": "Stock movements",
@@ -232,12 +203,8 @@
     "expired": "Expired",
     "expiresToday": "Expires today",
     "expiresIn": "{{count}} days left",
-    "expiryFilter": {
-      "expired": "Expired",
-      "expiring": "Expiring within {{days}} days",
-      "valid": "Valid",
-      "none": "No expiry date"
-    }
+    "onlyExpired": "Expired only",
+    "expiresBefore": "Expiring by"
   },
   "trace": {
     "title": "Lot trace",

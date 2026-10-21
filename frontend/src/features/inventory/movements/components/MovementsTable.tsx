@@ -3,11 +3,12 @@ import { Undo2 } from 'lucide-react'
 import { useEffect, useRef, type CSSProperties } from 'react'
 import { Link } from 'react-router'
 import { Badge } from '@/components/ui/badge'
-import { formatDateTime } from '@/lib/datetime'
+import { formatDate } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
 import { useFormatters } from '../../stock/lib/format'
 import { useInvT } from '../../stock/lib/i18n'
 import { itemStockPath, lotPath } from '../../stock/lib/navigation'
+import { useWarehouseLookup } from '../../stock/lib/warehouseLookup'
 import type { StockMovement } from '../../stock/lib/types'
 import { DocumentLink } from './DocumentLink'
 
@@ -40,6 +41,7 @@ export function MovementsTable({
 }: MovementsTableProps) {
   const t = useInvT()
   const f = useFormatters()
+  const warehouseOf = useWarehouseLookup()
   const scrollRef = useRef<HTMLDivElement>(null)
   const virtualize = rows.length > VIRTUALIZE_AT
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -71,7 +73,7 @@ export function MovementsTable({
       >
         <td className="px-2 py-1 font-code text-xs text-muted-foreground tabular-nums">{m.seq}</td>
         <td className="px-2 py-1 whitespace-nowrap tabular-nums">
-          {formatDateTime(m.occurred_at, f.locale)}
+          {formatDate(m.occurred_at, f.locale)}
         </td>
         <td className="px-2 py-1 whitespace-nowrap">
           <span className="inline-flex items-center gap-1.5">
@@ -86,27 +88,28 @@ export function MovementsTable({
         </td>
         {!hideItem && (
           <td className="max-w-72 truncate px-2 py-1">
-            <Link to={itemStockPath(m.item_id)} className="hover:underline" title={m.item.name}>
-              <span className="font-code">{m.item.code}</span>{' '}
-              <span className="text-muted-foreground">{m.item.name}</span>
+            <Link
+              to={itemStockPath(m.item_id)}
+              className="hover:underline"
+              title={m.item_name ?? undefined}
+            >
+              <span className="font-code">{m.item_code}</span>{' '}
+              <span className="text-muted-foreground">{m.item_name}</span>
             </Link>
           </td>
         )}
         <td className="px-2 py-1 whitespace-nowrap">
-          <span className="font-code">{m.warehouse.code}</span>
-          {m.location && (
-            <span className="font-code text-muted-foreground"> / {m.location.code}</span>
-          )}
+          <span className="font-code" title={warehouseOf(m.warehouse_id)?.name}>
+            {warehouseOf(m.warehouse_id)?.code ?? '—'}
+          </span>
         </td>
         <td className="px-2 py-1 whitespace-nowrap">
-          {m.lot ? (
-            <Link to={lotPath(m.lot.id)} className="font-code hover:underline">
-              {m.lot.lot_no}
+          {m.lot_id ? (
+            <Link to={lotPath(m.lot_id)} className="font-code hover:underline">
+              {m.lot_no ?? m.lot_id}
             </Link>
           ) : null}
-          {m.serial && (
-            <span className="font-code text-muted-foreground"> #{m.serial.serial_no}</span>
-          )}
+          {m.serial_no && <span className="font-code text-muted-foreground"> #{m.serial_no}</span>}
         </td>
         <td
           className={cn(

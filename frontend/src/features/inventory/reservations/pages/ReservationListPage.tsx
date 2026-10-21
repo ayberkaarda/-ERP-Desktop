@@ -1,5 +1,6 @@
+import { useQuery } from '@tanstack/react-query'
 import { createColumnHelper } from '@tanstack/react-table'
-import { FilterX, Unlock } from 'lucide-react'
+import { FilterX, Plus, Unlock } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -17,12 +18,16 @@ import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
 import { ItemCombobox } from '@/features/catalog'
+import { lookupsApi } from '../../documents/api/client'
+import { invDocsKeys } from '../../documents/api/keys'
 import { WarehouseSelect } from '../../documents/components/pickers'
 import { PresetsMenu } from '../../documents/components/PresetsMenu'
-import { useReservationList } from '../../documents/hooks/queries'
+import { useItemsById, useReservationList, useUnits } from '../../documents/hooks/queries'
 import { trimDecimal } from '../../documents/lib/quantity'
 import { INV_PERMS } from '../../documents/permissions'
 import { RESERVATION_STATUSES, type StockReservation } from '../../documents/types'
+import { useStockWarehouses } from '../../shared/warehouses'
+import { CreateReservationDialog } from '../components/CreateReservationDialog'
 import { ReleaseDialog } from '../components/ReleaseDialog'
 
 const VIEW_KEY = 'inventory.reservations'
@@ -34,12 +39,39 @@ export function ReservationListPage() {
   const { t } = useTranslation('inventoryDocs')
   const locale = useIntlLocale()
   const canManage = usePermission(INV_PERMS.reservationsManage)
+  const canReadLots = usePermission(INV_PERMS.stockView)
   const [releasing, setReleasing] = useState<StockReservation | null>(null)
+  const [creating, setCreating] = useState(false)
   const { query, setQuery } = useUrlListQuery(
     { sort: [{ id: 'created_at', desc: true }], filters: { status: 'active' } },
     { viewKey: VIEW_KEY },
   )
   const list = useReservationList(query)
+  const rows = list.data?.data ?? []
+  // The API returns ids: labels come from Catalog items, units, warehouses and lots.
+  const items = useItemsById(rows.map((r) => r.item_id)).data
+  const units = useUnits().data
+  const warehouses = useStockWarehouses().data
+  const lotIds = [...new Set(rows.flatMap((r) => (r.lot_id ? [r.lot_id] : [])))].sort()
+  const lots = useQuery({
+    queryKey: [...invDocsKeys.reservations(), 'lots', lotIds],
+    queryFn: async ({ signal }) =>
+      new Map(
+        (
+          await Promise.all(lotIds.map((id) => lookupsApi.lot(id, signal).catch(() => null)))
+        ).flatMap((l) => (l ? [[l.id, l.lot_no] as const] : [])),
+      ),
+    enabled: canReadLots && lotIds.length > 0,
+    staleTime: 60_000,
+  }).data
+  const itemLabel = (r: StockReservation) => {
+    const item = items?.get(r.item_id)
+    return item ? `${item.code} · ${item.name}` : ''
+  }
+  const unitCode = (r: StockReservation) => {
+    const item = items?.get(r.item_id)
+    return item?.base_unit?.code ?? units?.find((u) => u.id === item?.base_unit_id)?.code ?? ''
+  }
   const f = (key: string) => query.filters[key] ?? ''
   const change = (key: string, value: string) => setQuery(setFilter(query, key, value))
   const qty = (v: string) =>
@@ -61,28 +93,33 @@ export function ReservationListPage() {
   const columns = useMemo(() => {
     const col = createColumnHelper<StockReservation>()
     return [
-      col.accessor('item_code', {
+      col.accessor('item_id', {
         header: t('fields.item'),
-        enableSorting: true,
         meta: { label: t('fields.item') },
         size: 260,
-        cell: (c) => (
-          <span>
-            <span className="font-code">{c.getValue()}</span> {c.row.original.item_name}
-          </span>
-        ),
+        cell: (c) => {
+          const item = items?.get(c.getValue())
+          return item ? (
+            <span>
+              <span className="font-code">{item.code}</span> {item.name}
+            </span>
+          ) : null
+        },
       }),
-      col.accessor('warehouse_code', {
+      col.accessor('warehouse_id', {
         header: t('fields.warehouse'),
         meta: { label: t('fields.warehouse') },
         size: 120,
-        cell: (c) => c.getValue() ?? '',
+        cell: (c) => warehouses?.find((w) => w.id === c.getValue())?.code ?? '',
       }),
-      col.accessor('lot_no', {
+      col.accessor('lot_id', {
         header: t('reservation.lot'),
         meta: { label: t('reservation.lot') },
         size: 120,
-        cell: (c) => <span className="font-code">{c.getValue() ?? ''}</span>,
+        cell: (c) => {
+          const id = c.getValue()
+          return <span className="font-code">{id ? (lots?.get(id) ?? '') : ''}</span>
+        },
       }),
       col.accessor('quantity', {
         header: t('reservation.quantity'),
@@ -91,15 +128,21 @@ export function ReservationListPage() {
         size: 120,
         cell: (c) => (
           <span className="tabular-nums">
-            {qty(c.getValue())} {c.row.original.unit_code ?? ''}
+            {qty(c.getValue())} {unitCode(c.row.original)}
           </span>
         ),
       }),
-      col.accessor('source_label', {
+      col.accessor('source_type', {
         header: t('reservation.source'),
         meta: { label: t('reservation.source') },
-        size: 180,
-        cell: (c) => c.getValue() ?? c.row.original.source_type ?? '',
+        size: 160,
+        cell: (c) => c.getValue() ?? t('reservation.manual'),
+      }),
+      col.accessor('notes', {
+        header: t('fields.notes'),
+        meta: { label: t('fields.notes') },
+        size: 200,
+        cell: (c) => c.getValue() ?? '',
       }),
       col.accessor('expires_at', {
         header: t('reservation.expiresAt'),
@@ -154,7 +197,7 @@ export function ReservationListPage() {
               type="button"
               variant="ghost"
               size="sm"
-              aria-label={`${t('reservation.release')}: ${c.row.original.item_code ?? ''}`}
+              aria-label={`${t('reservation.release')}: ${items?.get(c.row.original.item_id)?.code ?? ''}`}
               onClick={() => setReleasing(c.row.original)}
             >
               <Unlock aria-hidden="true" />
@@ -163,9 +206,9 @@ export function ReservationListPage() {
           ) : null,
       }),
     ]
-    // qty/statusLabel derive from t and locale.
+    // qty/statusLabel/unitCode derive from t, locale and the lookups listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, locale, canManage])
+  }, [t, locale, canManage, items, units, warehouses, lots])
 
   const filtered = FILTERS.some((k) => f(k) !== '') || query.q !== ''
 
@@ -175,6 +218,14 @@ export function ReservationListPage() {
         title={t('reservation.title')}
         description={t('reservation.description')}
         breadcrumbs={[{ label: t('nav.inventory') }, { label: t('reservation.title') }]}
+        actions={
+          canManage ? (
+            <Button type="button" onClick={() => setCreating(true)}>
+              <Plus aria-hidden="true" />
+              {t('reservation.new')}
+            </Button>
+          ) : undefined
+        }
       />
       <section
         aria-label={t('list.filters')}
@@ -223,7 +274,7 @@ export function ReservationListPage() {
       <DataTable<StockReservation>
         label={t('reservation.title')}
         columns={columns}
-        data={list.data?.data ?? []}
+        data={rows}
         total={list.data?.meta.pagination.total ?? 0}
         loading={list.isPending}
         error={list.isError}
@@ -234,7 +285,13 @@ export function ReservationListPage() {
         viewKey={VIEW_KEY}
         enableColumnResizing
       />
-      <ReleaseDialog reservation={releasing} onClose={() => setReleasing(null)} />
+      <ReleaseDialog
+        reservation={releasing}
+        itemLabel={releasing ? itemLabel(releasing) : ''}
+        quantityLabel={releasing ? `${qty(releasing.quantity)} ${unitCode(releasing)}`.trim() : ''}
+        onClose={() => setReleasing(null)}
+      />
+      {canManage && <CreateReservationDialog open={creating} onOpenChange={setCreating} />}
     </div>
   )
 }

@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
-import { dec, trimDecimal } from '../lib/quantity'
+import { useStockWarehouses } from '../../shared/warehouses'
+import { dec, lineCost, trimDecimal } from '../lib/quantity'
 import { INV_PERMS } from '../permissions'
 import type { StockDocument } from '../types'
 import { DocStatusBadge } from './DocStatusBadge'
@@ -34,6 +35,7 @@ export function DocumentView({
   const locale = useIntlLocale()
   const canReverse = usePermission(INV_PERMS.documents.reverse)
   const [reversing, setReversing] = useState(false)
+  const warehouses = useStockWarehouses()
   const qty = (v: string | null | undefined) =>
     v ? formatDecimalDisplay(trimDecimal(v), { locale, minFraction: 0, maxFraction: 6 }) : ''
   const money = (v: string | null | undefined) => (v ? formatDecimalDisplay(v, { locale }) : '—')
@@ -43,24 +45,24 @@ export function DocumentView({
   const hasSerial = doc.lines.some((l) => l.serial_numbers.length > 0)
   const hasLocation = doc.lines.some((l) => l.location_id)
   const hasTarget = doc.lines.some((l) => l.target_location_id)
-  const warehouse = (code?: string | null, name?: string | null) =>
-    [code, name].filter(Boolean).join(' · ')
+  const hasDirection = doc.doc_type === 'adjustment'
+  const warehouse = (id: string | null) => {
+    const w = warehouses.data?.find((x) => x.id === id)
+    return w ? `${w.code} · ${w.name}` : ''
+  }
 
   const facts: [string, ReactNode][] = [
     [t('fields.documentDate'), formatDate(doc.document_date, locale)],
     [
       doc.doc_type === 'transfer' ? t('fields.sourceWarehouse') : t('fields.warehouse'),
-      warehouse(doc.warehouse_code, doc.warehouse_name),
+      warehouse(doc.warehouse_id),
     ],
   ]
   if (doc.target_warehouse_id)
-    facts.push([
-      t('fields.targetWarehouse'),
-      warehouse(doc.target_warehouse_code, doc.target_warehouse_name),
-    ])
+    facts.push([t('fields.targetWarehouse'), warehouse(doc.target_warehouse_id)])
   if (doc.reason) facts.push([t('fields.reason'), doc.reason])
   if (doc.posted_at) facts.push([t('fields.postedAt'), formatDateTime(doc.posted_at, locale)])
-  if (doc.total_cost) facts.push([t('fields.totalCost'), money(doc.total_cost)])
+  if (doc.allow_expired) facts.push([t('editor.allowExpired'), t('view.yes')])
   if (doc.journal_entry_id)
     facts.push([
       t('fields.journalEntry'),
@@ -143,9 +145,16 @@ export function DocumentView({
                   </th>
                 </>
               ) : (
-                <th scope="col" className={thr}>
-                  {t('lines.quantity')}
-                </th>
+                <>
+                  {hasDirection && (
+                    <th scope="col" className={th}>
+                      {t('lines.direction')}
+                    </th>
+                  )}
+                  <th scope="col" className={thr}>
+                    {t('lines.quantity')}
+                  </th>
+                </>
               )}
               <th scope="col" className={th}>
                 {t('lines.unit')}
@@ -206,24 +215,33 @@ export function DocumentView({
                       <td className={tdr}>{variance ? qty(variance) : ''}</td>
                     </>
                   ) : (
-                    <td className={tdr}>
-                      {qty(l.quantity)}
-                      {l.base_quantity &&
-                        dec(l.base_quantity).comparedTo(dec(l.quantity)) !== 0 && (
-                          <span className="block text-2xs text-muted-foreground">
-                            {t('lines.baseQuantity', {
-                              quantity: qty(l.base_quantity),
-                              unit: l.base_unit_code ?? '',
-                            })}
-                          </span>
-                        )}
-                    </td>
+                    <>
+                      {hasDirection && (
+                        <td className={td}>
+                          {l.direction === 'out' ? t('lines.directionOut') : t('lines.directionIn')}
+                        </td>
+                      )}
+                      <td className={tdr}>
+                        {qty(l.quantity)}
+                        {l.base_quantity &&
+                          dec(l.base_quantity).comparedTo(dec(l.quantity)) !== 0 && (
+                            <span className="block text-2xs text-muted-foreground">
+                              {t('lines.baseQuantity', {
+                                quantity: qty(l.base_quantity),
+                                unit: l.base_unit_code ?? '',
+                              })}
+                            </span>
+                          )}
+                      </td>
+                    </>
                   )}
                   <td className={td}>{l.unit_code}</td>
                   {hasCost && (
                     <>
                       <td className={tdr}>{money(l.unit_cost)}</td>
-                      <td className={tdr}>{money(l.total_cost)}</td>
+                      <td className={tdr}>
+                        {money(l.unit_cost ? lineCost(l.quantity, l.unit_cost)?.toFixed() : null)}
+                      </td>
                     </>
                   )}
                   {hasLot && (

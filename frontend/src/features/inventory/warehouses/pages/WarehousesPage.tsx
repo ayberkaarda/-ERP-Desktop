@@ -1,87 +1,78 @@
-import { MapPin, Pencil, Plus, Star, Trash2 } from 'lucide-react'
+import { ExternalLink, MapPin, Pencil, Star } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router'
-import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { Link } from 'react-router'
 import { DataTable, useUrlListQuery, type DataTableColumn } from '@/components/shared/data-table'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { usePermission } from '@/lib/permissions'
-import { platform } from '@/platform'
+import { useStockWarehouses, type StockWarehouse } from '../../shared/warehouses'
 import { InventoryShell } from '../../stock/components/common'
-import { errorMessage } from '../../stock/lib/errors'
 import { useInvT } from '../../stock/lib/i18n'
-import { INV_PERMISSIONS } from '../../stock/lib/permissions'
-import { useAllWarehouses, useDeleteWarehouse, useWarehouseList } from '../../stock/lib/queries'
-import type { Warehouse } from '../../stock/lib/types'
-import { WarehouseDialog } from '../components/WarehouseDialog'
+import { INV_ACCESS, INV_PERMISSIONS } from '../../stock/lib/permissions'
+import { WarehouseDialog, type WarehouseDialogTab } from '../components/WarehouseDialog'
+import { REFERENCE_WAREHOUSES_PATH, RESERVATION_POLICIES } from '../lib/constants'
 
 const VIEW_KEY = 'inventory.warehouses'
 
 interface DialogState {
-  warehouse: Warehouse | null
-  tab: 'general' | 'locations'
+  warehouse: StockWarehouse
+  tab: WarehouseDialogTab
   nonce: number
 }
 
-/** Warehouse list: settings at a glance, create/edit dialog with the locations tree. */
+const NEGATIVE_TONES = { allow: 'warning', warn: 'warning', block: 'neutral' } as const
+
+/**
+ * Warehouses as the stock ledger sees them (GET /stock-warehouses, one unpaginated list):
+ * Reference master data at a glance, the inventory reservation policy and the locations tree.
+ * Search, filters, sorting and paging run in the browser.
+ */
 export function WarehousesPage() {
   const t = useInvT()
   const canManage = usePermission(INV_PERMISSIONS.warehouses.manage)
-  const [params, setParams] = useSearchParams()
+  const canSeeLocations = usePermission(INV_PERMISSIONS.referenceWarehouses.view)
+  const canEditMaster = usePermission(INV_ACCESS.referenceWarehousesEdit)
   const { query, setQuery } = useUrlListQuery(
     { sort: [{ id: 'code', desc: false }] },
-    {
-      viewKey: VIEW_KEY,
-    },
+    { viewKey: VIEW_KEY },
   )
-  const list = useWarehouseList(query)
-  const all = useAllWarehouses()
-  const remove = useDeleteWarehouse()
-  // The create dialog follows ?new=1 (also set by the command palette on an open page);
-  // edit dialogs are local state.
-  const creating = params.get('new') === '1' && canManage
+  const list = useStockWarehouses()
   const [dialog, setDialog] = useState<DialogState | null>(null)
-  const [deleting, setDeleting] = useState<Warehouse | null>(null)
-  const currentDefault = all.data?.find((w) => w.is_default) ?? null
 
-  const closeDialog = () => {
-    setDialog(null)
-    if (params.get('new')) {
-      setParams(
-        (prev) => {
-          const next = new URLSearchParams(prev)
-          next.delete('new')
-          return next
-        },
-        { replace: true },
-      )
+  const open = (warehouse: StockWarehouse, tab: WarehouseDialogTab = 'general') =>
+    setDialog({ warehouse, tab, nonce: Date.now() })
+
+  const { rows, total } = useMemo(() => {
+    const q = query.q.trim().toLocaleLowerCase('tr')
+    const active = query.filters.is_active ?? ''
+    const policy = query.filters.reservation_policy ?? ''
+    const filtered = (list.data ?? []).filter(
+      (w) =>
+        (!q || `${w.code} ${w.name}`.toLocaleLowerCase('tr').includes(q)) &&
+        (!active || String(w.is_active) === active) &&
+        (!policy || w.reservation_policy === policy),
+    )
+    const [sort] = query.sort
+    if (sort && (sort.id === 'code' || sort.id === 'name')) {
+      const key = sort.id
+      filtered.sort((a, b) => {
+        const r = a[key].localeCompare(b[key], 'tr', { numeric: true })
+        return sort.desc ? -r : r
+      })
     }
-  }
+    const start = (query.page - 1) * query.perPage
+    return { rows: filtered.slice(start, start + query.perPage), total: filtered.length }
+  }, [list.data, query])
 
-  const open = (warehouse: Warehouse | null, tab: DialogState['tab'] = 'general') => {
-    if (warehouse) {
-      setDialog({ warehouse, tab, nonce: Date.now() })
-      return
-    }
-    setDialog(null)
-    setParams((prev) => {
-      const next = new URLSearchParams(prev)
-      next.set('new', '1')
-      return next
-    })
-  }
-  const shown: DialogState | null =
-    dialog ?? (creating ? { warehouse: null, tab: 'general', nonce: 0 } : null)
-
-  const columns = useMemo<DataTableColumn<Warehouse>[]>(
+  const columns = useMemo<DataTableColumn<StockWarehouse>[]>(
     () => [
       {
         id: 'code',
         accessorKey: 'code',
         header: t('warehouses.fields.code'),
         enableSorting: true,
-        size: 120,
+        size: 140,
         meta: { label: t('warehouses.fields.code') },
         cell: ({ row }) => (
           <span className="inline-flex items-center gap-1.5">
@@ -100,40 +91,29 @@ export function WarehousesPage() {
         accessorKey: 'name',
         header: t('warehouses.fields.name'),
         enableSorting: true,
-        size: 240,
+        size: 260,
         meta: { label: t('warehouses.fields.name') },
       },
       {
-        id: 'address',
-        accessorKey: 'address',
-        header: t('warehouses.fields.address'),
-        size: 240,
-        meta: { label: t('warehouses.fields.address') },
+        id: 'negative_stock_policy',
+        header: t('warehouses.fields.negativeStock'),
+        size: 140,
+        meta: { label: t('warehouses.fields.negativeStock') },
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{row.original.address ?? '—'}</span>
+          <Badge tone={NEGATIVE_TONES[row.original.negative_stock_policy]}>
+            {t(`warehouses.negative.${row.original.negative_stock_policy}`)}
+          </Badge>
         ),
-      },
-      {
-        id: 'allow_negative_stock',
-        header: t('warehouses.fields.allowNegative'),
-        size: 120,
-        meta: { label: t('warehouses.fields.allowNegative') },
-        cell: ({ row }) =>
-          row.original.allow_negative_stock ? (
-            <Badge tone="warning">{t('common.yes')}</Badge>
-          ) : (
-            <span className="text-muted-foreground">{t('common.no')}</span>
-          ),
       },
       {
         id: 'reservation_policy',
         header: t('warehouses.fields.reservationPolicy'),
-        size: 140,
+        size: 160,
         meta: {
           label: t('warehouses.fields.reservationPolicy'),
           filter: {
             key: 'reservation_policy',
-            options: (['none', 'soft', 'hard'] as const).map((p) => ({
+            options: RESERVATION_POLICIES.map((p) => ({
               value: p,
               label: t(`warehouses.policy.${p}`),
             })),
@@ -142,26 +122,9 @@ export function WarehousesPage() {
         cell: ({ row }) => t(`warehouses.policy.${row.original.reservation_policy}`),
       },
       {
-        id: 'locations_count',
-        header: t('warehouses.fields.locations'),
-        size: 100,
-        meta: { label: t('warehouses.fields.locations'), align: 'right' },
-        cell: ({ row }) => (
-          <Button
-            variant="link"
-            size="sm"
-            aria-label={t('warehouses.openLocations', { code: row.original.code })}
-            onClick={() => open(row.original, 'locations')}
-          >
-            <MapPin aria-hidden="true" />
-            {row.original.locations_count ?? '—'}
-          </Button>
-        ),
-      },
-      {
         id: 'is_active',
         header: t('warehouses.fields.status'),
-        size: 100,
+        size: 110,
         meta: {
           label: t('warehouses.fields.status'),
           filter: {
@@ -174,76 +137,55 @@ export function WarehousesPage() {
         },
         cell: ({ row }) => <StatusBadge status={row.original.is_active ? 'active' : 'inactive'} />,
       },
-      ...(canManage
-        ? [
-            {
-              id: 'actions',
-              header: () => <span className="sr-only">{t('common.actions')}</span>,
-              size: 96,
-              enableHiding: false,
-              meta: { label: t('common.actions'), align: 'right' },
-              cell: ({ row }) => {
-                const w = row.original
-                const locked = w.is_default || w.has_movements === true
-                return (
-                  <span className="inline-flex gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={t('warehouses.edit', { code: w.code })}
-                      onClick={() => open(w)}
-                    >
-                      <Pencil aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={locked}
-                      title={
-                        w.is_default
-                          ? t('warehouses.deleteDefault')
-                          : w.has_movements
-                            ? t('warehouses.deleteMoved')
-                            : undefined
-                      }
-                      aria-label={t('warehouses.delete', { code: w.code })}
-                      onClick={() => setDeleting(w)}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
-                  </span>
-                )
-              },
-            } satisfies DataTableColumn<Warehouse>,
-          ]
-        : []),
+      {
+        id: 'actions',
+        header: () => <span className="sr-only">{t('common.actions')}</span>,
+        size: 96,
+        enableHiding: false,
+        meta: { label: t('common.actions'), align: 'right' },
+        cell: ({ row }) => {
+          const w = row.original
+          return (
+            <span className="inline-flex gap-0.5">
+              {canSeeLocations && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('warehouses.openLocations', { code: w.code })}
+                  onClick={() => open(w, 'locations')}
+                >
+                  <MapPin aria-hidden="true" />
+                </Button>
+              )}
+              {canManage && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('warehouses.edit', { code: w.code })}
+                  onClick={() => open(w)}
+                >
+                  <Pencil aria-hidden="true" />
+                </Button>
+              )}
+            </span>
+          )
+        },
+      },
     ],
-    // `open` only writes state and the URL; the columns depend on labels and permission.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, canManage],
+    [t, canManage, canSeeLocations],
   )
-
-  const confirmDelete = async () => {
-    if (!deleting) return
-    try {
-      await remove.mutateAsync({ id: deleting.id, version: deleting.version })
-      platform.notify.success(t('warehouses.deleted', { code: deleting.code }))
-      setDeleting(null)
-    } catch (error) {
-      platform.notify.error(errorMessage(error, t('warehouses.deleteFailed')))
-      throw error
-    }
-  }
 
   return (
     <InventoryShell
       title={t('warehouses.title')}
       description={t('warehouses.description')}
       actions={
-        canManage && (
-          <Button onClick={() => open(null)}>
-            <Plus aria-hidden="true" />
-            {t('warehouses.new')}
+        canEditMaster && (
+          <Button asChild variant="secondary">
+            <Link to={REFERENCE_WAREHOUSES_PATH}>
+              <ExternalLink aria-hidden="true" />
+              {t('warehouses.manageInReference')}
+            </Link>
           </Button>
         )
       }
@@ -251,8 +193,8 @@ export function WarehousesPage() {
       <DataTable
         label={t('warehouses.title')}
         columns={columns}
-        data={list.data?.data ?? []}
-        total={list.data?.meta.pagination.total ?? 0}
+        data={rows}
+        total={total}
         query={query}
         onQueryChange={setQuery}
         getRowId={(w) => w.id}
@@ -262,24 +204,15 @@ export function WarehousesPage() {
         viewKey={VIEW_KEY}
         onRowActivate={(w) => open(w)}
       />
-      {shown && (
+      {dialog && (
         <WarehouseDialog
-          key={`${shown.warehouse?.id ?? 'new'}:${shown.nonce}`}
+          key={`${dialog.warehouse.id}:${dialog.nonce}`}
           open
-          onOpenChange={(next) => !next && closeDialog()}
-          warehouse={shown.warehouse}
-          currentDefault={currentDefault}
-          initialTab={shown.tab}
+          onOpenChange={(next) => !next && setDialog(null)}
+          warehouse={dialog.warehouse}
+          initialTab={dialog.tab}
         />
       )}
-      <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(next) => !next && setDeleting(null)}
-        title={t('warehouses.deleteTitle', { code: deleting?.code ?? '' })}
-        description={t('warehouses.deleteBody')}
-        confirmLabel={t('warehouses.deleteConfirm')}
-        onConfirm={confirmDelete}
-      />
     </InventoryShell>
   )
 }

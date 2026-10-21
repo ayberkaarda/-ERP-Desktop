@@ -43,7 +43,6 @@
     "notes": "Notes",
     "status": "Statut",
     "lineCount": "Lignes",
-    "totalCost": "Coût total",
     "source": "Origine",
     "postedAt": "Validé le",
     "journalEntry": "Écriture comptable",
@@ -92,7 +91,8 @@
     "saved": "Brouillon enregistré.",
     "deleted": "Brouillon supprimé.",
     "readOnly": "Vous ne pouvez pas modifier ce document.",
-    "header": "Informations du document"
+    "header": "Informations du document",
+    "allowExpired": "Autoriser la sortie de lots périmés"
   },
   "lines": {
     "title": "Lignes",
@@ -115,7 +115,10 @@
     "serialsEntered": "{{count}} saisis",
     "maxReached": "Un document peut avoir au plus {{max}} lignes.",
     "count": "{{count}} / {{max}} lignes",
-    "fefo": "Si vide, le lot qui expire en premier (FEFO) est utilisé."
+    "fefo": "Si vide, le lot qui expire en premier (FEFO) est utilisé.",
+    "direction": "Sens",
+    "directionIn": "Entrée",
+    "directionOut": "Sortie"
   },
   "scan": {
     "label": "Scanner un code-barres",
@@ -141,7 +144,6 @@
     "unit": "Choisissez une unité.",
     "quantity": "Saisissez une quantité valide.",
     "quantityPositive": "La quantité doit être supérieure à zéro.",
-    "quantityNonZero": "La quantité ne peut pas être nulle.",
     "unitCost": "Saisissez un coût unitaire valide.",
     "lot": "Les articles suivis par lot exigent un numéro de lot.",
     "expiry": "La date de péremption est obligatoire.",
@@ -171,7 +173,8 @@
     "lines": "Lignes",
     "audit": "Historique",
     "reversed": "Extourné le {{date}} : {{reason}}",
-    "journalEntry": "Ouvrir l'écriture comptable"
+    "journalEntry": "Ouvrir l'écriture comptable",
+    "yes": "Oui"
   },
   "conflict": {
     "title": "Quelqu'un d'autre a modifié ce document",
@@ -188,10 +191,7 @@
     "listDescription": "Lancez un inventaire, saisissez les quantités comptées, examinez les écarts et validez.",
     "new": "Nouvel inventaire",
     "startTitle": "Lancer un inventaire",
-    "startBody": "Le lancement gèle les quantités système du périmètre choisi ; le comptage leur est comparé.",
-    "scopeLocation": "Emplacement (facultatif)",
-    "scopeCategory": "Catégorie (facultatif)",
-    "includeZero": "Lister aussi les articles à quantité système nulle",
+    "startBody": "Avec le gel, les soldes non nuls de l’entrepôt deviennent des lignes d’inventaire avec leur quantité système ; le comptage leur est comparé.",
     "start": "Geler et lancer",
     "title": "Inventaire {{number}}",
     "frozenAt": "Gelé : {{date}}",
@@ -208,37 +208,47 @@
     "saved": "Inventaire enregistré.",
     "keys": "Naviguez entre les cellules avec les flèches et Entrée ; Ctrl+S enregistre.",
     "progress": "{{counted}} / {{total}} lignes comptées",
-    "uncountedWarning": "{{count}} lignes ne sont pas encore comptées ; comptez-les ou remplissez-les avec la quantité système avant de valider.",
+    "uncountedWarning": "{{count}} lignes ne sont pas encore comptées ; elles sont ignorées à la validation.",
     "summaryGain": "Excédent",
     "summaryLoss": "Manquant",
     "summaryNet": "Écart net",
     "postBody": "Des mouvements d'ajustement d'inventaire et une écriture d'écart sont créés pour les différences.",
     "postSummary": "{{gain}} excédent · {{loss}} manquant · net {{net}}",
-    "postNeedsCounts": "Toutes les lignes doivent être comptées avant la validation.",
+    "postNeedsCounts": "Comptez au moins une ligne avant de valider.",
     "empty": "Cet inventaire n'a aucune ligne.",
     "notFound": "Aucune ligne ne correspond au filtre.",
     "saveBeforeImport": "Enregistrez l'inventaire avant l'import.",
     "summary": "Synthèse de l'inventaire",
     "prevPage": "Page précédente",
     "nextPage": "Page suivante",
-    "page": "Page {{page}} / {{pages}}"
+    "page": "Page {{page}} / {{pages}}",
+    "freeze": "Geler le stock actuel (ajouter les quantités système comme lignes)",
+    "startEmpty": "Démarrer un inventaire vide",
+    "scopeItems": "Uniquement ces articles (facultatif)",
+    "scopeItemsHint": "Laissez vide pour geler tous les articles de l’entrepôt.",
+    "removeItem": "Retirer {{item}} du périmètre",
+    "addLine": "Ajouter une ligne",
+    "addTitle": "Ajouter une ligne d’inventaire",
+    "addBody": "Pour du stock absent de la liste ; sa quantité système est le stock au moment de l’ajout. Un article, emplacement et lot existants mettent cette ligne à jour.",
+    "added": "Ligne ajoutée.",
+    "postSkipsUncounted": "{{count}} lignes non comptées seront ignorées."
   },
   "import": {
     "action": "Importer un CSV",
     "title": "Importer un CSV d'inventaire",
-    "body": "Colonnes : item_code, lot_no, location_code, counted_quantity. Un essai a lieu d'abord ; appliquez s'il n'y a pas d'erreur.",
+    "body": "Colonnes : item_code, counted_quantity et, en option, location_code, lot_no (virgule ou point-virgule). Les lignes correspondantes reçoivent le comptage, les autres sont ajoutées. Un essai d’abord ; appliquez s’il n’y a pas d’erreur.",
     "file": "Fichier CSV",
     "dryRun": "Essai",
     "apply": "Appliquer {{count}} lignes",
     "row": "Ligne",
     "result": "Résultat",
-    "ok": "OK",
-    "error": "Erreur",
-    "summary": "{{valid}} lignes valides, {{invalid}} en erreur",
+    "summary": "{{valid}} lignes valides sur {{rows}}",
     "applied": "{{count}} lignes importées.",
     "hasErrors": "Corrigez les lignes en erreur et réessayez le fichier.",
     "tooLarge": "Le fichier est trop volumineux (5 Mo au maximum).",
-    "wrongType": "Choisissez uniquement un fichier .csv."
+    "wrongType": "Choisissez uniquement un fichier .csv.",
+    "column": "Colonne",
+    "message": "Erreur"
   },
   "reservation": {
     "title": "Réservations",
@@ -251,13 +261,20 @@
     "release": "Libérer",
     "releaseTitle": "Libérer la réservation ?",
     "releaseBody": "Les {{quantity}} réservés de {{item}} redeviennent du stock disponible.",
-    "releaseReason": "Motif (facultatif)",
     "released": "Réservation libérée.",
     "noExpiry": "Sans échéance",
     "statusActive": "Active",
     "statusReleased": "Libérée",
     "statusConsumed": "Consommée",
-    "statusExpired": "Expirée"
+    "statusExpired": "Expirée",
+    "new": "Nouvelle réservation",
+    "createTitle": "Réserver du stock",
+    "createBody": "Bloque une quantité dans un entrepôt. Avec une politique souple, la partie au-delà du disponible est signalée.",
+    "create": "Réserver",
+    "created": "Réservation créée.",
+    "shortage": "Réservation créée ; {{quantity}} dépasse le stock disponible.",
+    "anyLot": "N’importe quel lot",
+    "manual": "Manuelle"
   },
   "reports": {
     "hubTitle": "Rapports de stock",
@@ -268,8 +285,12 @@
     "empty": "Aucune donnée pour ce rapport.",
     "total": "Total",
     "rows": "{{count}} lignes",
-    "truncated": "Les {{count}} premières lignes sont affichées ; exportez pour les obtenir toutes.",
-    "required": "Renseignez les paramètres obligatoires."
+    "required": "Renseignez les paramètres obligatoires.",
+    "expired": "Périmé",
+    "basisBooked": "Valeurs comptabilisées ({{method}}) : les montants du compte de stock.",
+    "basisSimulated": "Valeurs simulées recalculées en {{method}} ; elles peuvent différer de la comptabilité.",
+    "basisLayers": "Les âges proviennent des couches de coût FIFO.",
+    "basisReceipts": "Les âges proviennent des entrées les plus récentes couvrant le stock."
   },
   "report": {
     "stockStatus": {
@@ -294,15 +315,19 @@
     },
     "abc": {
       "title": "Analyse ABC",
-      "description": "Classes A, B et C des articles selon la valeur des sorties sur la période."
+      "description": "Classes A, B et C des articles selon la valeur consommée sur la période (ou la valeur du stock en fin)."
     },
     "turnover": {
       "title": "Rotation des stocks",
-      "description": "Stock moyen, coût des ventes et rotation sur la période."
+      "description": "Valeur de stock initiale et finale, consommation, stock moyen, rotation et jours de stock."
     },
     "reorder": {
       "title": "Suggestions de réapprovisionnement",
       "description": "Articles dont la quantité disponible est passée sous le point de commande."
+    },
+    "movementSummary": {
+      "title": "Synthèse des mouvements",
+      "description": "Quantités et valeurs initiales, entrées, sorties et finales de la période."
     }
   },
   "param": {
@@ -320,10 +345,16 @@
     "days": "Jours",
     "includeExpired": "Inclure les lots expirés",
     "basis": "Base",
-    "basisValue": "Valeur",
-    "basisQuantity": "Quantité",
     "aThreshold": "Seuil A (%)",
-    "bThreshold": "Seuil B (%)"
+    "bThreshold": "Seuil B (%)",
+    "groupBy": "Regrouper par",
+    "groupItemWarehouse": "Article et entrepôt",
+    "groupItem": "Article",
+    "groupWarehouse": "Entrepôt",
+    "groupCategory": "Catégorie",
+    "search": "Code ou nom",
+    "basisConsumption": "Valeur consommée",
+    "basisStockValue": "Valeur du stock en fin de période"
   },
   "col": {
     "itemCode": "Code",
@@ -354,19 +385,28 @@
     "b61_90": "61-90 jours",
     "b90": "90+ jours",
     "expiryDate": "DLC",
-    "daysLeft": "Jours restants",
     "share": "Part %",
     "cumulative": "Cumul %",
     "class": "Classe",
     "openingValue": "Valeur initiale",
     "closingValue": "Valeur finale",
-    "averageInventory": "Stock moyen",
-    "cogs": "Coût des ventes",
     "turnover": "Rotation",
     "daysOnHand": "Jours de stock",
     "reorderPoint": "Point de commande",
     "minStock": "Stock minimum",
-    "suggested": "Quantité suggérée"
+    "suggested": "Quantité suggérée",
+    "warehouseName": "Nom de l’entrepôt",
+    "category": "Catégorie",
+    "categoryName": "Nom de la catégorie",
+    "itemCount": "Articles",
+    "rank": "Rang",
+    "serial": "N° de série",
+    "balanceAvgCost": "Coût moyen",
+    "daysToExpiry": "Jours restants",
+    "consumedValue": "Consommation",
+    "averageValue": "Stock moyen",
+    "openingQuantity": "Quantité initiale",
+    "closingQuantity": "Quantité finale"
   },
   "movementType": {
     "receipt": "Entrée",

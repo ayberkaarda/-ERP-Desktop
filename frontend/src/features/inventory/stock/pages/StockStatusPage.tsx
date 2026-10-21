@@ -20,23 +20,22 @@ import { ItemStockDrawer } from '../components/ItemStockDrawer'
 import { SavedViewsMenu } from '../components/SavedViewsMenu'
 import { WarehouseSelect } from '../components/WarehouseSelect'
 import { balanceGroup, balanceParams, INV_PATHS } from '../lib/api'
-import { isBelow, isNegative, useFormatters } from '../lib/format'
+import { isNegative, useFormatters } from '../lib/format'
 import { acceptFilters, anyValue, isTrue, type FilterRules } from '../lib/filters'
 import { useInvT } from '../lib/i18n'
 import { useBalanceList } from '../lib/queries'
 import { STOCK_GROUPINGS, type StockBalance } from '../lib/types'
-import { knownWarehouses } from '../lib/warehouseOptions'
 
 const VIEW_KEY = 'inventory.stock-status'
 /** Filters of the page; `group` is the grouping level, kept with them in the URL and views. */
-const FILTER_KEYS = ['warehouse_id', 'item_id', 'below_reorder', 'hide_zero', 'group'] as const
+const FILTER_KEYS = ['warehouse_id', 'item_id', 'include_zero', 'group'] as const
 const isGroup = (v: string) =>
-  v !== 'item_warehouse' && (STOCK_GROUPINGS as readonly string[]).includes(v)
+  v !== 'warehouse' && (STOCK_GROUPINGS as readonly string[]).includes(v)
 
 const balanceRowId = (b: StockBalance) =>
   [b.item_id, b.warehouse_id, b.location_id ?? '', b.lot_id ?? ''].join(':')
 
-/** Stock status: item x warehouse (or location / lot) balances with cost and value. */
+/** Stock status: item x warehouse (or per item / location and lot) balances with cost and value. */
 export function StockStatusPage() {
   const t = useInvT()
   const f = useFormatters()
@@ -51,8 +50,7 @@ export function StockStatusPage() {
   const query = useMemo(() => {
     const rules: FilterRules = {
       warehouse_id: anyValue,
-      below_reorder: isTrue,
-      hide_zero: isTrue,
+      include_zero: isTrue,
       group: isGroup,
       ...(canPickItems ? { item_id: anyValue } : {}),
     }
@@ -61,10 +59,6 @@ export function StockStatusPage() {
   const group = balanceGroup(query)
   const drawerItem = params.get('item')
   const list = useBalanceList(query)
-  const warehouseOptions = useMemo(
-    () => knownWarehouses((list.data?.data ?? []).map((b) => b.warehouse)),
-    [list.data],
-  )
 
   // The drawer is a history entry: Back closes it.
   const setDrawerItem = (itemId: string | null) =>
@@ -88,21 +82,17 @@ export function StockStatusPage() {
 
   const exportParams = useMemo(() => balanceParams(query, false), [query])
   const columns = useMemo<DataTableColumn<StockBalance>[]>(() => {
-    const qty = (key: 'on_hand' | 'reserved' | 'available', label: string, sortable = true) =>
+    const qty = (key: 'on_hand' | 'reserved' | 'available', label: string) =>
       ({
         id: key,
         header: label,
-        enableSorting: sortable,
+        enableSorting: true,
         size: 120,
         meta: { label, align: 'right' },
         cell: ({ row }) => {
           const v = row.original[key]
-          const low = key === 'available' && isBelow(v, row.original.reorder_point)
           return (
-            <span
-              className={cn('tabular-nums', (isNegative(v) || low) && 'font-medium text-danger')}
-              title={low ? t('stock.belowReorder') : undefined}
-            >
+            <span className={cn('tabular-nums', isNegative(v) && 'font-medium text-danger')}>
               {f.qty(v)}
             </span>
           )
@@ -121,43 +111,43 @@ export function StockStatusPage() {
           <button
             type="button"
             className="max-w-full truncate text-left hover:underline"
-            aria-label={t('stock.openItem', { code: row.original.item.code })}
+            aria-label={t('stock.openItem', { code: row.original.item_code })}
             onClick={() => setDrawerItem(row.original.item_id)}
           >
-            <span className="font-code font-medium">{row.original.item.code}</span>{' '}
-            <span className="text-muted-foreground">{row.original.item.name}</span>
+            <span className="font-code font-medium">{row.original.item_code}</span>{' '}
+            <span className="text-muted-foreground">{row.original.item_name}</span>
           </button>
         ),
       },
-      {
+    ]
+    if (group !== 'item') {
+      cols.push({
         id: 'warehouse_code',
         header: t('fields.warehouse'),
         enableSorting: true,
         size: 160,
         meta: { label: t('fields.warehouse') },
         cell: ({ row }) => (
-          <span title={row.original.warehouse.name}>
-            <span className="font-code">{row.original.warehouse.code}</span>{' '}
-            <span className="text-muted-foreground">{row.original.warehouse.name}</span>
+          <span title={row.original.warehouse_name ?? undefined}>
+            <span className="font-code">{row.original.warehouse_code}</span>{' '}
+            <span className="text-muted-foreground">{row.original.warehouse_name}</span>
           </span>
         ),
-      },
-    ]
-    if (group === 'location') {
+      })
+    }
+    if (group === 'detail') {
       cols.push({
         id: 'location',
         header: t('fields.location'),
         size: 140,
         meta: { label: t('fields.location') },
         cell: ({ row }) =>
-          row.original.location ? (
-            <span className="font-code">{row.original.location.code}</span>
+          row.original.location_code ? (
+            <span className="font-code">{row.original.location_code}</span>
           ) : (
             <span className="text-muted-foreground">{t('stock.noLocation')}</span>
           ),
       })
-    }
-    if (group === 'lot') {
       cols.push(
         {
           id: 'lot',
@@ -165,8 +155,8 @@ export function StockStatusPage() {
           size: 140,
           meta: { label: t('fields.lot') },
           cell: ({ row }) =>
-            row.original.lot ? (
-              <span className="font-code">{row.original.lot.lot_no}</span>
+            row.original.lot_no ? (
+              <span className="font-code">{row.original.lot_no}</span>
             ) : (
               <span className="text-muted-foreground">—</span>
             ),
@@ -177,13 +167,13 @@ export function StockStatusPage() {
           size: 200,
           meta: { label: t('fields.expiry') },
           cell: ({ row }) =>
-            row.original.lot ? <ExpiryBadge expiry={row.original.lot.expiry_date} /> : null,
+            row.original.lot_id ? <ExpiryBadge expiry={row.original.expiry_date} /> : null,
         },
       )
     }
     cols.push(
       qty('on_hand', t('fields.onHand')),
-      qty('reserved', t('fields.reserved'), false),
+      qty('reserved', t('fields.reserved')),
       qty('available', t('fields.available')),
       {
         id: 'avg_cost',
@@ -209,8 +199,6 @@ export function StockStatusPage() {
     // setDrawerItem only writes the URL; columns depend on labels, grouping and locale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t, group, f])
-
-  const totals = list.data?.meta.totals
 
   return (
     <InventoryShell
@@ -240,7 +228,6 @@ export function StockStatusPage() {
             <WarehouseSelect
               {...control}
               value={filter('warehouse_id')}
-              known={warehouseOptions}
               onChange={(v) => change('warehouse_id', v)}
             />
           )}
@@ -265,24 +252,17 @@ export function StockStatusPage() {
               value={group}
               options={STOCK_GROUPINGS.map((g) => ({ value: g, label: t(`stock.groups.${g}`) }))}
               onChange={(e) =>
-                change('group', e.target.value === 'item_warehouse' ? '' : e.target.value)
+                change('group', e.target.value === 'warehouse' ? '' : e.target.value)
               }
             />
           )}
         </FieldShell>
         <label className="flex h-control items-center gap-2 text-sm">
           <Checkbox
-            checked={filter('below_reorder') === 'true'}
-            onChange={(e) => change('below_reorder', e.target.checked ? 'true' : '')}
+            checked={filter('include_zero') === 'true'}
+            onChange={(e) => change('include_zero', e.target.checked ? 'true' : '')}
           />
-          {t('stock.onlyBelowReorder')}
-        </label>
-        <label className="flex h-control items-center gap-2 text-sm">
-          <Checkbox
-            checked={filter('hide_zero') === 'true'}
-            onChange={(e) => change('hide_zero', e.target.checked ? 'true' : '')}
-          />
-          {t('stock.hideZero')}
+          {t('stock.includeZero')}
         </label>
         {filtered && (
           <Button
@@ -309,12 +289,6 @@ export function StockStatusPage() {
         viewKey={VIEW_KEY}
         onRowActivate={(row) => setDrawerItem(row.item_id)}
       />
-      {totals && (
-        <p className="mt-2 text-right text-sm" data-testid="stock-total-value">
-          <span className="text-muted-foreground">{t('stock.totalValue')}</span>{' '}
-          <span className="font-semibold tabular-nums">{f.money(totals.value)}</span>
-        </p>
-      )}
       <ItemStockDrawer itemId={drawerItem} onClose={() => setDrawerItem(null)} />
     </InventoryShell>
   )

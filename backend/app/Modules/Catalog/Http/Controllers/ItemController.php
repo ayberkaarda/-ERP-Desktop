@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Filters: type, tracking, is_active, has_expiry, base_unit_id, category (uuid, whole subtree).
@@ -26,12 +27,21 @@ final class ItemController extends CatalogController
 {
     public function __construct(private readonly ItemService $items) {}
 
+    /** At most this many ids per filter[id] request (one page of the list). */
+    public const int MAX_IDS = 100;
+
     public function index(Request $request): JsonResponse
     {
         Gate::authorize('viewAny', Item::class);
-        [$request, $custom, $term] = $this->customFilters($request, ['category', 'base_unit_id'], takeSearch: true);
+        [$request, $custom, $term] = $this->customFilters($request, ['category', 'base_unit_id', 'id'], takeSearch: true);
         $query = Item::query()->with('baseUnit');
         $this->uuidFilter($query, 'base_unit_id', $custom, 'base_unit_id');
+
+        // filter[id]=a,b,...: a bounded batch read by id (labels for documents of other modules).
+        if (isset($custom['id']) && count(explode(',', $custom['id'])) > self::MAX_IDS) {
+            throw ValidationException::withMessages(['filter.id' => [(string) __('validation.max.array', ['attribute' => 'filter.id', 'max' => self::MAX_IDS])]]);
+        }
+        $this->uuidFilter($query, 'id', $custom, 'id');
 
         if (isset($custom['category'])) {
             $query->whereIn('category_id', CategoryTree::subtree($this->uuid('filter.category', $custom['category'])));

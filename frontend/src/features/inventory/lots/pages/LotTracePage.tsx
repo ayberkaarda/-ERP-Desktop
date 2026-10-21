@@ -1,4 +1,6 @@
+import Decimal from 'decimal.js'
 import { ArrowRight } from 'lucide-react'
+import { useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -11,7 +13,20 @@ import { isNegative, useFormatters } from '../../stock/lib/format'
 import { useInvT } from '../../stock/lib/i18n'
 import { itemStockPath } from '../../stock/lib/navigation'
 import { useLotTrace } from '../../stock/lib/queries'
+import { useWarehouseLookup } from '../../stock/lib/warehouseLookup'
+import type { LotTraceSummary } from '../../stock/lib/types'
 import { MovementsTable } from '../../movements/components/MovementsTable'
+
+/** Received and issued over all warehouses (decimal strings, summed without floats). */
+function totals(summary: readonly LotTraceSummary[]): { received: string; issued: string } {
+  let received = new Decimal(0)
+  let issued = new Decimal(0)
+  for (const s of summary) {
+    received = received.plus(s.received)
+    issued = issued.plus(s.issued)
+  }
+  return { received: received.toFixed(6), issued: issued.toFixed(6) }
+}
 
 function Figure({ label, value }: { label: string; value: string }) {
   return (
@@ -28,7 +43,14 @@ export function LotTracePage() {
   const f = useFormatters()
   const { id = '' } = useParams()
   const trace = useLotTrace(id)
+  const warehouseOf = useWarehouseLookup()
   const lot = trace.data?.lot
+  const sums = useMemo(() => totals(trace.data?.summary ?? []), [trace.data])
+  // Where the lot is now: warehouses with a non-zero balance.
+  const where = useMemo(
+    () => (trace.data?.summary ?? []).filter((s) => !new Decimal(s.on_hand).isZero()),
+    [trace.data],
+  )
   const breadcrumbs = [
     { label: t('common.nav.title') },
     { label: t('lots.title'), to: '/inventory/lots' },
@@ -49,7 +71,7 @@ export function LotTracePage() {
       description={
         lot ? (
           <Link to={itemStockPath(lot.item_id)} className="hover:underline">
-            <span className="font-code">{lot.item.code}</span> {lot.item.name}
+            <span className="font-code">{lot.item_code}</span> {lot.item_name}
           </Link>
         ) : undefined
       }
@@ -63,8 +85,8 @@ export function LotTracePage() {
       ) : (
         <div className="space-y-6">
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Figure label={t('trace.received')} value={f.qty(trace.data.received)} />
-            <Figure label={t('trace.issued')} value={f.qty(trace.data.issued)} />
+            <Figure label={t('trace.received')} value={f.qty(sums.received)} />
+            <Figure label={t('trace.issued')} value={f.qty(sums.issued)} />
             <Figure label={t('fields.onHand')} value={f.qty(trace.data.lot.on_hand)} />
             <Figure
               label={t('fields.manufactureDate')}
@@ -78,7 +100,7 @@ export function LotTracePage() {
 
           <section className="space-y-2">
             <h2 className="text-sm font-semibold">{t('trace.whereNow')}</h2>
-            {trace.data.balances.length === 0 ? (
+            {where.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t('trace.noBalance')}</p>
             ) : (
               <div className="overflow-x-auto rounded-md border border-border bg-surface">
@@ -88,8 +110,11 @@ export function LotTracePage() {
                       <th scope="col" className="px-2 py-1.5 text-left font-medium">
                         {t('fields.warehouse')}
                       </th>
-                      <th scope="col" className="px-2 py-1.5 text-left font-medium">
-                        {t('fields.location')}
+                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                        {t('trace.received')}
+                      </th>
+                      <th scope="col" className="px-2 py-1.5 text-right font-medium">
+                        {t('trace.issued')}
                       </th>
                       <th scope="col" className="px-2 py-1.5 text-right font-medium">
                         {t('fields.onHand')}
@@ -97,15 +122,16 @@ export function LotTracePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {trace.data.balances.map((b) => (
-                      <tr
-                        key={`${b.warehouse.id}:${b.location?.id ?? ''}`}
-                        className="border-t border-border"
-                      >
+                    {where.map((b) => (
+                      <tr key={b.warehouse_id} className="border-t border-border">
                         <th scope="row" className="px-2 py-1.5 text-left font-normal">
-                          <span className="font-code">{b.warehouse.code}</span> {b.warehouse.name}
+                          <span className="font-code">
+                            {warehouseOf(b.warehouse_id)?.code ?? b.warehouse_id}
+                          </span>{' '}
+                          {warehouseOf(b.warehouse_id)?.name}
                         </th>
-                        <td className="px-2 py-1.5 font-code">{b.location?.code ?? '—'}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{f.qty(b.received)}</td>
+                        <td className="px-2 py-1.5 text-right tabular-nums">{f.qty(b.issued)}</td>
                         <td
                           className={cn(
                             'px-2 py-1.5 text-right tabular-nums',

@@ -20,6 +20,7 @@ import { calendarDate, snakeToCamelPath } from '@/lib/forms'
 import { platform } from '@/platform'
 import { documentsApi } from '../api/client'
 import { activeCompany, invalidateStockEffects, invDocsKeys } from '../api/keys'
+import { useEnrich } from '../hooks/queries'
 import { usePayloadKeys } from '../lib/idempotency'
 import type { StockDocument } from '../types'
 
@@ -35,23 +36,32 @@ interface ReverseValues {
   reason: string
 }
 
-/** POST /stock-documents/{id}/reverse {date, reason, version}: mirrored movements and entry. */
+/**
+ * POST /stock-documents/{id}/reverse {date, reason, version}: mirrored movements and journal
+ * entry; the same document comes back cancelled with its reversal_* fields.
+ */
 export function ReverseDialog({ document, open, onOpenChange, onReversed }: ReverseDialogProps) {
   const { t } = useTranslation('inventoryDocs')
   const queryClient = useQueryClient()
   const keyFor = usePayloadKeys()
+  const enrich = useEnrich()
   const schema = z.object({
     date: calendarDate({ min: document.document_date }),
-    reason: z.string().trim().min(3, t('reverse.reasonRequired')).max(500),
+    reason: z.string().trim().min(3, t('reverse.reasonRequired')).max(1000),
   })
   const form = useForm<ReverseValues>({
     resolver: zodResolver(schema),
     defaultValues: { date: toIsoDate(new Date()), reason: '' },
   })
   const mutation = useMutation({
-    mutationFn: ({ v }: { v: ReverseValues; company: string }) => {
+    mutationFn: async ({ v, company }: { v: ReverseValues; company: string }) => {
       const body = { date: v.date, reason: v.reason.trim(), version: document.version }
-      return documentsApi.reverse(document.id, body, keyFor({ id: document.id, ...body }))
+      const reversed = await documentsApi.reverse(
+        document.id,
+        body,
+        keyFor({ id: document.id, ...body }),
+      )
+      return enrich(reversed, company)
     },
     onSuccess: (reversed, { company }) => {
       queryClient.setQueryData(invDocsKeys.document(reversed.id, company), reversed)
@@ -100,7 +110,7 @@ export function ReverseDialog({ document, open, onOpenChange, onReversed }: Reve
             label={t('reverse.reason')}
             required
             render={({ field, control }) => (
-              <Textarea {...control} {...field} rows={3} maxLength={500} />
+              <Textarea {...control} {...field} rows={3} maxLength={1000} />
             )}
           />
           <DialogFooter>

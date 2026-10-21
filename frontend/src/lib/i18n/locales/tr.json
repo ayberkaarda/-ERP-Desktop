@@ -51,7 +51,16 @@
     "journalBook": "Yevmiye defteri",
     "fiscalYears": "Mali yıllar",
     "accountingPeriods": "Muhasebe dönemleri",
-    "accountDetermination": "Hesap belirleme"
+    "accountDetermination": "Hesap belirleme",
+    "stockStatus": "Stok durumu",
+    "stockMovements": "Stok hareketleri",
+    "stockDocuments": "Stok fişleri",
+    "stockCounts": "Sayımlar",
+    "stockReservations": "Rezervasyonlar",
+    "stockLots": "Lotlar",
+    "stockSerials": "Seri numaraları",
+    "stockWarehouses": "Depo stok ayarları",
+    "inventoryReports": "Stok raporları"
   },
   "topbar": {
     "company": "Şirket",

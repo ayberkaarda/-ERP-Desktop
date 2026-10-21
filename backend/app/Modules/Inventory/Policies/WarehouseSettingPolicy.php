@@ -13,7 +13,7 @@ final class WarehouseSettingPolicy extends InventoryPolicy
 {
     public function viewAny(User $user): bool
     {
-        return $this->allowed($user, null, 'inventory.warehouses.view', 'inventory.warehouses.manage', 'inventory.stock.view', 'inventory.documents.view');
+        return $this->allowed($user, null, 'inventory.warehouses.view', 'inventory.warehouses.manage', 'inventory.stock.view', 'inventory.documents.view', 'inventory.reservations.manage');
     }
 
     public function update(User $user): bool

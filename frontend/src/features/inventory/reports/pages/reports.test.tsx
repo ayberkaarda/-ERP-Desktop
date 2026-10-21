@@ -29,6 +29,9 @@ describe('inventory reports', () => {
     const call = db.calls.filter((c) => c.path === '/inventory-reports/stock-status').at(-1)
     expect(call?.url.searchParams.get('as_of')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     expect(call?.url.searchParams.get('include_zero')).toBe('0')
+    expect(call?.url.searchParams.get('group_by')).toBe('item_warehouse')
+    expect(call?.url.searchParams.get('per_page')).toBe('100')
+    expect(call?.url.searchParams.get('page')).toBe('1')
     expect(router.state.location.search).toContain('as_of=')
 
     await user.click(screen.getByRole('button', { name: 'Excel' }))
@@ -49,7 +52,8 @@ describe('inventory reports', () => {
     expect(within(table).getByTestId('ledger-opening')).toHaveTextContent('Devir')
     expect(within(table).getByTestId('ledger-opening')).toHaveTextContent('125,00')
     expect(within(table).getByTestId('ledger-closing')).toHaveTextContent('250,00')
-    expect(within(table).getByRole('link', { name: 'CIK-2026-000001' })).toHaveAttribute(
+    expect(within(table).getByTestId('ledger-closing')).toHaveTextContent('175,00')
+    expect(within(table).getByRole('link', { name: 'ISS2026000000001' })).toHaveAttribute(
       'href',
       `/inventory/documents/${DOC_POSTED}`,
     )
@@ -81,8 +85,10 @@ describe('inventory reports', () => {
     ) as { name: string; params: Record<string, string> }[]
     expect(stored[0]).toEqual({
       name: 'Eylül ana depo',
-      params: { as_of: '2026-09-30', warehouse_id: WH_MAIN },
+      params: { as_of: '2026-09-30', warehouse_id: WH_MAIN, group_by: 'item_warehouse' },
     })
+    // Booked values at the company method.
+    expect(screen.getByTestId('report-basis')).toHaveTextContent('Hareketli ortalama')
     await router.navigate('/inventory/reports/valuation')
     await user.click(screen.getByRole('button', { name: 'Kayıtlı parametreler' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Eylül ana depo' }))
@@ -104,7 +110,43 @@ describe('inventory reports', () => {
     abc.unmount()
     renderInvDocs('/inventory/reports/reorder-suggestions?run=1')
     const reorder = await screen.findByRole('table', { name: 'Sipariş önerileri' })
-    expect(within(reorder).getByText('112')).toBeInTheDocument()
+    expect(within(reorder).getByText('62')).toBeInTheDocument()
+    // No export twin for reorder suggestions.
+    expect(screen.queryByRole('button', { name: 'Excel' })).not.toBeInTheDocument()
+  })
+
+  it('runs the movement summary grouped by warehouse', async () => {
+    const db = setupInvDocs()
+    renderInvDocs(
+      '/inventory/reports/movement-summary?date_from=2026-01-01&date_to=2026-10-21&group_by=warehouse',
+    )
+    const table = await screen.findByRole('table', { name: 'Hareket özeti' })
+    expect(within(table).getByTestId('report-totals')).toHaveTextContent('250,00')
+    // Warehouse rows: no item columns, item count instead.
+    expect(within(table).queryByRole('columnheader', { name: 'Kod' })).not.toBeInTheDocument()
+    expect(within(table).getByRole('columnheader', { name: 'Kart sayısı' })).toBeInTheDocument()
+    const call = db.calls.filter((c) => c.path === '/inventory-reports/movement-summary').at(-1)
+    expect(call?.url.searchParams.get('group_by')).toBe('warehouse')
+  })
+
+  it('pages through long reports with the API pagination', async () => {
+    const db = setupInvDocs()
+    const report = db.reports['/inventory-reports/stock-status']
+    if (report) {
+      report.rows = Array.from({ length: 150 }, (_, i) => ({
+        ...report.rows[0],
+        item_code: `K-${String(i + 1).padStart(3, '0')}`,
+      }))
+    }
+    const user = userEvent.setup()
+    renderInvDocs('/inventory/reports/stock-status?as_of=2026-10-21')
+    const table = await screen.findByRole('table', { name: 'Tarihe göre stok durumu' })
+    expect(within(table).getByText('K-001')).toBeInTheDocument()
+    expect(screen.getByTestId('report-page')).toHaveTextContent('Sayfa 1 / 2')
+    await user.click(screen.getByRole('button', { name: 'Sonraki sayfa' }))
+    expect(await within(table).findByText('K-101')).toBeInTheDocument()
+    const call = db.calls.filter((c) => c.path === '/inventory-reports/stock-status').at(-1)
+    expect(call?.url.searchParams.get('page')).toBe('2')
   })
 
   it('lists only the reports the user may open', async () => {

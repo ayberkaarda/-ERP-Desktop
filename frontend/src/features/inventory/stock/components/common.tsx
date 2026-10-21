@@ -5,8 +5,7 @@ import { PageHeader, type Breadcrumb } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { usePermission } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { isApiError } from '@/platform'
-import { LIMIT_EXCEEDED } from '../lib/errors'
+import { errorMessage } from '../lib/errors'
 import { useInvT } from '../lib/i18n'
 import { INVENTORY_STOCK_ROUTES } from '../lib/navigation'
 
@@ -125,20 +124,12 @@ export function VersionConflictAlert({
 /** Inline failure state with a retry action, for blocks that are not a DataTable. */
 export function LoadError({ onRetry, error }: { onRetry: () => void; error?: unknown }) {
   const t = useInvT()
-  const tooMany = isApiError(error) && error.code === LIMIT_EXCEEDED
   return (
     <div role="alert" className="flex items-center gap-3 py-4 text-sm text-danger">
-      <span>{tooMany ? t('common.limitExceeded') : t('common.loadFailed')}</span>
-      {!tooMany && (
-        <Button variant="secondary" size="sm" onClick={onRetry}>
-          {t('common.retry')}
-        </Button>
-      )}
+      <span>{errorMessage(error, t('common.loadFailed'))}</span>
+      <Button variant="secondary" size="sm" onClick={onRetry}>
+        {t('common.retry')}
+      </Button>
     </div>
   )
-}
-
-/** Right-aligned decimal cell; negative values are marked by text colour and a sign. */
-export function NumberCell({ value, negative = false }: { value: string; negative?: boolean }) {
-  return <span className={cn('tabular-nums', negative && 'font-medium text-danger')}>{value}</span>
 }

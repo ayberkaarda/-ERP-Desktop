@@ -30,6 +30,9 @@ describe('stock movements ledger', () => {
     const rows = within(table).getAllByRole('row').slice(1)
     expect(rows[0]).toHaveTextContent('Transfer girişi')
     expect(rows.at(-1)).toHaveTextContent('GRS-2026-000001')
+    // Rows carry warehouse ids; codes come from /stock-warehouses.
+    expect(rows[0]).toHaveTextContent('MGZ')
+    expect(rows.at(-1)).toHaveTextContent('L-2401')
 
     const issue = within(table).getByText('CKS-2026-000001').closest('tr') as HTMLElement
     expect(within(issue).getByText('4 çıkış')).toBeInTheDocument()
@@ -79,7 +82,8 @@ describe('stock movements ledger', () => {
     renderInventoryStock('/inventory/movements')
     expect(await screen.findByText('100 hareket yüklendi')).toBeInTheDocument()
     expect(listCalls(db)[0]?.url.searchParams.has('cursor')).toBe(false)
-    expect(listCalls(db)[0]?.url.searchParams.get('sort')).toBe('-seq')
+    expect(listCalls(db)[0]?.url.searchParams.get('per_page')).toBe('100')
+    expect(listCalls(db)[0]?.url.searchParams.has('sort')).toBe(false)
 
     await user.click(screen.getByRole('button', { name: 'Daha fazla yükle' }))
     expect(await screen.findByText('200 hareket yüklendi')).toBeInTheDocument()

@@ -15,11 +15,16 @@ export function lineVariance(line: StockDocumentLine, counted: string): Decimal 
   return new Decimal(counted).minus(dec(line.system_quantity))
 }
 
-/** Variance valued at the frozen average cost, at the money scale (rounded to 2 only for display). */
+/** Cost a count line is valued at: its own cost if given, else the current moving average. */
+export function countCost(line: StockDocumentLine): string | null {
+  return line.unit_cost ?? line.avg_cost ?? null
+}
+
+/** Variance valued at the average cost, at the money scale (rounded to 2 only for display). */
 export function varianceValue(line: StockDocumentLine, counted: string): Decimal | null {
   const v = lineVariance(line, counted)
   if (v === null) return null
-  return v.mul(dec(line.unit_cost)).toDecimalPlaces(MONEY_SCALE, Decimal.ROUND_HALF_UP)
+  return v.mul(dec(countCost(line))).toDecimalPlaces(MONEY_SCALE, Decimal.ROUND_HALF_UP)
 }
 
 export interface CountSummary {
@@ -61,13 +66,13 @@ export function countSummary(lines: readonly StockDocumentLine[], counts: Counts
 export function changedCounts(
   lines: readonly StockDocumentLine[],
   counts: Counts,
-): { id: string; counted_quantity: string | null }[] {
+): { line_id: string; counted_quantity: string | null }[] {
   return lines.flatMap((l) => {
     const now = counts[l.id] ?? ''
     const stored = l.counted_quantity ?? ''
     const same =
       now === stored || (isDecimal(now) && isDecimal(stored) && new Decimal(now).eq(stored))
-    return same ? [] : [{ id: l.id, counted_quantity: now === '' ? null : now }]
+    return same ? [] : [{ line_id: l.id, counted_quantity: now === '' ? null : now }]
   })
 }
 

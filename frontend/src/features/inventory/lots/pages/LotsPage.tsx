@@ -3,22 +3,19 @@ import { Link } from 'react-router'
 import {
   DataTable,
   setFilter,
-  toListParams,
   updateListQuery,
   useUrlListQuery,
   type DataTableColumn,
 } from '@/components/shared/data-table'
-import { FieldShell } from '@/components/shared/form'
+import { DateInput, FieldShell } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ItemCombobox } from '@/features/catalog'
 import { formatDate } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
 import { ExpiryBadge } from '../../stock/components/ExpiryBadge'
-import { ExportButtons } from '../../stock/components/ExportButtons'
-import { InventoryShell, NativeSelect } from '../../stock/components/common'
+import { InventoryShell } from '../../stock/components/common'
 import { SavedViewsMenu } from '../../stock/components/SavedViewsMenu'
-import { INV_PATHS } from '../../stock/lib/api'
 import { EXPIRY_WARNING_DAYS } from '../../stock/lib/expiry'
 import { useFormatters } from '../../stock/lib/format'
 import { acceptFilters, anyValue, isTrue } from '../../stock/lib/filters'
@@ -28,8 +25,9 @@ import { useLotList } from '../../stock/lib/queries'
 import type { StockLot } from '../../stock/lib/types'
 
 const VIEW_KEY = 'inventory.lots'
-const FILTER_KEYS = ['item_id', 'expiry_status', 'in_stock'] as const
-const EXPIRY_STATUSES = ['expired', 'expiring', 'valid', 'none'] as const
+/** Filters of TraceController::lots. */
+const FILTER_KEYS = ['item_id', 'expires_before', 'expired', 'with_stock'] as const
+const isIsoDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
 
 /** Lots with expiry state; each opens its trace (where it came in and went out). */
 export function LotsPage() {
@@ -45,8 +43,9 @@ export function LotsPage() {
     () => ({
       ...urlQuery,
       filters: acceptFilters(urlQuery.filters, {
-        expiry_status: (v) => ['expired', 'expiring', 'valid', 'none'].includes(v),
-        in_stock: isTrue,
+        expires_before: isIsoDate,
+        expired: isTrue,
+        with_stock: isTrue,
         ...(canPickItems ? { item_id: anyValue } : {}),
       }),
     }),
@@ -56,13 +55,6 @@ export function LotsPage() {
   const filter = (key: string) => query.filters[key] ?? ''
   const change = (key: string, value: string) => setQuery(setFilter(query, key, value))
   const filtered = FILTER_KEYS.some((k) => filter(k) !== '') || query.q !== ''
-
-  const exportParams = useMemo(() => {
-    const p = toListParams(query)
-    delete p.page
-    delete p.per_page
-    return p
-  }, [query])
 
   const columns = useMemo<DataTableColumn<StockLot>[]>(
     () => [
@@ -82,13 +74,12 @@ export function LotsPage() {
       {
         id: 'item_code',
         header: t('fields.item'),
-        enableSorting: true,
         size: 280,
         meta: { label: t('fields.item') },
         cell: ({ row }) => (
           <Link to={itemStockPath(row.original.item_id)} className="hover:underline">
-            <span className="font-code">{row.original.item.code}</span>{' '}
-            <span className="text-muted-foreground">{row.original.item.name}</span>
+            <span className="font-code">{row.original.item_code}</span>{' '}
+            <span className="text-muted-foreground">{row.original.item_name}</span>
           </Link>
         ),
       },
@@ -128,9 +119,10 @@ export function LotsPage() {
         enableSorting: true,
         size: 130,
         meta: { label: t('fields.receivedAt') },
-        cell: ({ row }) => (
-          <span className="tabular-nums">{formatDate(row.original.created_at, f.locale)}</span>
-        ),
+        cell: ({ row }) =>
+          row.original.created_at ? (
+            <span className="tabular-nums">{formatDate(row.original.created_at, f.locale)}</span>
+          ) : null,
       },
     ],
     [t, f],
@@ -156,7 +148,6 @@ export function LotsPage() {
               )
             }
           />
-          <ExportButtons path={INV_PATHS.lots} params={exportParams} filename="partiler" />
         </>
       }
     >
@@ -178,24 +169,26 @@ export function LotsPage() {
             )}
           </FieldShell>
         )}
-        <FieldShell label={t('fields.expiry')} className="w-52">
+        <FieldShell label={t('lots.expiresBefore')} className="w-44">
           {(control) => (
-            <NativeSelect
+            <DateInput
               {...control}
-              value={filter('expiry_status')}
-              emptyLabel={t('common.all')}
-              options={EXPIRY_STATUSES.map((s) => ({
-                value: s,
-                label: t(`lots.expiryFilter.${s}`, { days: EXPIRY_WARNING_DAYS }),
-              }))}
-              onChange={(e) => change('expiry_status', e.target.value)}
+              value={urlQuery.filters.expires_before ?? ''}
+              onChange={(v) => change('expires_before', v)}
             />
           )}
         </FieldShell>
         <label className="flex h-control items-center gap-2 text-sm">
           <Checkbox
-            checked={filter('in_stock') === 'true'}
-            onChange={(e) => change('in_stock', e.target.checked ? 'true' : '')}
+            checked={filter('expired') === 'true'}
+            onChange={(e) => change('expired', e.target.checked ? 'true' : '')}
+          />
+          {t('lots.onlyExpired')}
+        </label>
+        <label className="flex h-control items-center gap-2 text-sm">
+          <Checkbox
+            checked={filter('with_stock') === 'true'}
+            onChange={(e) => change('with_stock', e.target.checked ? 'true' : '')}
           />
           {t('lots.onlyInStock')}
         </label>

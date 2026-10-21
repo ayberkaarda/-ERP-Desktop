@@ -1,9 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { ExternalLink, Loader2 } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { z } from 'zod'
 import { Form, FormErrorSummary } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
@@ -16,110 +17,93 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MSG } from '@/lib/forms'
 import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
+import {
+  stockWarehousesApi,
+  useStockWarehouse,
+  useWarehouseKeys,
+  type StockWarehouse,
+} from '../../shared/warehouses'
 import { VersionConflictAlert } from '../../stock/components/common'
-import { CheckboxField, SelectField, TextAreaField, TextField } from '../../stock/components/form'
-import { warehousesApi } from '../../stock/lib/api'
+import { SelectField } from '../../stock/components/form'
 import { isUncertain, isVersionConflict } from '../../stock/lib/errors'
 import { useInvT } from '../../stock/lib/i18n'
-import { usePayloadKeys } from '../../stock/lib/idempotency'
-import { useInvKeys } from '../../stock/lib/keys'
-import { INV_PERMISSIONS } from '../../stock/lib/permissions'
-import { useSaveWarehouse } from '../../stock/lib/queries'
-import { RESERVATION_POLICIES, type Warehouse, type WarehouseInput } from '../../stock/lib/types'
+import { INV_ACCESS, INV_PERMISSIONS } from '../../stock/lib/permissions'
+import { RESERVATION_POLICIES, referenceWarehousePath } from '../lib/constants'
 import { LocationsPanel } from './LocationsPanel'
 
-const schema = z.object({
-  code: z.string().trim().min(1, MSG.required).max(20, MSG.max),
-  name: z.string().trim().min(1, MSG.required).max(120, MSG.max),
-  address: z.string().max(500, MSG.max),
-  is_active: z.boolean(),
-  is_default: z.boolean(),
-  allow_negative_stock: z.boolean(),
-  reservation_policy: z.enum(['none', 'soft', 'hard']),
-})
-
+const schema = z.object({ reservation_policy: z.enum(RESERVATION_POLICIES) })
 type Values = z.infer<typeof schema>
 
-function toValues(w: Warehouse | null): Values {
-  return {
-    code: w?.code ?? '',
-    name: w?.name ?? '',
-    address: w?.address ?? '',
-    is_active: w?.is_active ?? true,
-    is_default: w?.is_default ?? false,
-    allow_negative_stock: w?.allow_negative_stock ?? false,
-    reservation_policy: w?.reservation_policy ?? 'soft',
-  }
-}
-
-function toInput(v: Values): WarehouseInput {
-  return {
-    code: v.code.trim(),
-    name: v.name.trim(),
-    address: v.address.trim() === '' ? null : v.address.trim(),
-    is_active: v.is_active,
-    is_default: v.is_default,
-    allow_negative_stock: v.allow_negative_stock,
-    reservation_policy: v.reservation_policy,
-  }
-}
+export type WarehouseDialogTab = 'general' | 'locations'
 
 interface WarehouseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** null creates a new warehouse. */
-  warehouse: Warehouse | null
-  /** The company's current default, to explain what changing it does. */
-  currentDefault?: Warehouse | null
-  initialTab?: 'general' | 'locations'
-  onSaved?: (warehouse: Warehouse) => void
+  warehouse: StockWarehouse
+  initialTab?: WarehouseDialogTab
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-0.5">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm">{children}</dd>
+    </div>
+  )
 }
 
 /**
- * Create or edit a warehouse; existing warehouses also show their locations tree. Mount it per
- * opening (keyed by the record) so every opening starts from a fresh form.
+ * A warehouse as the stock ledger sees it: Reference master data (read-only here, edited on the
+ * Reference warehouse screen), the inventory reservation policy (PATCH /stock-warehouses/{id}
+ * with the settings version) and the locations tree. Mount it per opening.
  */
 export function WarehouseDialog({
   open,
   onOpenChange,
   warehouse: initial,
-  currentDefault,
   initialTab = 'general',
-  onSaved,
 }: WarehouseDialogProps) {
   const t = useInvT()
   const { t: tc } = useTranslation('common')
   const canManage = usePermission(INV_PERMISSIONS.warehouses.manage)
-  const keys = useInvKeys()
+  const canSeeLocations = usePermission(INV_PERMISSIONS.referenceWarehouses.view)
+  const canEditMaster = usePermission(INV_ACCESS.referenceWarehousesEdit)
+  const keys = useWarehouseKeys()
   const qc = useQueryClient()
-  const save = useSaveWarehouse()
-  const keyFor = usePayloadKeys()
-  const [warehouse, setWarehouse] = useState<Warehouse | null>(initial)
-  const [tab, setTab] = useState(initialTab)
+  const detail = useStockWarehouse(initial.id)
+  const [warehouse, setWarehouse] = useState<StockWarehouse>(initial)
+  const [tab, setTab] = useState<WarehouseDialogTab>(
+    initialTab === 'locations' && !canSeeLocations ? 'general' : initialTab,
+  )
   const [reloading, setReloading] = useState(false)
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: toValues(initial) })
-  const { reset } = form
-
-  const editing = warehouse !== null
-  const readOnly = !canManage
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { reservation_policy: initial.reservation_policy },
+  })
+  const policy = useWatch({ control: form.control, name: 'reservation_policy' })
+  const save = useMutation({
+    mutationFn: (values: Values) =>
+      stockWarehousesApi.updatePolicy(warehouse.id, {
+        reservation_policy: values.reservation_policy,
+        version: warehouse.version,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.all }),
+  })
   const busy = save.isPending
   const conflict = isVersionConflict(save.error)
-  const policy = useWatch({ control: form.control, name: 'reservation_policy' })
-  const isDefault = useWatch({ control: form.control, name: 'is_default' })
-  const wasDefault = warehouse?.is_default ?? false
+  const readOnly = !canManage
+  const hasMovements = detail.data?.has_movements
 
   const reload = async () => {
-    if (!warehouse) return
     setReloading(true)
     try {
-      const fresh = await warehousesApi.get(warehouse.id)
+      const fresh = await stockWarehousesApi.get(warehouse.id)
       setWarehouse(fresh)
-      reset(toValues(fresh))
+      form.reset({ reservation_policy: fresh.reservation_policy })
       save.reset()
-      void qc.invalidateQueries({ queryKey: keys.warehouses() })
+      void qc.invalidateQueries({ queryKey: keys.all })
     } catch {
       platform.notify.error(t('common.loadFailed'))
     } finally {
@@ -128,53 +112,19 @@ export function WarehouseDialog({
   }
 
   const submit = async (values: Values) => {
-    const input = toInput(values)
     try {
-      const saved = warehouse
-        ? await save.mutateAsync({
-            mode: 'update',
-            id: warehouse.id,
-            version: warehouse.version,
-            patch: input,
-          })
-        : await save.mutateAsync({ mode: 'create', input, key: keyFor(input) })
-      platform.notify.success(
-        t(warehouse ? 'warehouses.updated' : 'warehouses.created', { code: saved.code }),
-      )
-      onSaved?.(saved)
-      if (warehouse) {
-        onOpenChange(false)
-      } else {
-        // A new warehouse stays open on its locations so bins can be added right away.
-        setWarehouse(saved)
-        reset(toValues(saved))
-        setTab('locations')
-      }
+      const saved = await save.mutateAsync(values)
+      platform.notify.success(t('warehouses.updated', { code: saved.code }))
+      onOpenChange(false)
     } catch {
       // Shown by the error summary / conflict alert.
     }
   }
 
-  const title = editing
-    ? readOnly
-      ? t('warehouses.viewTitle', { code: warehouse.code })
-      : t('warehouses.editTitle', { code: warehouse.code })
-    : t('warehouses.newTitle')
-
-  const fieldLabels = {
-    code: t('warehouses.fields.code'),
-    name: t('warehouses.fields.name'),
-    address: t('warehouses.fields.address'),
-    is_default: t('warehouses.fields.isDefault'),
-    allow_negative_stock: t('warehouses.fields.allowNegative'),
-    reservation_policy: t('warehouses.fields.reservationPolicy'),
-  }
-
-  let defaultHelp: string | undefined
-  if (wasDefault) defaultHelp = t('warehouses.defaultLocked')
-  else if (isDefault && currentDefault && currentDefault.id !== warehouse?.id)
-    defaultHelp = t('warehouses.defaultMoves', { code: currentDefault.code })
-  else defaultHelp = t('warehouses.defaultHelp')
+  const title = readOnly
+    ? t('warehouses.viewTitle', { code: warehouse.code })
+    : t('warehouses.editTitle', { code: warehouse.code })
+  const policyLabel = t('warehouses.fields.reservationPolicy')
 
   return (
     <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
@@ -184,18 +134,47 @@ export function WarehouseDialog({
       >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {editing ? `${warehouse.code} · ${warehouse.name}` : t('warehouses.newBody')}
-          </DialogDescription>
+          <DialogDescription>{`${warehouse.code} · ${warehouse.name}`}</DialogDescription>
         </DialogHeader>
-        <Tabs value={tab} onValueChange={(v) => setTab(v as 'general' | 'locations')}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as WarehouseDialogTab)}>
           <TabsList aria-label={title}>
             <TabsTrigger value="general">{t('warehouses.tabs.general')}</TabsTrigger>
-            <TabsTrigger value="locations" disabled={!editing}>
-              {t('warehouses.tabs.locations')}
-            </TabsTrigger>
+            {canSeeLocations && (
+              <TabsTrigger value="locations">{t('warehouses.tabs.locations')}</TabsTrigger>
+            )}
           </TabsList>
-          <TabsContent value="general" className="pt-4">
+          <TabsContent value="general" className="grid gap-4 pt-4">
+            <section
+              aria-label={t('warehouses.masterData')}
+              className="grid gap-3 rounded-md border border-border p-3"
+            >
+              <dl className="grid gap-3 sm:grid-cols-3">
+                <Fact label={t('warehouses.fields.negativeStock')}>
+                  {t(`warehouses.negative.${warehouse.negative_stock_policy}`)}
+                </Fact>
+                <Fact label={t('warehouses.fields.isDefault')}>
+                  {warehouse.is_default ? t('common.yes') : t('common.no')}
+                </Fact>
+                <Fact label={t('warehouses.fields.status')}>
+                  {warehouse.is_active ? t('common.active') : t('common.inactive')}
+                </Fact>
+              </dl>
+              {hasMovements !== undefined && (
+                <p className="text-sm text-muted-foreground">
+                  {hasMovements ? t('warehouses.hasMovements') : t('warehouses.noMovements')}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">{t('warehouses.masterDataHint')}</p>
+              {canEditMaster && (
+                <Link
+                  to={referenceWarehousePath(warehouse.id)}
+                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  <ExternalLink className="size-4" aria-hidden="true" />
+                  {t('warehouses.openInReference', { code: warehouse.code })}
+                </Link>
+              )}
+            </section>
             <Form form={form} onSubmit={submit} className="grid gap-4" aria-label={title}>
               {conflict ? (
                 <VersionConflictAlert onReload={() => void reload()} busy={reloading} />
@@ -204,63 +183,21 @@ export function WarehouseDialog({
                   {t('common.uncertain')}
                 </p>
               ) : (
-                <FormErrorSummary error={save.error} fieldLabels={fieldLabels} />
+                <FormErrorSummary
+                  error={save.error}
+                  fieldLabels={{ reservation_policy: policyLabel }}
+                />
               )}
-              <fieldset disabled={readOnly} className="grid gap-4 sm:grid-cols-[10rem_1fr]">
-                <TextField<Values, 'code'>
-                  name="code"
-                  label={fieldLabels.code}
-                  required
-                  input={{ maxLength: 20, autoComplete: 'off', className: 'font-code' }}
-                />
-                <TextField<Values, 'name'>
-                  name="name"
-                  label={fieldLabels.name}
-                  required
-                  input={{ maxLength: 120 }}
-                />
-                <TextAreaField<Values, 'address'>
-                  name="address"
-                  label={fieldLabels.address}
-                  maxLength={500}
-                  className="sm:col-span-2"
-                />
-              </fieldset>
-              <fieldset
+              <SelectField<Values, 'reservation_policy'>
+                name="reservation_policy"
+                label={policyLabel}
                 disabled={readOnly}
-                className="grid gap-3 rounded-md border border-border p-3"
-              >
-                <legend className="px-1 text-xs font-medium text-muted-foreground">
-                  {t('warehouses.settings')}
-                </legend>
-                <CheckboxField<Values>
-                  name="is_default"
-                  label={fieldLabels.is_default}
-                  description={defaultHelp}
-                  disabled={readOnly || wasDefault}
-                />
-                <CheckboxField<Values>
-                  name="allow_negative_stock"
-                  label={fieldLabels.allow_negative_stock}
-                  description={t('warehouses.allowNegativeHelp')}
-                />
-                <CheckboxField<Values>
-                  name="is_active"
-                  label={t('warehouses.fields.isActive')}
-                  description={t('warehouses.activeHelp')}
-                  disabled={readOnly || wasDefault}
-                />
-                <SelectField<Values, 'reservation_policy'>
-                  name="reservation_policy"
-                  label={fieldLabels.reservation_policy}
-                  disabled={readOnly}
-                  description={t(`warehouses.policyHelp.${policy}`)}
-                  options={RESERVATION_POLICIES.map((p) => ({
-                    value: p,
-                    label: t(`warehouses.policy.${p}`),
-                  }))}
-                />
-              </fieldset>
+                description={t(`warehouses.policyHelp.${policy}`)}
+                options={RESERVATION_POLICIES.map((p) => ({
+                  value: p,
+                  label: t(`warehouses.policy.${p}`),
+                }))}
+              />
               <DialogFooter>
                 <Button
                   type="button"
@@ -279,9 +216,11 @@ export function WarehouseDialog({
               </DialogFooter>
             </Form>
           </TabsContent>
-          <TabsContent value="locations" className="pt-4">
-            {warehouse && <LocationsPanel warehouse={warehouse} canManage={canManage} />}
-          </TabsContent>
+          {canSeeLocations && (
+            <TabsContent value="locations" className="pt-4">
+              <LocationsPanel warehouse={warehouse} />
+            </TabsContent>
+          )}
         </Tabs>
       </DialogContent>
     </Dialog>

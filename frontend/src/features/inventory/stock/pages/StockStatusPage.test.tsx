@@ -28,13 +28,16 @@ describe('stock status page', () => {
     expect(within(bolt).getByText('1.256,5')).toBeInTheDocument()
     expect(within(bolt).getByText('1.056,5')).toBeInTheDocument()
     expect(within(bolt).getByText('3.141,25')).toBeInTheDocument()
+    expect(within(bolt).getByText('MRK')).toBeInTheDocument()
     const glove = within(grid).getByText('İş eldiveni').closest('tr') as HTMLElement
     expect(within(glove).getAllByText('-2')[0]).toHaveClass('text-danger')
-    expect(screen.getByTestId('stock-total-value')).toHaveTextContent('3.126,75')
-    expect(lastList(db)?.url.searchParams.get('group_by')).toBe('item_warehouse')
+    // The zero glove balance in the main warehouse is left out unless asked for.
+    expect(within(grid).getAllByText('İş eldiveni')).toHaveLength(1)
+    expect(lastList(db)?.url.searchParams.get('group_by')).toBe('warehouse')
+    expect(lastList(db)?.url.searchParams.get('sort')).toBe('item_code')
   })
 
-  it('filters by warehouse and below reorder point, groups by lot with expiry badges', async () => {
+  it('filters by warehouse and zero balances, groups by item or location and lot', async () => {
     const db = setupInventoryStock()
     const user = userEvent.setup()
     renderInventoryStock('/inventory/stock')
@@ -48,15 +51,21 @@ describe('stock status page', () => {
     await waitFor(() => expect(within(grid).queryByText('Cıvata M8')).not.toBeInTheDocument())
 
     await user.click(screen.getByRole('button', { name: 'Tüm filtreleri temizle' }))
-    await user.click(screen.getByLabelText('Yeniden sipariş noktasının altındakiler'))
+    await user.click(screen.getByLabelText('Sıfır bakiyeleri de göster'))
     await waitFor(() =>
-      expect(lastList(db)?.url.searchParams.get('filter[below_reorder]')).toBe('true'),
+      expect(lastList(db)?.url.searchParams.get('filter[include_zero]')).toBe('true'),
     )
+    await waitFor(() => expect(within(grid).getAllByText('İş eldiveni')).toHaveLength(2))
 
-    await user.click(screen.getByLabelText('Yeniden sipariş noktasının altındakiler'))
-    await user.selectOptions(screen.getByLabelText('Ayrıntı'), 'lot')
-    await waitFor(() => expect(lastList(db)?.url.searchParams.get('group_by')).toBe('lot'))
+    await user.click(screen.getByLabelText('Sıfır bakiyeleri de göster'))
+    await user.selectOptions(screen.getByLabelText('Ayrıntı'), 'item')
+    await waitFor(() => expect(lastList(db)?.url.searchParams.get('group_by')).toBe('item'))
+    expect(screen.queryByRole('columnheader', { name: /^Depo/ })).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Ayrıntı'), 'detail')
+    await waitFor(() => expect(lastList(db)?.url.searchParams.get('group_by')).toBe('detail'))
     expect(await within(grid).findByText('L-2401')).toBeInTheDocument()
+    expect(within(grid).getByText('A-01')).toBeInTheDocument()
     expect(within(grid).getByText('Süresi doldu')).toBeInTheDocument()
     expect(within(grid).getByText('10 gün kaldı')).toBeInTheDocument()
   })
@@ -64,7 +73,7 @@ describe('stock status page', () => {
   it('saves and applies a view with filters and grouping', async () => {
     const db = setupInventoryStock()
     const user = userEvent.setup()
-    renderInventoryStock(`/inventory/stock?filter[warehouse_id]=${WH_SHOP}&filter[group]=location`)
+    renderInventoryStock(`/inventory/stock?filter[warehouse_id]=${WH_SHOP}&filter[group]=detail`)
     await screen.findByRole('grid', { name: 'Stok durumu' })
     await user.click(screen.getByRole('button', { name: 'Kayıtlı görünümler' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Geçerli görünümü kaydet…' }))
@@ -78,18 +87,15 @@ describe('stock status page', () => {
     ) as unknown[]
     expect(stored[0]).toEqual({
       name: 'Mağaza lokasyon',
-      values: { warehouse_id: WH_SHOP, group: 'location' },
+      values: { warehouse_id: WH_SHOP, group: 'detail' },
     })
 
     await user.click(screen.getByRole('button', { name: 'Tüm filtreleri temizle' }))
-    await user.selectOptions(screen.getByLabelText('Ayrıntı'), 'item_warehouse')
-    await waitFor(() =>
-      expect(lastList(db)?.url.searchParams.get('group_by')).toBe('item_warehouse'),
-    )
+    await waitFor(() => expect(lastList(db)?.url.searchParams.get('group_by')).toBe('warehouse'))
     await user.click(screen.getByRole('button', { name: 'Kayıtlı görünümler' }))
     await user.click(await screen.findByRole('menuitem', { name: 'Mağaza lokasyon' }))
     // The same parameters were loaded at first, so the cached result may be served again.
-    await waitFor(() => expect(screen.getByLabelText('Ayrıntı')).toHaveValue('location'))
+    await waitFor(() => expect(screen.getByLabelText('Ayrıntı')).toHaveValue('detail'))
     expect(screen.getByLabelText('Depo')).toHaveValue(WH_SHOP)
     expect(screen.getByRole('columnheader', { name: /^Lokasyon/ })).toBeInTheDocument()
   })
@@ -106,7 +112,7 @@ describe('stock status page', () => {
     const call = db.calls.find((c) => c.path === '/stock-balances/export')
     expect(call?.url.searchParams.get('format')).toBe('xlsx')
     expect(call?.url.searchParams.get('filter[warehouse_id]')).toBe(WH_SHOP)
-    expect(call?.url.searchParams.get('group_by')).toBe('item_warehouse')
+    expect(call?.url.searchParams.get('group_by')).toBe('warehouse')
     expect(call?.url.searchParams.has('page')).toBe(false)
   })
 
@@ -120,13 +126,16 @@ describe('stock status page', () => {
     )
     const drawer = await screen.findByRole('dialog', { name: 'STK000001 · Cıvata M8' })
     expect(router.state.location.search).toContain(`item=${ITEM_BOLT}`)
-    expect(await within(drawer).findByText('1.256,5 ADET')).toBeInTheDocument()
-    const lots = within(drawer).getByRole('table', { name: 'Partiler' })
+    const byWarehouse = await within(drawer).findByRole('table', { name: 'Depolara göre' })
+    expect(within(byWarehouse).getByText('MRK')).toBeInTheDocument()
+    expect(within(byWarehouse).getByText('1.056,5')).toBeInTheDocument()
+    const lots = within(drawer).getByRole('table', { name: 'Lotlar' })
     expect(within(lots).getByRole('link', { name: 'L-2401' })).toHaveAttribute(
       'href',
       '/inventory/lots/lot-old',
     )
     expect(within(lots).getByText('Süresi doldu')).toBeInTheDocument()
+    expect(within(lots).getByText('1.050,5')).toBeInTheDocument()
     expect(await within(drawer).findByText('−4')).toBeInTheDocument()
     expect(within(drawer).getByRole('link', { name: /Tüm hareketleri göster/ })).toHaveAttribute(
       'href',
@@ -151,11 +160,12 @@ describe('stock status page', () => {
     renderInventoryStock('/inventory/stock')
     expect(await screen.findByText('Bu sayfaya erişiminiz yok')).toBeInTheDocument()
   })
+
   it('requests only the filters the page can show and reset', async () => {
     const db = setupInventoryStock({ permissions: ['inventory.stock.view'] })
     const user = userEvent.setup()
     renderInventoryStock(
-      `/inventory/stock?filter[location_id]=loc-a01&filter[bogus]=1&filter[item_id]=${ITEM_BOLT}&filter[hide_zero]=yes&filter[group]=nope&filter[warehouse_id]=${WH_SHOP}`,
+      `/inventory/stock?filter[location_id]=loc-a01&filter[bogus]=1&filter[item_id]=${ITEM_BOLT}&filter[include_zero]=yes&filter[group]=nope&filter[warehouse_id]=${WH_SHOP}`,
     )
     await screen.findByRole('grid', { name: 'Stok durumu' })
     const call = lastList(db)
@@ -163,7 +173,7 @@ describe('stock status page', () => {
       k.startsWith('filter['),
     )
     expect(filters).toEqual(['filter[warehouse_id]'])
-    expect(call?.url.searchParams.get('group_by')).toBe('item_warehouse')
+    expect(call?.url.searchParams.get('group_by')).toBe('warehouse')
     // The one accepted filter has a control and the reset clears it.
     expect(screen.getByLabelText('Depo')).toHaveValue(WH_SHOP)
     await user.click(screen.getByRole('button', { name: 'Tüm filtreleri temizle' }))
@@ -173,19 +183,22 @@ describe('stock status page', () => {
     expect(screen.queryByRole('button', { name: 'Tüm filtreleri temizle' })).not.toBeInTheDocument()
   })
 
-  it('offers warehouses from the rows to a user who cannot list warehouses', async () => {
+  it('loads warehouse options from /stock-warehouses with stock view only', async () => {
     const db = setupInventoryStock({ permissions: ['inventory.stock.view'] })
     const user = userEvent.setup()
     renderInventoryStock('/inventory/stock')
     const grid = await screen.findByRole('grid', { name: 'Stok durumu' })
     await within(grid).findByText('Cıvata M8')
     const select = screen.getByLabelText('Depo')
-    expect(within(select).getByRole('option', { name: 'MGZ · Mağaza' })).toBeInTheDocument()
-    expect(within(select).getByRole('option', { name: 'MRK · Merkez depo' })).toBeInTheDocument()
+    expect(await within(select).findByRole('option', { name: 'MGZ · Mağaza' })).toBeInTheDocument()
+    expect(
+      within(select).getByRole('option', { name: 'ESK · Eski depo (Pasif)' }),
+    ).toBeInTheDocument()
     await user.selectOptions(select, WH_SHOP)
     await waitFor(() =>
       expect(lastList(db)?.url.searchParams.get('filter[warehouse_id]')).toBe(WH_SHOP),
     )
+    expect(db.calls.some((c) => c.path === '/stock-warehouses')).toBe(true)
     expect(db.calls.some((c) => c.path === '/warehouses')).toBe(false)
   })
 })

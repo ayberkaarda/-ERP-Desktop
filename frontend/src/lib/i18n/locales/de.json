@@ -51,7 +51,16 @@
     "journalBook": "Journal",
     "fiscalYears": "Geschäftsjahre",
     "accountingPeriods": "Buchungsperioden",
-    "accountDetermination": "Kontenfindung"
+    "accountDetermination": "Kontenfindung",
+    "stockStatus": "Bestandsübersicht",
+    "stockMovements": "Lagerbewegungen",
+    "stockDocuments": "Lagerbelege",
+    "stockCounts": "Inventuren",
+    "stockReservations": "Reservierungen",
+    "stockLots": "Chargen",
+    "stockSerials": "Seriennummern",
+    "stockWarehouses": "Lager-Bestandseinstellungen",
+    "inventoryReports": "Lagerberichte"
   },
   "topbar": {
     "company": "Unternehmen",

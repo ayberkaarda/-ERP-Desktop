@@ -20,6 +20,8 @@ export const ALL_INVENTORY_STOCK_PERMISSIONS = [
   INV_PERMISSIONS.stock.view,
   INV_PERMISSIONS.documents.view,
   INV_PERMISSIONS.entries.view,
+  INV_PERMISSIONS.referenceWarehouses.view,
+  INV_PERMISSIONS.referenceWarehouses.update,
   'items.view',
 ]
 

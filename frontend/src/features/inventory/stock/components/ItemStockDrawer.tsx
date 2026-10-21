@@ -3,16 +3,17 @@ import { ArrowRight } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatDateTime } from '@/lib/datetime'
+import { formatDate } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { movementsApi } from '../lib/api'
-import { isBelow, isNegative, useFormatters } from '../lib/format'
+import { isNegative, useFormatters } from '../lib/format'
 import { useInvT } from '../lib/i18n'
 import { useInvKeys } from '../lib/keys'
 import { lotPath } from '../lib/navigation'
 import { INV_PERMISSIONS } from '../lib/permissions'
 import { useItemStock } from '../lib/queries'
+import { useWarehouseLookup } from '../lib/warehouseLookup'
 import { LoadError } from './common'
 import { Drawer } from './Drawer'
 import { ExpiryBadge } from './ExpiryBadge'
@@ -55,6 +56,7 @@ export function ItemStockDrawer({ itemId, onClose }: ItemStockDrawerProps) {
   const f = useFormatters()
   const keys = useInvKeys()
   const stock = useItemStock(itemId)
+  const warehouseOf = useWarehouseLookup()
   const canSeeStock = usePermission(INV_PERMISSIONS.stock.view)
   const recent = useQuery({
     queryKey: keys.movementList({ item_id: itemId ?? '', limit: '10' }),
@@ -62,8 +64,7 @@ export function ItemStockDrawer({ itemId, onClose }: ItemStockDrawerProps) {
     enabled: Boolean(itemId) && canSeeStock,
   })
   const data = stock.data
-  const title = data ? `${data.item.code} · ${data.item.name}` : t('drawer.title')
-  const unit = data?.item.base_unit_code ? ` ${data.item.base_unit_code}` : ''
+  const title = data ? `${data.item_code} · ${data.item_name}` : t('drawer.title')
 
   return (
     <Drawer
@@ -84,32 +85,18 @@ export function ItemStockDrawer({ itemId, onClose }: ItemStockDrawerProps) {
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Figure
               label={t('fields.onHand')}
-              value={`${f.qty(data.totals.on_hand)}${unit}`}
-              tone={isNegative(data.totals.on_hand) ? 'danger' : undefined}
+              value={f.qty(data.on_hand)}
+              tone={isNegative(data.on_hand) ? 'danger' : undefined}
             />
-            <Figure label={t('fields.reserved')} value={`${f.qty(data.totals.reserved)}${unit}`} />
+            <Figure label={t('fields.reserved')} value={f.qty(data.reserved)} />
             <Figure
               label={t('fields.available')}
-              value={`${f.qty(data.totals.available)}${unit}`}
-              tone={isNegative(data.totals.available) ? 'danger' : undefined}
+              value={f.qty(data.available)}
+              tone={isNegative(data.available) ? 'danger' : undefined}
             />
-            <Figure label={t('fields.avgCost')} value={f.cost(data.totals.avg_cost)} />
-            <Figure label={t('fields.value')} value={f.money(data.totals.value)} />
-            {data.item.reorder_point && (
-              <Figure
-                label={t('fields.reorderPoint')}
-                value={f.qty(data.item.reorder_point)}
-                tone={
-                  isBelow(data.totals.available, data.item.reorder_point) ? 'danger' : undefined
-                }
-              />
-            )}
+            <Figure label={t('fields.avgCost')} value={f.cost(data.avg_cost)} />
+            <Figure label={t('fields.value')} value={f.money(data.value)} />
           </dl>
-          {isBelow(data.totals.available, data.item.reorder_point) && (
-            <p role="status" className="text-sm font-medium text-danger">
-              {t('drawer.belowReorder')}
-            </p>
-          )}
 
           <Section title={t('drawer.byWarehouse')}>
             {data.warehouses.length === 0 ? (
@@ -138,9 +125,9 @@ export function ItemStockDrawer({ itemId, onClose }: ItemStockDrawerProps) {
                   </thead>
                   <tbody>
                     {data.warehouses.map((w) => (
-                      <tr key={w.warehouse.id} className="border-t border-border">
+                      <tr key={w.warehouse_id} className="border-t border-border">
                         <th scope="row" className={cn(td, 'text-left font-normal')}>
-                          <span className="font-code">{w.warehouse.code}</span> {w.warehouse.name}
+                          <span className="font-code">{w.warehouse_code}</span> {w.warehouse_name}
                         </th>
                         <td className={cn(tdNum, isNegative(w.on_hand) && 'text-danger')}>
                           {f.qty(w.on_hand)}
@@ -168,29 +155,31 @@ export function ItemStockDrawer({ itemId, onClose }: ItemStockDrawerProps) {
                         {t('fields.lot')}
                       </th>
                       <th scope="col" className={th}>
-                        {t('fields.warehouse')}
-                      </th>
-                      <th scope="col" className={th}>
                         {t('fields.expiry')}
                       </th>
                       <th scope="col" className={thNum}>
                         {t('fields.onHand')}
                       </th>
+                      <th scope="col" className={thNum}>
+                        {t('fields.available')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.lots.map((l) => (
-                      <tr key={`${l.lot.id}:${l.warehouse.id}`} className="border-t border-border">
+                      <tr key={l.lot_id} className="border-t border-border">
                         <th scope="row" className={cn(td, 'text-left font-normal')}>
-                          <Link to={lotPath(l.lot.id)} className="font-code hover:underline">
-                            {l.lot.lot_no}
+                          <Link to={lotPath(l.lot_id)} className="font-code hover:underline">
+                            {l.lot_no}
                           </Link>
                         </th>
-                        <td className={td}>{l.warehouse.code}</td>
                         <td className={td}>
-                          <ExpiryBadge expiry={l.lot.expiry_date} />
+                          <ExpiryBadge expiry={l.expiry_date} />
                         </td>
                         <td className={tdNum}>{f.qty(l.on_hand)}</td>
+                        <td className={cn(tdNum, isNegative(l.available) && 'text-danger')}>
+                          {f.qty(l.available)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -211,10 +200,11 @@ export function ItemStockDrawer({ itemId, onClose }: ItemStockDrawerProps) {
                 {recent.data.rows.map((m) => (
                   <li key={m.id} className="flex items-center gap-3 px-3 py-2 text-sm">
                     <span className="w-32 shrink-0 text-xs text-muted-foreground tabular-nums">
-                      {formatDateTime(m.occurred_at, f.locale)}
+                      {formatDate(m.occurred_at, f.locale)}
                     </span>
                     <span className="min-w-0 flex-1 truncate">
-                      {t(`movementTypes.${m.movement_type}`)} · {m.warehouse.code}
+                      {t(`movementTypes.${m.movement_type}`)} ·{' '}
+                      {warehouseOf(m.warehouse_id)?.code ?? ''}
                     </span>
                     <span
                       className={cn(

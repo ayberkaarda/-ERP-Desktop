@@ -4,17 +4,16 @@
       "title": "Stok",
       "stock": "Stok durumu",
       "movements": "Stok hareketleri",
-      "lots": "Partiler",
+      "lots": "Lotlar",
       "serials": "Seri numaraları",
       "warehouses": "Depolar"
     },
     "commands": {
       "stock": "Stok durumu",
       "movements": "Stok hareketleri",
-      "lots": "Partiler ve son kullanma",
+      "lots": "Lotlar ve son kullanma",
       "serials": "Seri numaraları",
-      "warehouses": "Depolar ve lokasyonlar",
-      "warehouseNew": "Yeni depo"
+      "warehouses": "Depolar ve lokasyonlar"
     },
     "actions": "İşlemler",
     "active": "Aktif",
@@ -27,7 +26,6 @@
     "clearFilters": "Tüm filtreleri temizle",
     "retry": "Tekrar dene",
     "loadFailed": "Veriler yüklenemedi.",
-    "limitExceeded": "Kayıt sayısı gösterilebilecek sınırı aşıyor; filtreleri daraltın.",
     "conflictTitle": "Kayıt başka biri tarafından değiştirildi",
     "conflictBody": "Siz düzenlerken bu kayıt güncellendi. Son hâlini yükleyip değişikliklerinizi yeniden yapın.",
     "reload": "Yeniden yükle",
@@ -49,9 +47,9 @@
     "item": "Ürün",
     "warehouse": "Depo",
     "location": "Lokasyon",
-    "lot": "Parti",
+    "lot": "Lot",
     "serial": "Seri no",
-    "lotSerial": "Parti / seri",
+    "lotSerial": "Lot / seri",
     "expiry": "Son kullanma",
     "manufactureDate": "Üretim tarihi",
     "receivedAt": "Giriş tarihi",
@@ -60,7 +58,6 @@
     "available": "Kullanılabilir",
     "avgCost": "Ort. maliyet",
     "value": "Tutar",
-    "reorderPoint": "Yeniden sipariş noktası",
     "occurredAt": "Tarih",
     "movementType": "Hareket türü",
     "direction": "Yön",
@@ -76,31 +73,13 @@
   },
   "warehouses": {
     "title": "Depolar",
-    "description": "Depolar, raf/lokasyon yapısı ve stok kuralları.",
-    "new": "Yeni depo",
-    "newTitle": "Yeni depo",
-    "newBody": "Kaydettikten sonra lokasyonları ekleyebilirsiniz.",
-    "editTitle": "{{code}} deposunu düzenle",
+    "description": "Depoların stok görünümü: rezervasyon politikası ve lokasyonlar. Depo kartı ve lokasyonlar Referans'ta yönetilir.",
+    "editTitle": "{{code}} rezervasyon politikası",
     "viewTitle": "{{code}} deposu",
-    "edit": "{{code}} deposunu düzenle",
-    "delete": "{{code}} deposunu sil",
+    "edit": "{{code}} rezervasyon politikasını değiştir",
     "openLocations": "{{code}} lokasyonlarını aç",
-    "created": "{{code}} deposu oluşturuldu.",
-    "updated": "{{code}} deposu güncellendi.",
-    "deleted": "{{code}} deposu silindi.",
-    "deleteFailed": "Depo silinemedi.",
-    "deleteTitle": "{{code}} silinsin mi?",
-    "deleteBody": "Yalnızca hiç stok hareketi olmayan depolar silinebilir. Hareket görmüş depoyu pasife alın.",
-    "deleteConfirm": "Depoyu sil",
-    "deleteDefault": "Varsayılan depo silinemez.",
-    "deleteMoved": "Stok hareketi olan depo silinemez; pasife alın.",
+    "updated": "{{code}} rezervasyon politikası güncellendi.",
     "default": "Varsayılan",
-    "settings": "Stok kuralları",
-    "defaultHelp": "Belgelerde depo seçilmediğinde bu depo kullanılır. Şirkette tek bir varsayılan depo olur.",
-    "defaultLocked": "Bu depo şu an varsayılan. Değiştirmek için başka bir depoyu varsayılan yapın.",
-    "defaultMoves": "Kaydedince {{code}} varsayılan olmaktan çıkar.",
-    "allowNegativeHelp": "Açık olursa stoktan fazla çıkışa izin verilir; eksi bakiye bir sonraki girişte kendiliğinden düzeltilmez.",
-    "activeHelp": "Pasif depolar yeni belgelerde seçilemez; geçmiş kayıtlar korunur.",
     "tabs": {
       "general": "Genel",
       "locations": "Lokasyonlar"
@@ -108,13 +87,10 @@
     "fields": {
       "code": "Kod",
       "name": "Ad",
-      "address": "Adres",
       "isDefault": "Varsayılan depo",
-      "allowNegative": "Eksi stok",
-      "isActive": "Aktif",
       "reservationPolicy": "Rezervasyon politikası",
-      "locations": "Lokasyon",
-      "status": "Durum"
+      "status": "Durum",
+      "negativeStock": "Eksi stok"
     },
     "policy": {
       "none": "Yok",
@@ -125,35 +101,34 @@
       "none": "Rezervasyon yapılmaz; kullanılabilir miktar eldeki miktara eşittir.",
       "soft": "Kullanılabilir miktarı aşan rezervasyona izin verilir ve raporlanır.",
       "hard": "Kullanılabilir miktarı aşan rezervasyon reddedilir."
+    },
+    "manageInReference": "Referans'ta yönet",
+    "openInReference": "{{code}} deposunu Referans'ta aç",
+    "masterData": "Depo kartı",
+    "masterDataHint": "Kod, ad, adres, eksi stok kuralı, varsayılan depo ve lokasyonlar Referans'taki depo kartından değiştirilir.",
+    "hasMovements": "Bu depoda stok hareketi var.",
+    "noMovements": "Bu depoda henüz stok hareketi yok.",
+    "negative": {
+      "allow": "İzin verilir",
+      "warn": "Uyarılır",
+      "block": "Engellenir"
     }
   },
   "locations": {
     "treeLabel": "{{code}} lokasyonları",
     "count": "{{count}} lokasyon",
-    "add": "Lokasyon ekle",
-    "addChild": "{{code}} altına lokasyon ekle",
-    "edit": "{{code}} lokasyonunu düzenle",
-    "delete": "{{code}} lokasyonunu sil",
     "expand": "{{code}} aç",
     "collapse": "{{code}} kapat",
     "expandAll": "Tümünü aç",
     "collapseAll": "Tümünü kapat",
-    "newTitle": "Yeni lokasyon",
-    "editTitle": "{{code}} lokasyonu",
-    "codeHelp": "Seviyeleri tire, nokta veya eğik çizgiyle ayırın (A-01-03 → A › A-01).",
-    "saved": "{{code}} lokasyonu kaydedildi.",
-    "deleted": "{{code}} lokasyonu silindi.",
-    "deleteFailed": "Lokasyon silinemedi.",
-    "deleteTitle": "{{code}} silinsin mi?",
-    "deleteBody": "Stok veya hareket bulunan lokasyonlar silinemez; pasife alın.",
-    "deleteConfirm": "Lokasyonu sil",
     "emptyTitle": "Henüz lokasyon yok",
-    "emptyBody": "Stoku raf veya bölme düzeyinde izlemek için lokasyon ekleyin.",
-    "keyboardHint": "Ok tuşlarıyla gezin, sağ/sol ile açıp kapatın, Enter ile düzenleyin.",
-    "fields": {
-      "code": "Kod",
-      "name": "Ad",
-      "isActive": "Aktif"
+    "emptyBody": "Lokasyonlar Referans'taki depo kartından eklenir.",
+    "keyboardHint": "Ok tuşlarıyla gezin, sağ/sol ile açıp kapatın.",
+    "types": {
+      "aisle": "Koridor",
+      "rack": "Raf",
+      "shelf": "Raf katı",
+      "bin": "Göz"
     }
   },
   "stock": {
@@ -161,27 +136,23 @@
     "description": "Ürün ve depo bazında eldeki, rezerve ve kullanılabilir miktar ile maliyet.",
     "groupBy": "Ayrıntı",
     "groups": {
-      "item_warehouse": "Ürün × depo",
-      "location": "Lokasyon bazında",
-      "lot": "Parti bazında"
+      "warehouse": "Ürün × depo",
+      "item": "Ürün (tüm depolar)",
+      "detail": "Lokasyon ve lot"
     },
-    "onlyBelowReorder": "Yeniden sipariş noktasının altındakiler",
-    "hideZero": "Sıfır bakiyeleri gizle",
-    "belowReorder": "Yeniden sipariş noktasının altında",
     "noLocation": "Lokasyonsuz",
     "openItem": "{{code}} stok ayrıntısını aç",
-    "totalValue": "Toplam stok tutarı:"
+    "includeZero": "Sıfır bakiyeleri de göster"
   },
   "drawer": {
     "title": "Ürün stoku",
-    "description": "Depo, parti ve son hareketlere göre stok.",
+    "description": "Depo, lot ve son hareketlere göre stok.",
     "byWarehouse": "Depolara göre",
-    "lots": "Partiler",
+    "lots": "Lotlar",
     "recent": "Son hareketler",
     "noStock": "Bu ürünün stoku yok.",
     "noMovements": "Henüz hareket yok.",
-    "allMovements": "Tüm hareketleri göster",
-    "belowReorder": "Kullanılabilir miktar yeniden sipariş noktasının altında."
+    "allMovements": "Tüm hareketleri göster"
   },
   "movements": {
     "title": "Stok hareketleri",
@@ -200,7 +171,7 @@
     },
     "loaded": "{{count}} hareket yüklendi",
     "loadMore": "Daha fazla yükle",
-    "scoped": "Liste bir belge, parti veya seri numarasıyla sınırlı.",
+    "scoped": "Liste bir belge, lot veya seri numarasıyla sınırlı.",
     "emptyTitle": "Hareket yok",
     "emptyBody": "Stok belgeleri kayda alındıkça hareketler burada görünür.",
     "emptyFiltered": "Bu filtrelere uyan hareket yok."
@@ -225,28 +196,24 @@
     "production_order": "Üretim emri"
   },
   "lots": {
-    "title": "Partiler",
-    "description": "Parti bazında stok ve son kullanma; {{days}} gün içinde dolanlar işaretlenir.",
+    "title": "Lotlar",
+    "description": "Lot bazında stok ve son kullanma; {{days}} gün içinde dolanlar işaretlenir.",
     "onlyInStock": "Yalnızca stokta olanlar",
     "noExpiry": "SKT yok",
     "expired": "Süresi doldu",
     "expiresToday": "Bugün doluyor",
     "expiresIn": "{{count}} gün kaldı",
-    "expiryFilter": {
-      "expired": "Süresi dolmuş",
-      "expiring": "{{days}} gün içinde dolacak",
-      "valid": "Geçerli",
-      "none": "SKT'siz"
-    }
+    "onlyExpired": "Yalnızca süresi dolmuşlar",
+    "expiresBefore": "Son kullanma (en geç)"
   },
   "trace": {
-    "title": "Parti izleme",
-    "titleFor": "{{lot}} partisi",
-    "notFound": "Parti bulunamadı.",
+    "title": "Lot izleme",
+    "titleFor": "{{lot}} lotu",
+    "notFound": "Lot bulunamadı.",
     "received": "Giren",
     "issued": "Çıkan",
     "whereNow": "Şu an nerede",
-    "noBalance": "Bu partiden stok kalmadı.",
+    "noBalance": "Bu lottan stok kalmadı.",
     "history": "Hareket geçmişi",
     "noMovements": "Hareket bulunamadı.",
     "inLedger": "Stok defterinde göster"

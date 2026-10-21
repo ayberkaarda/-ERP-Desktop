@@ -11,7 +11,7 @@ use RuntimeException;
 
 /**
  * Referential checks behind the integration foreign keys (company_id and cross-module references
- * of Reference, Parties and Catalog from Phase 2, and of Accounting from Phase 3). Works on table and column names only (no other
+ * of Reference, Parties and Catalog from Phase 2, of Accounting from Phase 3 and of Inventory from Phase 4). Works on table and column names only (no other
  * module's models), so it can run in migrations, commands and on installs missing a module.
  *
  * - orphans(): rows whose reference points at no row at all (what a foreign key would reject).
@@ -79,6 +79,56 @@ final class MasterDataIntegrity
         ['journal_entries', 'created_by', 'users', 'id'],
     ];
 
+    /** company_id -> companies.id for the Inventory tables. */
+    public const array INVENTORY_COMPANY_TABLES = [
+        'stock_warehouse_settings', 'stock_lots', 'stock_serials', 'stock_documents', 'stock_document_lines',
+        'stock_movements', 'stock_valuations', 'stock_balances', 'stock_cost_layers', 'stock_reservations',
+    ];
+
+    /**
+     * Inventory references to other modules (items, units, Reference warehouses and locations,
+     * journal entries, users) plus the one same-module key the Inventory migrations left out
+     * (document line -> reservation). None is repairable: movements are append-only evidence and
+     * posted documents cannot change. stock_balances.location_id / lot_id hold a nil uuid sentinel
+     * for "none" and are not constrained; stock_movements.document_id / document_line_id and
+     * stock_documents.source_id point at documents of any module (typed by their *_type column).
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public const array INVENTORY_CROSS_MODULE = [
+        ['stock_warehouse_settings', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_lots', 'item_id', 'items', 'id'],
+        ['stock_serials', 'item_id', 'items', 'id'],
+        ['stock_serials', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_serials', 'location_id', 'locations', 'id'],
+        ['stock_documents', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_documents', 'target_warehouse_id', 'warehouses', 'id'],
+        ['stock_documents', 'journal_entry_id', 'journal_entries', 'id'],
+        ['stock_documents', 'reversal_journal_entry_id', 'journal_entries', 'id'],
+        ['stock_documents', 'posted_by', 'users', 'id'],
+        ['stock_documents', 'reversed_by', 'users', 'id'],
+        ['stock_documents', 'created_by', 'users', 'id'],
+        ['stock_document_lines', 'item_id', 'items', 'id'],
+        ['stock_document_lines', 'unit_id', 'units', 'id'],
+        ['stock_document_lines', 'location_id', 'locations', 'id'],
+        ['stock_document_lines', 'target_location_id', 'locations', 'id'],
+        ['stock_document_lines', 'reservation_id', 'stock_reservations', 'id'],
+        ['stock_movements', 'item_id', 'items', 'id'],
+        ['stock_movements', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_movements', 'location_id', 'locations', 'id'],
+        ['stock_movements', 'journal_entry_id', 'journal_entries', 'id'],
+        ['stock_movements', 'created_by', 'users', 'id'],
+        ['stock_valuations', 'item_id', 'items', 'id'],
+        ['stock_valuations', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_balances', 'item_id', 'items', 'id'],
+        ['stock_balances', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_cost_layers', 'item_id', 'items', 'id'],
+        ['stock_cost_layers', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_reservations', 'item_id', 'items', 'id'],
+        ['stock_reservations', 'warehouse_id', 'warehouses', 'id'],
+        ['stock_reservations', 'created_by', 'users', 'id'],
+    ];
+
     /**
      * References between company scoped records (table, column, referenced table) checked for
      * crossing companies. Global rows (company_id NULL, e.g. seeded tax codes) are allowed.
@@ -97,6 +147,13 @@ final class MasterDataIntegrity
         ['journal_lines', 'party_id', 'parties'],
         ['journal_lines', 'cost_center_id', 'cost_centers'],
         ['journal_lines', 'project_id', 'projects'],
+        ['stock_documents', 'warehouse_id', 'warehouses'],
+        ['stock_documents', 'target_warehouse_id', 'warehouses'],
+        ['stock_document_lines', 'item_id', 'items'],
+        ['stock_movements', 'item_id', 'items'],
+        ['stock_movements', 'warehouse_id', 'warehouses'],
+        ['stock_reservations', 'item_id', 'items'],
+        ['stock_reservations', 'warehouse_id', 'warehouses'],
     ];
 
     public function __construct(private readonly Connection $db) {}
@@ -130,6 +187,20 @@ final class MasterDataIntegrity
         return [
             ...array_map(static fn (string $table): array => [$table, 'company_id', 'companies', 'id'], self::ACCOUNTING_COMPANY_TABLES),
             ...self::ACCOUNTING_CROSS_MODULE,
+        ];
+    }
+
+    /**
+     * Keys of the Inventory integration migration: company_id of every Inventory table, then the
+     * cross-module references.
+     *
+     * @return list<array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function inventoryKeys(): array
+    {
+        return [
+            ...array_map(static fn (string $table): array => [$table, 'company_id', 'companies', 'id'], self::INVENTORY_COMPANY_TABLES),
+            ...self::INVENTORY_CROSS_MODULE,
         ];
     }
 

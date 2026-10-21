@@ -12,6 +12,12 @@ const KEYWORDS: Record<ReportId, string[]> = {
   expiringLots: ['expiring lots', 'son kullanma', 'skt', 'miadı dolan'],
   abc: ['abc analysis', 'abc analizi', 'pareto'],
   turnover: ['turnover', 'devir hızı', 'stok devri'],
+  movementSummary: [
+    'movement summary',
+    'hareket özeti',
+    'giriş çıkış özeti',
+    'stok hareket raporu',
+  ],
   reorder: ['reorder', 'sipariş önerisi', 'yeniden sipariş', 'kritik stok'],
 }
 

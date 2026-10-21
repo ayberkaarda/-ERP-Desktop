@@ -2,7 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { http } from 'msw'
 import { COMPANY_A, COMPANY_B } from '@/test/handlers/fea'
-import { DOC_COUNT, WH_MAIN } from '@/test/handlers/inventoryDocs'
+import { DOC_COUNT, ITEM_BOLT, LOC_A2, WH_MAIN } from '@/test/handlers/inventoryDocs'
 import { server } from '@/test/msw/server'
 import { useCompanyStore } from '@/stores/company'
 import { invDocsKeys } from '../../documents/api/keys'
@@ -16,7 +16,7 @@ vi.setConfig({ testTimeout: 20_000 })
 const counted = (code: string) => screen.getByLabelText(new RegExp(`^Sayılan, ${code}`))
 
 describe('stock count', () => {
-  it('starts a count with a frozen scope', async () => {
+  it('starts a count by freezing the warehouse balances', async () => {
     const db = setupInvDocs()
     const user = userEvent.setup()
     const { router } = renderInvDocs('/inventory/counts/new')
@@ -29,11 +29,26 @@ describe('stock count', () => {
       doc_type: 'count',
       freeze: true,
       warehouse_id: WH_MAIN,
-      location_id: null,
-      include_zero: false,
+      notes: null,
     } satisfies Partial<CountStartInput>)
+    expect(call?.body).not.toHaveProperty('item_ids')
     expect(call?.headers.get('Idempotency-Key')).toBeTruthy()
+    // One non-zero balance in the warehouse: one frozen line, labelled from Catalog.
     expect(await screen.findByTestId('count-progress')).toHaveTextContent('0 / 1 satır sayıldı')
+    expect(await screen.findByText('Cıvata M8')).toBeInTheDocument()
+  })
+
+  it('starts an empty count without freezing', async () => {
+    const db = setupInvDocs()
+    const user = userEvent.setup()
+    renderInvDocs('/inventory/counts/new')
+    await screen.findByRole('heading', { name: 'Sayım başlat' })
+    await waitFor(() => expect(screen.getByLabelText(/^Depo/)).toHaveValue('ANA · Ana depo'))
+    await user.click(screen.getByRole('checkbox', { name: /Mevcut stoğu dondur/ }))
+    await user.click(screen.getByRole('button', { name: 'Boş sayım başlat' }))
+    expect(await screen.findByText('Bu sayımda satır yok.')).toBeInTheDocument()
+    const call = db.calls.find((c) => c.method === 'POST' && c.path === '/stock-documents')
+    expect(call?.body).toMatchObject({ doc_type: 'count', freeze: false })
   })
 
   it('enters counts from the keyboard with a live variance, saves and posts', async () => {
@@ -42,8 +57,8 @@ describe('stock count', () => {
     renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
     await screen.findByRole('heading', { name: 'Sayım (taslak)' })
     expect(screen.getByTestId('count-progress')).toHaveTextContent('1 / 3 satır sayıldı')
-    // Posting waits for every line.
-    expect(screen.getByRole('button', { name: 'Kesinleştir' })).toBeDisabled()
+    // Uncounted lines are skipped when posting, so one counted line is enough.
+    expect(screen.getByRole('button', { name: 'Kesinleştir' })).toBeEnabled()
 
     await user.click(counted('STK-001'))
     await user.keyboard('98{Enter}')
@@ -65,12 +80,13 @@ describe('stock count', () => {
 
     await user.keyboard('{Control>}s{/Control}')
     await waitFor(() => expect(db.calls.some((c) => c.method === 'PATCH')).toBe(true))
-    const patch = db.calls.find((c) => c.method === 'PATCH')?.body as CountUpdateInput
-    expect(patch).toEqual({
+    const patch = db.calls.find((c) => c.method === 'PATCH')
+    expect(patch?.path).toBe(`/stock-documents/${DOC_COUNT}/counts`)
+    expect(patch?.body as CountUpdateInput).toEqual({
       version: 1,
-      lines: [
-        { id: `${DOC_COUNT}-l1`, counted_quantity: '98.000000' },
-        { id: `${DOC_COUNT}-l2`, counted_quantity: '41.000000' },
+      counts: [
+        { line_id: `${DOC_COUNT}-l1`, counted_quantity: '98.000000' },
+        { line_id: `${DOC_COUNT}-l2`, counted_quantity: '41.000000' },
       ],
     })
 
@@ -78,7 +94,7 @@ describe('stock count', () => {
     const dialog = await screen.findByRole('alertdialog', { name: 'Fiş kesinleştirilsin mi?' })
     expect(dialog).toHaveTextContent('30,00 fazla · 5,00 eksik · net 25,00')
     await user.click(within(dialog).getByRole('button', { name: 'Kesinleştir' }))
-    expect(await screen.findByTestId('posted-number')).toHaveTextContent('SAY-2026-000001')
+    expect(await screen.findByTestId('posted-number')).toHaveTextContent('CNT2026000000001')
     const post = db.calls.find((c) => c.path === `/stock-documents/${DOC_COUNT}/post`)
     expect(post?.body).toEqual({ version: 2 })
   })
@@ -93,31 +109,61 @@ describe('stock count', () => {
     const input = within(dialog).getByLabelText(/^CSV dosyası/)
 
     const bad = new File(
-      ['item_code,lot_no,location_code,counted_quantity\nSTK-001,,A-01,97\nSTK-999,,A-01,3\n'],
+      ['item_code,counted_quantity,location_code,lot_no\nSTK-001,97,A-01,\nSTK-999,3,A-01,\n'],
       'sayim.csv',
       { type: 'text/csv' },
     )
     await user.upload(input, bad)
     await user.click(within(dialog).getByRole('button', { name: 'Dene' }))
-    expect(await within(dialog).findByText('1 uygun, 1 hatalı satır')).toBeInTheDocument()
-    expect(within(dialog).getByText('Sayım satırı bulunamadı.')).toBeInTheDocument()
+    expect(await within(dialog).findByText('2 satırdan 1 uygun')).toBeInTheDocument()
+    expect(within(dialog).getByText('Stok kartı bulunamadı: STK-999')).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: /satırı uygula/ })).toBeDisabled()
 
     const good = new File(
       [
-        'item_code,lot_no,location_code,counted_quantity\nSTK-001,,A-01,97\nSTK-002,L-0925,A-01,40\n',
+        'item_code;counted_quantity;location_code;lot_no\nSTK-001;97;A-01;\nSTK-002;40;A-01;L-0925\n',
       ],
       'sayim.csv',
       { type: 'text/csv' },
     )
     await user.upload(input, good)
     await user.click(within(dialog).getByRole('button', { name: 'Dene' }))
-    expect(await within(dialog).findByText('2 uygun, 0 hatalı satır')).toBeInTheDocument()
+    expect(await within(dialog).findByText('2 satırdan 2 uygun')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: '2 satırı uygula' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(screen.getByTestId('count-progress')).toHaveTextContent('3 / 3 satır sayıldı')
     expect(counted('STK-001')).toHaveValue('97')
     expect(db.uploads.map((u) => u.dryRun)).toEqual(['1', '1', '0'])
+    expect(db.calls.filter((c) => c.method === 'POST').map((c) => c.path)).toContain(
+      `/stock-documents/${DOC_COUNT}/import`,
+    )
+  })
+
+  it('adds a line for stock found outside the snapshot', async () => {
+    const db = setupInvDocs()
+    const user = userEvent.setup()
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    await user.click(screen.getByRole('button', { name: 'Satır ekle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sayım satırı ekle' })
+    await user.type(within(dialog).getByLabelText(/^Stok kartı/), 'STK-001')
+    await user.click(await screen.findByRole('option', { name: /STK-001 · Cıvata M8/ }))
+    await user.type(within(dialog).getByLabelText(/^Lokasyon/), 'A-02')
+    await user.click(await screen.findByRole('option', { name: 'A-02 · Raf A-02' }))
+    await user.click(within(dialog).getByLabelText(/^Sayılan/))
+    await user.keyboard('3')
+    await user.click(within(dialog).getByRole('button', { name: 'Satır ekle' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const patch = db.calls.find((c) => c.method === 'PATCH')
+    expect(patch?.path).toBe(`/stock-documents/${DOC_COUNT}/counts`)
+    expect(patch?.body).toMatchObject({
+      version: 1,
+      counts: [],
+      add: [{ item_id: ITEM_BOLT, location_id: LOC_A2, lot_no: null }],
+    })
+    await waitFor(() =>
+      expect(screen.getByTestId('count-progress')).toHaveTextContent('2 / 4 satır sayıldı'),
+    )
   })
 
   it('refuses a non-CSV file', async () => {
@@ -151,7 +197,7 @@ describe('stock count', () => {
       release = resolve
     })
     server.use(
-      http.post('*/api/v1/stock-documents/:id/lines/import', async () => {
+      http.post('*/api/v1/stock-documents/:id/import', async () => {
         await gate
         return undefined
       }),
@@ -162,7 +208,7 @@ describe('stock count', () => {
   /** A count CSV with the header and the given rows. */
   const csv = (...rows: string[]) =>
     new File(
-      [['item_code,lot_no,location_code,counted_quantity', ...rows, ''].join('\n')],
+      [['item_code,counted_quantity,location_code,lot_no', ...rows, ''].join('\n')],
       'sayim.csv',
       { type: 'text/csv' },
     )
@@ -175,17 +221,17 @@ describe('stock count', () => {
     await user.click(screen.getByRole('button', { name: 'CSV içe aktar' }))
     const dialog = await screen.findByRole('dialog', { name: "Sayım CSV'si içe aktar" })
     const input = within(dialog).getByLabelText(/^CSV dosyası/)
-    await user.upload(input, csv('STK-001,,A-01,97', 'STK-002,L-0925,A-01,40'))
+    await user.upload(input, csv('STK-001,97,A-01,', 'STK-002,40,A-01,L-0925'))
     const release = gateImports()
     await user.click(within(dialog).getByRole('button', { name: 'Dene' }))
     await waitFor(() => expect(input).toBeDisabled())
     release()
-    expect(await within(dialog).findByText('2 uygun, 0 hatalı satır')).toBeInTheDocument()
+    expect(await within(dialog).findByText('2 satırdan 2 uygun')).toBeInTheDocument()
     expect(input).toBeEnabled()
     expect(within(dialog).getByRole('button', { name: '2 satırı uygula' })).toBeEnabled()
     // Another file drops the preview: it has not been tried yet.
-    await user.upload(input, csv('STK-001,,A-01,1'))
-    expect(within(dialog).queryByText('2 uygun, 0 hatalı satır')).not.toBeInTheDocument()
+    await user.upload(input, csv('STK-001,1,A-01,'))
+    expect(within(dialog).queryByText('2 satırdan 2 uygun')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: /satırı uygula/ })).toBeDisabled()
   })
 
@@ -196,9 +242,9 @@ describe('stock count', () => {
     await screen.findByRole('heading', { name: 'Sayım (taslak)' })
     await user.click(screen.getByRole('button', { name: 'CSV içe aktar' }))
     const dialog = await screen.findByRole('dialog', { name: "Sayım CSV'si içe aktar" })
-    await user.upload(within(dialog).getByLabelText(/^CSV dosyası/), csv('STK-001,,A-01,97'))
+    await user.upload(within(dialog).getByLabelText(/^CSV dosyası/), csv('STK-001,97,A-01,'))
     await user.click(within(dialog).getByRole('button', { name: 'Dene' }))
-    await within(dialog).findByText('1 uygun, 0 hatalı satır')
+    await within(dialog).findByText('1 satırdan 1 uygun')
     const setData = vi.spyOn(queryClient, 'setQueryData')
     const release = gateImports()
     await user.click(within(dialog).getByRole('button', { name: '1 satırı uygula' }))

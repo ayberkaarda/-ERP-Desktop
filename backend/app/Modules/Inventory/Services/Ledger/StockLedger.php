@@ -184,7 +184,8 @@ final class StockLedger
         $warehouses = [];
 
         foreach (array_filter([$doc->warehouse_id, $doc->target_warehouse_id]) as $field => $id) {
-            $warehouse = $this->warehouses->find($id);
+            // Share lock: a Reference warehouse delete (row lock, movement check) cannot slip in.
+            $warehouse = $this->warehouses->find($id, share: true);
 
             if ($warehouse === null || ! $warehouse->isActive) {
                 Messages::fail($field === 0 ? 'warehouse_id' : 'target_warehouse_id', 'warehouse_unavailable');

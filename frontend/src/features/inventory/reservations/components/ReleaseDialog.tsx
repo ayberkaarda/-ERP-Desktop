@@ -1,8 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2 } from 'lucide-react'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { FieldShell } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -12,44 +10,49 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { useIntlLocale } from '@/lib/datetime'
-import { formatDecimalDisplay } from '@/lib/money'
 import { platform } from '@/platform'
 import { reservationsApi } from '../../documents/api/client'
-import { activeCompany, invDocsKeys } from '../../documents/api/keys'
+import { activeCompany, invalidateStockEffects, invDocsKeys } from '../../documents/api/keys'
+import { ActionError } from '../../documents/components/ActionError'
 import { VersionConflictAlert } from '../../documents/components/VersionConflictAlert'
 import { isVersionConflict } from '../../documents/lib/errors'
-import { trimDecimal } from '../../documents/lib/quantity'
-import { ActionError } from '../../documents/components/ActionError'
+import { usePayloadKeys } from '../../documents/lib/idempotency'
 import type { StockReservation } from '../../documents/types'
 
 interface ReleaseDialogProps {
   reservation: StockReservation | null
+  /** "STK-001 · Bolt" and "12 ADET" as the list shows them. */
+  itemLabel: string
+  quantityLabel: string
   onClose: () => void
 }
 
-/** POST /stock-reservations/{id}/release {version, reason}: the quantity becomes available. */
-export function ReleaseDialog({ reservation, onClose }: ReleaseDialogProps) {
+/** POST /stock-reservations/{id}/release {version}: the quantity becomes available again. */
+export function ReleaseDialog({
+  reservation,
+  itemLabel,
+  quantityLabel,
+  onClose,
+}: ReleaseDialogProps) {
   const { t } = useTranslation('inventoryDocs')
-  const locale = useIntlLocale()
   const queryClient = useQueryClient()
-  const [reason, setReason] = useState('')
+  const keyFor = usePayloadKeys()
   const release = useMutation({
     mutationFn: ({ target }: { target: StockReservation; company: string }) =>
-      reservationsApi.release(target.id, {
-        version: target.version,
-        reason: reason.trim() || null,
-      }),
+      reservationsApi.release(
+        target.id,
+        target.version,
+        keyFor({ release: target.id, version: target.version }),
+      ),
     onSuccess: (_, { company }) => {
-      void queryClient.invalidateQueries({ queryKey: invDocsKeys.reservations(company) })
+      // Available stock changes with the reservation.
+      invalidateStockEffects(queryClient, company)
       if (activeCompany() !== company) return
       platform.notify.success(t('reservation.released'))
       close()
     },
   })
   const close = () => {
-    setReason('')
     release.reset()
     onClose()
   }
@@ -65,14 +68,7 @@ export function ReleaseDialog({ reservation, onClose }: ReleaseDialogProps) {
           <DialogTitle>{t('reservation.releaseTitle')}</DialogTitle>
           <DialogDescription>
             {reservation &&
-              t('reservation.releaseBody', {
-                item: [reservation.item_code, reservation.item_name].filter(Boolean).join(' · '),
-                quantity: `${formatDecimalDisplay(trimDecimal(reservation.quantity), {
-                  locale,
-                  minFraction: 0,
-                  maxFraction: 6,
-                })} ${reservation.unit_code ?? ''}`.trim(),
-              })}
+              t('reservation.releaseBody', { item: itemLabel, quantity: quantityLabel })}
           </DialogDescription>
         </DialogHeader>
         {conflict ? (
@@ -85,17 +81,6 @@ export function ReleaseDialog({ reservation, onClose }: ReleaseDialogProps) {
         ) : (
           <ActionError error={release.error} />
         )}
-        <FieldShell label={t('reservation.releaseReason')}>
-          {(control) => (
-            <Textarea
-              {...control}
-              value={reason}
-              rows={2}
-              maxLength={500}
-              onChange={(e) => setReason(e.target.value)}
-            />
-          )}
-        </FieldShell>
         <DialogFooter>
           <Button type="button" variant="secondary" disabled={release.isPending} onClick={close}>
             {t('actions.cancel')}

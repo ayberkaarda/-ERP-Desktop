@@ -11,6 +11,11 @@ final class NullLookup
         return false;
     }
 
+    public function hasMovements(string $id): bool
+    {
+        return false;
+    }
+
     public function find(string $id): null
     {
         return null;

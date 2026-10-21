@@ -253,3 +253,19 @@ it('isolates items between companies and enforces versions', function (): void {
     Catalog::as($this->admin, $this->company)->postJson('/api/v1/items', ['name' => 'x', 'type' => 'stock', 'base_unit_id' => $this->pcs->id])
         ->assertStatus(400)->assertJsonPath('errors.code', 'IDEMPOTENCY_KEY_REQUIRED');
 });
+
+it('reads a bounded batch of items by id within the company', function (): void {
+    $a = Catalog::item($this->company, $this->pcs, ['code' => 'ID-A']);
+    $b = Catalog::item($this->company, $this->pcs, ['code' => 'ID-B']);
+    Catalog::item($this->company, $this->pcs, ['code' => 'ID-C']);
+    $foreign = Catalog::item($this->other, Catalog::unit($this->other, 'PCS'), ['code' => 'ID-X']);
+    $get = fn (string $query) => Catalog::as($this->viewer, $this->company)->getJson("/api/v1/items?{$query}");
+
+    expect($get("filter[id]={$a->id},{$b->id},{$foreign->id}&sort=code")->assertOk()->json('data.*.id'))->toBe([$a->id, $b->id]);
+
+    $get('filter[id]=nope')->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['filter.id']));
+    $tooMany = implode(',', array_map(fn (): string => (string) Str::uuid7(), range(1, 101)));
+    $get("filter[id]={$tooMany}")->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['filter.id']));
+    $hundred = implode(',', [$a->id, ...array_map(fn (): string => (string) Str::uuid7(), range(1, 99))]);
+    expect($get("filter[id]={$hundred}&per_page=100")->assertOk()->json('data.*.id'))->toBe([$a->id]);
+});

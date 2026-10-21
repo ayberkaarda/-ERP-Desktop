@@ -26,7 +26,10 @@ export function setupInvDocs(
     permissions: { [COMPANY_A]: options.permissions ?? ALL_INV_DOCS_PERMISSIONS },
   })
   signIn(fea)
-  const db = createInvDocsDb(options.db)
+  const db = createInvDocsDb({
+    permissions: options.permissions ?? ALL_INV_DOCS_PERMISSIONS,
+    ...options.db,
+  })
   server.use(...invDocsHandlers(db))
   return db
 }
