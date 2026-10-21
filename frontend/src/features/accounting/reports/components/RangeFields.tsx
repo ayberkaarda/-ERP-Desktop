@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next'
 import { DateInput, FieldShell } from '@/components/shared/form'
+import { Button } from '@/components/ui/button'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { usePeriods } from '../../journal/hooks/queries'
+import { errorMessage } from '../../journal/lib/errors'
 import { selectClass } from '../../journal/lib/ui'
 import type { ParamRecord } from '../lib/params'
 
@@ -41,7 +43,19 @@ export function RangeFields({ value, onChange, allowPeriod = true }: RangeFields
           ))}
         </fieldset>
       )}
-      {mode === 'period' ? (
+      {mode === 'period' && periods.isError && !periods.data ? (
+        <div role="alert" className="flex h-control items-center gap-2 text-sm text-danger">
+          <span>{errorMessage(periods.error, t('reports.periodsFailed'))}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => void periods.refetch()}
+          >
+            {t('actions.retry')}
+          </Button>
+        </div>
+      ) : mode === 'period' ? (
         <FieldShell label={t('reports.period')} className="w-64" required>
           {(control) => (
             <select

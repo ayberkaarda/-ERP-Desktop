@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Play, Printer } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -20,7 +20,13 @@ import { amountOf } from '../../journal/lib/balance'
 import { selectClass } from '../../journal/lib/ui'
 import { BOOK_TOO_LARGE, REPORT_PATHS, reportsApi } from '../api'
 import { RangeFields } from '../components/RangeFields'
-import { BOOK_PAGE_SIZES, paginateBook, type BookTotals } from '../lib/journalBook'
+import {
+  BOOK_PAGE_SIZES,
+  paginateBook,
+  parseBookPageSize,
+  type BookTotals,
+} from '../lib/journalBook'
+import '../print.css'
 import { hasRange, rangeParams, type ParamRecord } from '../lib/params'
 import { useReportParams } from '../lib/useReportParams'
 
@@ -36,7 +42,16 @@ export function JournalBookPage() {
   const [draft, setDraft] = useState<ParamRecord>(applied)
   const params = rangeParams(applied)
   const enabled = ready && hasRange(applied)
-  const pageSize = Number(applied.page_size) || 30
+  const pageSize = parseBookPageSize(applied.page_size)
+  // A valid custom size from a link or preset stays selectable.
+  const sizeOptions = [
+    ...new Set<number>([...BOOK_PAGE_SIZES, pageSize, parseBookPageSize(draft.page_size)]),
+  ].sort((x, y) => x - y)
+  // Print styles (print.css) apply only while the book is on screen.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-print-book', '')
+    return () => document.documentElement.removeAttribute('data-print-book')
+  }, [])
   const book = useQuery({
     queryKey: journalKeys.report('journal-book', params),
     queryFn: ({ signal }) => reportsApi.journalBook(params, signal),
@@ -118,7 +133,7 @@ export function JournalBookPage() {
               <select
                 {...control}
                 className={selectClass}
-                value={draft.page_size ?? '30'}
+                value={String(parseBookPageSize(draft.page_size))}
                 onChange={(e) => {
                   const page_size = e.target.value
                   setDraft((d) => ({ ...d, page_size }))
@@ -126,7 +141,7 @@ export function JournalBookPage() {
                   if (enabled) apply({ ...applied, page_size })
                 }}
               >
-                {BOOK_PAGE_SIZES.map((n) => (
+                {sizeOptions.map((n) => (
                   <option key={n} value={String(n)}>
                     {t('book.pageSizeOption', { count: n })}
                   </option>
@@ -159,21 +174,21 @@ export function JournalBookPage() {
       ) : book.data.entries.length === 0 ? (
         <EmptyState description={t('book.empty')} />
       ) : (
-        <div className="space-y-6 print:space-y-0">
+        <div id="journal-book-print" className="space-y-6 print:space-y-0">
           {pages.map((page) => (
             <section
               key={page.number}
               aria-label={t('book.page', { number: page.number, total: pages.length })}
-              className="break-after-page rounded-lg border border-border bg-surface p-4 print:rounded-none print:border-0 print:p-0"
+              className="journal-book-page break-after-page rounded-lg border border-border bg-surface p-4 print:rounded-none print:border-0 print:p-0"
             >
-              <header className="mb-2 flex items-baseline justify-between text-xs text-muted-foreground">
+              <div className="mb-2 flex items-baseline justify-between text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{t('book.title')}</span>
                 <span>
                   {formatDate(book.data.entries[0]?.entry_date ?? '', locale)} –{' '}
                   {formatDate(book.data.entries.at(-1)?.entry_date ?? '', locale)}
                 </span>
                 <span>{t('book.page', { number: page.number, total: pages.length })}</span>
-              </header>
+              </div>
               <table className="w-full text-table">
                 <thead className="text-xs text-muted-foreground">
                   <tr className="border-b border-border">

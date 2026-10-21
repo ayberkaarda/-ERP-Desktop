@@ -24,6 +24,13 @@ export function JournalEntryPage() {
   const { t } = useTranslation('accountingJournal')
   const entry = useEntry(id)
   const [posted, setPosted] = useState<JournalEntry | null>(null)
+  // The draft being edited stays in the editor even if a refetch reports it posted elsewhere:
+  // unmounting would drop unsaved edits. The editor shows the change and offers a reload.
+  const [editing, setEditing] = useState<string | null>(null)
+  const data = entry.data
+  if (data?.status === 'draft' && editing !== data.id) setEditing(data.id)
+  const inEditor = data !== undefined && (data.status === 'draft' || editing === data.id)
+  const refreshFailed = entry.isError && data !== undefined
 
   let body
   if (!id) {
@@ -34,6 +41,24 @@ export function JournalEntryPage() {
         onPosted={setPosted}
       />
     )
+  } else if (data && inEditor) {
+    body = (
+      <JournalEntryEditor
+        key={data.id}
+        entry={data}
+        onReload={async () => {
+          const fresh = (await entry.refetch()).data
+          if (fresh && fresh.status !== 'draft') setEditing(null)
+          return fresh
+        }}
+        onPosted={(p) => {
+          setEditing(null)
+          setPosted(p)
+        }}
+      />
+    )
+  } else if (data) {
+    body = <JournalEntryView entry={data} />
   } else if (entry.isPending) {
     body = (
       <div className="mx-auto max-w-[1440px] space-y-4 px-6 py-6" aria-busy="true">
@@ -41,27 +66,34 @@ export function JournalEntryPage() {
         <Skeleton className="h-64 w-full" />
       </div>
     )
-  } else if (entry.isError) {
+  } else {
     body = (
       <div className="mx-auto max-w-[1440px] px-6 py-6">
         <LoadError error={entry.error} onRetry={() => void entry.refetch()} />
       </div>
     )
-  } else if (entry.data.status === 'draft') {
-    body = (
-      <JournalEntryEditor
-        key={entry.data.id}
-        entry={entry.data}
-        onReload={async () => (await entry.refetch()).data}
-        onPosted={setPosted}
-      />
-    )
-  } else {
-    body = <JournalEntryView entry={entry.data} />
   }
 
   return (
     <>
+      {refreshFailed && (
+        <div className="mx-auto max-w-[1440px] px-6 pt-4">
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-warning/40 bg-warning-soft p-3 text-sm text-warning-soft-foreground"
+          >
+            <span>{t('errors.refreshFailed')}</span>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => void entry.refetch()}
+            >
+              {t('actions.retry')}
+            </Button>
+          </div>
+        </div>
+      )}
       {body}
       <Dialog open={posted !== null} onOpenChange={(open) => !open && setPosted(null)}>
         <DialogContent closeLabel={t('actions.close')}>

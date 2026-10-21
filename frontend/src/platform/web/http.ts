@@ -1,5 +1,11 @@
 import axios, { type AxiosRequestConfig } from 'axios'
-import { ApiError, type AuthFailure, type HttpClient, type HttpRequestOptions } from '../types'
+import {
+  ApiError,
+  type AuthFailure,
+  type DownloadResult,
+  type HttpClient,
+  type HttpRequestOptions,
+} from '../types'
 
 declare module 'axios' {
   interface AxiosRequestConfig {
@@ -103,6 +109,52 @@ export function withIdempotency(
   return { ...options, idempotencyKey: key }
 }
 
+const MAX_FILENAME = 200
+// Control characters, path separators and characters Windows refuses in file names.
+// eslint-disable-next-line no-control-regex
+const UNSAFE_FILENAME = /[\u0000-\u001f\u007f/\\:*?"<>|]/g
+
+/**
+ * File name from a Content-Disposition header (RFC 6266: `filename*` wins over `filename`),
+ * reduced to a bare, safe name: no directories, control characters or leading dots.
+ */
+export function filenameFromDisposition(header: string): string | null {
+  let raw: string | null = null
+  const extended = /filename\*\s*=\s*([^;]+)/i.exec(header)?.[1]?.trim()
+  if (extended) {
+    const m = /^([\w!#$%&+^`{}~-]+)'[^']*'(.*)$/.exec(extended.replace(/^"|"$/g, ''))
+    if (m?.[1] && m[2] !== undefined && /^utf-8$/i.test(m[1])) {
+      try {
+        raw = decodeURIComponent(m[2])
+      } catch {
+        raw = null
+      }
+    }
+  }
+  if (raw === null) {
+    const plain = /filename\s*=\s*("(?:[^"\\]|\\.)*"|[^;]*)/i.exec(header)?.[1]?.trim()
+    if (plain) raw = plain.startsWith('"') ? plain.slice(1, -1).replace(/\\(.)/g, '$1') : plain
+  }
+  if (raw === null) return null
+  const base = raw.split(/[/\\]/).pop() ?? ''
+  const clean = base
+    .replace(UNSAFE_FILENAME, '_')
+    .replace(/^[.\s]+/, '')
+    .trim()
+  return clean === '' ? null : clean.slice(0, MAX_FILENAME)
+}
+
+/** Replaces a Blob error body with its parsed JSON so the error envelope can be read. */
+async function readBlobError(error: { response?: { data?: unknown } }): Promise<void> {
+  const data = error.response?.data
+  if (!(data instanceof Blob) || error.response === undefined) return
+  try {
+    error.response.data = JSON.parse(await data.text()) as unknown
+  } catch {
+    // Not JSON (HTML gateway page): keep the generic HTTP error.
+  }
+}
+
 export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
   const instance = axios.create({
     baseURL: options.baseURL ?? '/api/v1',
@@ -146,6 +198,8 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
 
   instance.interceptors.response.use(undefined, async (error: unknown) => {
     if (!axios.isAxiosError(error) || !error.config) throw error
+    // Blob downloads get their error envelope as a Blob; read it so codes and fields survive.
+    await readBlobError(error)
     const config = error.config
     const status = error.response?.status ?? 0
 
@@ -194,6 +248,17 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
     put: (url, body, o) => run(url, () => instance.put(url, body, toConfig(o))),
     patch: (url, body, o) => run(url, () => instance.patch(url, body, toConfig(o))),
     delete: (url, o) => run(url, () => instance.delete(url, toConfig(o))),
+    download: (url, o) =>
+      run<DownloadResult>(url, async () => {
+        const res = await instance.get<Blob>(url, { ...toConfig(o), responseType: 'blob' })
+        const header: unknown = res.headers['content-disposition']
+        return {
+          data: {
+            blob: res.data,
+            filename: typeof header === 'string' ? filenameFromDisposition(header) : null,
+          },
+        }
+      }),
     prepareSession: async () => {
       try {
         await refreshCsrf()

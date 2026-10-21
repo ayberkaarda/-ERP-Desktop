@@ -335,9 +335,25 @@ function nextNumber(db: Accounting2Db, date: string) {
   return `${date.slice(0, 4)}/${String(n + 1).padStart(6, '0')}`
 }
 
-function csv(rows: string[][]) {
+/** XLSX files are zip archives: these bytes are not valid UTF-8 and break a text round trip. */
+export const XLSX_BYTES = [0x50, 0x4b, 0x03, 0x04, 0xff, 0xfe, 0x00, 0x80, 0xc3]
+
+/** Export body as the shared exporter sends it: CSV text or binary XLSX, with a file name. */
+function exported(url: URL, name: string, rows: string[][]) {
+  const format = url.searchParams.get('format')
+  if (format === 'xlsx') {
+    return new HttpResponse(new Uint8Array(XLSX_BYTES), {
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${name}.xlsx"; filename*=UTF-8''${encodeURIComponent(name)}.xlsx`,
+      },
+    })
+  }
   return new HttpResponse(rows.map((r) => r.join(';')).join('\n'), {
-    headers: { 'Content-Type': 'text/csv; charset=utf-8' },
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${name}.csv"`,
+    },
   })
 }
 
@@ -410,7 +426,7 @@ export function accounting2Handlers(db: Accounting2Db) {
       const url = new URL(request.url)
       if (!['csv', 'xlsx'].includes(url.searchParams.get('format') ?? ''))
         return validation({ format: ['Geçersiz biçim.'] })
-      return csv([
+      return exported(url, 'yevmiye-fisleri-sunucu', [
         ['number', 'entry_date', 'total_debit'],
         ...db.entries.map((e) => [e.number ?? '', e.entry_date, e.total_debit]),
       ])
@@ -585,11 +601,11 @@ export function accounting2Handlers(db: Accounting2Db) {
     }),
 
     // ---- reports ------------------------------------------------------------------------
-    http.get(`${API}/reports/:report/export`, ({ request }) => {
+    http.get(`${API}/reports/:report/export`, ({ request, params }) => {
       const url = new URL(request.url)
       if (!['csv', 'xlsx'].includes(url.searchParams.get('format') ?? ''))
         return validation({ format: ['Geçersiz biçim.'] })
-      return csv([['report'], [url.pathname]])
+      return exported(url, `${String(params.report)}-sunucu`, [['report'], [url.pathname]])
     }),
     http.get(`${API}/reports/trial-balance`, ({ request }) => {
       const url = new URL(request.url)

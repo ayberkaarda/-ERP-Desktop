@@ -145,7 +145,8 @@
     "summary": "{{date}} · {{count}} lines · Debit {{debit}} · Credit {{credit}}",
     "confirm": "Post",
     "doneTitle": "Entry posted",
-    "doneBody": "The entry was given journal number {{number}}."
+    "doneBody": "The entry was given journal number {{number}}.",
+    "unbalancedNow": "The entry no longer balances and was not posted. Reload it and check."
   },
   "reverse": {
     "action": "Reverse",
@@ -175,7 +176,8 @@
   },
   "errors": {
     "generic": "The action could not be completed.",
-    "loadFailed": "The data could not be loaded."
+    "loadFailed": "The data could not be loaded.",
+    "refreshFailed": "The latest version could not be fetched; what you see may be out of date."
   },
   "reports": {
     "parameters": "Report parameters",
@@ -190,7 +192,8 @@
     "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
     "run": "Run report",
     "choose": "Choose the parameters and run the report.",
-    "noRows": "No rows for these parameters."
+    "noRows": "No rows for these parameters.",
+    "periodsFailed": "The periods could not be loaded."
   },
   "trialBalance": {
     "title": "Trial balance",
@@ -244,5 +247,9 @@
     "grandTotal": "Grand total",
     "empty": "No posted entries in this range.",
     "tooLarge": "The range is too large to show on screen; narrow it or export."
+  },
+  "changed": {
+    "title": "The entry changed elsewhere",
+    "body": "A newer version was saved while you were editing. Load the latest version before saving your changes."
   }
 }

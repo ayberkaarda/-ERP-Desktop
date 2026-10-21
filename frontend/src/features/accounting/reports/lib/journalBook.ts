@@ -22,6 +22,21 @@ export interface BookPage {
 }
 
 export const BOOK_PAGE_SIZES = [20, 30, 40, 50] as const
+export const DEFAULT_BOOK_PAGE_SIZE = 30
+export const MIN_BOOK_PAGE_SIZE = 10
+export const MAX_BOOK_PAGE_SIZE = 100
+
+/**
+ * Rows per printed page from untrusted input (URL, saved preset): a whole number inside
+ * [MIN, MAX]; anything else ("Infinity", "-5", "abc", "1e9") falls back to the default.
+ */
+export function parseBookPageSize(value: unknown): number {
+  const text =
+    typeof value === 'number' ? String(value) : typeof value === 'string' ? value.trim() : ''
+  if (!/^\d{1,3}$/.test(text)) return DEFAULT_BOOK_PAGE_SIZE
+  const n = Number(text)
+  return n >= MIN_BOOK_PAGE_SIZE && n <= MAX_BOOK_PAGE_SIZE ? n : DEFAULT_BOOK_PAGE_SIZE
+}
 
 const fixed = (d: Decimal) => d.toFixed(2)
 
@@ -35,7 +50,9 @@ export function paginateBook(
   rowsPerPage: number,
   opening: BookTotals = { debit: '0', credit: '0' },
 ): BookPage[] {
-  const size = Math.max(2, Math.trunc(rowsPerPage))
+  const size = Number.isFinite(rowsPerPage)
+    ? Math.min(MAX_BOOK_PAGE_SIZE, Math.max(2, Math.trunc(rowsPerPage)))
+    : DEFAULT_BOOK_PAGE_SIZE
   const rows: BookRow[] = []
   for (const entry of entries) {
     rows.push({ kind: 'entry', entry })

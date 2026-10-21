@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
+import { useCompanyStore } from '@/stores/company'
 import { platform } from '@/platform'
 import { journalApi } from '../api/client'
 import { journalKeys } from '../api/keys'
@@ -56,9 +57,19 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
   const canPost = usePermission('accounting.entries.post')
   const [conflict, setConflict] = useState(false)
   const [showAllDimensions, setShowAllDimensions] = useState(false)
+  // A save that just created the draft asks for the confirmation; only for a balanced draft.
   const [confirmPost, setConfirmPost] = useState(
-    () => (location.state as { confirmPost?: boolean } | null)?.confirmPost === true,
+    () =>
+      (location.state as { confirmPost?: boolean } | null)?.confirmPost === true &&
+      entry !== null &&
+      balanceOf(entry.lines).balanced,
   )
+  /**
+   * The server state the form was loaded from. Its version is what a save sends; a background
+   * refetch never replaces it behind the user's back (that would overwrite others' changes).
+   */
+  const [base, setBase] = useState<JournalEntry | null>(entry)
+  const [checking, setChecking] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const messages: EntryMessages = useMemo(
@@ -85,60 +96,77 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
   const { isDirty } = useFormState({ control: form.control })
   const balance = balanceOf(lines)
   const [lastValues, setLastValues] = useState<EntryValues | null>(null)
+  const company = useCompanyStore((s) => s.activeCompanyId)
+
+  // The server copy moved on (a refetch after someone else saved or posted it): the form keeps
+  // its base version and the user decides to load the new state.
+  const changedElsewhere =
+    entry !== null && base !== null && entry.id === base.id && entry.version !== base.version
+
+  /** Results of work started under another company are written to that company's cache only. */
+  const sameCompany = (started: string | null) =>
+    useCompanyStore.getState().activeCompanyId === started
 
   const save = useMutation({
-    mutationFn: async (values: EntryValues) => {
+    mutationFn: async ({ values }: { values: EntryValues; company: string | null }) => {
       setLastValues(values)
       const input = toEntryInput(values)
-      return entry
-        ? journalApi.update(entry.id, { ...input, version: entry.version })
+      return base
+        ? journalApi.update(base.id, { ...input, version: base.version })
         : journalApi.create(input, keyFor(input))
     },
-    onSuccess: (saved) => {
-      queryClient.setQueryData(journalKeys.entry(saved.id), saved)
-      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(), exact: false })
+    onSuccess: (saved, { company: started }) => {
+      queryClient.setQueryData(journalKeys.entry(saved.id, started ?? 'none'), saved)
+      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(started ?? 'none') })
+      if (!sameCompany(started)) return
+      setBase(saved)
       form.reset(toEntryValues(saved))
     },
-    onError: (error) => {
-      if (isVersionConflict(error)) setConflict(true)
+    onError: (error, { company: started }) => {
+      if (sameCompany(started) && isVersionConflict(error)) setConflict(true)
     },
   })
 
   const post = useMutation({
-    mutationFn: (target: JournalEntry) =>
+    mutationFn: ({ target }: { target: JournalEntry; company: string | null }) =>
       journalApi.post(
         target.id,
         target.version,
         keyFor({ post: target.id, version: target.version }),
       ),
-    onSuccess: (posted) => {
-      queryClient.setQueryData(journalKeys.entry(posted.id), posted)
-      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(), exact: false })
-      onPosted(posted)
+    onSuccess: (posted, { company: started }) => {
+      queryClient.setQueryData(journalKeys.entry(posted.id, started ?? 'none'), posted)
+      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(started ?? 'none') })
+      if (sameCompany(started)) onPosted(posted)
     },
-    onError: (error) => {
-      if (isVersionConflict(error)) setConflict(true)
+    onError: (error, { company: started }) => {
+      if (sameCompany(started) && isVersionConflict(error)) setConflict(true)
     },
   })
 
   const remove = useMutation({
-    mutationFn: (target: JournalEntry) => journalApi.remove(target.id, target.version),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(), exact: false })
+    mutationFn: ({ target }: { target: JournalEntry; company: string | null }) =>
+      journalApi.remove(target.id, target.version),
+    onSuccess: (_, { company: started }) => {
+      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(started ?? 'none') })
+      if (!sameCompany(started)) return
       platform.notify.success(t('editor.deleted'))
       void navigate(BASE)
     },
-    onError: (error) => {
+    onError: (error, { company: started }) => {
+      if (!sameCompany(started)) return
       if (isVersionConflict(error)) setConflict(true)
       else platform.notify.error(errorMessage(error, t('errors.generic')))
     },
   })
 
   const submitSave = form.handleSubmit(async (values) => {
+    const started = company
     try {
-      const saved = await save.mutateAsync(values)
+      const saved = await save.mutateAsync({ values, company: started })
+      if (!sameCompany(started)) return
       platform.notify.success(t('editor.saved'))
-      if (!entry) void navigate(`${BASE}/${saved.id}`, { replace: true })
+      if (!base) void navigate(`${BASE}/${saved.id}`, { replace: true })
     } catch {
       // Shown by the summary / conflict alert.
     }
@@ -147,22 +175,55 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
   /** Unsaved changes are saved first; the confirmation then posts the stored draft. */
   const submitPost = form.handleSubmit(async (values) => {
     if (!balanceOf(values.lines).balanced) return
+    const started = company
     try {
-      if (!entry) {
-        const saved = await save.mutateAsync(values)
-        void navigate(`${BASE}/${saved.id}`, { replace: true, state: { confirmPost: true } })
+      if (!base) {
+        const saved = await save.mutateAsync({ values, company: started })
+        if (sameCompany(started))
+          void navigate(`${BASE}/${saved.id}`, { replace: true, state: { confirmPost: true } })
         return
       }
-      if (isDirty) await save.mutateAsync(values)
-      setConfirmPost(true)
+      if (isDirty) await save.mutateAsync({ values, company: started })
+      if (sameCompany(started)) setConfirmPost(true)
     } catch {
       // Shown by the summary / conflict alert.
     }
   })
 
+  /**
+   * Re-reads the draft at the moment of confirmation: it is posted only if nobody changed it
+   * since it was loaded and it still balances.
+   */
+  const confirmAndPost = async () => {
+    if (!base) return
+    const started = company
+    setChecking(true)
+    try {
+      const fresh = await journalApi.get(base.id)
+      if (!sameCompany(started)) return
+      if (fresh.version !== base.version || fresh.status !== 'draft') {
+        setConflict(true)
+        throw new Error('changed')
+      }
+      if (!balanceOf(fresh.lines).balanced) {
+        platform.notify.error(t('post.unbalancedNow'))
+        throw new Error('unbalanced')
+      }
+      await post.mutateAsync({ target: fresh, company: started })
+    } catch (error) {
+      setConfirmPost(false)
+      throw error
+    } finally {
+      setChecking(false)
+    }
+  }
+
   const reload = async () => {
     const fresh = await onReload()
-    if (fresh) form.reset(toEntryValues(fresh))
+    if (fresh) {
+      setBase(fresh)
+      form.reset(toEntryValues(fresh))
+    }
     setConflict(false)
     save.reset()
     post.reset()
@@ -176,7 +237,7 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
   }
 
   const disabled = !canEdit || save.isPending || post.isPending
-  const busy = save.isPending || post.isPending
+  const busy = save.isPending || post.isPending || checking
   const typeOptions =
     entry && !MANUAL_ENTRY_TYPES.some((x) => x === entry.entry_type)
       ? ENTRY_TYPES
@@ -244,6 +305,13 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
       />
       <Form form={form} onSubmit={() => void submitSave()} className="space-y-4">
         {conflict && <VersionConflictAlert onReload={() => void reload()} />}
+        {!conflict && changedElsewhere && (
+          <VersionConflictAlert
+            title={t('changed.title')}
+            body={t('changed.body')}
+            onReload={() => void reload()}
+          />
+        )}
         <FormErrorSummary
           error={actionError}
           mapField={serverFieldMapper(lastValues ?? form.getValues())}
@@ -338,12 +406,7 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
             </span>
           }
           confirmLabel={t('post.confirm')}
-          onConfirm={async () => {
-            await post.mutateAsync(entry).catch((error: unknown) => {
-              setConfirmPost(false)
-              throw error
-            })
-          }}
+          onConfirm={confirmAndPost}
         />
       )}
       {entry && (
@@ -354,7 +417,7 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
           description={t('editor.deleteBody')}
           confirmLabel={t('editor.delete')}
           onConfirm={async () => {
-            await remove.mutateAsync(entry)
+            await remove.mutateAsync({ target: base ?? entry, company })
           }}
         />
       )}

@@ -1,5 +1,5 @@
 import { Wand2 } from 'lucide-react'
-import { useEffect, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type KeyboardEvent, type MouseEvent } from 'react'
 import { useFormContext, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { DecimalInput } from '@/components/shared/form'
@@ -317,8 +317,43 @@ export function JournalLinesGrid({
     columns.push(dimension('costCenterId', 'cost-centers', 'costCenter', 'requires_cost_center'))
   if (cols.project) columns.push(dimension('projectId', 'projects', 'project', 'requires_project'))
 
+  const atCap = () => getValues('lines').length >= MAX_LINES
+  const refuse = (e: { preventDefault: () => void; stopPropagation: () => void }) => {
+    e.preventDefault()
+    e.stopPropagation()
+    platform.notify.warning(t('lines.maxReached', { max: MAX_LINES }))
+  }
+
+  /**
+   * The shared editor adds lines from its button, Ctrl+Enter and Enter on the last cell; at the
+   * API limit every one of those paths is stopped here, before the editor sees the event.
+   */
+  const onKeyDownCapture = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || !atCap()) return
+    const target = e.target as HTMLElement
+    const cell = target.closest<HTMLElement>('[data-line-row]')
+    if (!cell || target.getAttribute('aria-expanded') === 'true') return
+    if (e.ctrlKey || e.metaKey) {
+      refuse(e)
+      return
+    }
+    const lastCol = columns.reduce((last, c, i) => (c.readOnly ? last : i), -1)
+    const isLastRow = Number(cell.dataset.lineRow) === getValues('lines').length - 1
+    if (isLastRow && Number(cell.dataset.lineCol) === lastCol) refuse(e)
+  }
+  const onClickCapture = (e: MouseEvent<HTMLDivElement>) => {
+    const button = (e.target as HTMLElement).closest('button')
+    // The only button of the editor outside its table is "add line".
+    if (button && !button.closest('table') && atCap()) refuse(e)
+  }
+
   return (
-    <div ref={containerRef} className="space-y-2">
+    <div
+      ref={containerRef}
+      className="space-y-2"
+      onKeyDownCapture={onKeyDownCapture}
+      onClickCapture={onClickCapture}
+    >
       <DocumentLinesEditor<EntryValues, LineValues>
         name="lines"
         label={t('lines.title')}

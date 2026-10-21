@@ -5,11 +5,18 @@ import { cn } from '@/lib/utils'
 
 interface VersionConflictAlertProps {
   onReload: () => void
+  title?: string
+  body?: string
   className?: string
 }
 
 /** Shown on 409 VERSION_CONFLICT: the user decides to reload; unsaved edits are not merged. */
-export function VersionConflictAlert({ onReload, className }: VersionConflictAlertProps) {
+export function VersionConflictAlert({
+  onReload,
+  title,
+  body,
+  className,
+}: VersionConflictAlertProps) {
   const { t } = useTranslation('accountingJournal')
   return (
     <div
@@ -21,8 +28,8 @@ export function VersionConflictAlert({ onReload, className }: VersionConflictAle
     >
       <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="font-semibold">{t('conflict.title')}</p>
-        <p>{t('conflict.body')}</p>
+        <p className="font-semibold">{title ?? t('conflict.title')}</p>
+        <p>{body ?? t('conflict.body')}</p>
       </div>
       <Button type="button" size="sm" variant="secondary" onClick={onReload}>
         <RefreshCw aria-hidden="true" />

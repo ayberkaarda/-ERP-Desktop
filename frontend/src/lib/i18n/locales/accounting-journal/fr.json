@@ -145,7 +145,8 @@
     "summary": "{{date}} · {{count}} lignes · Débit {{debit}} · Crédit {{credit}}",
     "confirm": "Valider",
     "doneTitle": "Écriture validée",
-    "doneBody": "L'écriture a reçu le numéro de journal {{number}}."
+    "doneBody": "L'écriture a reçu le numéro de journal {{number}}.",
+    "unbalancedNow": "L'écriture n'est plus équilibrée et n'a pas été validée. Rechargez-la et vérifiez-la."
   },
   "reverse": {
     "action": "Contrepasser",
@@ -175,7 +176,8 @@
   },
   "errors": {
     "generic": "L'opération n'a pas pu aboutir.",
-    "loadFailed": "Les données n'ont pas pu être chargées."
+    "loadFailed": "Les données n'ont pas pu être chargées.",
+    "refreshFailed": "La dernière version n'a pas pu être récupérée ; l'affichage peut être périmé."
   },
   "reports": {
     "parameters": "Paramètres du rapport",
@@ -190,7 +192,8 @@
     "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
     "run": "Lancer le rapport",
     "choose": "Choisissez les paramètres et lancez le rapport.",
-    "noRows": "Aucune ligne pour ces paramètres."
+    "noRows": "Aucune ligne pour ces paramètres.",
+    "periodsFailed": "Les périodes n'ont pas pu être chargées."
   },
   "trialBalance": {
     "title": "Balance générale",
@@ -244,5 +247,9 @@
     "grandTotal": "Total général",
     "empty": "Aucune écriture validée sur cette période.",
     "tooLarge": "La période est trop longue pour l'affichage ; réduisez-la ou exportez."
+  },
+  "changed": {
+    "title": "L'écriture a été modifiée ailleurs",
+    "body": "Une version plus récente a été enregistrée pendant votre saisie. Chargez la dernière version avant d'enregistrer."
   }
 }

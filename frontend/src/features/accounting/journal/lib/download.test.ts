@@ -1,36 +1,59 @@
 import { COMPANY_A } from '@/test/handlers/fea'
+import { XLSX_BYTES } from '@/test/handlers/accounting2'
 import { setupAccounting2 } from '../testing'
-import { downloadFile, EXPORT_MIME, exportFilename, exportPath, toBlob } from './download'
+import { downloadFile, EXPORT_MIME, exportFilename, exportPath } from './download'
+
+function captureDownloads() {
+  const saved: { blob: Blob; name: string }[] = []
+  let last: Blob | null = null
+  Object.assign(URL, {
+    createObjectURL: vi.fn((b: Blob) => {
+      last = b
+      return 'blob:x'
+    }),
+    revokeObjectURL: vi.fn(),
+  })
+  const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    if (last) saved.push({ blob: last, name: this.download })
+  })
+  return { saved, restore: () => click.mockRestore() }
+}
 
 describe('downloadFile', () => {
-  it('fetches the export through the platform client and hands the file to the browser', async () => {
+  it('downloads CSV through the platform client with the server file name', async () => {
     const db = setupAccounting2()
-    const created: Blob[] = []
-    const createObjectURL = vi.fn((b: Blob) => {
-      created.push(b)
-      return 'blob:x'
-    })
-    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() })
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
-
+    const { saved, restore } = captureDownloads()
     await downloadFile(exportPath('/reports/trial-balance'), {
       params: { format: 'csv', date_from: '2026-01-01' },
       mime: EXPORT_MIME.csv,
       filename: exportFilename('mizan', 'csv', '2026-01-31'),
     })
-
     const call = db.calls.find((c) => c.path === '/reports/trial-balance/export')
     expect(call?.url.searchParams.get('format')).toBe('csv')
     expect(call?.headers.get('X-Company-Id')).toBe(COMPANY_A)
-    expect(click).toHaveBeenCalledOnce()
-    expect(await created[0]?.text()).toContain('/reports/trial-balance/export')
-    expect(created[0]?.type).toBe('text/csv')
-    click.mockRestore()
+    expect(saved[0]?.name).toBe('trial-balance-sunucu.csv')
+    expect(await saved[0]?.blob.text()).toContain('/reports/trial-balance/export')
+    restore()
   })
 
-  it('wraps any body in a blob of the right type', async () => {
-    expect(await toBlob('a;b', 'text/csv').text()).toBe('a;b')
-    expect(toBlob(new Uint8Array([1, 2]), EXPORT_MIME.xlsx).size).toBe(2)
+  it('keeps XLSX bytes intact (no text round trip)', async () => {
+    setupAccounting2()
+    const { saved, restore } = captureDownloads()
+    await downloadFile(exportPath('/journal-entries'), {
+      params: { format: 'xlsx' },
+      mime: EXPORT_MIME.xlsx,
+      filename: 'fallback.xlsx',
+    })
+    const bytes = new Uint8Array(await (saved[0]?.blob ?? new Blob()).arrayBuffer())
+    expect([...bytes]).toEqual(XLSX_BYTES)
+    expect(saved[0]?.name).toBe('yevmiye-fisleri-sunucu.xlsx')
+    restore()
+  })
+
+  it('builds export paths and fallback names', () => {
     expect(exportPath('/journal-entries/')).toBe('/journal-entries/export')
+    expect(exportFilename('mizan', 'xlsx', '2026-01-31')).toBe('mizan-2026-01-31.xlsx')
   })
 })

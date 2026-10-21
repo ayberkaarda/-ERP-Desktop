@@ -96,8 +96,14 @@ export function GeneralLedgerPage() {
   }
 
   const money = (v: string) => (amountOf(v).isZero() ? '' : formatDecimalDisplay(v, { locale }))
-  const renderRow = (row: GeneralLedgerLine, style?: CSSProperties) => (
-    <tr key={row.line_id} className="border-t border-border" style={style}>
+  // Row indexes count the header (1) and the opening row (2); data rows start at 3.
+  const renderRow = (row: GeneralLedgerLine, index: number, style?: CSSProperties) => (
+    <tr
+      key={row.line_id}
+      aria-rowindex={index + 3}
+      className="border-t border-border"
+      style={style}
+    >
       <td className="px-2 py-1 whitespace-nowrap">{formatDate(row.entry_date, locale)}</td>
       <td className="px-2 py-1">
         <Link
@@ -204,10 +210,10 @@ export function GeneralLedgerPage() {
             <table
               className="w-full text-table"
               aria-label={t('ledger.title')}
-              aria-rowcount={meta ? meta.pagination.total + 2 : undefined}
+              aria-rowcount={meta ? meta.pagination.total + (hasNextPage ? 2 : 3) : undefined}
             >
               <thead className="sticky top-0 z-10 bg-surface-sunken text-xs text-muted-foreground">
-                <tr>
+                <tr aria-rowindex={1}>
                   <th scope="col" className="h-row px-2 text-left font-medium">
                     {t('fields.entryDate')}
                   </th>
@@ -232,7 +238,7 @@ export function GeneralLedgerPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="bg-surface-sunken/60 font-medium">
+                <tr aria-rowindex={2} className="bg-surface-sunken/60 font-medium">
                   <th scope="row" colSpan={COLS - 1} className="px-2 py-1 text-left">
                     {t('ledger.opening')}
                   </th>
@@ -259,7 +265,7 @@ export function GeneralLedgerPage() {
                     )}
                     {items.map((v) => {
                       const row = rows[v.index]
-                      return row ? renderRow(row, { height: ROW_HEIGHT }) : null
+                      return row ? renderRow(row, v.index, { height: ROW_HEIGHT }) : null
                     })}
                     {padBottom > 0 && (
                       <tr aria-hidden="true">
@@ -268,12 +274,12 @@ export function GeneralLedgerPage() {
                     )}
                   </>
                 ) : (
-                  rows.map((row) => renderRow(row))
+                  rows.map((row, i) => renderRow(row, i))
                 )}
               </tbody>
               {!hasNextPage && lastMeta && (
                 <tfoot className="border-t-2 border-border-strong bg-surface-sunken font-semibold">
-                  <tr>
+                  <tr aria-rowindex={(meta?.pagination.total ?? 0) + 3}>
                     <th scope="row" colSpan={COLS - 3} className="px-2 py-2 text-left">
                       {t('ledger.closing')}
                     </th>

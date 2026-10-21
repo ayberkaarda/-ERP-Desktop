@@ -12,12 +12,20 @@ export interface HttpRequestOptions {
   skipAuthHandling?: boolean
 }
 
+export interface DownloadResult {
+  blob: Blob
+  /** From Content-Disposition, reduced to a bare file name; null when absent or unusable. */
+  filename: string | null
+}
+
 export interface HttpClient {
   get<T>(url: string, options?: HttpRequestOptions): Promise<T>
   post<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>
   put<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>
   patch<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>
   delete<T>(url: string, options?: HttpRequestOptions): Promise<T>
+  /** GET returning the raw body as a Blob plus the server-suggested file name (exports). */
+  download(url: string, options?: HttpRequestOptions): Promise<DownloadResult>
   /** Primes the session (Sanctum CSRF cookie on web) before the first unsafe request. */
   prepareSession(): Promise<void>
 }

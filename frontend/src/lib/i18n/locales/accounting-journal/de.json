@@ -145,7 +145,8 @@
     "summary": "{{date}} · {{count}} Zeilen · Soll {{debit}} · Haben {{credit}}",
     "confirm": "Buchen",
     "doneTitle": "Buchung festgeschrieben",
-    "doneBody": "Die Buchung hat die Journalnummer {{number}} erhalten."
+    "doneBody": "Die Buchung hat die Journalnummer {{number}} erhalten.",
+    "unbalancedNow": "Die Buchung ist nicht mehr ausgeglichen und wurde nicht gebucht. Laden Sie sie neu und prüfen Sie sie."
   },
   "reverse": {
     "action": "Stornieren",
@@ -175,7 +176,8 @@
   },
   "errors": {
     "generic": "Der Vorgang konnte nicht abgeschlossen werden.",
-    "loadFailed": "Die Daten konnten nicht geladen werden."
+    "loadFailed": "Die Daten konnten nicht geladen werden.",
+    "refreshFailed": "Der aktuelle Stand konnte nicht geladen werden; die Anzeige ist möglicherweise veraltet."
   },
   "reports": {
     "parameters": "Berichtsparameter",
@@ -190,7 +192,8 @@
     "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
     "run": "Bericht abrufen",
     "choose": "Parameter wählen und Bericht abrufen.",
-    "noRows": "Keine Zeilen für diese Parameter."
+    "noRows": "Keine Zeilen für diese Parameter.",
+    "periodsFailed": "Die Perioden konnten nicht geladen werden."
   },
   "trialBalance": {
     "title": "Summen- und Saldenliste",
@@ -244,5 +247,9 @@
     "grandTotal": "Gesamtsumme",
     "empty": "Keine gebuchten Buchungen in diesem Zeitraum.",
     "tooLarge": "Der Zeitraum ist zu groß für die Anzeige; grenzen Sie ihn ein oder exportieren Sie."
+  },
+  "changed": {
+    "title": "Die Buchung wurde an anderer Stelle geändert",
+    "body": "Während Ihrer Bearbeitung wurde eine neuere Fassung gespeichert. Laden Sie den aktuellen Stand, bevor Sie speichern."
   }
 }

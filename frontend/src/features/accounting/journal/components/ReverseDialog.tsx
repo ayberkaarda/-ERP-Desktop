@@ -18,7 +18,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toIsoDate } from '@/lib/datetime'
 import { calendarDate, snakeToCamelPath } from '@/lib/forms'
 import { journalApi } from '../api/client'
-import { journalKeys } from '../api/keys'
+import { activeCompany, journalKeys } from '../api/keys'
 import { usePayloadKeys } from '../lib/idempotency'
 import type { JournalEntry } from '../types'
 
@@ -48,12 +48,14 @@ export function ReverseDialog({ entry, open, onOpenChange, onReversed }: Reverse
     defaultValues: { date: toIsoDate(new Date()), reason: '' },
   })
   const mutation = useMutation({
-    mutationFn: (v: ReverseValues) => {
+    mutationFn: ({ v }: { v: ReverseValues; company: string }) => {
       const body = { date: v.date, reason: v.reason.trim() }
       return journalApi.reverse(entry.id, body, keyFor({ id: entry.id, ...body }))
     },
-    onSuccess: (reversal) => {
-      void queryClient.invalidateQueries({ queryKey: journalKeys.entries() })
+    onSuccess: (reversal, { company }) => {
+      void queryClient.invalidateQueries({ queryKey: journalKeys.entries(company) })
+      // Started under another company: its cache is refreshed, this screen is left alone.
+      if (activeCompany() !== company) return
       onOpenChange(false)
       form.reset()
       onReversed(reversal)
@@ -63,7 +65,11 @@ export function ReverseDialog({ entry, open, onOpenChange, onReversed }: Reverse
   return (
     <Dialog open={open} onOpenChange={(next) => !mutation.isPending && onOpenChange(next)}>
       <DialogContent closeLabel={t('actions.close')}>
-        <Form form={form} onSubmit={(v) => mutation.mutate(v)} className="grid gap-4">
+        <Form
+          form={form}
+          onSubmit={(v) => mutation.mutate({ v, company: activeCompany() })}
+          className="grid gap-4"
+        >
           <DialogHeader>
             <DialogTitle>{t('reverse.title', { number: entry.number ?? '' })}</DialogTitle>
             <DialogDescription>{t('reverse.body')}</DialogDescription>

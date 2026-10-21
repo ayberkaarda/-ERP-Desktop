@@ -145,7 +145,8 @@
     "summary": "{{date}} · {{count}} satır · Borç {{debit}} · Alacak {{credit}}",
     "confirm": "Kesinleştir",
     "doneTitle": "Fiş kesinleşti",
-    "doneBody": "Fişe {{number}} yevmiye numarası verildi."
+    "doneBody": "Fişe {{number}} yevmiye numarası verildi.",
+    "unbalancedNow": "Fiş artık dengede değil; kesinleştirilmedi. Fişi yeniden yükleyip kontrol edin."
   },
   "reverse": {
     "action": "Ters kayıt",
@@ -175,7 +176,8 @@
   },
   "errors": {
     "generic": "İşlem tamamlanamadı.",
-    "loadFailed": "Veriler yüklenemedi."
+    "loadFailed": "Veriler yüklenemedi.",
+    "refreshFailed": "Fişin son hâli alınamadı; ekrandaki bilgiler eski olabilir."
   },
   "reports": {
     "parameters": "Rapor parametreleri",
@@ -190,7 +192,8 @@
     "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
     "run": "Raporu getir",
     "choose": "Parametreleri seçip raporu getirin.",
-    "noRows": "Bu parametrelerle satır yok."
+    "noRows": "Bu parametrelerle satır yok.",
+    "periodsFailed": "Dönemler yüklenemedi."
   },
   "trialBalance": {
     "title": "Mizan",
@@ -244,5 +247,9 @@
     "grandTotal": "Genel toplam",
     "empty": "Bu aralıkta kesinleşmiş fiş yok.",
     "tooLarge": "Aralık ekranda gösterilemeyecek kadar büyük; aralığı daraltın ya da dışa aktarın."
+  },
+  "changed": {
+    "title": "Fiş başka bir yerde değişti",
+    "body": "Siz düzenlerken fişin yeni bir sürümü kaydedildi. Değişiklikleriniz kaydedilmeden önce son hâli yükleyin."
   }
 }
