@@ -1,0 +1,198 @@
+{
+  "title": "Geschäftspartner",
+  "list": {
+    "description": "Kunden- und Lieferantenstammdaten",
+    "grid": "Geschäftspartnerliste",
+    "new": "Neuer Geschäftspartner",
+    "emptyTitle": "Noch keine Geschäftspartner",
+    "emptyBody": "Legen Sie Ihren ersten Kunden oder Lieferanten an.",
+    "emptyFilteredTitle": "Keine passenden Geschäftspartner",
+    "emptyFilteredBody": "Ändern Sie Suche oder Filter.",
+    "views": "Vordefinierte Ansichten",
+    "viewAll": "Alle",
+    "viewCustomers": "Kunden",
+    "viewSuppliers": "Lieferanten",
+    "viewInactive": "Inaktiv",
+    "country": "Land",
+    "export": "Exportieren",
+    "exportSoon": "Export folgt in Kürze",
+    "activate": "Aktivieren",
+    "deactivate": "Deaktivieren",
+    "bulkDone": "{{count}} Geschäftspartner aktualisiert.",
+    "bulkFailed": "{{count}} Geschäftspartner konnten nicht aktualisiert werden."
+  },
+  "fields": {
+    "code": "Nummer",
+    "name": "Name",
+    "legal_name": "Firmenname laut Register",
+    "type": "Art",
+    "roles": "Rollen",
+    "tax_office": "Finanzamt",
+    "tax_number": "Steuer- / Ausweisnummer",
+    "country": "Land",
+    "default_currency_code": "Standardwährung",
+    "risk_limit": "Kreditlimit",
+    "risk_currency_code": "Währung des Kreditlimits",
+    "is_active": "Aktiv",
+    "status": "Status",
+    "notes": "Notizen",
+    "tags": "Schlagwörter"
+  },
+  "types": {
+    "company": "Juristische Person",
+    "person": "Natürliche Person"
+  },
+  "roles": {
+    "customer": "Kunde",
+    "supplier": "Lieferant"
+  },
+  "status": {
+    "active": "Aktiv",
+    "inactive": "Inaktiv"
+  },
+  "hints": {
+    "vkn": "10-stellige türkische Steuernummer (VKN)",
+    "tckn": "11-stellige türkische Identitätsnummer (TCKN)",
+    "foreign": "Ausländischer Partner: Steuernummer des Landes",
+    "tags": "Durch Kommas trennen",
+    "shortcut": "Strg+Enter zum Speichern"
+  },
+  "validation": {
+    "rolesRequired": "Wählen Sie mindestens eine Rolle.",
+    "vknLength": "Die Steuernummer muss 10 Stellen haben.",
+    "vknChecksum": "Ungültige Steuernummer (Prüfziffer stimmt nicht).",
+    "tcknLength": "Die Identitätsnummer muss 11 Stellen haben.",
+    "tcknChecksum": "Ungültige Identitätsnummer (Prüfziffern stimmen nicht).",
+    "foreign": "Höchstens 32 Zeichen; Buchstaben, Ziffern und . - / sind erlaubt.",
+    "country": "Wählen Sie einen zweistelligen Ländercode.",
+    "currency": "Wählen Sie einen dreistelligen Währungscode.",
+    "riskCurrency": "Wählen Sie eine Währung für das Kreditlimit.",
+    "email": "Geben Sie eine gültige E-Mail-Adresse ein.",
+    "ibanFormat": "Eine IBAN beginnt mit Ländercode und Prüfziffern.",
+    "ibanLength": "Falsche IBAN-Länge für dieses Land.",
+    "ibanTrFormat": "Ungültiger TR-IBAN-Aufbau (26 Zeichen, Reservestelle 0).",
+    "ibanChecksum": "Die IBAN-Prüfziffern stimmen nicht.",
+    "swift": "Ein SWIFT-Code hat 8 oder 11 Zeichen.",
+    "tooLong": "Der Text ist zu lang."
+  },
+  "form": {
+    "createTitle": "Neuer Geschäftspartner",
+    "editTitle": "Geschäftspartner bearbeiten",
+    "identity": "Identität",
+    "tax": "Steuerangaben",
+    "commercial": "Kaufmännische Angaben",
+    "other": "Sonstiges",
+    "save": "Speichern",
+    "create": "Anlegen",
+    "cancel": "Abbrechen",
+    "created": "Geschäftspartner angelegt: {{code}}",
+    "saved": "Änderungen gespeichert.",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "subresourcesAfterCreate": "Adressen, Kontakte und Bankverbindungen werden nach dem Speichern erfasst."
+  },
+  "duplicates": {
+    "title": "Ähnliche Geschäftspartner vorhanden",
+    "body": "Prüfen Sie vor dem Speichern, ob diese Firma bereits erfasst ist.",
+    "byTaxNumber": "gleiche Steuernummer",
+    "byName": "ähnlicher Name",
+    "inactive": "inaktiv"
+  },
+  "conflict": {
+    "title": "Der Datensatz wurde von jemand anderem geändert",
+    "body": "Der Datensatz wurde während Ihrer Bearbeitung aktualisiert. Laden Sie den aktuellen Stand und übernehmen Sie Ihre Änderungen erneut.",
+    "reload": "Aktuellen Stand laden",
+    "keep": "Zurück zur Bearbeitung"
+  },
+  "detail": {
+    "edit": "Bearbeiten",
+    "activate": "Aktivieren",
+    "deactivate": "Deaktivieren",
+    "delete": "Löschen",
+    "deleteTitle": "Geschäftspartner löschen?",
+    "deleteBody": "{{name}} wird gelöscht. In Belegen verwendete Geschäftspartner können nicht gelöscht werden; deaktivieren Sie sie stattdessen.",
+    "deleted": "Geschäftspartner gelöscht.",
+    "activated": "Geschäftspartner aktiviert.",
+    "deactivated": "Geschäftspartner deaktiviert.",
+    "summary": "Übersicht",
+    "loadFailed": "Geschäftspartner konnte nicht geladen werden.",
+    "notFound": "Geschäftspartner nicht gefunden.",
+    "backToList": "Zurück zur Liste",
+    "none": "—",
+    "tabs": "Bereiche des Geschäftspartners",
+    "addresses": "Adressen",
+    "contacts": "Kontakte",
+    "bankAccounts": "Bankverbindungen",
+    "attachments": "Anhänge",
+    "history": "Verlauf"
+  },
+  "sub": {
+    "add": "Hinzufügen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteTitle": "Zeile löschen?",
+    "deleteBody": "Diese Zeile wird endgültig gelöscht.",
+    "saved": "Gespeichert.",
+    "deleted": "Gelöscht.",
+    "failed": "Aktion fehlgeschlagen.",
+    "conflict": "Die Zeile wurde von jemand anderem geändert; die Liste wurde aktualisiert.",
+    "loadFailed": "Liste konnte nicht geladen werden.",
+    "actions": "Aktionen",
+    "default": "Standard",
+    "makeDefault": "Als Standard",
+    "primary": "Hauptkontakt",
+    "makePrimary": "Als Hauptkontakt",
+    "rowLabel": "Zeile {{index}}",
+    "newRow": "Neue Zeile",
+    "keyboardHint": "Enter speichert, Esc bricht ab."
+  },
+  "address": {
+    "empty": "Keine Adressen.",
+    "type": "Art",
+    "label": "Bezeichnung",
+    "line1": "Adresszeile 1",
+    "line2": "Adresszeile 2",
+    "district": "Bezirk",
+    "city": "Ort",
+    "postal_code": "Postleitzahl",
+    "country": "Land",
+    "is_default": "Standard",
+    "types": {
+      "billing": "Rechnung",
+      "shipping": "Lieferung",
+      "other": "Sonstige"
+    }
+  },
+  "contact": {
+    "empty": "Keine Kontakte.",
+    "name": "Vor- und Nachname",
+    "title": "Position",
+    "email": "E-Mail",
+    "phone": "Telefon",
+    "is_primary": "Hauptkontakt"
+  },
+  "bank": {
+    "empty": "Keine Bankverbindungen.",
+    "bank_name": "Bank",
+    "iban": "IBAN",
+    "swift": "SWIFT",
+    "currency_code": "Währung",
+    "is_default": "Standard"
+  },
+  "quickCreate": {
+    "title": "Geschäftspartner schnell anlegen",
+    "description": "Jetzt die Grunddaten speichern, Details später im Stammsatz ergänzen.",
+    "submit": "Anlegen und auswählen"
+  },
+  "combobox": {
+    "placeholder": "Nach Name, Nummer oder Steuernummer suchen",
+    "create": "Neuen Geschäftspartner anlegen",
+    "inactive": "Inaktiv"
+  },
+  "commands": {
+    "list": "Geschäftspartner",
+    "new": "Neuer Geschäftspartner",
+    "search": "Geschäftspartner suchen"
+  }
+}

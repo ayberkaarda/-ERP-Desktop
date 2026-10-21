@@ -1,0 +1,198 @@
+{
+  "title": "Cariler",
+  "list": {
+    "description": "Müşteri ve tedarikçi kartları",
+    "grid": "Cari listesi",
+    "new": "Yeni cari",
+    "emptyTitle": "Henüz cari yok",
+    "emptyBody": "İlk müşteri ya da tedarikçi kartını oluşturun.",
+    "emptyFilteredTitle": "Eşleşen cari yok",
+    "emptyFilteredBody": "Arama ya da filtreleri değiştirin.",
+    "views": "Hazır görünümler",
+    "viewAll": "Tümü",
+    "viewCustomers": "Müşteriler",
+    "viewSuppliers": "Tedarikçiler",
+    "viewInactive": "Pasifler",
+    "country": "Ülke",
+    "export": "Dışa aktar",
+    "exportSoon": "Dışa aktarım yakında",
+    "activate": "Aktifleştir",
+    "deactivate": "Pasifleştir",
+    "bulkDone": "{{count}} cari güncellendi.",
+    "bulkFailed": "{{count}} cari güncellenemedi."
+  },
+  "fields": {
+    "code": "Kod",
+    "name": "Ad",
+    "legal_name": "Resmî unvan",
+    "type": "Tür",
+    "roles": "Roller",
+    "tax_office": "Vergi dairesi",
+    "tax_number": "Vergi / kimlik no",
+    "country": "Ülke",
+    "default_currency_code": "Varsayılan para birimi",
+    "risk_limit": "Risk limiti",
+    "risk_currency_code": "Risk para birimi",
+    "is_active": "Aktif",
+    "status": "Durum",
+    "notes": "Notlar",
+    "tags": "Etiketler"
+  },
+  "types": {
+    "company": "Tüzel kişi",
+    "person": "Gerçek kişi"
+  },
+  "roles": {
+    "customer": "Müşteri",
+    "supplier": "Tedarikçi"
+  },
+  "status": {
+    "active": "Aktif",
+    "inactive": "Pasif"
+  },
+  "hints": {
+    "vkn": "10 haneli vergi kimlik numarası",
+    "tckn": "11 haneli T.C. kimlik numarası",
+    "foreign": "Yabancı cari: ülkenin vergi numarası",
+    "tags": "Virgülle ayırın",
+    "shortcut": "Kaydetmek için Ctrl+Enter"
+  },
+  "validation": {
+    "rolesRequired": "En az bir rol seçin.",
+    "vknLength": "Vergi kimlik numarası 10 haneli olmalı.",
+    "vknChecksum": "Vergi kimlik numarası geçersiz (kontrol hanesi tutmuyor).",
+    "tcknLength": "T.C. kimlik numarası 11 haneli olmalı.",
+    "tcknChecksum": "T.C. kimlik numarası geçersiz (kontrol haneleri tutmuyor).",
+    "foreign": "En fazla 32 karakter; harf, rakam ve . - / kullanılabilir.",
+    "country": "İki harfli ülke kodu seçin.",
+    "currency": "Üç harfli para birimi kodu seçin.",
+    "riskCurrency": "Risk limiti için para birimi seçin.",
+    "email": "Geçerli bir e-posta adresi girin.",
+    "ibanFormat": "IBAN ülke kodu ve kontrol haneleriyle başlamalı.",
+    "ibanLength": "IBAN uzunluğu bu ülke için hatalı.",
+    "ibanTrFormat": "TR IBAN biçimi hatalı (26 karakter, rezerv hane 0).",
+    "ibanChecksum": "IBAN kontrol haneleri tutmuyor.",
+    "swift": "SWIFT kodu 8 ya da 11 karakter olmalı.",
+    "tooLong": "Metin çok uzun."
+  },
+  "form": {
+    "createTitle": "Yeni cari",
+    "editTitle": "Cariyi düzenle",
+    "identity": "Kimlik",
+    "tax": "Vergi bilgileri",
+    "commercial": "Ticari bilgiler",
+    "other": "Diğer",
+    "save": "Kaydet",
+    "create": "Oluştur",
+    "cancel": "Vazgeç",
+    "created": "Cari oluşturuldu: {{code}}",
+    "saved": "Değişiklikler kaydedildi.",
+    "saveFailed": "Kaydedilemedi.",
+    "subresourcesAfterCreate": "Adres, kişi ve banka hesapları kayıttan sonra eklenir."
+  },
+  "duplicates": {
+    "title": "Benzer cari kayıtları var",
+    "body": "Kaydetmeden önce aynı firmanın zaten tanımlı olup olmadığını kontrol edin.",
+    "byTaxNumber": "aynı vergi no",
+    "byName": "benzer ad",
+    "inactive": "pasif"
+  },
+  "conflict": {
+    "title": "Kayıt başka biri tarafından değiştirildi",
+    "body": "Siz düzenlerken bu kayıt güncellendi. Son hâlini yükleyip değişikliklerinizi yeniden yapın.",
+    "reload": "Son hâli yükle",
+    "keep": "Düzenlemeye dön"
+  },
+  "detail": {
+    "edit": "Düzenle",
+    "activate": "Aktifleştir",
+    "deactivate": "Pasifleştir",
+    "delete": "Sil",
+    "deleteTitle": "Cari silinsin mi?",
+    "deleteBody": "{{name}} silinecek. Belgelerde kullanılan cariler silinemez; bunun yerine pasifleştirin.",
+    "deleted": "Cari silindi.",
+    "activated": "Cari aktifleştirildi.",
+    "deactivated": "Cari pasifleştirildi.",
+    "summary": "Özet",
+    "loadFailed": "Cari yüklenemedi.",
+    "notFound": "Cari bulunamadı.",
+    "backToList": "Listeye dön",
+    "none": "—",
+    "tabs": "Cari bölümleri",
+    "addresses": "Adresler",
+    "contacts": "Kişiler",
+    "bankAccounts": "Banka hesapları",
+    "attachments": "Ekler",
+    "history": "Geçmiş"
+  },
+  "sub": {
+    "add": "Ekle",
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "deleteTitle": "Kayıt silinsin mi?",
+    "deleteBody": "Bu satır kalıcı olarak silinecek.",
+    "saved": "Kaydedildi.",
+    "deleted": "Silindi.",
+    "failed": "İşlem başarısız.",
+    "conflict": "Satır başka biri tarafından değiştirildi; liste yenilendi.",
+    "loadFailed": "Liste yüklenemedi.",
+    "actions": "İşlemler",
+    "default": "Varsayılan",
+    "makeDefault": "Varsayılan yap",
+    "primary": "Birincil",
+    "makePrimary": "Birincil yap",
+    "rowLabel": "{{index}}. satır",
+    "newRow": "Yeni satır",
+    "keyboardHint": "Enter kaydeder, Esc vazgeçer."
+  },
+  "address": {
+    "empty": "Adres yok.",
+    "type": "Tür",
+    "label": "Etiket",
+    "line1": "Adres satırı 1",
+    "line2": "Adres satırı 2",
+    "district": "İlçe",
+    "city": "İl / şehir",
+    "postal_code": "Posta kodu",
+    "country": "Ülke",
+    "is_default": "Varsayılan",
+    "types": {
+      "billing": "Fatura",
+      "shipping": "Sevk",
+      "other": "Diğer"
+    }
+  },
+  "contact": {
+    "empty": "Kişi yok.",
+    "name": "Ad soyad",
+    "title": "Unvan",
+    "email": "E-posta",
+    "phone": "Telefon",
+    "is_primary": "Birincil"
+  },
+  "bank": {
+    "empty": "Banka hesabı yok.",
+    "bank_name": "Banka",
+    "iban": "IBAN",
+    "swift": "SWIFT",
+    "currency_code": "Para birimi",
+    "is_default": "Varsayılan"
+  },
+  "quickCreate": {
+    "title": "Hızlı cari oluştur",
+    "description": "Temel bilgilerle kaydedin; ayrıntıları sonra cari kartından tamamlayın.",
+    "submit": "Oluştur ve seç"
+  },
+  "combobox": {
+    "placeholder": "Ad, kod ya da vergi no ile arayın",
+    "create": "Yeni cari oluştur",
+    "inactive": "Pasif"
+  },
+  "commands": {
+    "list": "Cariler",
+    "new": "Yeni cari",
+    "search": "Cari ara"
+  }
+}
