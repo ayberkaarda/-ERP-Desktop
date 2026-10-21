@@ -17,12 +17,15 @@ use Closure;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Stateless apart from its collaborators: controllers are reused across requests, so the active
+ * company is read per call, never captured.
+ */
 final class PartyService
 {
     public function __construct(
         private readonly PartyCodeGenerator $codes,
         private readonly PartyUsageChecker $usage,
-        private readonly CompanyContext $company,
     ) {}
 
     /**
@@ -33,7 +36,7 @@ final class PartyService
         return $this->persist(function () use ($data): Party {
             $party = new Party;
             $party->fill($this->clean($data));
-            $party->code = $this->codes->next($this->company->id());
+            $party->code = $this->codes->next(app(CompanyContext::class)->id());
             $party->save();
 
             event(new PartyCreated($party->id, $party->company_id));

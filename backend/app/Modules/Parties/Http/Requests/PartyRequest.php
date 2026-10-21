@@ -73,7 +73,7 @@ final class PartyRequest extends FormRequest
             'is_active' => ['sometimes', 'boolean'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'tags' => ['sometimes', 'nullable', 'array', 'max:20'],
-            'tags.*' => ['required', 'string', 'max:50', 'distinct'],
+            'tags.*' => ['required', 'string', 'max:50'],
         ];
     }
 

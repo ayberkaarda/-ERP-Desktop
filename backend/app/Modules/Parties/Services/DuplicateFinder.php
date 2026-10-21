@@ -52,7 +52,7 @@ final class DuplicateFinder
         }
 
         if ($taxNumber !== null) {
-            $query->orderByRaw('(tax_number = ?) desc', [$taxNumber]);
+            $query->orderByRaw('coalesce(tax_number = ?, false) desc', [$taxNumber]);
         }
 
         $matches = [];
