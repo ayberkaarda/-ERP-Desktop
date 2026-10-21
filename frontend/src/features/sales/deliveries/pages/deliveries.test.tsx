@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { DELIVERY_DRAFT, DELIVERY_POSTED, ORDER_1 } from '@/test/handlers/salesDocs'
+import { DELIVERY_DRAFT, DELIVERY_POSTED, INVOICE_ISSUED, ORDER_1 } from '@/test/handlers/salesDocs'
 import { renderSales, setupSales } from '../../invoices/kit/testing'
 import type { DeliveryFromOrderInput } from '../types'
 import './DeliveryListPage'
@@ -15,7 +15,7 @@ describe('delivery list', () => {
     const db = setupSales()
     renderSales('/sales/deliveries?filter[status]=posted')
     const grid = await screen.findByRole('grid', { name: 'Sevk irsaliyeleri' })
-    expect(await within(grid).findByText('IRS2026000001')).toBeInTheDocument()
+    expect(await within(grid).findByText('DLV2026000000001')).toBeInTheDocument()
     expect(within(grid).getByText('Sevk edildi')).toBeInTheDocument()
     const call = db.calls.filter((c) => c.method === 'GET' && c.path === '/sales-deliveries').at(-1)
     expect(call?.url.searchParams.get('filter[status]')).toBe('posted')
@@ -77,21 +77,18 @@ describe('delivery editor', () => {
       {
         order_line_id: 'ol-1',
         quantity: '2',
-        warehouse_id: null,
         lot_no: 'L-A',
         serial_numbers: [],
       },
       {
         order_line_id: 'ol-1',
         quantity: '3',
-        warehouse_id: null,
         lot_no: 'L-B',
         serial_numbers: [],
       },
       {
         order_line_id: 'ol-1',
         quantity: '1',
-        warehouse_id: null,
         lot_no: 'L-N',
         serial_numbers: [],
       },
@@ -112,7 +109,7 @@ describe('delivery editor', () => {
         name: '1. satır için ilk son kullanma tarihli lotları öner',
       }),
     )
-    await waitFor(() => expect(db.calls.some((c) => c.path === '/stock-lots')).toBe(true))
+    await waitFor(() => expect(db.calls.some((c) => c.path === '/stock-balances')).toBe(true))
     // The user changes the quantity before the lots arrive.
     const quantity = within(table).getByLabelText('Miktar, 1. satır')
     await user.clear(quantity)
@@ -172,7 +169,7 @@ describe('delivery editor', () => {
     )
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     await postOnce()
-    expect(await screen.findByTestId('assigned-number')).toHaveTextContent('IRS2026000001')
+    expect(await screen.findByTestId('assigned-number')).toHaveTextContent('DLV2026000000001')
     const posts = db.calls.filter((c) => c.path === `/sales-deliveries/${DELIVERY_DRAFT}/post`)
     expect(posts).toHaveLength(2)
     expect(posts[0]?.headers.get('Idempotency-Key')).toBe(posts[1]?.headers.get('Idempotency-Key'))
@@ -205,7 +202,7 @@ describe('posted delivery', () => {
     const db = setupSales()
     const user = userEvent.setup()
     renderSales(`/sales/deliveries/${DELIVERY_POSTED}`)
-    await screen.findByRole('heading', { name: 'Sevk irsaliyesi IRS2026000001' })
+    await screen.findByRole('heading', { name: 'Sevk irsaliyesi DLV2026000000001' })
     expect(screen.getByRole('link', { name: 'Kaydı aç' })).toHaveAttribute(
       'href',
       '/accounting/journal-entries/je-cogs-1',
@@ -242,10 +239,30 @@ describe('posted delivery', () => {
   it('hides cancel and invoice without their permissions', async () => {
     setupSales({ permissions: ['sales.deliveries.view'] })
     renderSales(`/sales/deliveries/${DELIVERY_POSTED}`)
-    await screen.findByRole('heading', { name: 'Sevk irsaliyesi IRS2026000001' })
+    await screen.findByRole('heading', { name: 'Sevk irsaliyesi DLV2026000000001' })
     expect(screen.queryByRole('button', { name: 'İptal et' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Fatura oluştur' })).not.toBeInTheDocument()
     // Without the journal permission the entry is named, not linked.
     expect(screen.queryByRole('link', { name: 'Kaydı aç' })).not.toBeInTheDocument()
+    // Without inventory.documents.view the stock document is not linked either.
+    expect(screen.queryByRole('link', { name: 'Aç' })).not.toBeInTheDocument()
+  })
+
+  it('derives the invoicing state from the invoices linked to its lines', async () => {
+    const db = setupSales()
+    const invoice = db.invoices.find((i) => i.id === INVOICE_ISSUED)
+    const line = invoice?.lines[0]
+    if (!line) throw new Error('line')
+    // The issued invoice bills 10 against the 4 delivered on dl-p1: fully invoiced.
+    line.delivery_line_id = 'dl-p1'
+    renderSales(`/sales/deliveries/${DELIVERY_POSTED}`)
+    expect(await screen.findByText('Faturalandı')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Fatura oluştur' })).not.toBeInTheDocument()
+    // Order number from the chain (facts and chain list).
+    expect(screen.getAllByRole('link', { name: 'ORD2026000000001' })[0]).toHaveAttribute(
+      'href',
+      `/sales/orders/${ORDER_1}`,
+    )
+    expect(db.calls.some((c) => c.path === `/sales-invoices/${INVOICE_ISSUED}`)).toBe(true)
   })
 })

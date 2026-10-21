@@ -1,4 +1,5 @@
-import type { OrderSource } from '../types'
+import { wireLine } from '../../invoices/kit/fixtures'
+import type { OrderSource, OrderSourceLine } from '../types'
 import {
   applyAllocations,
   emptyLine,
@@ -14,6 +15,14 @@ import {
   type LineMessages,
 } from './lines'
 
+const ol = (over: Partial<OrderSourceLine>): OrderSourceLine => ({
+  ...wireLine(),
+  delivered_quantity: '0',
+  invoiced_quantity: '0',
+  reservation_id: null,
+  ...over,
+})
+
 const order: OrderSource = {
   id: 'o1',
   number: 'SO1',
@@ -23,52 +32,34 @@ const order: OrderSource = {
   warehouse_id: 'wh',
   currency_code: 'TRY',
   lines: [
-    {
-      id: 'ol2',
-      line_no: 2,
-      item_id: 'phone',
-      item_tracking: 'serial',
-      description: null,
-      quantity: '2',
-      delivered_quantity: '0',
-      unit_id: 'u',
-      warehouse_id: null,
-    },
-    {
+    ol({ id: 'ol2', line_no: 2, item_id: 'phone', item_tracking: 'serial', quantity: '2' }),
+    ol({
       id: 'ol1',
       line_no: 1,
       item_id: 'bolt',
       item_code: 'B',
       item_name: 'Bolt',
       item_tracking: 'lot',
-      description: null,
       quantity: '10',
       delivered_quantity: '4',
-      unit_id: 'u',
       unit_code: 'AD',
-      warehouse_id: null,
-    },
-    {
+    }),
+    ol({
       id: 'ol3',
       line_no: 3,
       item_id: 'done',
       description: 'Done',
       quantity: '5',
       delivered_quantity: '5',
-      unit_id: 'u',
-      warehouse_id: null,
-    },
-    {
+    }),
+    ol({
       id: 'ol4',
       line_no: 4,
       item_id: 'srv',
       item_type: 'service',
       description: 'Service',
       quantity: '1',
-      delivered_quantity: '0',
-      unit_id: 'u',
-      warehouse_id: null,
-    },
+    }),
   ],
 }
 
@@ -113,7 +104,6 @@ describe('delivery lines', () => {
       {
         order_line_id: 'ol1',
         quantity: '2',
-        warehouse_id: null,
         lot_no: 'L-A',
         serial_numbers: [],
       },

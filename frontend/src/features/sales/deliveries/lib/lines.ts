@@ -102,7 +102,7 @@ const label = (code?: string | null, name?: string | null) =>
 export function valuesFromOrder(order: OrderSource, warehouseId: string): DeliveryValues {
   return {
     partyId: order.party_id,
-    partyLabel: order.party_name ?? order.party_snapshot?.name ?? '',
+    partyLabel: order.party_name ?? '',
     orderId: order.id,
     documentDate: toIsoDate(new Date()),
     warehouseId: order.warehouse_id ?? warehouseId,
@@ -122,7 +122,8 @@ export function valuesFromOrder(order: OrderSource, warehouseId: string): Delive
           unitCode: l.unit_code ?? '',
           quantity: remaining,
           remaining,
-          warehouseId: l.warehouse_id ?? '',
+          // Every line leaves from the header warehouse.
+          warehouseId: '',
         }
       })
       .filter((l) => dec(l.remaining).greaterThan(0)),
@@ -138,19 +139,19 @@ export function valuesFromDelivery(
     partyLabel: d.party_name ?? d.party_snapshot?.name ?? '',
     orderId: d.order_id ?? '',
     documentDate: d.document_date,
-    warehouseId: d.warehouse_id,
+    warehouseId: d.warehouse_id ?? '',
     notes: d.notes ?? '',
     lines: d.lines.map((l: DeliveryLine) => ({
       rowKey: nextRowKey(),
-      sourceLineId: l.source_line_id ?? '',
+      sourceLineId: l.order_line_id ?? '',
       itemId: l.item_id,
       itemLabel: label(l.item_code, l.item_name) || (l.description ?? ''),
       tracking: l.item_tracking ?? 'none',
       unitId: l.unit_id,
       unitCode: l.unit_code ?? '',
       quantity: l.quantity,
-      remaining: l.source_line_id ? (remaining[l.source_line_id] ?? '') : '',
-      warehouseId: l.warehouse_id ?? '',
+      remaining: l.order_line_id ? (remaining[l.order_line_id] ?? '') : '',
+      warehouseId: '',
       lotNo: l.lot_no ?? '',
       serials: l.serial_numbers.join('\n'),
     })),
@@ -169,11 +170,10 @@ export function toDeliveryInput(values: DeliveryValues): DeliveryInput {
     warehouse_id: values.warehouseId,
     notes: values.notes.trim() || null,
     lines: sentLines(values).map(({ line }) => ({
-      source_line_id: line.sourceLineId || null,
+      order_line_id: line.sourceLineId || null,
       item_id: line.itemId,
       unit_id: line.unitId,
       quantity: line.quantity,
-      warehouse_id: line.warehouseId || null,
       lot_no: line.lotNo.trim() || null,
       serial_numbers: parseSerials(line.serials),
       description: null,
@@ -189,7 +189,6 @@ export function toFromOrderInput(values: DeliveryValues): DeliveryFromOrderInput
     lines: sentLines(values).map(({ line }) => ({
       order_line_id: line.sourceLineId,
       quantity: line.quantity,
-      warehouse_id: line.warehouseId || null,
       lot_no: line.lotNo.trim() || null,
       serial_numbers: parseSerials(line.serials),
     })),
@@ -203,11 +202,9 @@ export function serverFieldMapper(values: DeliveryValues) {
     quantity: 'quantity',
     lot_no: 'lotNo',
     serial_numbers: 'serials',
-    warehouse_id: 'warehouseId',
     item_id: 'itemId',
     unit_id: 'unitId',
     order_line_id: 'quantity',
-    source_line_id: 'quantity',
   }
   const HEADER: Record<string, string> = {
     party_id: 'partyId',
