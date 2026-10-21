@@ -10,6 +10,7 @@ use App\Modules\Catalog\Contracts\UnitLookup;
 use App\Modules\Catalog\Models\ItemBarcode;
 use App\Modules\Identity\Services\PermissionCatalog;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
@@ -89,4 +90,34 @@ it('declares its permissions with default role grants', function (): void {
     expect($catalog->grouped()['catalog'] ?? [])->toContain('items.view', 'units.manage', 'price_lists.update', 'discount_rules.manage', 'pricing.view')
         ->and($catalog->grantsFor('Warehouse'))->toContain('items.view', 'items.create', 'units.manage')
         ->and($catalog->grantsFor('Accountant'))->toContain('pricing.view', 'price_lists.view');
+});
+
+it('reads many items at once in batches of 100, within the active company only', function (): void {
+    $ids = [$this->item->id];
+
+    for ($i = 0; $i < 230; $i++) {
+        $ids[] = Catalog::item($this->company, $this->pcs, ['code' => sprintf('MANY-%03d', $i)])->id;
+    }
+
+    $foreign = Catalog::item($this->other, Catalog::unit($this->other, 'PCS'), ['code' => 'FOREIGN'])->id;
+    $deleted = Catalog::item($this->company, $this->pcs, ['code' => 'GONE']);
+    Catalog::in($this->company, fn () => $deleted->delete());
+
+    Catalog::in($this->company, function () use ($ids, $foreign, $deleted): void {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $found = app(ItemLookup::class)->findMany([...$ids, $ids[0], $foreign, $deleted->id, 'garbage', (string) Str::uuid7()]);
+        $queries = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        expect($found)->toHaveCount(231)
+            ->and(array_keys($found))->toEqualCanonicalizing($ids)
+            ->and($found[$this->item->id]->code)->toBe('LOOK-1')
+            ->and($found)->not->toHaveKey($foreign)
+            ->and($found)->not->toHaveKey($deleted->id)
+            ->and($queries)->toBe(3)
+            ->and(app(ItemLookup::class)->findMany([]))->toBe([]);
+    });
+
+    Catalog::in($this->other, fn () => expect(array_keys(app(ItemLookup::class)->findMany([...$ids, $foreign])))->toBe([$foreign]));
 });
