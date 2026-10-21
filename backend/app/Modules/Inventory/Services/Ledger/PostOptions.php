@@ -17,5 +17,7 @@ final readonly class PostOptions
         /** Overrides the document's offset event (contract postings). */
         public ?string $offsetEvent = null,
         public ?MovementType $movementType = null,
+        /** The poster may issue from expired lots when the document allows it (API: the permission). */
+        public bool $expiredAllowed = true,
     ) {}
 }

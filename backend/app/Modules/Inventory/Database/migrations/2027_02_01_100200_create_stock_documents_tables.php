@@ -79,7 +79,8 @@ return new class extends Migration
             $table->foreign('document_id')->references('id')->on('stock_documents')->cascadeOnDelete();
         });
 
-        DB::statement('ALTER TABLE stock_document_lines ADD CONSTRAINT stock_document_lines_qty_check CHECK (quantity >= 0 AND base_quantity >= 0 AND (unit_cost IS NULL OR unit_cost >= 0) AND (counted_quantity IS NULL OR counted_quantity >= 0) AND (system_quantity IS NULL OR system_quantity >= 0))');
+        // system_quantity is signed: a count snapshot keeps negative stock.
+        DB::statement('ALTER TABLE stock_document_lines ADD CONSTRAINT stock_document_lines_qty_check CHECK (quantity >= 0 AND base_quantity >= 0 AND (unit_cost IS NULL OR unit_cost >= 0) AND (counted_quantity IS NULL OR counted_quantity >= 0))');
         DB::statement("ALTER TABLE stock_document_lines ADD CONSTRAINT stock_document_lines_direction_check CHECK (direction IS NULL OR direction IN ('in', 'out'))");
         DB::statement("ALTER TABLE stock_document_lines ADD CONSTRAINT stock_document_lines_serials_check CHECK (jsonb_typeof(serial_numbers) = 'array')");
     }

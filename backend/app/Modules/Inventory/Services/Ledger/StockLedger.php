@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Services\Ledger;
 
 use App\Core\Company\CompanyContext;
+use App\Core\Http\ApiException;
+use App\Core\Http\ErrorCode;
 use App\Core\Numbering\NumberSequenceService;
 use App\Modules\Accounting\Contracts\AccountDeterminer;
 use App\Modules\Accounting\Contracts\PeriodGuard;
@@ -18,6 +20,7 @@ use App\Modules\Inventory\Enums\Direction;
 use App\Modules\Inventory\Enums\DocumentStatus;
 use App\Modules\Inventory\Enums\DocumentType;
 use App\Modules\Inventory\Enums\MovementType;
+use App\Modules\Inventory\Enums\ReservationPolicy;
 use App\Modules\Inventory\Enums\ReservationStatus;
 use App\Modules\Inventory\Enums\SerialStatus;
 use App\Modules\Inventory\Events\StockPosted;
@@ -81,12 +84,21 @@ final class StockLedger
                 Messages::fail('document', 'document_not_draft');
             }
 
+            // Judged on the locked row: a concurrent edit cannot switch the flag on after a check.
+            if ($doc->allow_expired && ! $options->expiredAllowed) {
+                throw new ApiException(ErrorCode::Forbidden, Messages::get('issue_expired_forbidden'));
+            }
+
             $date = $doc->document_date->format('Y-m-d');
             $this->periods->assertOpen($doc->company_id, new DateTimeImmutable($date));
             $lines = $doc->lines()->get();
 
             if ($lines->isEmpty()) {
                 Messages::fail('lines', 'lines_required');
+            }
+
+            if ($doc->doc_type === DocumentType::Count) {
+                $this->assertUniqueCountKeys($lines->all());
             }
 
             $run = $this->start($doc, $date, $options->actor, $lines->all());
@@ -269,9 +281,9 @@ final class StockLedger
             case DocumentType::Issue:
                 $movement = $options->movementType ?? ($offset === 'inventory.scrap' ? MovementType::Scrap : MovementType::Issue);
                 $this->assertDirection($movement, Direction::Out);
-                $this->consumeReservation($run, $line, $doc->warehouse_id, $field);
+                $reservedLot = $this->consumeReservation($run, $line, $doc->warehouse_id, $field);
                 $this->outbound($run, $doc, $line, $item, $line->base_quantity, $movement,
-                    $offset ?? ($movement === MovementType::Scrap ? 'inventory.scrap' : 'inventory.cogs'), $field);
+                    $offset ?? ($movement === MovementType::Scrap ? 'inventory.scrap' : 'inventory.cogs'), $field, $reservedLot);
                 break;
 
             case DocumentType::Adjustment:
@@ -289,6 +301,26 @@ final class StockLedger
             case DocumentType::Transfer:
                 $this->transfer($run, $doc, $line, $item, $field);
                 break;
+        }
+    }
+
+    /**
+     * A count posts each balance key once (two lines for one key would apply the variance twice).
+     *
+     * @param  array<int, StockDocumentLine>  $lines
+     */
+    private function assertUniqueCountKeys(array $lines): void
+    {
+        $seen = [];
+
+        foreach ($lines as $i => $line) {
+            $key = $line->item_id.'|'.($line->location_id ?? '').'|'.($line->lot_no ?? '');
+
+            if (isset($seen[$key])) {
+                Messages::fail("lines.{$i}.item_id", 'count_line_duplicate');
+            }
+
+            $seen[$key] = true;
         }
     }
 
@@ -350,7 +382,7 @@ final class StockLedger
      *
      * @return list<array{qty: BigDecimal, unit_cost: BigDecimal, total_cost: BigDecimal, received_at: string|null, location: string|null, lot: string|null, serial: string|null}>
      */
-    private function outbound(Run $run, StockDocument $doc, StockDocumentLine $line, ItemData $item, BigDecimal $qty, MovementType $type, ?string $offset, string $field): array
+    private function outbound(Run $run, StockDocument $doc, StockDocumentLine $line, ItemData $item, BigDecimal $qty, MovementType $type, ?string $offset, string $field, ?string $reservedLot = null): array
     {
         $warehouseId = $doc->warehouse_id;
         $this->assertLocation($line->location_id, $warehouseId, "{$field}.location_id");
@@ -364,6 +396,11 @@ final class StockLedger
             foreach ($serials as $n => $serialNo) {
                 [$serialId, $location, $lot] = $this->serialOut($run, $item, $serialNo, $warehouseId, $line->location_id, $leaving, "{$field}.serial_numbers.{$n}");
                 $this->assertNotExpired($run, $lot, $doc->allow_expired, "{$field}.serial_numbers.{$n}");
+
+                if ($reservedLot !== null && $lot !== $reservedLot) {
+                    Messages::fail("{$field}.serial_numbers.{$n}", 'reservation_lot_mismatch');
+                }
+
                 $portions = $run->valuator->outbound($pair, BigDecimal::one());
                 $total = BigDecimal::zero();
 
@@ -382,7 +419,7 @@ final class StockLedger
             return $result;
         }
 
-        foreach ($this->allocate($run, $doc, $line, $item, $qty, $field) as $a) {
+        foreach ($this->allocate($run, $doc, $line, $item, $qty, $field, $reservedLot) as $a) {
             foreach ($run->valuator->outbound($pair, $a['qty']) as $p) {
                 $run->movement($item->id, $warehouseId, $a['location'], $a['lot'], null, $type, Direction::Out, $p['qty'], $p['unit_cost'], $p['total_cost'], $line->id, $p['layer_id']);
                 $run->balances->add($item->id, $warehouseId, $a['location'], $a['lot'], $p['qty']->negated());
@@ -397,11 +434,13 @@ final class StockLedger
     /**
      * Where an outbound quantity comes from: the named location and/or lot, otherwise FEFO over the
      * lots (earliest expiry first, expired lots skipped unless allowed) or the rows of the warehouse
-     * (no location first). A remainder goes negative only where the warehouse allows it.
+     * (no location first). A remainder goes negative only where the warehouse allows it. A consumed
+     * reservation of one lot pins the line to that lot; under a hard policy FEFO skips stock that
+     * lot reservations hold.
      *
      * @return list<array{qty: BigDecimal, location: string|null, lot: string|null}>
      */
-    private function allocate(Run $run, StockDocument $doc, StockDocumentLine $line, ItemData $item, BigDecimal $qty, string $field): array
+    private function allocate(Run $run, StockDocument $doc, StockDocumentLine $line, ItemData $item, BigDecimal $qty, string $field, ?string $reservedLot = null): array
     {
         $warehouse = $run->warehouse($doc->warehouse_id);
         $lotTracked = $item->tracking === 'lot' || $item->hasExpiry;
@@ -409,10 +448,26 @@ final class StockLedger
 
         if ($line->lot_no !== null && $line->lot_no !== '') {
             $lotId = $this->existingLot($item, $line->lot_no, "{$field}.lot_no");
+
+            if ($reservedLot !== null && $lotId !== $reservedLot) {
+                Messages::fail("{$field}.lot_no", 'reservation_lot_mismatch');
+            }
+        } elseif ($reservedLot !== null) {
+            $lotId = $reservedLot;
+        }
+
+        if ($lotId !== null) {
             $this->assertNotExpired($run, $lotId, $doc->allow_expired, "{$field}.lot_no");
         }
 
         $fefo = $lotTracked && $lotId === null;
+        $free = [];
+
+        if ($fefo && $warehouse->reservationPolicy === ReservationPolicy::Hard) {
+            foreach ($run->balances->lotTotals($item->id, $doc->warehouse_id) as $lot => [$lotOnHand, $lotReserved]) {
+                $free[$lot] = $lotOnHand->minus($lotReserved);
+            }
+        }
         $candidates = $run->balances->positive($item->id, $doc->warehouse_id, $line->location_id, $lotId, anyLot: $fefo);
         $expiry = $fefo ? $this->lotExpiries(array_column($candidates, 'lot')) : [];
 
@@ -440,6 +495,17 @@ final class StockLedger
             }
 
             $take = $remaining->isLessThan($c['on_hand']) ? $remaining : $c['on_hand'];
+
+            if (isset($free[$c['lot']])) {
+                $take = $take->isGreaterThan($free[$c['lot']]) ? $free[$c['lot']] : $take;
+
+                if (! $take->isPositive()) {
+                    continue;
+                }
+
+                $free[$c['lot']] = $free[$c['lot']]->minus($take);
+            }
+
             $allocations[] = ['qty' => $take, 'location' => Stock::nullable($c['location']), 'lot' => Stock::nullable($c['lot'])];
             $remaining = $remaining->minus($take);
         }
@@ -517,10 +583,14 @@ final class StockLedger
     }
 
     /** Releases the reservation an issue line consumes, before availability is judged. */
-    private function consumeReservation(Run $run, StockDocumentLine $line, string $warehouseId, string $field): void
+    /**
+     * Consumes the issued quantity of the reservation an issue line names (the rest stays held) and
+     * returns the lot the reservation holds, which the line must then issue from.
+     */
+    private function consumeReservation(Run $run, StockDocumentLine $line, string $warehouseId, string $field): ?string
     {
         if ($line->reservation_id === null) {
-            return;
+            return null;
         }
 
         $reservation = DB::table('stock_reservations')->where('id', $line->reservation_id)->where('company_id', $run->companyId)->lockForUpdate()->first();
@@ -530,10 +600,16 @@ final class StockLedger
             Messages::fail("{$field}.reservation_id", 'reservation_not_usable');
         }
 
-        $run->balances->add($line->item_id, $warehouseId, null, is_string($reservation->lot_id) ? $reservation->lot_id : null, BigDecimal::zero(), Stock::dec((string) $reservation->quantity)->negated());
-        DB::table('stock_reservations')->where('id', $reservation->id)->update([
-            'status' => ReservationStatus::Consumed->value, 'closed_at' => now(), 'version' => DB::raw('version + 1'), 'updated_at' => now(),
-        ]);
+        $lot = is_string($reservation->lot_id) ? $reservation->lot_id : null;
+        $held = Stock::dec((string) $reservation->quantity);
+        $used = $line->base_quantity->isLessThan($held) ? $line->base_quantity : $held;
+        $rest = $held->minus($used);
+        $run->balances->add($line->item_id, $warehouseId, null, $lot, BigDecimal::zero(), $used->negated());
+        DB::table('stock_reservations')->where('id', $reservation->id)->update($rest->isPositive()
+            ? ['quantity' => Stock::qty($rest), 'version' => DB::raw('version + 1'), 'updated_at' => now()]
+            : ['status' => ReservationStatus::Consumed->value, 'closed_at' => now(), 'version' => DB::raw('version + 1'), 'updated_at' => now()]);
+
+        return $lot;
     }
 
     /**
@@ -615,8 +691,14 @@ final class StockLedger
             }
 
             [$onHand, $reserved] = $run->balances->totals($itemId, $warehouseId);
+            $short = $reserved->isPositive() && $onHand->isLessThan($reserved);
 
-            if ($reserved->isPositive() && $onHand->isLessThan($reserved)) {
+            // A lot reservation holds that lot: other lots cannot stand in for it.
+            foreach ($run->balances->lotTotals($itemId, $warehouseId) as [$lotOnHand, $lotReserved]) {
+                $short = $short || ($lotReserved->isPositive() && $lotOnHand->isLessThan($lotReserved));
+            }
+
+            if ($short) {
                 $item = $run->items[$itemId] ?? $this->items->find($itemId);
                 Messages::fail($reversal ? 'document' : 'lines', 'reserved_stock', ['item' => $item->code ?? $itemId, 'reserved' => Stock::qty($reserved)]);
             }
@@ -688,7 +770,7 @@ final class StockLedger
             }
 
             DB::table('stock_serials')->where('id', $id)->update([
-                'status' => $state['status']->value, 'warehouse_id' => $state['warehouse'], 'location_id' => $state['location'], 'updated_at' => now(),
+                'status' => $state['status']->value, 'warehouse_id' => $state['warehouse'], 'location_id' => $state['location'], 'lot_id' => $state['lot'], 'updated_at' => now(),
             ]);
         }
     }
@@ -831,7 +913,8 @@ final class StockLedger
         }
 
         unset($run->newSerials[$id]);
-        $run->serials[$id] = [...$state, 'status' => SerialStatus::InStock, 'warehouse' => $warehouseId, 'location' => $locationId];
+        // A returned unit takes the lot it comes back in, so its next issue debits that lot.
+        $run->serials[$id] = [...$state, 'status' => SerialStatus::InStock, 'warehouse' => $warehouseId, 'location' => $locationId, 'lot' => $lotId];
 
         return $id;
     }

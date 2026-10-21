@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Http\Controllers;
 
-use App\Core\Http\ApiException;
 use App\Core\Http\ApiResponse;
-use App\Core\Http\ErrorCode;
 use App\Core\Http\ListQuery;
 use App\Modules\Inventory\Http\Requests\CountsRequest;
 use App\Modules\Inventory\Http\Requests\ImportLinesRequest;
@@ -144,11 +142,12 @@ final class StockDocumentController extends InventoryController
         $doc = StockDocument::query()->findOrFail($id);
         Gate::authorize('post', $doc);
 
-        if ($doc->allow_expired && ! Gate::allows('issueExpired', StockDocument::class)) {
-            throw new ApiException(ErrorCode::Forbidden, Messages::get('issue_expired_forbidden'));
-        }
-
-        $posted = $this->ledger->post($doc, new PostOptions($this->actor($request)), $request->optionalVersion());
+        // The ledger checks the flag on the locked document against this permission.
+        $posted = $this->ledger->post(
+            $doc,
+            new PostOptions($this->actor($request), expiredAllowed: Gate::allows('issueExpired', StockDocument::class)),
+            $request->optionalVersion(),
+        );
 
         return ApiResponse::success($this->resolve(new StockDocumentResource($posted->load('lines')), $request));
     }

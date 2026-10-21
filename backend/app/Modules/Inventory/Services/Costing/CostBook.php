@@ -109,11 +109,8 @@ final class CostBook
 
             DB::table('stock_valuations')->where('company_id', $this->companyId)->where('item_id', $pair->itemId)->where('warehouse_id', $pair->warehouseId)
                 ->update(['quantity' => Stock::qty($pair->quantity), 'value' => (string) Stock::money($pair->value), 'avg_cost' => (string) $pair->avgCost, 'updated_at' => now()]);
-            // Balance rows show the pair's average and their share of value at it.
-            DB::update(
-                'UPDATE stock_balances SET avg_cost = ?, value = round(on_hand * ?, 4), updated_at = now() WHERE company_id = ? AND item_id = ? AND warehouse_id = ?',
-                [(string) $pair->avgCost, (string) $pair->avgCost, $this->companyId, $pair->itemId, $pair->warehouseId],
-            );
+            // Balance rows show the pair's average and their share of its value.
+            BalanceValues::distribute($this->companyId, $pair->itemId, $pair->warehouseId, $pair->avgCost, Stock::money($pair->value));
             $pair->dirty = false;
         }
     }

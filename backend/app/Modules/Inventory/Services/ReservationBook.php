@@ -79,8 +79,17 @@ final class ReservationBook implements Reservations
                 }
             }
 
-            [$onHand, $reserved] = $balances->totals($item->id, $warehouse->id, $request->lotId);
+            // Availability of the warehouse and, for a lot reservation, of the lot: lot-less holds
+            // count against every lot, and lot holds against the warehouse total.
+            [$onHand, $reserved] = $balances->totals($item->id, $warehouse->id);
             $available = $onHand->minus($reserved);
+
+            if ($request->lotId !== null) {
+                [$lotOnHand, $lotReserved] = $balances->totals($item->id, $warehouse->id, $request->lotId);
+                $lotAvailable = $lotOnHand->minus($lotReserved);
+                $available = $lotAvailable->isLessThan($available) ? $lotAvailable : $available;
+            }
+
             $shortage = $qty->isGreaterThan($available) ? $qty->minus($available->isNegative() ? BigDecimal::zero() : $available) : BigDecimal::zero();
 
             if ($shortage->isPositive() && $warehouse->reservationPolicy === ReservationPolicy::Hard) {

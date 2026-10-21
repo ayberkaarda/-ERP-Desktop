@@ -9,6 +9,7 @@ use App\Modules\Accounting\Services\DeterminationRules;
 use App\Modules\Accounting\Services\FiscalCalendar;
 use App\Modules\Inventory\Contracts\Reservations;
 use App\Modules\Inventory\Data\ReservationRequest;
+use App\Modules\Inventory\Services\BalanceRebuilder;
 use App\Modules\Inventory\Services\InventoryRules;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\Artisan;
@@ -124,4 +125,28 @@ it('makes an issue wait for a reservation of the same stock and then respect it'
 
     onSecond(fn () => Inv::issue($this->company, $this->wh, $this->item, '2'));
     expect(Inv::onHand($this->company, $this->item, $this->wh))->toBe('3.000000');
+});
+
+it('makes a rebuild wait on the valuations before it locks the movements', function (): void {
+    // A posting starts by locking its valuation row and inserts movements later.
+    $this->a->beginTransaction();
+    $this->a->table('stock_valuations')->where('company_id', $this->company)->lockForUpdate()->get();
+
+    // The rebuild queues on the valuations first, so it never holds the movements the posting needs.
+    expect(fn () => onSecond(fn () => app(BalanceRebuilder::class)->rebuild($this->company)))
+        ->toThrow(QueryException::class, 'LOCK TABLE stock_valuations IN EXCLUSIVE MODE');
+    $this->a->commit();
+
+    expect(onSecond(fn () => app(BalanceRebuilder::class)->rebuild($this->company))['balances'])->toBe(1);
+});
+
+it('makes a posting wait for a running rebuild', function (): void {
+    $this->a->beginTransaction();
+    app(BalanceRebuilder::class)->rebuild($this->company);
+
+    expect(fn () => onSecond(fn () => Inv::issue($this->company, $this->wh, $this->item, '1')))->toThrow(QueryException::class, 'lock timeout');
+    $this->a->commit();
+
+    onSecond(fn () => Inv::issue($this->company, $this->wh, $this->item, '1'));
+    expect(Inv::onHand($this->company, $this->item, $this->wh))->toBe('4.000000');
 });

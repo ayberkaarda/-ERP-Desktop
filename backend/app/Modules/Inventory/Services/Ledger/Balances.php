@@ -116,6 +116,27 @@ final class Balances
         return [$onHand, $reserved];
     }
 
+    /**
+     * Totals per lot of a pair (lots only): lot id => [on hand, reserved].
+     *
+     * @return array<string, array{0: BigDecimal, 1: BigDecimal}>
+     */
+    public function lotTotals(string $item, string $warehouse): array
+    {
+        $lots = [];
+
+        foreach ($this->rows as $row) {
+            if ($row['item'] !== $item || $row['warehouse'] !== $warehouse || $row['lot'] === Stock::NIL) {
+                continue;
+            }
+
+            [$onHand, $reserved] = $lots[$row['lot']] ?? [BigDecimal::zero(), BigDecimal::zero()];
+            $lots[$row['lot']] = [$onHand->plus($row['on_hand']), $reserved->plus($row['reserved'])];
+        }
+
+        return $lots;
+    }
+
     public function add(string $item, string $warehouse, ?string $location, ?string $lot, BigDecimal $onHand, ?BigDecimal $reserved = null): void
     {
         $key = self::key($item, $warehouse, $location, $lot);

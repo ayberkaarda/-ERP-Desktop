@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Inventory\Services;
 
 use App\Core\Company\CompanyContext;
+use App\Modules\Inventory\Services\Costing\BalanceValues;
 use App\Modules\Inventory\Support\InventorySettings;
 use App\Modules\Inventory\Support\Stock;
 use Illuminate\Support\Facades\DB;
@@ -61,6 +62,10 @@ final class BalanceRebuilder
         $scale = $this->company->runAs($companyId, fn (): int => $this->settings->costScale());
 
         return DB::transaction(function () use ($companyId, $scale): array {
+            // Same order as every stock mutation, which locks valuation rows before it writes
+            // movements or reservations: the valuations first, so a rebuild waits instead of
+            // deadlocking with a posting in progress.
+            DB::statement('LOCK TABLE stock_valuations IN EXCLUSIVE MODE');
             DB::statement('LOCK TABLE stock_movements IN SHARE MODE');
             DB::statement('LOCK TABLE stock_reservations IN SHARE MODE');
 
@@ -93,11 +98,9 @@ final class BalanceRebuilder
                 ) x
                 GROUP BY item_id, warehouse_id, location_id, lot_id
                 SQL, [$companyId, $companyId, $companyId]);
-            DB::update(<<<'SQL'
-                UPDATE stock_balances b SET avg_cost = v.avg_cost, value = round(b.on_hand * v.avg_cost, 4)
-                FROM stock_valuations v
-                WHERE b.company_id = ? AND v.company_id = b.company_id AND v.item_id = b.item_id AND v.warehouse_id = b.warehouse_id
-                SQL, [$companyId]);
+            foreach (DB::table('stock_valuations')->where('company_id', $companyId)->get(['item_id', 'warehouse_id', 'avg_cost', 'value']) as $v) {
+                BalanceValues::distribute($companyId, (string) $v->item_id, (string) $v->warehouse_id, Stock::dec((string) $v->avg_cost), Stock::money((string) $v->value));
+            }
             // Rows whose final state is negative were allowed when posted; judge them now, not at commit.
             DB::statement('SET CONSTRAINTS '.Stock::DEFERRED.' IMMEDIATE');
 

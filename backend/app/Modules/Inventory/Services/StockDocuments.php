@@ -45,8 +45,11 @@ final class StockDocuments
             $doc->save();
             $lines = is_array($data['lines'] ?? null) ? array_values($data['lines']) : [];
 
-            if ($doc->doc_type === DocumentType::Count && ($data['freeze'] ?? true) !== false) {
-                $this->snapshot($doc, is_array($data['item_ids'] ?? null) ? array_values(array_filter($data['item_ids'], 'is_string')) : []);
+            if ($doc->doc_type === DocumentType::Count) {
+                if (($data['freeze'] ?? true) !== false) {
+                    $this->snapshot($doc, is_array($data['item_ids'] ?? null) ? array_values(array_filter($data['item_ids'], 'is_string')) : []);
+                }
+
                 $this->addCountLines($doc, $lines);
             } else {
                 $this->writeLines($doc, $lines);
@@ -66,6 +69,11 @@ final class StockDocuments
 
             if (isset($data['doc_type']) && $data['doc_type'] !== $doc->doc_type->value) {
                 Messages::fail('doc_type', 'doc_type_fixed');
+            }
+
+            // The snapshot belongs to the warehouse it was taken in.
+            if ($doc->doc_type === DocumentType::Count && isset($data['warehouse_id']) && $data['warehouse_id'] !== $doc->warehouse_id) {
+                Messages::fail('warehouse_id', 'count_warehouse_fixed');
             }
 
             $this->fill($doc, $data);
@@ -216,7 +224,6 @@ final class StockDocuments
         $no = 1;
 
         foreach ($rows as $row) {
-            $onHand = Stock::dec((string) $row->on_hand);
             $line = new StockDocumentLine([
                 'line_no' => $no++,
                 'item_id' => (string) $row->item_id,
@@ -226,7 +233,7 @@ final class StockDocuments
                 'lot_no' => is_string($row->lot_no) ? $row->lot_no : null,
                 'location_id' => Stock::nullable((string) $row->location_id),
                 'serial_numbers' => [],
-                'system_quantity' => Stock::qty($onHand->isNegative() ? '0' : $onHand),
+                'system_quantity' => Stock::qty((string) $row->on_hand),
             ]);
             $line->document_id = $doc->id;
             $line->save();
@@ -240,12 +247,35 @@ final class StockDocuments
     {
         $no = (int) StockDocumentLine::query()->where('document_id', $doc->id)->max('line_no');
 
-        if ($no + count($lines) > StockDocument::MAX_LINES) {
-            Messages::fail('lines', 'too_many_lines', ['max' => StockDocument::MAX_LINES]);
-        }
-
         foreach ($lines as $i => $line) {
-            $this->addLine($doc, is_array($line) ? $line : [], ++$no, "add.{$i}");
+            $line = is_array($line) ? $line : [];
+            $lotNo = is_string($line['lot_no'] ?? null) && trim($line['lot_no']) !== '' ? trim($line['lot_no']) : null;
+            $location = is_string($line['location_id'] ?? null) ? $line['location_id'] : null;
+            // One line per balance key: counting a key again updates its line.
+            $existing = StockDocumentLine::query()->where('document_id', $doc->id)
+                ->where('item_id', is_string($line['item_id'] ?? null) ? $line['item_id'] : '')
+                ->where(fn ($q) => $location === null ? $q->whereNull('location_id') : $q->where('location_id', $location))
+                ->where(fn ($q) => $lotNo === null ? $q->whereNull('lot_no') : $q->where('lot_no', $lotNo))
+                ->first();
+
+            if ($existing !== null) {
+                $counted = $line['counted_quantity'] ?? null;
+                $existing->counted_quantity = is_string($counted) || is_int($counted) ? Stock::dec((string) $counted) : $existing->counted_quantity;
+
+                if (is_string($line['unit_cost'] ?? null)) {
+                    $existing->unit_cost = Stock::dec($line['unit_cost']);
+                }
+
+                $existing->save();
+
+                continue;
+            }
+
+            if ($no >= StockDocument::MAX_LINES) {
+                Messages::fail('lines', 'too_many_lines', ['max' => StockDocument::MAX_LINES]);
+            }
+
+            $this->addLine($doc, $line, ++$no, "add.{$i}");
         }
     }
 
@@ -254,9 +284,9 @@ final class StockDocuments
         $lotId = $lotNo === null ? null : DB::table('stock_lots')->where('company_id', $doc->company_id)->where('item_id', $itemId)->where('lot_no', $lotNo)->value('id');
         $value = DB::table('stock_balances')->where('company_id', $doc->company_id)->where('item_id', $itemId)->where('warehouse_id', $doc->warehouse_id)
             ->where('location_id', Stock::key($locationId))->where('lot_id', Stock::key(is_string($lotId) ? $lotId : null))->value('on_hand');
-        $qty = Stock::dec(is_string($value) ? $value : '0');
 
-        return Stock::qty($qty->isNegative() ? '0' : $qty);
+        // Signed: a count of 0 against negative stock must bring it back to 0.
+        return Stock::qty(is_string($value) ? $value : '0');
     }
 
     /**
