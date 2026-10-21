@@ -85,3 +85,5 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
     Route::get('customers/{id}/exposure', [CustomerController::class, 'exposure'])->whereUuid('id');
     Route::get('customers/{id}/sales-summary', [CustomerController::class, 'summary'])->whereUuid('id');
 });
+
+require __DIR__.'/Reports/routes.php';

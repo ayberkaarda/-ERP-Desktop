@@ -14,6 +14,8 @@ use Illuminate\Support\Str;
 
 final class DatabaseItemLookup implements ItemLookup
 {
+    private const int BATCH = 100;
+
     public function exists(string $itemId): bool
     {
         return Str::isUuid($itemId) && Item::query()->whereKey($itemId)->exists();
@@ -24,6 +26,21 @@ final class DatabaseItemLookup implements ItemLookup
         $item = Str::isUuid($itemId) ? Item::query()->find($itemId) : null;
 
         return $item instanceof Item ? self::data($item) : null;
+    }
+
+    /** @return array<string, ItemData> */
+    public function findMany(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids, Str::isUuid(...))));
+        $found = [];
+
+        foreach (array_chunk($ids, self::BATCH) as $batch) {
+            foreach (Item::query()->whereKey($batch)->get() as $item) {
+                $found[$item->id] = self::data($item);
+            }
+        }
+
+        return $found;
     }
 
     public function findByCode(string $code): ?ItemData

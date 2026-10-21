@@ -31,24 +31,21 @@ final class CustomerController
 {
     public const array PERMISSIONS = ['sales.quotes.view', 'sales.orders.view', 'sales.invoices.view'];
 
-    public function __construct(
-        private readonly PartyLookup $parties,
-        private readonly CompanyContext $company,
-    ) {}
+    // No constructor dependencies: the router keeps one controller instance across requests.
 
     public function exposure(string $id, CustomerExposure $exposure): JsonResponse
     {
         Gate::authorize('sales-customer-view');
         $party = $this->party($id);
 
-        return ApiResponse::success($exposure->exposure($this->company->id(), $party)->toArray());
+        return ApiResponse::success($exposure->exposure(app(CompanyContext::class)->id(), $party)->toArray());
     }
 
     public function summary(string $id, ExposureCalculator $exposure): JsonResponse
     {
         Gate::authorize('sales-customer-view');
         $party = $this->party($id);
-        $company = $this->company->id();
+        $company = app(CompanyContext::class)->id();
         $invoices = DB::table('sales_invoices')->where('company_id', $company)->where('party_id', $party)
             ->whereIn('status', InvoiceStatus::booked())
             ->selectRaw("count(*) FILTER (WHERE invoice_type = 'sale') AS invoice_count,
@@ -84,7 +81,7 @@ final class CustomerController
 
     private function party(string $id): string
     {
-        if (! Str::isUuid($id) || $this->parties->find($id) === null) {
+        if (! Str::isUuid($id) || app(PartyLookup::class)->find($id) === null) {
             abort(404);
         }
 

@@ -16,6 +16,15 @@ interface ItemLookup
 
     public function find(string $itemId): ?ItemData;
 
+    /**
+     * Items of the active company among the given ids, read in batches of at most 100 ids per
+     * query; unknown, foreign, deleted or malformed ids are absent.
+     *
+     * @param  list<string>  $ids
+     * @return array<string, ItemData> by id
+     */
+    public function findMany(array $ids): array;
+
     public function findByCode(string $code): ?ItemData;
 
     public function findByBarcode(string $barcode): ?BarcodeMatch;

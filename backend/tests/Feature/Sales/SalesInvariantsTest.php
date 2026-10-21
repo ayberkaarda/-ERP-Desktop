@@ -83,7 +83,9 @@ it('rejects raw changes to a posted delivery except its cancellation', function 
         ->and(salesSqlState(fn () => DB::table('sales_delivery_lines')->where('id', $line)->update(['quantity' => '1'])))->toBe('KS003')
         ->and(salesSqlState(fn () => DB::table('sales_delivery_lines')->where('id', $line)->delete()))->toBe('KS003')
         ->and(salesSqlState(fn () => DB::table('sales_deliveries')->where('id', $id)->update(['status' => 'cancelled', 'cancelled_at' => now(), 'notes' => 'x'])))->toBe('KS003')
-        ->and(salesSqlState(fn () => DB::table('sales_deliveries')->where('id', $id)->update(['status' => 'cancelled', 'cancelled_at' => now(), 'cancel_reason' => 'x'])))->toBeNull();
+        // A cancelled posted delivery carries the date its stock was reversed.
+        ->and(salesSqlState(fn () => DB::table('sales_deliveries')->where('id', $id)->update(['status' => 'cancelled', 'cancelled_at' => now(), 'cancel_reason' => 'x'])))->toBe('23514')
+        ->and(salesSqlState(fn () => DB::table('sales_deliveries')->where('id', $id)->update(['status' => 'cancelled', 'cancelled_at' => now(), 'cancel_reason' => 'x', 'reversal_date' => '2027-06-15'])))->toBeNull();
 });
 
 it('requires positive line quantities and unique numbers per document type', function (): void {

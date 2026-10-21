@@ -24,6 +24,7 @@ use App\Modules\Sales\Policies\OrderPolicy;
 use App\Modules\Sales\Policies\QuotePolicy;
 use App\Modules\Sales\Policies\ReturnPolicy;
 use App\Modules\Sales\Policies\SalesPolicy;
+use App\Modules\Sales\Reports\ReportsServiceProvider;
 use App\Modules\Sales\Services\ExposureCalculator;
 use App\Modules\Sales\Services\InvoiceDirectory;
 use App\Modules\Sales\Services\Settlement;
@@ -50,6 +51,7 @@ final class SalesServiceProvider extends ModuleServiceProvider
         $this->app->bind(CustomerExposure::class, ExposureCalculator::class);
         $this->app->bind(SalesInvoiceLookup::class, InvoiceDirectory::class);
         $this->app->bind(ReceivableSettlement::class, Settlement::class);
+        $this->app->register(ReportsServiceProvider::class);
     }
 
     public function boot(): void
