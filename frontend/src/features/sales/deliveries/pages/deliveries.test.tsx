@@ -187,7 +187,7 @@ describe('delivery editor', () => {
     await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
     const alert = await screen.findByText('Belge başka biri tarafından değiştirildi')
     expect(alert).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Güncel sürümü yükle' }))
+    await user.click(screen.getByRole('button', { name: 'Güncel hâlini yükle' }))
     await waitFor(() =>
       expect(
         screen.queryByText('Belge başka biri tarafından değiştirildi'),

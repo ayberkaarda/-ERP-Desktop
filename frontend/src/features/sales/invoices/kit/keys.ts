@@ -1,9 +1,9 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { ListQueryState } from '@/components/shared/data-table'
-import { useCompanyStore } from '@/stores/company'
+import { activeCompany } from '../../shared/lib/keys'
 
-/** The active company; mutations capture it at start so late results land in the right cache. */
-export const activeCompany = () => useCompanyStore.getState().activeCompanyId ?? 'none'
+// The active company (shared with quotes/orders): mutations capture it at start.
+export { activeCompany }
 
 // Every key starts with ["sales", companyId]; this lane owns the deliveries, invoices, returns,
 // reports and customers branches. Pass `company` when writing results of work started under

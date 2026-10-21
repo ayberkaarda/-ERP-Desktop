@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { useCompanyStore } from '@/stores/company'
-import { createPayloadKeys } from './idempotency'
+import { createPayloadKeys } from '../../shared/lib/idempotency'
 import { invalidateSalesEffects, salesDocsKeys } from './keys'
 import { linkTo } from './links'
 import { money, percent, qty } from './money'

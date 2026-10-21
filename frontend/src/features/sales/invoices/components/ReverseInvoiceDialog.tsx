@@ -20,9 +20,9 @@ import { toIsoDate } from '@/lib/datetime'
 import { calendarDate, snakeToCamelPath } from '@/lib/forms'
 import { platform } from '@/platform'
 import { invoicesApi, type Invoice } from '../api'
-import { VersionConflictAlert } from '../kit/components/VersionConflictAlert'
+import { VersionConflictAlert } from '../../shared/components/common'
 import { isVersionConflict } from '../kit/http'
-import { usePayloadKeys } from '../kit/idempotency'
+import { usePayloadKeys } from '../../shared/lib/idempotency'
 import { activeCompany, invalidateSalesEffects, salesDocsKeys } from '../kit/keys'
 
 interface ReverseInvoiceDialogProps {
