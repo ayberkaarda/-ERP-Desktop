@@ -85,8 +85,8 @@ final class Settlement implements ReceivableSettlement
 
     private function rebalance(SalesInvoice $invoice, BigDecimal $paid): void
     {
-        $invoice->paid_amount = $paid;
-        $invoice->balance_due = $invoice->total->minus($paid);
+        $invoice->paid_amount = (string) $paid;
+        $invoice->balance_due = (string) $invoice->total->minus($paid);
         $target = match (true) {
             $invoice->balance_due->isZero() => InvoiceStatus::Paid,
             $paid->isZero() => InvoiceStatus::Issued,

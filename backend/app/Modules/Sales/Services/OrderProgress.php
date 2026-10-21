@@ -22,14 +22,14 @@ final class OrderProgress
 
     public function addDelivered(SalesOrderLine $line, BigDecimal $quantity): void
     {
-        $line->delivered_quantity = $line->delivered_quantity->plus($quantity);
+        $line->delivered_quantity = (string) $line->delivered_quantity->plus($quantity);
         $line->save();
     }
 
     public function addInvoiced(SalesOrderLine $line, BigDecimal $quantity): void
     {
         $value = $line->invoiced_quantity->plus($quantity);
-        $line->invoiced_quantity = $value->isNegative() ? BigDecimal::zero() : $value;
+        $line->invoiced_quantity = $value->isNegative() ? '0' : (string) $value;
         $line->save();
     }
 

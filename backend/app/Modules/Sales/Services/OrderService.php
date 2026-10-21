@@ -247,7 +247,14 @@ final class OrderService extends DocumentService
 
         $order->confirmed_at = now();
         $order->confirmed_by = self::actorId($actor);
-        $this->machine->transition($order, OrderStatus::Confirmed, $actor);
+
+        if ($order->status === OrderStatus::Confirmed) {
+            // A revision of a confirmed order stays confirmed.
+            $order->save();
+        } else {
+            $this->machine->transition($order, OrderStatus::Confirmed, $actor);
+        }
+
         event(new SalesOrderConfirmed($order->company_id, $order->id, (string) $order->number, $order->party_id, (string) $order->total_local));
 
         return $warnings;
@@ -261,7 +268,7 @@ final class OrderService extends DocumentService
 
         $order->credit_override_reason = $reason;
         $order->credit_override_by = self::actorId($actor);
-        activity()->performedOn($order)->causedBy(self::actorId($actor))->withProperties(['reason' => $reason, 'check' => $check->toArray()])
+        activity()->performedOn($order)->causedBy(self::causer($actor))->withProperties(['reason' => $reason, 'check' => $check->toArray()])
             ->event('credit_override')->log('credit_override');
     }
 

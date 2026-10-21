@@ -19,7 +19,7 @@ final class DocumentRequest extends SalesRequest
     public function rules(): array
     {
         $form = $this->route()?->defaults['form'] ?? 'quote';
-        $patch = $this->isMethod('PATCH');
+        $patch = $this->isMethod('PATCH') || ($this->route()?->defaults['partial'] ?? false) === true;
         $max = SalesDocument::MAX_LINES;
 
         return match ($form) {

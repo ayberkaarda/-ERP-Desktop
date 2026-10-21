@@ -44,12 +44,12 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
         Route::delete("{$path}/{id}", [$controller, 'destroy'])->whereUuid('id');
     }
 
-    $action = static function (string $path, string $controller, string $method, string $ability, string $model, ?string $form = null): void {
+    $action = static function (string $path, string $controller, string $method, string $ability, string $model, ?string $form = null, bool $partial = false): void {
         $route = Route::post($path, [$controller, $method])->whereUuid('id')->middleware('idempotent')
             ->defaults('ability', $ability)->defaults('model', $model);
 
         if ($form !== null) {
-            $route->defaults('form', $form);
+            $route->defaults('form', $form)->defaults('partial', $partial);
         }
     };
 
@@ -59,7 +59,7 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
     $action('sales-quotes/{id}/convert', QuoteController::class, 'convert', 'update', SalesQuote::class, 'quote_convert');
 
     $action('sales-orders/{id}/confirm', OrderController::class, 'confirm', 'approve', SalesOrder::class);
-    $action('sales-orders/{id}/revise', OrderController::class, 'revise', 'approve', SalesOrder::class, 'order');
+    $action('sales-orders/{id}/revise', OrderController::class, 'revise', 'approve', SalesOrder::class, 'order', partial: true);
     $action('sales-orders/{id}/cancel', OrderController::class, 'cancel', 'update', SalesOrder::class);
     $action('sales-orders/{id}/close', OrderController::class, 'close', 'approve', SalesOrder::class);
     $action('sales-orders/{id}/deliveries', OrderController::class, 'deliveries', 'create', SalesDelivery::class, 'delivery_from_order');

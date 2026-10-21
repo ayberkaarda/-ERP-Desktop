@@ -172,7 +172,13 @@ abstract class DocumentService
             return;
         }
 
-        activity()->performedOn($doc)->causedBy(self::actorId($actor))->withProperties(['overrides' => $composed->priceOverrides])->event('price_override')->log('price_override');
+        activity()->performedOn($doc)->causedBy(self::causer($actor))->withProperties(['overrides' => $composed->priceOverrides])->event('price_override')->log('price_override');
+    }
+
+    /** The acting user as activity causer (a model), or nobody. */
+    protected static function causer(?Authenticatable $actor): ?\Illuminate\Database\Eloquent\Model
+    {
+        return $actor instanceof \Illuminate\Database\Eloquent\Model ? $actor : null;
     }
 
     protected static function actorId(?Authenticatable $actor): ?string

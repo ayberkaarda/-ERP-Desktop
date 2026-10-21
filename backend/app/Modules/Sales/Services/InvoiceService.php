@@ -317,7 +317,7 @@ final class InvoiceService extends DocumentService
                 }
             }
 
-            $invoice->balance_due = BigDecimal::zero();
+            $invoice->balance_due = '0';
             $invoice->reversed_at = now();
             $invoice->reversed_by = self::actorId($actor);
             $invoice->reversal_date = Carbon::parse($date);
@@ -386,7 +386,7 @@ final class InvoiceService extends DocumentService
             if ($check !== null && $check->overridden) {
                 $invoice->credit_override_reason = $overrideReason;
                 $invoice->credit_override_by = self::actorId($actor);
-                activity()->performedOn($invoice)->causedBy(self::actorId($actor))->withProperties(['reason' => $overrideReason, 'check' => $check->toArray()])
+                activity()->performedOn($invoice)->causedBy(self::causer($actor))->withProperties(['reason' => $overrideReason, 'check' => $check->toArray()])
                     ->event('credit_override')->log('credit_override');
             }
 
@@ -403,8 +403,8 @@ final class InvoiceService extends DocumentService
         }
 
         $invoice->journal_entry_id = $entry->id;
-        $invoice->paid_amount = BigDecimal::zero();
-        $invoice->balance_due = $invoice->total;
+        $invoice->paid_amount = '0';
+        $invoice->balance_due = (string) $invoice->total;
         $invoice->issued_at = now();
         $invoice->issued_by = self::actorId($actor);
         $this->machine->transition($invoice, InvoiceStatus::Issued, $actor);
