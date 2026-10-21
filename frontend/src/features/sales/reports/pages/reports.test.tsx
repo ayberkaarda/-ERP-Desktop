@@ -84,21 +84,37 @@ describe('customer sales summary tab', () => {
     )
   }
 
-  it('shows period figures, monthly sales, top items and the risk position', async () => {
+  it('shows the summary figures, the risk position and the latest documents', async () => {
     const db = setupSales({ permissions: ['sales.invoices.view'] })
     renderTab(PARTY_ACME)
-    expect(await screen.findByTestId('summary-net-sales')).toHaveTextContent('15.400,00 TRY')
-    expect(screen.getByRole('table', { name: 'En çok alınan ürünler' })).toHaveTextContent(
-      'Cıvata M8',
+    expect(await screen.findByTestId('summary-invoiced')).toHaveTextContent('15.400,00 TRY')
+    expect(screen.getByTestId('summary-balance')).toHaveTextContent('1.200,00 TRY')
+    expect(screen.getByTestId('summary-open-orders')).toHaveTextContent('300,00 TRY (1)')
+    expect(screen.getByTestId('summary-exposure')).toHaveTextContent('500,00 TRY')
+    const invoices = screen.getByRole('table', { name: 'Son faturalar' })
+    expect(within(invoices).getByRole('link', { name: 'INV2026000000007' })).toHaveAttribute(
+      'href',
+      '/sales/invoices/inv-recent-1',
     )
-    expect(screen.getByTestId('report-chart')).toBeInTheDocument()
-    expect(await screen.findByTestId('summary-exposure')).toHaveTextContent('500,00 TRY')
+    const orders = screen.getByRole('table', { name: 'Son siparişler' })
+    expect(within(orders).getByRole('link', { name: 'ORD2026000000004' })).toHaveAttribute(
+      'href',
+      '/sales/orders/ord-recent-1',
+    )
+    expect(orders).toHaveTextContent('Onaylandı')
     const call = db.calls.find((c) => c.path === `/customers/${PARTY_ACME}/sales-summary`)
-    expect(call?.url.searchParams.get('date_from')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(call?.url.search).toBe('')
+  })
+
+  it('opens with the quotes permission alone, as the backend gate allows', async () => {
+    setupSales({ permissions: ['sales.quotes.view'] })
+    renderTab(PARTY_ACME)
+    expect(await screen.findByTestId('summary-invoiced')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Tüm faturaları göster' })).not.toBeInTheDocument()
   })
 
   it('needs one of the sales read permissions', async () => {
-    const db = setupSales({ permissions: ['parties.view'] })
+    const db = setupSales({ permissions: ['parties.view', 'sales.reports.view'] })
     renderTab(PARTY_ACME)
     expect(await screen.findByText('Satış özetini görme yetkiniz yok.')).toBeInTheDocument()
     expect(db.calls.some((c) => c.path.startsWith('/customers/'))).toBe(false)

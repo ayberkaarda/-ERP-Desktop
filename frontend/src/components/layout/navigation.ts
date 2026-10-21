@@ -99,13 +99,7 @@ export type NavKey =
   | 'salesReports'
 
 export type NavSectionKey =
-  | 'main'
-  | 'masterData'
-  | 'sales'
-  | 'accounting'
-  | 'inventory'
-  | 'reference'
-  | 'system'
+  'main' | 'masterData' | 'sales' | 'accounting' | 'inventory' | 'reference' | 'system'
 
 export interface NavItem {
   key: NavKey
