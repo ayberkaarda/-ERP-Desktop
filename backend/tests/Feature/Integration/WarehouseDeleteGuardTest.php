@@ -22,6 +22,8 @@ beforeEach(function (): void {
 
 it('refuses to delete a Reference warehouse that has stock movements', function (): void {
     $wh = Inv::warehouse($this->company, 'USED');
+    // A location as well: the movement reason is the one reported.
+    Inv::location($this->company, $wh, 'A-01');
     $item = Inv::item($this->company)->id;
     Inv::receive($this->company, $wh->id, $item, '2', '3');
     Inv::issue($this->company, $wh->id, $item, '2');
