@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Modules\Parties\Models;
 
 use App\Modules\Parties\Database\factories\PartyBankAccountFactory;
+use App\Modules\Parties\Validation\Iban;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 /**
  * @property string $bank_name
@@ -33,6 +36,29 @@ class PartyBankAccount extends PartyChild
     public static function defaultFlag(): string
     {
         return 'is_default';
+    }
+
+    /**
+     * The audit trail is readable with audit.view alone, so it never carries a full IBAN.
+     */
+    public function beforeActivityLogged(Model $activity, string $event): void
+    {
+        $changes = $activity->getAttribute('attribute_changes');
+
+        if (! $changes instanceof Collection) {
+            return;
+        }
+
+        foreach (['attributes', 'old'] as $key) {
+            $set = $changes->get($key);
+
+            if (is_array($set) && is_string($set['iban'] ?? null)) {
+                $set['iban'] = Iban::mask($set['iban']);
+                $changes->put($key, $set);
+            }
+        }
+
+        $activity->setAttribute('attribute_changes', $changes);
     }
 
     public function getMorphClass(): string

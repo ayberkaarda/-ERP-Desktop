@@ -139,6 +139,7 @@ it('keeps one primary contact and validates contact fields', function (): void {
 });
 
 it('validates and normalizes IBANs, unique per party, with a single default', function (): void {
+    config(['parties.allow_unverified_references' => true]);
     $url = "{$this->base}/bank-accounts";
     $first = childPost($this->editor, $this->company, $url, [
         'bank_name' => 'Ziraat', 'iban' => 'tr33 0006 1005 1978 6457 8413 26', 'swift' => 'tczbtr2a', 'currency_code' => 'try', 'is_default' => true,
@@ -188,4 +189,19 @@ it('resolves children only through their own party and company', function (): vo
     childAs($this->viewer)->postJson("{$this->base}/bank-accounts", ['bank_name' => 'x', 'iban' => 'bad'], childHeaders($this->company, true))->assertForbidden();
 
     expect(app(CompanyContext::class)->runAs($this->other, fn () => $this->foreign->contacts()->value('name')))->toBe('Foreign');
+});
+
+it('never writes a full IBAN to the audit log', function (): void {
+    $url = "{$this->base}/bank-accounts";
+    $account = childPost($this->editor, $this->company, $url, ['bank_name' => 'Ziraat', 'iban' => 'TR330006100519786457841326']);
+    childAs($this->editor)->patchJson("{$url}/{$account['id']}", ['iban' => 'TR320010009999901234567890', 'version' => 1], childHeaders($this->company))->assertOk();
+
+    $logs = Activity::withoutCompanyScope()->where('subject_id', $account['id'])->orderBy('id')->get();
+    $raw = DB::table('activity_log')->where('subject_id', $account['id'])->pluck('attribute_changes')->implode(' ');
+
+    expect($logs)->toHaveCount(2)
+        ->and($logs[0]->attribute_changes?->get('attributes')['iban'])->toBe('TR********************1326')
+        ->and($logs[1]->attribute_changes?->get('old')['iban'])->toBe('TR********************1326')
+        ->and($logs[1]->attribute_changes?->get('attributes')['iban'])->toBe('TR********************7890')
+        ->and($raw)->not->toContain('0006100519786457841326')->not->toContain('0010009999901234567890');
 });
