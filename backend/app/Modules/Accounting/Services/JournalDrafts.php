@@ -37,8 +37,7 @@ final class JournalDrafts
         return Ledger::transaction(function () use ($data, $actor): JournalEntry {
             $type = $this->type($data['entry_type'] ?? null);
             $period = $this->period($data['entry_date'] ?? null, $data['period_id'] ?? null);
-            /** @var list<array<string, mixed>> $raw */
-            $raw = is_array($data['lines'] ?? null) ? array_values($data['lines']) : [];
+            $raw = self::orderedLines($data['lines'] ?? null);
             $lines = $this->lines->build($raw);
 
             $entry = new JournalEntry;
@@ -87,8 +86,7 @@ final class JournalDrafts
             $lines = null;
 
             if (array_key_exists('lines', $data)) {
-                /** @var list<array<string, mixed>> $raw */
-                $raw = is_array($data['lines']) ? array_values($data['lines']) : [];
+                $raw = self::orderedLines($data['lines']);
                 $lines = $this->lines->build($raw);
                 $this->totals($locked, $lines);
             }
@@ -125,6 +123,22 @@ final class JournalDrafts
         }
 
         return $locked;
+    }
+
+    /**
+     * Lines in request order: validated() may rebuild the array with keys out of order.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedLines(mixed $lines): array
+    {
+        if (! is_array($lines)) {
+            return [];
+        }
+
+        ksort($lines);
+
+        return array_values(array_filter($lines, 'is_array'));
     }
 
     private function type(mixed $value): EntryType

@@ -38,8 +38,8 @@ it('books a balanced entry with a gapless number per fiscal year and maintains b
         ['391', '0', '180.00'],
     ]);
 
-    expect($first->number)->toBe('2027-000001')
-        ->and($second->number)->toBe('2027-000002')
+    expect($first->number)->toBe('2027000000001')
+        ->and($second->number)->toBe('2027000000002')
         ->and($second->status)->toBe('posted')
         ->and($second->totalDebit)->toBe('1180.0000')
         ->and($second->totalCredit)->toBe('1180.0000')
@@ -74,7 +74,7 @@ it('dispatches EntryPosted and EntryReversed only after commit with ids', functi
         Event::assertNotDispatched(EntryPosted::class);
     });
 
-    Event::assertDispatched(EntryPosted::class, fn (EntryPosted $e): bool => $e->companyId === $this->company && $e->number === '2027-000001');
+    Event::assertDispatched(EntryPosted::class, fn (EntryPosted $e): bool => $e->companyId === $this->company && $e->number === '2027000000001');
     $entry = Books::in($this->company, fn () => JournalEntry::query()->firstOrFail());
 
     Books::in($this->company, fn () => app(PostingService::class)->reverse($entry->id, new DateTimeImmutable('2027-04-03'), 'wrong amount'));
@@ -93,7 +93,7 @@ it('reverses an entry with mirrored lines linked both ways', function (): void {
         ->and($mirror->reverses_id)->toBe($entry->id)
         ->and($mirror->entry_type->value)->toBe('reversal')
         ->and($mirror->reversal_reason)->toBe('customer cancelled')
-        ->and($mirror->number)->toBe('2027-000002')
+        ->and($mirror->number)->toBe('2027000000002')
         ->and((string) $mirror->lines[0]->credit)->toBe('118.0000')
         ->and($mirror->lines[0]->party_id)->toBe($this->party)
         ->and(Books::balance($this->company, '120'))->toBe('0.0000');

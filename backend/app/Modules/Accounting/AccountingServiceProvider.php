@@ -34,7 +34,8 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 
 /**
- * routes.php also loads Reports/routes.php when present, so report endpoints live in their own folder.
+ * Reports/ (report endpoints) plugs in by convention: routes.php requires Reports/routes.php,
+ * Reports/ReportsServiceProvider is registered and Reports/Database/migrations loaded when present.
  */
 final class AccountingServiceProvider extends ModuleServiceProvider
 {
@@ -47,14 +48,21 @@ final class AccountingServiceProvider extends ModuleServiceProvider
         $this->app->bind(PeriodGuard::class, Periods::class);
         $this->app->bind(AccountLookup::class, AccountDirectory::class);
 
-        if (config('numbering.formats.'.LedgerPoster::DOC_TYPE) === null) {
-            config(['numbering.formats.'.LedgerPoster::DOC_TYPE => LedgerPoster::FORMAT]);
+        // Reports/ is a sub-package by convention: its own provider (bindings) when present.
+        $reports = __NAMESPACE__.'\\Reports\\ReportsServiceProvider';
+
+        if (class_exists($reports)) {
+            $this->app->register($reports);
         }
     }
 
     public function boot(): void
     {
         $this->bootModule();
+
+        if (is_dir(__DIR__.'/Reports/Database/migrations')) {
+            $this->loadMigrationsFrom(__DIR__.'/Reports/Database/migrations');
+        }
 
         Relation::morphMap([
             'fiscal_year' => FiscalYear::class,

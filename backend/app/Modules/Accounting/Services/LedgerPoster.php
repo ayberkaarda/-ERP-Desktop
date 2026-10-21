@@ -32,10 +32,8 @@ use Illuminate\Support\Str;
  */
 final class LedgerPoster implements PostingService
 {
+    /** Number sequence doc type; the format is numbering.formats.journal or the Core default (2027000000001). */
     public const string DOC_TYPE = 'journal';
-
-    /** Default journal number format, e.g. 2027-000001; deployments may configure their own. */
-    public const string FORMAT = '{year}-{seq:6}';
 
     public const string REVERSAL_SOURCE = 'journal_entry';
 

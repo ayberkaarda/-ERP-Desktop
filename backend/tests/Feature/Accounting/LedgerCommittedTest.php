@@ -153,7 +153,7 @@ it('returns the number of a rolled back posting and announces only committed one
 
     try {
         DB::transaction(function (): void {
-            expect(Books::post($this->company, '2027-03-10', [['100', '5', '0'], ['600', '0', '5']])->number)->toBe('2027-000001');
+            expect(Books::post($this->company, '2027-03-10', [['100', '5', '0'], ['600', '0', '5']])->number)->toBe('2027000000001');
 
             throw new RuntimeException('abort');
         });
@@ -163,7 +163,7 @@ it('returns the number of a rolled back posting and announces only committed one
     expect($numbers)->toBe([]);
     $entry = Books::post($this->company, '2027-03-11', [['100', '7', '0'], ['600', '0', '7']]);
 
-    expect($entry->number)->toBe('2027-000001')->and($numbers)->toBe(['2027-000001']);
+    expect($entry->number)->toBe('2027000000001')->and($numbers)->toBe(['2027000000001']);
     [$stored, $computed] = Books::balanceSnapshots($this->company);
     expect($stored)->toEqual($computed);
 });

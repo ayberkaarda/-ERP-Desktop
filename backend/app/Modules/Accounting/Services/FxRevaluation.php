@@ -107,10 +107,6 @@ final class FxRevaluation
 
         $changed = array_values(array_filter($items, static fn (array $i): bool => ! $i['difference']->isZero()));
 
-        if ($changed === []) {
-            Messages::fail('period_id', 'fx_nothing_to_post');
-        }
-
         return Ledger::transaction(function () use ($period, $rateDate, $actor, $changed, $result): array {
             $period = AccountingPeriod::query()->with('fiscalYear')->whereKey($period->id)->firstOrFail();
             $this->periods->assertPostable($period);
@@ -121,6 +117,11 @@ final class FxRevaluation
             $key = self::SOURCE.'|'.$period->id.'|rate:'.$rateDate->format('Y-m-d');
             Ledger::lock('post.'.hash('sha256', $key));
             $entry = JournalEntry::query()->where('posting_key', $key)->where('status', '<>', EntryStatus::Draft->value)->first();
+
+            // A repeated run returns the booked revaluation; its differences are already in the books.
+            if ($entry === null && $changed === []) {
+                Messages::fail('period_id', 'fx_nothing_to_post');
+            }
 
             if ($entry === null) {
                 $entry = $this->poster->book($this->lines($changed), [

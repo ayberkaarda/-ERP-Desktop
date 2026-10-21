@@ -183,7 +183,8 @@ final class YearEndClosing
         $this->transfer($sources, $this->account($byCode, $mapping['result_account']), $balances, $year, $last, $date, $actor, "{$run}:income", 'closing_income');
 
         // 2. Result and tax provisions into the net result account.
-        $sources = $byCode->only([$mapping['result_account'], ...$mapping['tax_accounts']])->values();
+        $resultCodes = [$mapping['result_account'], ...$mapping['tax_accounts']];
+        $sources = $byCode->filter(fn (Account $a): bool => in_array($a->code, $resultCodes, true))->values();
         $this->transfer($sources, $this->account($byCode, $mapping['net_result_account']), $balances, $year, $last, $date, $actor, "{$run}:result", 'closing_result');
 
         // 3. Net result into profit (credit balance) or loss (debit balance).
