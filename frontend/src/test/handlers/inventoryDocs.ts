@@ -122,6 +122,8 @@ export interface InvDocsDb {
   /** Permissions of the signed-in user the API checks itself (issue_expired at posting). */
   permissions: string[]
   calls: { method: string; path: string; body: unknown; url: URL; headers: Headers }[]
+  /** Number of ids per GET /items?filter[id] request (0 without the filter). */
+  itemIdBatches: number[]
   idempotency: Map<string, { body: string; response: unknown; status: number }>
   /** Uploaded import files (name, text, dry_run flag) for assertions. */
   uploads: { name: string; text: string; dryRun: string }[]
@@ -448,6 +450,7 @@ export function createInvDocsDb(overrides: Partial<InvDocsDb> = {}): InvDocsDb {
     ],
     permissions: [],
     calls: [],
+    itemIdBatches: [],
     idempotency: new Map(),
     uploads: [],
     seq: 0,
@@ -1147,8 +1150,14 @@ export function invDocsHandlers(db: InvDocsDb) {
       const url = new URL(request.url)
       const q = url.searchParams.get('q') ?? ''
       const type = url.searchParams.get('filter[type]')
+      // ItemController: filter[id] is a comma list of at most 100 uuids (422 above).
+      const idFilter = url.searchParams.get('filter[id]')
+      const ids = idFilter === null ? null : idFilter.split(',')
+      if (ids && ids.length > 100) return validation({ 'filter.id': ['En fazla 100 kimlik.'] })
+      db.itemIdBatches.push(ids?.length ?? 0)
       const rows = db.items
         .filter((i) => !type || i.type === type)
+        .filter((i) => !ids || ids.includes(i.id))
         .filter(
           (i) =>
             has(q, i.code, i.name) ||

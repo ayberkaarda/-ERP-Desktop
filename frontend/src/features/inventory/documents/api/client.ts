@@ -1,5 +1,5 @@
 import { toListParams, type ListQueryState } from '@/components/shared/data-table'
-import { ApiError, isApiError, platform, withIdempotency } from '@/platform'
+import { ApiError, platform, withIdempotency } from '@/platform'
 import type {
   ApiStockDocument,
   CodeName,
@@ -196,6 +196,9 @@ export interface LotRef {
   on_hand?: string
 }
 
+/** Catalog's limit of ids per filter[id] request (one page of the item list). */
+export const ITEM_ID_BATCH = 100
+
 /** Lookups owned by other modules (Catalog items and units, Inventory lots). */
 export const lookupsApi = {
   units: (signal?: AbortSignal) => fetchAll<UnitRow>('/units', { sort: 'code' }, signal),
@@ -205,29 +208,28 @@ export const lookupsApi = {
     http()
       .get<Envelope<ItemRef>>(`/items/${seg(id)}`, { signal })
       .then((r) => r.data),
-  /** Every stock item of the company (Catalog list, 100 per page, at most 50 pages). */
-  stockItems: (signal?: AbortSignal) =>
-    fetchAll<ItemRef>('/items', { 'filter[type]': 'stock', sort: 'code' }, signal, 50),
   /**
-   * Items by id (Catalog has no id filter): one GET per item for a few, otherwise the stock item
-   * list plus single reads of what it lacks. Unknown or unreadable items are left out.
+   * Items by id through Catalog's bounded batch filter (GET /items?filter[id]=..., at most
+   * ITEM_ID_BATCH ids per request): every id is asked for, in chunks; ids Catalog does not return
+   * (unknown or another company's) are simply absent from the result.
    */
   itemsByIds: async (ids: readonly string[], signal?: AbortSignal): Promise<ItemRef[]> => {
     const wanted = [...new Set(ids.filter(Boolean))]
-    const single = (id: string) =>
-      lookupsApi.item(id, signal).catch((error: unknown) => {
-        if (isApiError(error) && (error.status === 404 || error.status === 403)) return null
-        throw error
-      })
-    let found: ItemRef[] = []
-    if (wanted.length > 25) {
-      const all = await lookupsApi.stockItems(signal).catch(() => [] as ItemRef[])
-      const set = new Set(wanted)
-      found = all.filter((i) => set.has(i.id))
+    const chunks: string[][] = []
+    for (let i = 0; i < wanted.length; i += ITEM_ID_BATCH) {
+      chunks.push(wanted.slice(i, i + ITEM_ID_BATCH))
     }
-    const missing = wanted.filter((id) => !found.some((i) => i.id === id))
-    const rest = await Promise.all(missing.slice(0, 200).map(single))
-    return [...found, ...rest.filter((i): i is ItemRef => i !== null)]
+    const pages = await Promise.all(
+      chunks.map((chunk) =>
+        http()
+          .get<Paginated<ItemRef>>('/items', {
+            params: { 'filter[id]': chunk.join(','), per_page: ITEM_ID_BATCH },
+            signal,
+          })
+          .then((r) => r.data),
+      ),
+    )
+    return pages.flat()
   },
   searchItems: (q: string, signal?: AbortSignal) =>
     http()
