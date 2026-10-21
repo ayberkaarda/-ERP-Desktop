@@ -2,6 +2,9 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ITEM_BOLT } from '@/test/handlers/catalog'
 import { WH_SHOP } from '@/test/handlers/inventoryStock'
+import { COMPANY_A } from '@/test/handlers/fea'
+import { useAuthStore } from '@/stores/auth'
+import { viewStorageKey } from '../lib/savedViews'
 import { renderInventoryStock, setupInventoryStock } from '../testing'
 import './StockStatusPage'
 
@@ -69,7 +72,9 @@ describe('stock status page', () => {
     await user.type(within(dialog).getByLabelText(/^Ad/), 'Mağaza lokasyon')
     await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
     const stored = JSON.parse(
-      window.localStorage.getItem('keystone.inventory.views.stock-status') ?? '[]',
+      window.localStorage.getItem(
+        viewStorageKey('stock-status', useAuthStore.getState().user?.id, COMPANY_A) ?? '',
+      ) ?? '[]',
     ) as unknown[]
     expect(stored[0]).toEqual({
       name: 'Mağaza lokasyon',
@@ -145,5 +150,42 @@ describe('stock status page', () => {
     setupInventoryStock({ permissions: ['inventory.warehouses.view'] })
     renderInventoryStock('/inventory/stock')
     expect(await screen.findByText('Bu sayfaya erişiminiz yok')).toBeInTheDocument()
+  })
+  it('requests only the filters the page can show and reset', async () => {
+    const db = setupInventoryStock({ permissions: ['inventory.stock.view'] })
+    const user = userEvent.setup()
+    renderInventoryStock(
+      `/inventory/stock?filter[location_id]=loc-a01&filter[bogus]=1&filter[item_id]=${ITEM_BOLT}&filter[hide_zero]=yes&filter[group]=nope&filter[warehouse_id]=${WH_SHOP}`,
+    )
+    await screen.findByRole('grid', { name: 'Stok durumu' })
+    const call = lastList(db)
+    const filters = [...(call?.url.searchParams.keys() ?? [])].filter((k) =>
+      k.startsWith('filter['),
+    )
+    expect(filters).toEqual(['filter[warehouse_id]'])
+    expect(call?.url.searchParams.get('group_by')).toBe('item_warehouse')
+    // The one accepted filter has a control and the reset clears it.
+    expect(screen.getByLabelText('Depo')).toHaveValue(WH_SHOP)
+    await user.click(screen.getByRole('button', { name: 'Tüm filtreleri temizle' }))
+    await waitFor(() =>
+      expect(lastList(db)?.url.searchParams.has('filter[warehouse_id]')).toBe(false),
+    )
+    expect(screen.queryByRole('button', { name: 'Tüm filtreleri temizle' })).not.toBeInTheDocument()
+  })
+
+  it('offers warehouses from the rows to a user who cannot list warehouses', async () => {
+    const db = setupInventoryStock({ permissions: ['inventory.stock.view'] })
+    const user = userEvent.setup()
+    renderInventoryStock('/inventory/stock')
+    const grid = await screen.findByRole('grid', { name: 'Stok durumu' })
+    await within(grid).findByText('Cıvata M8')
+    const select = screen.getByLabelText('Depo')
+    expect(within(select).getByRole('option', { name: 'MGZ · Mağaza' })).toBeInTheDocument()
+    expect(within(select).getByRole('option', { name: 'MRK · Merkez depo' })).toBeInTheDocument()
+    await user.selectOptions(select, WH_SHOP)
+    await waitFor(() =>
+      expect(lastList(db)?.url.searchParams.get('filter[warehouse_id]')).toBe(WH_SHOP),
+    )
+    expect(db.calls.some((c) => c.path === '/warehouses')).toBe(false)
   })
 })

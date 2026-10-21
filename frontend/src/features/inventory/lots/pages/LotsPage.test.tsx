@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { LOT_OLD } from '@/test/handlers/inventoryStock'
+import { createInventoryStockDb, LOT_OLD } from '@/test/handlers/inventoryStock'
 import { renderInventoryStock, setupInventoryStock } from '../../stock/testing'
 import './LotsPage'
 import './LotTracePage'
@@ -77,5 +77,36 @@ describe('serials', () => {
         ),
       ).toBe(true),
     )
+  })
+})
+
+describe('serial history paging', () => {
+  it('loads a long serial history page by page instead of truncating it', async () => {
+    const base = createInventoryStockDb().movements[0]
+    if (!base) throw new Error('fixture has no movements')
+    const movements = Array.from({ length: 150 }, (_, i) => ({
+      ...base,
+      id: `mv-sn-${i + 1}`,
+      seq: i + 1,
+      serial: { id: 'sn-1', serial_no: 'MTK-0001' },
+    }))
+    const db = setupInventoryStock({ db: { movements } })
+    const user = userEvent.setup()
+    renderInventoryStock('/inventory/serials')
+    const grid = await screen.findByRole('grid', { name: 'Seri numaraları' })
+    const unit = (await within(grid).findByText('MTK-0001')).closest('tr') as HTMLElement
+    await user.click(within(unit).getByRole('button', { name: 'MTK-0001 geçmişini aç' }))
+    const drawer = await screen.findByRole('dialog', { name: 'MTK-0001 geçmişi' })
+    expect(await within(drawer).findByText('100 hareket yüklendi')).toBeInTheDocument()
+    await user.click(within(drawer).getByRole('button', { name: 'Daha fazla yükle' }))
+    expect(await within(drawer).findByText('150 hareket yüklendi')).toBeInTheDocument()
+    expect(
+      within(drawer).queryByRole('button', { name: 'Daha fazla yükle' }),
+    ).not.toBeInTheDocument()
+    const calls = db.calls.filter(
+      (c) =>
+        c.path === '/stock-movements' && c.url.searchParams.get('filter[serial_id]') === 'sn-1',
+    )
+    expect(calls.at(-1)?.url.searchParams.get('cursor')).toBe('51')
   })
 })

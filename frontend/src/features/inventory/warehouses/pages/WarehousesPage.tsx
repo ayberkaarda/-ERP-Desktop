@@ -38,10 +38,10 @@ export function WarehousesPage() {
   const list = useWarehouseList(query)
   const all = useAllWarehouses()
   const remove = useDeleteWarehouse()
-  // ?new=1 (command palette) opens the create dialog; closing it drops the param.
-  const [dialog, setDialog] = useState<DialogState | null>(() =>
-    params.get('new') === '1' ? { warehouse: null, tab: 'general', nonce: 0 } : null,
-  )
+  // The create dialog follows ?new=1 (also set by the command palette on an open page);
+  // edit dialogs are local state.
+  const creating = params.get('new') === '1' && canManage
+  const [dialog, setDialog] = useState<DialogState | null>(null)
   const [deleting, setDeleting] = useState<Warehouse | null>(null)
   const currentDefault = all.data?.find((w) => w.is_default) ?? null
 
@@ -59,8 +59,20 @@ export function WarehousesPage() {
     }
   }
 
-  const open = (warehouse: Warehouse | null, tab: DialogState['tab'] = 'general') =>
-    setDialog({ warehouse, tab, nonce: Date.now() })
+  const open = (warehouse: Warehouse | null, tab: DialogState['tab'] = 'general') => {
+    if (warehouse) {
+      setDialog({ warehouse, tab, nonce: Date.now() })
+      return
+    }
+    setDialog(null)
+    setParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('new', '1')
+      return next
+    })
+  }
+  const shown: DialogState | null =
+    dialog ?? (creating ? { warehouse: null, tab: 'general', nonce: 0 } : null)
 
   const columns = useMemo<DataTableColumn<Warehouse>[]>(
     () => [
@@ -206,6 +218,8 @@ export function WarehousesPage() {
           ]
         : []),
     ],
+    // `open` only writes state and the URL; the columns depend on labels and permission.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [t, canManage],
   )
 
@@ -248,14 +262,14 @@ export function WarehousesPage() {
         viewKey={VIEW_KEY}
         onRowActivate={(w) => open(w)}
       />
-      {dialog && (dialog.warehouse !== null || canManage) && (
+      {shown && (
         <WarehouseDialog
-          key={`${dialog.warehouse?.id ?? 'new'}:${dialog.nonce}`}
+          key={`${shown.warehouse?.id ?? 'new'}:${shown.nonce}`}
           open
           onOpenChange={(next) => !next && closeDialog()}
-          warehouse={dialog.warehouse}
+          warehouse={shown.warehouse}
           currentDefault={currentDefault}
-          initialTab={dialog.tab}
+          initialTab={shown.tab}
         />
       )}
       <ConfirmDialog

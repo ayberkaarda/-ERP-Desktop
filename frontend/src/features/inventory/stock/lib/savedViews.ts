@@ -1,4 +1,6 @@
 import { useCallback, useState } from 'react'
+import { useAuthStore } from '@/stores/auth'
+import { useCompanyStore } from '@/stores/company'
 
 /** A named set of page parameters (search, filters, grouping) kept per user in this browser. */
 export interface SavedViewEntry {
@@ -30,46 +32,68 @@ export function sanitizeViews(raw: unknown): SavedViewEntry[] {
   return out.slice(0, MAX)
 }
 
-export function viewStorageKey(key: string): string {
-  return PREFIX + key
+/**
+ * Storage key of one page's views for one user in one company; null without a signed-in user
+ * and company (views then live in memory only and are never shared between sessions).
+ */
+export function viewStorageKey(
+  key: string,
+  userId: string | null | undefined,
+  companyId: string | null | undefined,
+): string | null {
+  if (!userId || !companyId) return null
+  return `${PREFIX}${encodeURIComponent(userId)}.${encodeURIComponent(companyId)}.${key}`
 }
 
-function read(key: string): SavedViewEntry[] {
+function read(storageKey: string | null): SavedViewEntry[] {
+  if (!storageKey) return []
   try {
-    const raw = window.localStorage.getItem(PREFIX + key)
+    const raw = window.localStorage.getItem(storageKey)
     return raw ? sanitizeViews(JSON.parse(raw)) : []
   } catch {
     return []
   }
 }
 
-function write(key: string, list: SavedViewEntry[]) {
+function write(storageKey: string | null, list: SavedViewEntry[]) {
+  if (!storageKey) return
   try {
-    window.localStorage.setItem(PREFIX + key, JSON.stringify(list))
+    window.localStorage.setItem(storageKey, JSON.stringify(list))
   } catch {
     // Storage blocked: views live for this session only.
   }
 }
 
+/** Saved views of a page for the signed-in user in the active company; reloads on a switch. */
 export function useSavedViews(key: string) {
-  const [list, setList] = useState(() => read(key))
+  const userId = useAuthStore((s) => s.user?.id)
+  const companyId = useCompanyStore((s) => s.activeCompanyId)
+  const storageKey = viewStorageKey(key, userId, companyId)
+  const [state, setState] = useState(() => ({ storageKey, list: read(storageKey) }))
+  let list = state.list
+  if (state.storageKey !== storageKey) {
+    // Another user or company: drop the previous list and load this scope's views.
+    list = read(storageKey)
+    setState({ storageKey, list })
+  }
+  const update = useCallback(
+    (change: (prev: SavedViewEntry[]) => SavedViewEntry[]) =>
+      setState((prev) => {
+        const base = prev.storageKey === storageKey ? prev.list : read(storageKey)
+        const next = change(base)
+        write(storageKey, next)
+        return { storageKey, list: next }
+      }),
+    [storageKey],
+  )
   const save = useCallback(
     (entry: SavedViewEntry) =>
-      setList((prev) => {
-        const next = [entry, ...prev.filter((p) => p.name !== entry.name)].slice(0, MAX)
-        write(key, next)
-        return next
-      }),
-    [key],
+      update((prev) => [entry, ...prev.filter((p) => p.name !== entry.name)].slice(0, MAX)),
+    [update],
   )
   const remove = useCallback(
-    (name: string) =>
-      setList((prev) => {
-        const next = prev.filter((p) => p.name !== name)
-        write(key, next)
-        return next
-      }),
-    [key],
+    (name: string) => update((prev) => prev.filter((p) => p.name !== name)),
+    [update],
   )
   return { list, save, remove }
 }

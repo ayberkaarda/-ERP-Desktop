@@ -21,6 +21,7 @@ import { SavedViewsMenu } from '../../stock/components/SavedViewsMenu'
 import { INV_PATHS } from '../../stock/lib/api'
 import { EXPIRY_WARNING_DAYS } from '../../stock/lib/expiry'
 import { useFormatters } from '../../stock/lib/format'
+import { acceptFilters, anyValue, isTrue } from '../../stock/lib/filters'
 import { useInvT } from '../../stock/lib/i18n'
 import { itemStockPath, lotPath } from '../../stock/lib/navigation'
 import { useLotList } from '../../stock/lib/queries'
@@ -35,9 +36,21 @@ export function LotsPage() {
   const t = useInvT()
   const f = useFormatters()
   const canPickItems = usePermission('items.view')
-  const { query, setQuery } = useUrlListQuery(
+  const { query: urlQuery, setQuery } = useUrlListQuery(
     { sort: [{ id: 'expiry_date', desc: false }] },
     { viewKey: VIEW_KEY },
+  )
+  // Only filters with a control on this page are requested (the item filter needs the picker).
+  const query = useMemo(
+    () => ({
+      ...urlQuery,
+      filters: acceptFilters(urlQuery.filters, {
+        expiry_status: (v) => ['expired', 'expiring', 'valid', 'none'].includes(v),
+        in_stock: isTrue,
+        ...(canPickItems ? { item_id: anyValue } : {}),
+      }),
+    }),
+    [urlQuery, canPickItems],
   )
   const list = useLotList(query)
   const filter = (key: string) => query.filters[key] ?? ''

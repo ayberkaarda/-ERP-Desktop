@@ -20,9 +20,11 @@ import { InventoryShell } from '../../stock/components/common'
 import { SavedViewsMenu } from '../../stock/components/SavedViewsMenu'
 import { WarehouseSelect } from '../../stock/components/WarehouseSelect'
 import { INV_PATHS } from '../../stock/lib/api'
+import { acceptFilters, anyValue } from '../../stock/lib/filters'
 import { useInvT } from '../../stock/lib/i18n'
 import { lotPath } from '../../stock/lib/navigation'
 import { useSerialList } from '../../stock/lib/queries'
+import { knownWarehouses } from '../../stock/lib/warehouseOptions'
 import { SERIAL_STATUSES, type StockSerial } from '../../stock/lib/types'
 import { SerialHistoryDrawer } from '../components/SerialHistoryDrawer'
 
@@ -39,11 +41,27 @@ const TONES = {
 export function SerialsPage() {
   const t = useInvT()
   const canPickItems = usePermission('items.view')
-  const { query, setQuery } = useUrlListQuery(
+  const { query: urlQuery, setQuery } = useUrlListQuery(
     { sort: [{ id: 'serial_no', desc: false }] },
     { viewKey: VIEW_KEY },
   )
+  // Only filters with a control on this page are requested (the item filter needs the picker).
+  const query = useMemo(
+    () => ({
+      ...urlQuery,
+      filters: acceptFilters(urlQuery.filters, {
+        warehouse_id: anyValue,
+        status: (v) => (SERIAL_STATUSES as readonly string[]).includes(v),
+        ...(canPickItems ? { item_id: anyValue } : {}),
+      }),
+    }),
+    [urlQuery, canPickItems],
+  )
   const list = useSerialList(query)
+  const warehouseOptions = useMemo(
+    () => knownWarehouses((list.data?.data ?? []).map((s) => s.warehouse)),
+    [list.data],
+  )
   const [history, setHistory] = useState<StockSerial | null>(null)
   const filter = (key: string) => query.filters[key] ?? ''
   const change = (key: string, value: string) => setQuery(setFilter(query, key, value))
@@ -212,6 +230,7 @@ export function SerialsPage() {
             <WarehouseSelect
               {...control}
               value={filter('warehouse_id')}
+              known={warehouseOptions}
               onChange={(v) => change('warehouse_id', v)}
             />
           )}

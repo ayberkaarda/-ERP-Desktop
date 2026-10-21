@@ -16,6 +16,7 @@ import { WarehouseSelect } from '../../stock/components/WarehouseSelect'
 import { INV_PATHS, movementsApi } from '../../stock/lib/api'
 import { useInvT } from '../../stock/lib/i18n'
 import { useInvKeys } from '../../stock/lib/keys'
+import { knownWarehouses } from '../../stock/lib/warehouseOptions'
 import { MOVEMENT_TYPES } from '../../stock/lib/types'
 import { MovementsTable } from '../components/MovementsTable'
 
@@ -64,6 +65,7 @@ export function MovementsPage() {
   })
   const rows = useMemo(() => ledger.data?.pages.flatMap((p) => p.rows) ?? [], [ledger.data])
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = ledger
+  const warehouseOptions = useMemo(() => knownWarehouses(rows.map((m) => m.warehouse)), [rows])
   const loadMore = useCallback(() => void fetchNextPage(), [fetchNextPage])
 
   const setFilters = (next: Record<string, string>) =>
@@ -144,6 +146,7 @@ export function MovementsPage() {
             <WarehouseSelect
               {...control}
               value={f('warehouse_id')}
+              known={warehouseOptions}
               onChange={(v) => change('warehouse_id', v)}
             />
           )}
@@ -193,7 +196,10 @@ export function MovementsPage() {
         )}
       </div>
 
-      {(filters.document_id ?? filters.lot_id ?? filters.serial_id) && (
+      {(filters.document_id ??
+        filters.lot_id ??
+        filters.serial_id ??
+        (canPickItems ? undefined : filters.item_id)) && (
         <p className="mb-2 text-sm text-muted-foreground" role="status">
           {t('movements.scoped')}
         </p>

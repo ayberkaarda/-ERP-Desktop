@@ -139,6 +139,31 @@ describe('warehouses page', () => {
     expect(await screen.findByText('Bu sayfaya erişiminiz yok')).toBeInTheDocument()
     expect(screen.queryByRole('grid')).not.toBeInTheDocument()
   })
+
+  it('opens the create dialog when ?new=1 is set on an already open page', async () => {
+    setupInventoryStock()
+    const user = userEvent.setup()
+    const { router } = renderInventoryStock('/inventory/warehouses')
+    await screen.findByRole('grid', { name: 'Depolar' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    await router.navigate('/inventory/warehouses?new=1')
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni depo' })
+    await user.click(within(dialog).getByRole('button', { name: 'Vazgeç' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(router.state.location.search).not.toContain('new=')
+
+    // Running the command again on the same page opens it again.
+    await router.navigate('/inventory/warehouses?new=1')
+    expect(await screen.findByRole('dialog', { name: 'Yeni depo' })).toBeInTheDocument()
+  })
+
+  it('ignores ?new=1 for a viewer', async () => {
+    setupInventoryStock({ permissions: ['inventory.warehouses.view'] })
+    renderInventoryStock('/inventory/warehouses?new=1')
+    await screen.findByRole('grid', { name: 'Depolar' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 })
 
 describe('locations tree', () => {

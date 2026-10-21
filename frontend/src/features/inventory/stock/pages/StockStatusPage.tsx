@@ -21,13 +21,17 @@ import { SavedViewsMenu } from '../components/SavedViewsMenu'
 import { WarehouseSelect } from '../components/WarehouseSelect'
 import { balanceGroup, balanceParams, INV_PATHS } from '../lib/api'
 import { isBelow, isNegative, useFormatters } from '../lib/format'
+import { acceptFilters, anyValue, isTrue, type FilterRules } from '../lib/filters'
 import { useInvT } from '../lib/i18n'
 import { useBalanceList } from '../lib/queries'
 import { STOCK_GROUPINGS, type StockBalance } from '../lib/types'
+import { knownWarehouses } from '../lib/warehouseOptions'
 
 const VIEW_KEY = 'inventory.stock-status'
 /** Filters of the page; `group` is the grouping level, kept with them in the URL and views. */
 const FILTER_KEYS = ['warehouse_id', 'item_id', 'below_reorder', 'hide_zero', 'group'] as const
+const isGroup = (v: string) =>
+  v !== 'item_warehouse' && (STOCK_GROUPINGS as readonly string[]).includes(v)
 
 const balanceRowId = (b: StockBalance) =>
   [b.item_id, b.warehouse_id, b.location_id ?? '', b.lot_id ?? ''].join(':')
@@ -38,13 +42,29 @@ export function StockStatusPage() {
   const f = useFormatters()
   const canPickItems = usePermission('items.view')
   const [params, setParams] = useSearchParams()
-  const { query, setQuery } = useUrlListQuery(
+  const { query: urlQuery, setQuery } = useUrlListQuery(
     { sort: [{ id: 'item_code', desc: false }] },
     { viewKey: VIEW_KEY },
   )
+  // Only filters the page shows (and can reset) are requested; other URL params are ignored
+  // and dropped from the URL on the next change. The item filter needs the item picker.
+  const query = useMemo(() => {
+    const rules: FilterRules = {
+      warehouse_id: anyValue,
+      below_reorder: isTrue,
+      hide_zero: isTrue,
+      group: isGroup,
+      ...(canPickItems ? { item_id: anyValue } : {}),
+    }
+    return { ...urlQuery, filters: acceptFilters(urlQuery.filters, rules) }
+  }, [urlQuery, canPickItems])
   const group = balanceGroup(query)
   const drawerItem = params.get('item')
   const list = useBalanceList(query)
+  const warehouseOptions = useMemo(
+    () => knownWarehouses((list.data?.data ?? []).map((b) => b.warehouse)),
+    [list.data],
+  )
 
   // The drawer is a history entry: Back closes it.
   const setDrawerItem = (itemId: string | null) =>
@@ -220,6 +240,7 @@ export function StockStatusPage() {
             <WarehouseSelect
               {...control}
               value={filter('warehouse_id')}
+              known={warehouseOptions}
               onChange={(v) => change('warehouse_id', v)}
             />
           )}
