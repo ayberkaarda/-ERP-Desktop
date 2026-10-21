@@ -366,10 +366,14 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onIssued }: In
                   ref={field.ref}
                   scale={6}
                   displayMinFraction={0}
-                  value={field.value}
+                  value={values.fxAuto ? '' : field.value}
                   placeholder={t('invoice.autoRate')}
                   disabled={disabled}
-                  onChange={field.onChange}
+                  onChange={(v) => {
+                    field.onChange(v)
+                    // Clearing the field asks for the day's rate; any typed rate is kept as is.
+                    form.setValue('fxAuto', v === '', { shouldDirty: true })
+                  }}
                   onBlur={field.onBlur}
                 />
               )}

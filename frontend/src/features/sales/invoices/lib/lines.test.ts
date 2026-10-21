@@ -7,6 +7,7 @@ import {
   toInvoiceInput,
   toPreviewInput,
   undeliveredGoods,
+  valuesFromInvoice,
   type InvoiceLineValues,
   type InvoiceValues,
 } from './lines'
@@ -40,6 +41,22 @@ const m = {
 }
 
 describe('invoice form values', () => {
+  it('keeps a stored exchange rate verbatim, including an explicit 1', () => {
+    const stored = { ...values([filled()]), currencyCode: 'EUR', fxRate: '', fxAuto: true }
+    expect(toInvoiceInput(stored).fx_rate).toBeNull()
+    const explicit = toInvoiceInput(
+      valuesFromInvoice({
+        id: 'i1', number: null, status: 'draft', invoice_type: 'sale', document_date: '2026-10-21',
+        due_date: null, payment_term_id: null, price_list_id: null, party_id: 'p1', currency_code: 'EUR',
+        fx_rate: '1', warehouse_id: null, notes: null, source_type: null, source_id: null, version: 1,
+        subtotal: '0', discount_total: '0', tax_total: '0', total: '0', paid_amount: '0', balance_due: '0',
+        journal_entry_id: null, lines: [],
+      }),
+    )
+    expect(explicit.fx_rate).toBe('1')
+  })
+
+
   it('drops blank lines and sends a null price for server resolution', () => {
     const input = toInvoiceInput(
       values([emptyInvoiceLine(), filled({ unitPrice: '' }), filled({ unitPrice: '12.5' })]),

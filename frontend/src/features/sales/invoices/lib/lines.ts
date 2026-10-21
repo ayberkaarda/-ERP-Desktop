@@ -29,8 +29,10 @@ export interface InvoiceValues {
   documentDate: string
   dueDate: string
   currencyCode: string
-  /** '' = the server takes the day's rate. */
+  /** Rate as stored or typed (verbatim, '1' included). */
   fxRate: string
+  /** True: send fx_rate null so the server takes the day's rate. */
+  fxAuto: boolean
   paymentTermId: string
   warehouseId: string
   notes: string
@@ -66,6 +68,7 @@ export function emptyInvoice(currency = 'TRY'): InvoiceValues {
     dueDate: '',
     currencyCode: currency,
     fxRate: '',
+    fxAuto: true,
     paymentTermId: '',
     warehouseId: '',
     notes: '',
@@ -91,7 +94,8 @@ export function valuesFromInvoice(inv: Invoice): InvoiceValues {
     documentDate: inv.document_date,
     dueDate: inv.due_date ?? '',
     currencyCode: inv.currency_code,
-    fxRate: inv.fx_rate === '1' ? '' : inv.fx_rate,
+    fxRate: inv.fx_rate,
+    fxAuto: false,
     paymentTermId: inv.payment_term_id ?? '',
     warehouseId: inv.warehouse_id ?? '',
     notes: inv.notes ?? '',
@@ -113,6 +117,11 @@ export function valuesFromInvoice(inv: Invoice): InvoiceValues {
       sourceLineId: l.source_line_id ?? '',
     })),
   }
+}
+
+/** Explicit rate verbatim; null only when automatic resolution is asked for. */
+export function fxRateOf(values: InvoiceValues): string | null {
+  return !values.fxAuto && isDecimal(values.fxRate) ? values.fxRate : null
 }
 
 export function sentInvoiceLines(values: InvoiceValues) {
@@ -141,7 +150,7 @@ export function toInvoiceInput(values: InvoiceValues): InvoiceInput {
     document_date: values.documentDate,
     due_date: values.dueDate || null,
     currency_code: values.currencyCode,
-    fx_rate: isDecimal(values.fxRate) ? values.fxRate : null,
+    fx_rate: fxRateOf(values),
     payment_term_id: values.paymentTermId || null,
     warehouse_id: values.warehouseId || null,
     notes: values.notes.trim() || null,
@@ -162,7 +171,7 @@ export function toPreviewInput(values: InvoiceValues): PreviewInput | null {
     party_id: values.partyId || null,
     document_date: values.documentDate,
     currency_code: values.currencyCode,
-    fx_rate: isDecimal(values.fxRate) ? values.fxRate : null,
+    fx_rate: fxRateOf(values),
     lines: lines.map(toLineInput),
   }
 }

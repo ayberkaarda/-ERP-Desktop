@@ -30,6 +30,7 @@ export function invoiceSchema(m: InvoiceMessages) {
       dueDate: z.string(),
       currencyCode: z.string().min(3, m.currency),
       fxRate: z.string(),
+      fxAuto: z.boolean(),
       paymentTermId: z.string(),
       warehouseId: z.string(),
       notes: z.string().max(2000, m.tooLong),
@@ -38,7 +39,7 @@ export function invoiceSchema(m: InvoiceMessages) {
       lines: z.array(z.custom<InvoiceLineValues>()),
     })
     .superRefine((v, ctx) => {
-      if (v.fxRate !== '' && (!isDecimal(v.fxRate) || dec(v.fxRate).lessThanOrEqualTo(0)))
+      if (!v.fxAuto && (!isDecimal(v.fxRate) || dec(v.fxRate).lessThanOrEqualTo(0)))
         ctx.addIssue({ code: 'custom', message: m.fxRate, path: ['fxRate'] })
       if (v.dueDate && v.dueDate < v.documentDate)
         ctx.addIssue({ code: 'custom', message: m.dueBeforeDate, path: ['dueDate'] })
