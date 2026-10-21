@@ -145,11 +145,23 @@ export function PartyDetailPage() {
         description={t('detail.deleteBody', { name: p.name })}
         confirmLabel={t('detail.delete')}
         onConfirm={async () => {
+          let result
           try {
-            await del.mutateAsync(p.id)
+            result = await del.mutateAsync({ id: p.id, version: p.version })
           } catch (error) {
+            if (isVersionConflict(error)) {
+              setConfirmDelete(false)
+              setConflict(true)
+              return
+            }
             platform.notify.error(readServerError(error)?.message ?? t('form.saveFailed'))
             throw error
+          }
+          if (result.deactivated) {
+            // Still referenced elsewhere: the server kept it and made it passive instead.
+            platform.notify.info(result.message ?? t('detail.deactivatedInUse'))
+            setConfirmDelete(false)
+            return
           }
           platform.notify.success(t('detail.deleted'))
           void navigate('/parties', { replace: true })

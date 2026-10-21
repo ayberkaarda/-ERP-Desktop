@@ -1,11 +1,23 @@
-/** Permission names of the Reference module (<resource>.<action>). */
+/**
+ * Permission names of the Reference module, as declared in backend Modules/Reference/permissions.php
+ * (<resource>.view|create|update|delete; exchange rates use one `manage`; locations reuse the
+ * warehouse permissions: view to read, update to write).
+ */
+const crud = (resource: string) =>
+  ({
+    view: `${resource}.view`,
+    create: `${resource}.create`,
+    update: `${resource}.update`,
+    delete: `${resource}.delete`,
+  }) as const
+
 export const REF_PERMISSIONS = {
-  currencies: { view: 'currencies.view', manage: 'currencies.manage' },
+  currencies: { view: 'currencies.view', update: 'currencies.update' },
   exchangeRates: { view: 'exchange_rates.view', manage: 'exchange_rates.manage' },
-  taxCodes: { view: 'tax_codes.view', manage: 'tax_codes.manage' },
-  paymentTerms: { view: 'payment_terms.view', manage: 'payment_terms.manage' },
-  warehouses: { view: 'warehouses.view', manage: 'warehouses.manage' },
-  costCenters: { view: 'cost_centers.view', manage: 'cost_centers.manage' },
-  projects: { view: 'projects.view', manage: 'projects.manage' },
-  settings: { view: 'settings.view', manage: 'settings.update' },
+  taxCodes: crud('tax_codes'),
+  paymentTerms: crud('payment_terms'),
+  warehouses: crud('warehouses'),
+  costCenters: crud('cost_centers'),
+  projects: crud('projects'),
+  settings: { view: 'settings.view', update: 'settings.update' },
 } as const

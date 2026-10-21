@@ -140,7 +140,7 @@ function UnitsTable() {
         label={t('units.tabUnits')}
         columns={columns}
         data={list.data?.data ?? []}
-        total={list.data?.meta.total ?? 0}
+        total={list.data?.meta.pagination.total ?? 0}
         loading={list.isPending}
         error={list.isError}
         onRetry={() => void list.refetch()}

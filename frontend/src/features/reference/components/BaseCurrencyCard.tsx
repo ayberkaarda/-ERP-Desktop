@@ -16,7 +16,7 @@ import { CurrencySelect } from './selects'
 /** Reads and writes `company.base_currency` through the Settings API. */
 export function BaseCurrencyCard() {
   const t = useRefT()
-  const canEdit = usePermission(REF_PERMISSIONS.settings.manage)
+  const canEdit = usePermission(REF_PERMISSIONS.settings.update)
   const current = useBaseCurrency()
   const save = useSetBaseCurrency()
   const [draft, setDraft] = useState<string | null>(null)

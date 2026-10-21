@@ -30,12 +30,16 @@ export function DuplicateWarning({ matches }: { matches: PartyDuplicate[] }) {
                       <span className="font-code">{m.code}</span> {m.name}
                     </Link>
                     {m.tax_number && <span className="font-code text-xs">{m.tax_number}</span>}
-                    {m.match && (
+                    {m.reasons.length > 0 && (
                       <span className="text-xs">
                         (
-                        {m.match === 'tax_number'
-                          ? t('duplicates.byTaxNumber')
-                          : t('duplicates.byName')}
+                        {m.reasons
+                          .map((r) =>
+                            r === 'tax_number'
+                              ? t('duplicates.byTaxNumber')
+                              : t('duplicates.byName'),
+                          )
+                          .join(', ')}
                         )
                       </span>
                     )}

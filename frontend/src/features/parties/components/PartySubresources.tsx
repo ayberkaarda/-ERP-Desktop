@@ -80,7 +80,7 @@ export function AddressesEditor({ partyId, canEdit, country = 'TR' }: Props) {
         line1: r.line1,
         line2: s(r.line2),
         district: s(r.district),
-        city: r.city,
+        city: s(r.city),
         postal_code: s(r.postal_code),
         country: r.country,
         is_default: r.is_default,

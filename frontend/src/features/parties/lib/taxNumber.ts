@@ -21,9 +21,9 @@ export function taxNumberProblem(
   country: string,
   type: PartyType,
 ): TaxNumberProblem | null {
-  const v = value.trim()
-  if (v === '') return null
   const kind = taxNumberKind(country, type)
+  const v = normalizeTaxNumber(value, country)
+  if (v === '') return null
   if (kind === 'vkn') {
     if (!/^\d{10}$/.test(v)) return 'vknLength'
     return isValidVkn(v) ? null : 'vknChecksum'
@@ -32,5 +32,12 @@ export function taxNumberProblem(
     if (!/^\d{11}$/.test(v)) return 'tcknLength'
     return isValidTckn(v) ? null : 'tcknChecksum'
   }
-  return v.length <= FOREIGN_TAX_NUMBER_MAX && /^[A-Za-z0-9.\-/ ]+$/.test(v) ? null : 'foreign'
+  // Same charset as the server: any letter or digit (also non-ASCII), dash, slash, dot, space.
+  return v.length <= FOREIGN_TAX_NUMBER_MAX && /^[\p{L}\p{N}.\-/ ]+$/u.test(v) ? null : 'foreign'
+}
+
+/** Mirrors the server: Turkish numbers lose spaces, dots and dashes; foreign ones are trimmed. */
+export function normalizeTaxNumber(value: string, country: string): string {
+  const v = value.trim()
+  return country.toUpperCase() === 'TR' ? v.replace(/[\s.-]+/g, '') : v
 }

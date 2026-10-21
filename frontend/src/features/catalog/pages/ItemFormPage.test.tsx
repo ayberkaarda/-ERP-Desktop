@@ -162,6 +162,21 @@ describe('ItemFormPage', () => {
     expect(db.itemUnits[1]?.factor).toBe('2.500000')
   })
 
+  it('edits an alternate unit factor without resending its unit', async () => {
+    const db = setupCatalog()
+    const user = userEvent.setup()
+    renderCatalog(`/catalog/items/${ITEM_BOLT}?tab=units`)
+    await user.click(await screen.findByRole('button', { name: 'KOLI birimini düzenle' }))
+    const dialog = await screen.findByRole('dialog')
+    const factor = within(dialog).getByLabelText(/^1 KOLI kaç ADET/)
+    await user.clear(factor)
+    await user.type(factor, '24')
+    await user.click(within(dialog).getByRole('button', { name: 'Kaydet' }))
+    await waitFor(() => expect(db.itemUnits[0]?.factor).toBe('24.000000'))
+    const patch = db.calls.find((c) => c.method === 'PATCH' && c.path.includes('/units/'))
+    expect(patch?.body).toEqual({ factor: '24.000000', version: 1 })
+  })
+
   it('adds a variant with attributes', async () => {
     const db = setupCatalog()
     const user = userEvent.setup()

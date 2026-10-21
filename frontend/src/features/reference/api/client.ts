@@ -26,7 +26,7 @@ export async function fetchAll<T>(
       signal,
     })
     rows.push(...res.data)
-    const last = res.meta?.last_page
+    const last = res.meta?.pagination?.last_page
     // Without paging meta a full page means there may be more.
     const done = last !== undefined ? page >= last : res.data.length < PER_PAGE
     if (done || res.data.length === 0) return rows
@@ -41,7 +41,8 @@ export interface CrudApi<T, I> {
   all: (params?: Params, signal?: AbortSignal) => Promise<T[]>
   create: (input: I, idempotencyKey?: string) => Promise<T>
   update: (id: string, version: number, patch: Partial<I>) => Promise<T>
-  remove: (id: string) => Promise<void>
+  /** DELETE requires the record version (optimistic lock); it travels as a query parameter. */
+  remove: (id: string, version: number) => Promise<void>
   get: (id: string, signal?: AbortSignal) => Promise<T>
 }
 
@@ -58,8 +59,8 @@ export function createCrudApi<T, I>(path: string): CrudApi<T, I> {
       (await platform.http.post<ItemResponse<T>>(path, input, withIdempotency({}, key))).data,
     update: async (id, version, patch) =>
       (await platform.http.patch<ItemResponse<T>>(item(id), { ...patch, version })).data,
-    remove: async (id) => {
-      await platform.http.delete<unknown>(item(id))
+    remove: async (id, version) => {
+      await platform.http.delete<unknown>(item(id), { params: { version } })
     },
   }
 }

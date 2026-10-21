@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
+import { currency } from '@/test/handlers/reference'
 import { pickOption, renderReference, setupReference } from '@/test/handlers/referenceRender'
 import { ExchangeRatesPage } from './ExchangeRatesPage'
 
@@ -29,20 +30,21 @@ describe('ExchangeRatesPage', () => {
     expect(alert).toHaveTextContent('5 gün önce')
   })
 
-  it('filters the history by date range through the list query', async () => {
+  it('filters the history by rate date (the backend has no range filter) and currency', async () => {
     const db = setupReference()
     const user = userEvent.setup()
     renderReference(<ExchangeRatesPage />)
 
     await user.click(await screen.findByRole('tab', { name: 'Kur geçmişi' }))
-    const from = await screen.findByLabelText('Başlangıç tarihi')
-    await user.type(from, '19.10.2026')
+    const date = await screen.findByLabelText('Tarih', { selector: 'input' })
+    await user.type(date, '19.10.2026')
     await user.tab()
 
     await waitFor(() => {
       const last = db.calls.filter((c) => c.path === '/exchange-rates').at(-1)
-      expect(last?.query.get('filter[date_from]')).toBe('2026-10-19')
+      expect(last?.query.get('filter[rate_date]')).toBe('2026-10-19')
     })
+    expect(db.calls.some((c) => c.query.has('filter[date_from]'))).toBe(false)
     await user.selectOptions(screen.getByLabelText('Para birimi', { selector: 'select' }), 'USD')
     await waitFor(() => {
       const last = db.calls.filter((c) => c.path === '/exchange-rates').at(-1)
@@ -66,7 +68,8 @@ describe('ExchangeRatesPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const post = db.calls.find((c) => c.method === 'POST' && c.path === '/exchange-rates')
     const body = post?.body as Record<string, string>
-    expect(body).toMatchObject({ currency_code: 'USD', source: 'manual' })
+    expect(body).toMatchObject({ currency_code: 'USD' })
+    expect(body).not.toHaveProperty('source')
     expect(body.forex_buying).toMatch(/^41.250*$/)
     expect(body.forex_selling).toMatch(/^41.30*$/)
     expect(post?.body).not.toHaveProperty('banknote_buying')
@@ -92,6 +95,28 @@ describe('ExchangeRatesPage', () => {
     const alert = await within(dialog).findByRole('alert')
     expect(alert).toHaveTextContent('Satış kuru alış kurundan küçük olamaz.')
     expect(dialog).toBeInTheDocument()
+  })
+
+  it('asks /exchange-rates/latest once per active non-base currency and skips 404s', async () => {
+    const db = setupReference({
+      db: {
+        currencies: [
+          currency('c-try', 'TRY', 'Türk Lirası', '₺', true),
+          currency('c-usd', 'USD', 'ABD Doları', '$', true),
+          currency('c-gbp', 'GBP', 'Sterlin', '£', true),
+          currency('c-eur', 'EUR', 'Euro', '€', false),
+        ],
+      },
+    })
+    renderReference(<ExchangeRatesPage />)
+
+    const table = await screen.findByRole('table', { name: /güncel kurlar/i })
+    expect(within(table).getByRole('rowheader', { name: 'USD' })).toBeInTheDocument()
+    expect(within(table).queryByRole('rowheader', { name: 'EUR' })).not.toBeInTheDocument()
+    const asked = db.calls
+      .filter((c) => c.path === '/exchange-rates/latest')
+      .map((c) => c.query.get('currency'))
+    expect(asked.sort()).toEqual(['GBP', 'USD'])
   })
 
   it('hides the manual entry action without the manage permission', async () => {

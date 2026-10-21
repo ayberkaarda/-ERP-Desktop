@@ -177,15 +177,14 @@ function RateHistory() {
     [t, locale],
   )
 
-  const from = query.filters.date_from ?? ''
-  const to = query.filters.date_to ?? ''
+  const rateDate = query.filters.rate_date ?? ''
 
   return (
     <DataTable<ExchangeRate>
       label={t('rates.history')}
       columns={columns}
       data={list.data?.data ?? []}
-      total={list.data?.meta?.total ?? list.data?.data.length ?? 0}
+      total={list.data?.meta?.pagination?.total ?? list.data?.data.length ?? 0}
       loading={list.isLoading}
       error={list.isError}
       onRetry={() => void list.refetch()}
@@ -206,24 +205,14 @@ function RateHistory() {
               onChange={(e) => setQuery(setFilter(query, 'currency_code', e.target.value))}
             />
           </label>
+          {/* The backend filters on one exact rate_date (no date range filter yet). */}
           <div className="space-y-1 text-xs text-muted-foreground">
-            <span id="rate-from-label">{t('rates.from')}</span>
+            <span id="rate-date-label">{t('rates.date')}</span>
             <FilterDate
-              labelledBy="rate-from-label"
+              labelledBy="rate-date-label"
               className="w-40"
-              value={from}
-              max={to || undefined}
-              onCommit={(value) => setQuery(setFilter(query, 'date_from', value))}
-            />
-          </div>
-          <div className="space-y-1 text-xs text-muted-foreground">
-            <span id="rate-to-label">{t('rates.to')}</span>
-            <FilterDate
-              labelledBy="rate-to-label"
-              className="w-40"
-              value={to}
-              min={from || undefined}
-              onCommit={(value) => setQuery(setFilter(query, 'date_to', value))}
+              value={rateDate}
+              onCommit={(value) => setQuery(setFilter(query, 'rate_date', value))}
             />
           </div>
         </div>

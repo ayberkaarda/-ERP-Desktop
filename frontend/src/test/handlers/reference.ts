@@ -41,12 +41,33 @@ export interface ReferenceDb {
   nextId: number
 }
 
+/** A global currency row as ReferenceResource renders it (company activation + its version). */
+export function currency(
+  id: string,
+  code: string,
+  name: string,
+  symbol: string,
+  companyActive: boolean,
+): Currency {
+  return {
+    id,
+    code,
+    name,
+    symbol,
+    decimals: 2,
+    is_active: true,
+    company_is_active: companyActive,
+    company_version: 1,
+    version: 1,
+  }
+}
+
 export function createReferenceDb(overrides: Partial<ReferenceDb> = {}): ReferenceDb {
   return {
     currencies: [
-      { code: 'TRY', name: 'Türk Lirası', symbol: '₺', decimals: 2, is_active: true },
-      { code: 'USD', name: 'ABD Doları', symbol: '$', decimals: 2, is_active: true },
-      { code: 'EUR', name: 'Euro', symbol: '€', decimals: 2, is_active: false },
+      currency('c-try', 'TRY', 'Türk Lirası', '₺', true),
+      currency('c-usd', 'USD', 'ABD Doları', '$', true),
+      currency('c-eur', 'EUR', 'Euro', '€', false),
     ],
     rates: [
       {
@@ -70,7 +91,7 @@ export function createReferenceDb(overrides: Partial<ReferenceDb> = {}): Referen
         source: 'tcmb',
       },
     ],
-    rateStatus: { last_fetch_date: '2026-10-20', stale_days: 1 },
+    rateStatus: { last_fetch_date: '2026-10-20', stale_days: 1, is_stale: false },
     taxCodes: [
       {
         id: 'tx1',
@@ -111,7 +132,7 @@ export function createReferenceDb(overrides: Partial<ReferenceDb> = {}): Referen
         rate: null,
         numerator: 5,
         denominator: 10,
-        effective_from: null,
+        effective_from: '2025-01-01',
         effective_to: null,
         is_active: true,
         meta: null,
@@ -139,8 +160,8 @@ export function createReferenceDb(overrides: Partial<ReferenceDb> = {}): Referen
         code: 'NET30',
         name: '30 gün vade',
         due_days: 30,
-        discount_percent: null,
-        discount_days: null,
+        discount_percent: '0.0000',
+        discount_days: 0,
         is_active: true,
         version: 1,
       },
@@ -240,7 +261,46 @@ const text = (value: unknown): string =>
     ? String(value)
     : ''
 
-function listResponse<T extends Row>(rows: T[], url: URL, searchable: (keyof T)[]) {
+/** Filters each backend list accepts (ReferenceController: fillable ∩ the filterable columns). */
+const FILTERS: Record<string, string[]> = {
+  currencies: ['is_active'],
+  'exchange-rates': ['source', 'currency_code', 'rate_date'],
+  'tax-codes': ['is_active', 'type'],
+  'payment-terms': ['is_active'],
+  warehouses: ['is_active'],
+  locations: ['is_active', 'type', 'parent_id'],
+  'cost-centers': ['is_active', 'parent_id'],
+  projects: ['status', 'cost_center_id'],
+}
+
+/** Sorts each backend list accepts: searchable columns, created_at, rate_date/effective_from. */
+const SORTS: Record<string, string[]> = {
+  currencies: ['code', 'name', 'created_at'],
+  'exchange-rates': ['currency_code', 'created_at', 'rate_date'],
+  'tax-codes': ['code', 'name', 'created_at', 'effective_from'],
+  'payment-terms': ['code', 'name', 'created_at'],
+  warehouses: ['code', 'name', 'created_at'],
+  locations: ['code', 'name', 'barcode', 'created_at'],
+  'cost-centers': ['code', 'name', 'created_at'],
+  projects: ['code', 'name', 'created_at'],
+}
+
+function listResponse<T extends Row>(
+  rows: T[],
+  url: URL,
+  searchable: (keyof T)[],
+  resource?: string,
+) {
+  // Like Core ListQuery: an unknown filter is a 422 on filter.<name>.
+  const allowed = resource ? FILTERS[resource] : undefined
+  for (const key of url.searchParams.keys()) {
+    const name = /^filter\[(.+)]$/.exec(key)?.[1]
+    if (name && allowed && !allowed.includes(name)) {
+      return apiError(422, 'VALIDATION_ERROR', 'Doğrulama hatası', {
+        [`filter.${name}`]: ['Geçersiz filtre.'],
+      })
+    }
+  }
   let data = rows.slice()
   const q = url.searchParams.get('q')?.toLowerCase()
   if (q) {
@@ -258,15 +318,15 @@ function listResponse<T extends Row>(rows: T[], url: URL, searchable: (keyof T)[
     if (!name) continue
     if (name === 'is_active') {
       data = data.filter((r) => String((r as Record<string, unknown>)[name] ? 1 : 0) === value)
-    } else if (name === 'date_from') {
-      data = data.filter((r) => String((r as Record<string, unknown>).rate_date) >= value)
-    } else if (name === 'date_to') {
-      data = data.filter((r) => String((r as Record<string, unknown>).rate_date) <= value)
     } else {
       data = data.filter((r) => String((r as Record<string, unknown>)[name]) === value)
     }
   }
   const sort = url.searchParams.get('sort')
+  const sortable = resource ? SORTS[resource] : undefined
+  if (sort && sortable && sort.split(',').some((s) => !sortable.includes(s.replace(/^-/, '')))) {
+    return apiError(422, 'VALIDATION_ERROR', 'Doğrulama hatası', { sort: ['Geçersiz sıralama.'] })
+  }
   if (sort) {
     const desc = sort.startsWith('-')
     const field = sort.replace(/^-/, '')
@@ -281,10 +341,12 @@ function listResponse<T extends Row>(rows: T[], url: URL, searchable: (keyof T)[
   return json({
     data: data.slice((page - 1) * perPage, page * perPage),
     meta: {
-      current_page: page,
-      per_page: perPage,
-      total: data.length,
-      last_page: Math.max(1, Math.ceil(data.length / perPage)),
+      pagination: {
+        current_page: page,
+        per_page: perPage,
+        total: data.length,
+        last_page: Math.max(1, Math.ceil(data.length / perPage)),
+      },
     },
   })
 }
@@ -321,7 +383,7 @@ export function referenceHandlers(db: ReferenceDb) {
     return [
       http.get(base, async ({ request }) => {
         await record(request)
-        return listResponse(get(), new URL(request.url), searchable)
+        return listResponse(get(), new URL(request.url), searchable, path.slice(1))
       }),
       http.get(`${base}/:id`, async ({ request, params }) => {
         await record(request)
@@ -361,6 +423,18 @@ export function referenceHandlers(db: ReferenceDb) {
       }),
       http.delete(`${base}/:id`, async ({ request, params }) => {
         await record(request)
+        const found = get().find((r) => r.id === params.id)
+        if (!found) return apiError(404, 'NOT_FOUND', 'Not found')
+        // ReferenceRequest: DELETE requires an integer version (query or body).
+        const version = new URL(request.url).searchParams.get('version')
+        if (version === null || !/^\d+$/.test(version)) {
+          return apiError(422, 'VALIDATION_ERROR', 'Doğrulama hatası', {
+            version: ['Sürüm zorunludur.'],
+          })
+        }
+        if (Number(version) !== found.version) {
+          return apiError(409, 'VERSION_CONFLICT', 'Kayıt başka biri tarafından değiştirildi.')
+        }
         write(get().filter((r) => r.id !== params.id))
         return new HttpResponse(null, { status: 204 })
       }),
@@ -370,19 +444,39 @@ export function referenceHandlers(db: ReferenceDb) {
   return [
     http.get('*/api/v1/currencies', async ({ request }) => {
       await record(request)
-      return listResponse(db.currencies, new URL(request.url), ['code', 'name'])
+      return listResponse(db.currencies, new URL(request.url), ['code', 'name'], 'currencies')
     }),
-    http.patch('*/api/v1/currencies/:code', async ({ request, params }) => {
-      const body = (await record(request)) as { is_active: boolean }
-      const found = db.currencies.find((c) => c.code === params.code)
+    // PATCH /currencies/{uuid} {is_active, version}: toggles the company activation row.
+    http.patch('*/api/v1/currencies/:id', async ({ request, params }) => {
+      const body = (await record(request)) as { is_active: boolean; version?: number }
+      const found = db.currencies.find((c) => c.id === params.id)
       if (!found) return apiError(404, 'NOT_FOUND', 'Not found')
-      found.is_active = body.is_active
+      if (body.version !== found.company_version) {
+        return apiError(409, 'VERSION_CONFLICT', 'Kayıt başka biri tarafından değiştirildi.')
+      }
+      found.company_is_active = body.is_active
+      found.company_version += 1
+      found.version = found.company_version
       return json({ data: found })
     }),
 
+    // One currency per call; manual wins over TCMB on the same day; 404 when there is none.
     http.get('*/api/v1/exchange-rates/latest', async ({ request }) => {
       await record(request)
-      return json({ data: db.rates })
+      const code = new URL(request.url).searchParams.get('currency') ?? ''
+      if (!/^[A-Z]{3}$/.test(code)) {
+        return apiError(422, 'VALIDATION_ERROR', 'Doğrulama hatası', {
+          currency: ['Para birimi zorunludur.'],
+        })
+      }
+      const latest = db.rates
+        .filter((r) => r.currency_code === code)
+        .sort(
+          (a, b) =>
+            b.rate_date.localeCompare(a.rate_date) ||
+            Number(b.source === 'manual') - Number(a.source === 'manual'),
+        )[0]
+      return latest ? json({ data: latest }) : apiError(404, 'NOT_FOUND', 'Not found')
     }),
     http.get('*/api/v1/exchange-rates/status', async ({ request }) => {
       await record(request)
@@ -390,7 +484,7 @@ export function referenceHandlers(db: ReferenceDb) {
     }),
     http.get('*/api/v1/exchange-rates', async ({ request }) => {
       await record(request)
-      return listResponse(db.rates, new URL(request.url), ['currency_code'])
+      return listResponse(db.rates, new URL(request.url), ['currency_code'], 'exchange-rates')
     }),
     http.post('*/api/v1/exchange-rates', async ({ request }) => {
       const body = (await record(request)) as Omit<ExchangeRate, 'id'>
@@ -401,6 +495,7 @@ export function referenceHandlers(db: ReferenceDb) {
       }
       const created: ExchangeRate = {
         ...body,
+        source: 'manual',
         banknote_buying: body.banknote_buying ?? null,
         banknote_selling: body.banknote_selling ?? null,
         id: take(),
@@ -442,10 +537,12 @@ export function referenceHandlers(db: ReferenceDb) {
 
     http.get('*/api/v1/warehouses/:id/locations', async ({ request, params }) => {
       await record(request)
-      return listResponse(db.locations[String(params.id)] ?? [], new URL(request.url), [
-        'code',
-        'name',
-      ])
+      return listResponse(
+        db.locations[String(params.id)] ?? [],
+        new URL(request.url),
+        ['code', 'name'],
+        'locations',
+      )
     }),
     http.post('*/api/v1/warehouses/:id/locations', async ({ request, params }) => {
       const body = (await record(request)) as Record<string, unknown>

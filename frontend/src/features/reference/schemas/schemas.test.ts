@@ -32,7 +32,6 @@ describe('exchangeRateSchema', () => {
       rate_date: '2026-10-21',
       forex_buying: '41.25',
       forex_selling: '41.320000',
-      source: 'manual',
     })
   })
 
@@ -55,10 +54,16 @@ describe('taxCodeSchema', () => {
     rate: '',
     numerator: '',
     denominator: '',
-    effective_from: '',
+    effective_from: '2026-01-01',
     effective_to: '',
     is_active: true,
   }
+
+  it('requires the start date (NOT NULL on the backend)', () => {
+    expect(issuePaths(taxCodeSchema.safeParse({ ...base, effective_from: '' }))).toContain(
+      'effective_from',
+    )
+  })
 
   it('needs a rate for VAT', () => {
     expect(issuePaths(taxCodeSchema.safeParse({ ...base, type: 'vat' }))).toContain('rate')
@@ -101,6 +106,13 @@ describe('paymentTermSchema', () => {
     discount_days: '',
     is_active: true,
   }
+
+  it('sends a zero discount instead of null when none is entered (columns are NOT NULL)', () => {
+    expect(toPaymentTermInput(paymentTermSchema.parse(base))).toMatchObject({
+      discount_percent: '0',
+      discount_days: 0,
+    })
+  })
 
   it('converts to the API payload with numeric days and string percent', () => {
     const parsed = paymentTermSchema.parse({

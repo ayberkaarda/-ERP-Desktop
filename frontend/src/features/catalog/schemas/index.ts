@@ -15,6 +15,7 @@ import {
   type PriceList,
   type PriceListInput,
   type PriceListLine,
+  type PriceListLineInput,
 } from '../types'
 import { fromAttributeRows, toAttributeRows } from '../lib/attributes'
 import {
@@ -226,9 +227,8 @@ export function toLineValues(l: PriceListLine): PriceLineValues {
   }
 }
 
-export function toLineInput(v: PriceLineValues): PriceListLine {
+export function toLineInput(v: PriceLineValues): PriceListLineInput {
   return {
-    ...(v.id ? { id: v.id } : {}),
     item_id: v.item_id,
     variant_id: emptyToNull(v.variant_id),
     unit_id: v.unit_id,
@@ -237,6 +237,47 @@ export function toLineInput(v: PriceLineValues): PriceListLine {
     valid_from: emptyToNull(v.valid_from),
     valid_to: emptyToNull(v.valid_to),
   }
+}
+
+/** The server's natural key of a line: (item, variant, unit, min_qty at scale 6, valid_from). */
+export function lineKey(l: {
+  item_id: string
+  variant_id: string | null
+  unit_id: string
+  min_qty: string
+  valid_from: string | null
+}): string {
+  let min = l.min_qty
+  try {
+    min = new Decimal(l.min_qty || '0').toFixed(6)
+  } catch {
+    // Invalid input is rejected by the form schema before a save is planned.
+  }
+  return [l.item_id, l.variant_id ?? '', l.unit_id, min, l.valid_from ?? ''].join('|')
+}
+
+/**
+ * Turns the edited grid into the API calls: every grid line goes into the PUT upsert (carrying
+ * the version of the server line with the same natural key, which makes it an overwrite), and
+ * server lines whose key no longer appears in the grid are deleted.
+ */
+export function planLineSave(
+  values: readonly PriceLineValues[],
+  server: readonly PriceListLine[],
+): { lines: PriceListLineInput[]; removed: { id: string; version?: number }[] } {
+  const byKey = new Map(server.map((l) => [lineKey(l), l]))
+  const kept = new Set<string>()
+  const lines = values.map((v) => {
+    const input = toLineInput(v)
+    const key = lineKey(input)
+    const existing = byKey.get(key)
+    kept.add(key)
+    return existing?.version !== undefined ? { ...input, version: existing.version } : input
+  })
+  const removed = server
+    .filter((l) => l.id !== undefined && !kept.has(lineKey(l)))
+    .map((l) => ({ id: l.id ?? '', version: l.version }))
+  return { lines, removed }
 }
 
 export const emptyLine = (): PriceLineValues => ({
@@ -284,9 +325,10 @@ export function discountRuleDefaults(r?: DiscountRule): DiscountRuleValues {
     code: r?.code ?? '',
     name: r?.name ?? '',
     scope: r?.scope ?? 'all',
-    scope_ref: r?.scope_ref ?? '',
-    party_id: r?.party_id ?? '',
-    min_qty: r?.min_qty ?? '',
+    // The form picks a party-scoped rule's party in the scope_ref field.
+    scope_ref: (r?.scope === 'party' ? r.party_id : r?.scope_ref) ?? '',
+    party_id: r?.scope === 'party' ? '' : (r?.party_id ?? ''),
+    min_qty: r && !new Decimal(r.min_qty || '0').isZero() ? r.min_qty : '',
     discount_percent: r?.discount_percent ?? '',
     priority: String(r?.priority ?? 10),
     valid_from: r?.valid_from ?? '',
@@ -301,10 +343,10 @@ export function toDiscountRuleInput(v: DiscountRuleValues): DiscountRuleInput {
     code: v.code.trim(),
     name: v.name.trim(),
     scope: v.scope,
-    scope_ref: v.scope === 'all' ? null : emptyToNull(v.scope_ref),
-    // A party-scoped rule already names the party in scope_ref.
-    party_id: v.scope === 'party' ? null : emptyToNull(v.party_id),
-    min_qty: emptyToNull(v.min_qty),
+    // The API keeps scope_ref for item/category rules only; a party rule names its party_id.
+    scope_ref: v.scope === 'item' || v.scope === 'category' ? emptyToNull(v.scope_ref) : null,
+    party_id: v.scope === 'party' ? emptyToNull(v.scope_ref) : emptyToNull(v.party_id),
+    min_qty: v.min_qty.trim() === '' ? '0' : v.min_qty,
     discount_percent: v.discount_percent,
     priority: Number(v.priority),
     valid_from: emptyToNull(v.valid_from),
@@ -323,6 +365,6 @@ export const playgroundSchema = z.object({
   qty: decimalString({ positive: true, scale: 6, max: MAX_QTY }),
   unit_id: z.string(),
   date: z.string().min(1, MSG.required),
-  currency: z.string(),
+  currency: z.string().regex(/^[A-Z]{3}$/, MSG.required),
 })
 export type PlaygroundValues = z.infer<typeof playgroundSchema>

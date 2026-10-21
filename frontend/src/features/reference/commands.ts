@@ -102,5 +102,3 @@ export const referenceCommands: readonly Command[] = [
 export function registerReferenceCommands(): () => void {
   return registerCommands(referenceCommands)
 }
-
-registerReferenceCommands()

@@ -24,7 +24,8 @@ interface Action {
 
 export function CostCentersPage() {
   const t = useRefT()
-  const canManage = usePermission(REF_PERMISSIONS.costCenters.manage)
+  const canCreate = usePermission(REF_PERMISSIONS.costCenters.create)
+  const canUpdate = usePermission(REF_PERMISSIONS.costCenters.update)
   const centers = useCostCenters()
   const update = useUpdateCostCenter()
   const editor = useEditor<Action>()
@@ -42,7 +43,7 @@ export function CostCentersPage() {
       title={t('costCenters.title')}
       description={t('costCenters.subtitle')}
       actions={
-        <Can permission={REF_PERMISSIONS.costCenters.manage}>
+        <Can permission={REF_PERMISSIONS.costCenters.create}>
           <Button onClick={() => editor.openEdit({ record: null, parentId: '' })}>
             <Plus aria-hidden="true" />
             {t('costCenters.new')}
@@ -70,38 +71,44 @@ export function CostCentersPage() {
               <span className="font-code text-sm">{c.code}</span>
               <span className="min-w-0 flex-1 truncate text-sm">{c.name}</span>
               {!c.is_active && <Badge tone="warning">{t('fields.inactive')}</Badge>}
-              {canManage && (
+              {(canCreate || canUpdate) && (
                 <div className="flex items-center">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('costCenters.addChild', { name: c.name })}
-                    onClick={() => editor.openEdit({ record: null, parentId: c.id })}
-                  >
-                    <CornerDownRight aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('actions.editNamed', { name: c.name })}
-                    onClick={() => editor.openEdit({ record: c, parentId: '' })}
-                  >
-                    <Pencil aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t(
-                      c.is_active ? 'costCenters.deactivateNamed' : 'costCenters.activateNamed',
-                      {
-                        name: c.name,
-                      },
-                    )}
-                    disabled={update.isPending}
-                    onClick={() => toggleActive(c)}
-                  >
-                    <Power aria-hidden="true" />
-                  </Button>
+                  {canCreate && (
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('costCenters.addChild', { name: c.name })}
+                      onClick={() => editor.openEdit({ record: null, parentId: c.id })}
+                    >
+                      <CornerDownRight aria-hidden="true" />
+                    </Button>
+                  )}
+                  {canUpdate && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t('actions.editNamed', { name: c.name })}
+                        onClick={() => editor.openEdit({ record: c, parentId: '' })}
+                      >
+                        <Pencil aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={t(
+                          c.is_active ? 'costCenters.deactivateNamed' : 'costCenters.activateNamed',
+                          {
+                            name: c.name,
+                          },
+                        )}
+                        disabled={update.isPending}
+                        onClick={() => toggleActive(c)}
+                      >
+                        <Power aria-hidden="true" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
             </>

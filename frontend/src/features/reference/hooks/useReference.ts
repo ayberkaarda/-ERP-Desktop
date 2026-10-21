@@ -11,7 +11,12 @@ import {
   taxCodesApi,
   warehousesApi,
 } from '../api/resources'
-import { BASE_CURRENCY_KEY, type ExchangeRateInput, type LocationInput } from '../types'
+import {
+  BASE_CURRENCY_KEY,
+  type Currency,
+  type ExchangeRateInput,
+  type LocationInput,
+} from '../types'
 import { refKeys } from './keys'
 import { createCrudHooks } from './useCrud'
 
@@ -51,7 +56,7 @@ export function useCurrencies(options: { activeOnly?: boolean } = {}) {
     queryKey: refKeys.full('currencies'),
     queryFn: ({ signal }) => currenciesApi.all(signal),
     staleTime: 60_000,
-    select: (rows) => (activeOnly ? rows.filter((c) => c.is_active) : rows),
+    select: (rows) => (activeOnly ? rows.filter((c) => c.company_is_active) : rows),
   })
 }
 
@@ -91,8 +96,8 @@ export function useCurrencyList(query: ListQueryState) {
 export function useSetCurrencyActive() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ code, isActive }: { code: string; isActive: boolean }) =>
-      currenciesApi.setActive(code, isActive),
+    mutationFn: ({ currency, isActive }: { currency: Currency; isActive: boolean }) =>
+      currenciesApi.setActive(currency, isActive),
     onSuccess: () => qc.invalidateQueries({ queryKey: refKeys.resource('currencies') }),
   })
 }
@@ -105,11 +110,28 @@ export function useRateList(query: ListQueryState) {
   })
 }
 
+/**
+ * Latest rate of every currency active for the company except the base currency; the backend
+ * answers one currency per request (GET /exchange-rates/latest?currency=).
+ */
 export function useLatestRates() {
-  return useQuery({
-    queryKey: refKeys.latestRates(),
-    queryFn: ({ signal }) => exchangeRatesApi.latest(signal),
+  const currencies = useCurrencies({ activeOnly: true })
+  const base = useBaseCurrency()
+  const baseCode = base.data ?? 'TRY'
+  const codes = (currencies.data ?? []).map((c) => c.code).filter((c) => c !== baseCode)
+  const ready = currencies.isSuccess && !base.isLoading
+  const latest = useQuery({
+    queryKey: [...refKeys.latestRates(), codes] as const,
+    queryFn: ({ signal }) => exchangeRatesApi.latest(codes, signal),
+    enabled: ready,
   })
+  return {
+    data: latest.data,
+    isLoading: currencies.isLoading || (ready && latest.isLoading),
+    isError: currencies.isError || latest.isError,
+    error: currencies.error ?? latest.error,
+    refetch: () => (currencies.isError ? currencies.refetch() : latest.refetch()),
+  }
 }
 
 export function useRateStatus() {

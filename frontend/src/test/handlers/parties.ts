@@ -3,10 +3,12 @@ import { ibanProblem, normalizeIban } from '@/features/parties/lib/iban'
 import { taxNumberProblem } from '@/features/parties/lib/taxNumber'
 import type {
   ApiActivity,
+  DuplicateReason,
   Party,
   PartyAddress,
   PartyBankAccount,
   PartyContact,
+  PartyDuplicate,
   PartyInput,
 } from '@/features/parties/types'
 
@@ -24,7 +26,7 @@ export interface PartiesDb {
   contacts: (PartyContact & { party_id: string; version: number })[]
   'bank-accounts': (PartyBankAccount & { party_id: string; version: number })[]
   audit: (ApiActivity & { subject_id: string })[]
-  calls: { method: string; path: string; body: unknown; headers: Headers }[]
+  calls: { method: string; path: string; search: string; body: unknown; headers: Headers }[]
   nextCode: number
   /** Idempotency-Key -> request body + created party, for replays like the API's middleware. */
   idempotency: Map<string, { body: string; party: Party }>
@@ -32,6 +34,8 @@ export interface PartiesDb {
   dropNextCreateResponse: boolean
   /** PATCHes to these parties fail with 500. */
   failPatchIds: Set<string>
+  /** Parties referenced elsewhere: DELETE deactivates them (200 + meta.action) like the API. */
+  inUseIds: Set<string>
 }
 
 let seq = 0
@@ -73,13 +77,14 @@ export function createPartiesDb(overrides: Partial<PartiesDb> = {}): PartiesDb {
     idempotency: new Map(),
     dropNextCreateResponse: false,
     failPatchIds: new Set(),
+    inUseIds: new Set(),
     ...overrides,
   }
 }
 
 const validation = (fields: Record<string, string[]>) =>
   HttpResponse.json(
-    { errors: { message: 'Doğrulama başarısız.', code: 'VALIDATION_FAILED', fields } },
+    { errors: { message: 'Doğrulama başarısız.', code: 'VALIDATION_ERROR', fields } },
     { status: 422 },
   )
 const fail = (status: number, code: string, message: string) =>
@@ -116,7 +121,13 @@ export function partiesHandlers(db: PartiesDb) {
         .json()
         .catch(() => null)
     }
-    db.calls.push({ method: request.method, path: url.pathname, body, headers: request.headers })
+    db.calls.push({
+      method: request.method,
+      path: url.pathname,
+      search: url.search,
+      body,
+      headers: request.headers,
+    })
     return url
   }
   const find = (id: string) => db.parties.find((p) => p.id === id)
@@ -126,21 +137,32 @@ export function partiesHandlers(db: PartiesDb) {
       const url = await record(request)
       const tax = url.searchParams.get('tax_number') ?? ''
       const name = (url.searchParams.get('name') ?? '').toLocaleLowerCase('tr')
+      const exclude = url.searchParams.get('exclude_id')
+      if (!tax && !name) {
+        const message = 'Vergi numarası veya ad gerekli.'
+        return validation({ tax_number: [message], name: [message] })
+      }
+      // DuplicateResource: tax number matches first, reasons list every input that matched.
       const data = db.parties
+        .filter((p) => p.id !== exclude)
         .map((p) => {
-          if (tax && p.tax_number === tax) return { p, match: 'tax_number' as const }
-          if (name && p.name.toLocaleLowerCase('tr').includes(name))
-            return { p, match: 'name' as const }
-          return null
+          const reasons: DuplicateReason[] = []
+          if (tax && p.tax_number === tax) reasons.push('tax_number')
+          if (name && p.name.toLocaleLowerCase('tr').includes(name)) reasons.push('name')
+          return { p, reasons }
         })
-        .filter((x) => x !== null)
-        .map(({ p, match }) => ({
+        .filter((x) => x.reasons.length > 0)
+        .map(({ p, reasons }): PartyDuplicate => ({
           id: p.id,
           code: p.code,
           name: p.name,
+          legal_name: p.legal_name,
+          type: p.type,
+          roles: p.roles,
           tax_number: p.tax_number,
           is_active: p.is_active,
-          match,
+          reasons,
+          similarity: reasons.includes('name') ? 0.5 : 0,
         }))
       return HttpResponse.json({ data })
     }),
@@ -196,7 +218,11 @@ export function partiesHandlers(db: PartiesDb) {
         }
         return HttpResponse.json({ data: stored.party }, { status: 201 })
       }
-      const input = JSON.parse(raw) as PartyInput
+      const sent = JSON.parse(raw) as Record<string, unknown>
+      const input = sent as unknown as PartyInput
+      if (sent.code !== undefined) return validation({ code: ['Kod sunucu tarafından verilir.'] })
+      if (sent.version !== undefined)
+        return validation({ version: ['Oluştururken sürüm gönderilmez.'] })
       const party = makeParty({ ...input, code: `P${String(db.nextCode).padStart(6, '0')}` })
       const fields = validateParty(db, party)
       if (Object.keys(fields).length) return validation(fields)
@@ -222,6 +248,8 @@ export function partiesHandlers(db: PartiesDb) {
       if (!party) return fail(404, 'NOT_FOUND', 'Bulunamadı.')
       if (db.failPatchIds.has(party.id)) return fail(500, 'SERVER_ERROR', 'Sunucu hatası.')
       const patch = (await request.json()) as Partial<Party> & { version?: number }
+      if (typeof patch.version !== 'number') return validation({ version: ['Sürüm zorunludur.'] })
+      if ('code' in patch) return validation({ code: ['Kod değiştirilemez.'] })
       if (patch.version !== party.version) {
         return fail(409, 'VERSION_CONFLICT', 'Kayıt başka biri tarafından değiştirildi.')
       }
@@ -235,7 +263,17 @@ export function partiesHandlers(db: PartiesDb) {
     http.delete('*/api/v1/parties/:id', async ({ request, params }) => {
       await record(request)
       const id = String(params.id)
-      if (!find(id)) return fail(404, 'NOT_FOUND', 'Bulunamadı.')
+      const party = find(id)
+      if (!party) return fail(404, 'NOT_FOUND', 'Bulunamadı.')
+      const conflict = versionCheck(request, party.version)
+      if (conflict) return conflict
+      if (db.inUseIds.has(id)) {
+        Object.assign(party, { is_active: false, version: party.version + 1 })
+        return HttpResponse.json({
+          data: party,
+          meta: { action: 'deactivated', message: 'Cari kullanımda olduğu için pasifleştirildi.' },
+        })
+      }
       db.parties = db.parties.filter((p) => p.id !== id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -254,6 +292,8 @@ export function partiesHandlers(db: PartiesDb) {
       }
       const sub = String(params.sub) as Sub
       const body = (await request.json()) as Record<string, unknown>
+      if (body.version !== undefined)
+        return validation({ version: ['Oluştururken sürüm gönderilmez.'] })
       const fields = validateSub(sub, body)
       if (Object.keys(fields).length) return validation(fields)
       const row = { ...body, id: uuid(), party_id: String(params.id), version: 1 } as SubRow
@@ -268,7 +308,8 @@ export function partiesHandlers(db: PartiesDb) {
       const row = (db[sub] as SubRow[]).find((r) => r.id === String(params.rowId))
       if (!row) return fail(404, 'NOT_FOUND', 'Bulunamadı.')
       const body = (await request.json()) as Record<string, unknown>
-      if (body.version !== undefined && body.version !== row.version) {
+      if (typeof body.version !== 'number') return validation({ version: ['Sürüm zorunludur.'] })
+      if (body.version !== row.version) {
         return fail(409, 'VERSION_CONFLICT', 'Satır değiştirildi.')
       }
       const fields = validateSub(sub, { ...row, ...body })
@@ -281,6 +322,10 @@ export function partiesHandlers(db: PartiesDb) {
     http.delete('*/api/v1/parties/:id/:sub/:rowId', async ({ request, params }) => {
       await record(request)
       const sub = String(params.sub) as Sub
+      const row = (db[sub] as SubRow[]).find((r) => r.id === String(params.rowId))
+      if (!row) return fail(404, 'NOT_FOUND', 'Bulunamadı.')
+      const conflict = versionCheck(request, row.version)
+      if (conflict) return conflict
       ;(db as unknown as Record<Sub, SubRow[]>)[sub] = (db[sub] as SubRow[]).filter(
         (r) => r.id !== String(params.rowId),
       )
@@ -297,6 +342,14 @@ export function partiesHandlers(db: PartiesDb) {
       })
     }),
   ]
+}
+
+/** DELETE carries the version the user saw (?version=); 422 without it, 409 when stale. */
+function versionCheck(request: Request, current: number) {
+  const raw = new URL(request.url).searchParams.get('version')
+  if (raw === null || !/^\d+$/.test(raw)) return validation({ version: ['Sürüm zorunludur.'] })
+  if (Number(raw) !== current) return fail(409, 'VERSION_CONFLICT', 'Kayıt değiştirildi.')
+  return null
 }
 
 function validateSub(sub: Sub, body: Record<string, unknown>): Record<string, string[]> {

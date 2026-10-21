@@ -164,7 +164,8 @@ function ItemUnitDialog({
   const save = useMutation({
     mutationFn: (v: ItemUnitValues) =>
       base
-        ? itemUnitsApi.update(item.id, base.id, { ...v, version: base.version })
+        ? // The unit of an existing row is fixed (unit_id is prohibited on PATCH); only the factor changes.
+          itemUnitsApi.update(item.id, base.id, { factor: v.factor, version: base.version })
         : itemUnitsApi.create(item.id, v, idem.current(v)),
     onSuccess: async () => {
       idem.reset()
