@@ -9,6 +9,8 @@ use Brick\Math\BigDecimal;
 /**
  * Gross debit/credit totals of one account (or a sum of accounts): before the range (opening) and
  * inside it (movement). Totals are opening + movement; the balance is split onto the side it falls.
+ * A sum over several accounts (accounts()) keeps the sum of each account's debit balances and of its
+ * credit balances, so opposing accounts do not cancel out in the balance columns.
  */
 final readonly class Amounts
 {
@@ -17,7 +19,30 @@ final readonly class Amounts
         public BigDecimal $openingCredit,
         public BigDecimal $debit,
         public BigDecimal $credit,
+        public ?BigDecimal $balanceDebitSum = null,
+        public ?BigDecimal $balanceCreditSum = null,
     ) {}
+
+    /**
+     * Total of separate accounts (each counted once): gross columns added, balance columns as the
+     * sum of the debit balances and the sum of the credit balances.
+     *
+     * @param  iterable<Amounts>  $accounts
+     */
+    public static function accounts(iterable $accounts): self
+    {
+        $total = self::zero();
+        $debitBalances = BigDecimal::zero();
+        $creditBalances = BigDecimal::zero();
+
+        foreach ($accounts as $amounts) {
+            $total = $total->plus($amounts);
+            $debitBalances = $debitBalances->plus($amounts->balanceDebit());
+            $creditBalances = $creditBalances->plus($amounts->balanceCredit());
+        }
+
+        return new self($total->openingDebit, $total->openingCredit, $total->debit, $total->credit, $debitBalances, $creditBalances);
+    }
 
     public static function zero(): self
     {
@@ -63,6 +88,28 @@ final readonly class Amounts
         return $this->openingDebit->minus($this->openingCredit);
     }
 
+    public function balanceDebit(): BigDecimal
+    {
+        if ($this->balanceDebitSum !== null) {
+            return $this->balanceDebitSum;
+        }
+
+        $balance = $this->balance();
+
+        return $balance->isPositive() ? $balance : BigDecimal::zero();
+    }
+
+    public function balanceCredit(): BigDecimal
+    {
+        if ($this->balanceCreditSum !== null) {
+            return $this->balanceCreditSum;
+        }
+
+        $balance = $this->balance();
+
+        return $balance->isNegative() ? $balance->negated() : BigDecimal::zero();
+    }
+
     public function isZero(): bool
     {
         return $this->openingDebit->isZero() && $this->openingCredit->isZero() && $this->debit->isZero() && $this->credit->isZero();
@@ -73,8 +120,6 @@ final readonly class Amounts
      */
     public function toArray(): array
     {
-        $balance = $this->balance();
-
         return [
             'opening_debit' => Money::str($this->openingDebit),
             'opening_credit' => Money::str($this->openingCredit),
@@ -82,8 +127,8 @@ final readonly class Amounts
             'credit' => Money::str($this->credit),
             'total_debit' => Money::str($this->totalDebit()),
             'total_credit' => Money::str($this->totalCredit()),
-            'balance_debit' => Money::str($balance->isPositive() ? $balance : BigDecimal::zero()),
-            'balance_credit' => Money::str($balance->isNegative() ? $balance->negated() : BigDecimal::zero()),
+            'balance_debit' => Money::str($this->balanceDebit()),
+            'balance_credit' => Money::str($this->balanceCredit()),
         ];
     }
 }

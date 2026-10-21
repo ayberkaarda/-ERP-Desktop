@@ -56,9 +56,10 @@ final class RangeResolver
     {
         if ($range->isPeriod() && $range->fiscalYearId !== null) {
             $current = FiscalYear::query()->find($range->fiscalYearId);
+            // Only the year that ends the day before this one starts; across a gap the dates shift.
             $previous = $current === null ? null : FiscalYear::query()
-                ->whereDate('end_date', '<', $current->start_date->format('Y-m-d'))
-                ->orderByDesc('end_date')->first();
+                ->whereDate('end_date', $current->start_date->copy()->subDay()->format('Y-m-d'))
+                ->first();
             $period = $previous === null ? null : AccountingPeriod::query()
                 ->where('fiscal_year_id', $previous->id)->where('number', $range->periodNumber)->first();
 

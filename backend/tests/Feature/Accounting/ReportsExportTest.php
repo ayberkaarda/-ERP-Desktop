@@ -47,7 +47,7 @@ it('exports the trial balance as CSV with totals and guarded text cells', functi
         ->and($byCode['600'][1])->toBe('\'=HYPERLINK("http://evil")')
         ->and($byCode['600'][11])->toBe('3000.0000')
         ->and($byCode['100'][10])->toBe('10000.0000')
-        ->and(end($rows))->toBe(['Total', '', '', '', '0.0000', '0.0000', '20600.0000', '20600.0000', '20600.0000', '20600.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000', '0.0000']);
+        ->and(end($rows))->toBe(['Total', '', '', '', '0.0000', '0.0000', '20600.0000', '20600.0000', '20600.0000', '20600.0000', '16000.0000', '16000.0000', '0.0000', '0.0000', '0.0000', '0.0000']);
 });
 
 it('exports the general ledger and the statement with opening, running balance and totals', function (): void {

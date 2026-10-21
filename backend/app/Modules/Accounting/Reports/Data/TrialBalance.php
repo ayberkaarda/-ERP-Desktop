@@ -27,10 +27,11 @@ final readonly class TrialBalance
         public ?Amounts $previousTotals,
     ) {}
 
-    /** Total debit equals total credit, for the movement and for the cumulative totals. */
+    /** Total debit equals total credit: movement, cumulative totals and the balance columns. */
     public function balanced(): bool
     {
         return $this->totals->debit->isEqualTo($this->totals->credit)
-            && $this->totals->totalDebit()->isEqualTo($this->totals->totalCredit());
+            && $this->totals->totalDebit()->isEqualTo($this->totals->totalCredit())
+            && $this->totals->balanceDebit()->isEqualTo($this->totals->balanceCredit());
     }
 }

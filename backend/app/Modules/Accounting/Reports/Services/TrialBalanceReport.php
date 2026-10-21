@@ -133,14 +133,13 @@ final class TrialBalanceReport
      */
     private function byGroup(AccountTree $tree, array $own): array
     {
-        $groups = [];
+        $members = [];
 
         foreach ($own as $id => $amounts) {
-            $key = $tree->get($id)->tdhp_group ?? 0;
-            $groups[$key] = isset($groups[$key]) ? $groups[$key]->plus($amounts) : $amounts;
+            $members[$tree->get($id)->tdhp_group ?? 0][] = $amounts;
         }
 
-        return $groups;
+        return array_map(Amounts::accounts(...), $members);
     }
 
     /**
@@ -148,12 +147,6 @@ final class TrialBalanceReport
      */
     private function sum(array $own): Amounts
     {
-        $total = Amounts::zero();
-
-        foreach ($own as $amounts) {
-            $total = $total->plus($amounts);
-        }
-
-        return $total;
+        return Amounts::accounts($own);
     }
 }

@@ -268,17 +268,16 @@ final class ReportController
      */
     private function withParties(LedgerPage $page): array
     {
-        $parties = [];
-
-        foreach ($page->lines as $line) {
-            if ($line->partyId !== null && ! array_key_exists($line->partyId, $parties)) {
-                $party = $this->party($line->partyId);
-                $parties[$line->partyId] = $party !== null && $party->companyId === $this->companyId() ? $party : null;
-            }
-        }
+        $ids = array_values(array_unique(array_filter(array_map(static fn (LedgerLine $line): ?string => $line->partyId, $page->lines))));
+        $company = $this->companyId();
+        // One bulk lookup per page; the lookup is company scoped, the check below keeps it so.
+        $parties = $ids === [] ? [] : array_filter(
+            app(PartyLookup::class)->findMany($ids),
+            static fn (PartyData $party): bool => $party->companyId === $company,
+        );
 
         return array_map(
-            static fn (LedgerLine $line): LedgerLine => $line->partyId === null ? $line : $line->withParty($parties[$line->partyId]),
+            static fn (LedgerLine $line): LedgerLine => $line->partyId === null ? $line : $line->withParty($parties[$line->partyId] ?? null),
             $page->lines,
         );
     }

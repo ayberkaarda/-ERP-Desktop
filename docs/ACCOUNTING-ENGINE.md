@@ -204,14 +204,14 @@ verdiğini doğrular. Her rapor tek bir `REPEATABLE READ, READ ONLY` işlem içi
 
 | Uç | İçerik | Parametreler |
 |---|---|---|
-| `trial-balance` (mizan) | Hesap kodu sırasıyla satırlar; üst hesaplar alt hesapların toplamını taşır. Her satırda `opening_debit/credit` (devir), `debit/credit` (dönem hareketi), `total_debit/credit` (kümülatif), `balance_debit/credit`. `groups`: TDHP sınıfı (1-9) ara toplamları; `totals`, `balanced` (borç = alacak) ve `difference`. | `level` (1..n, boşsa tüm seviyeler), `include_zero`, `compare_with_previous_year` (önceki mali yılın aynı numaralı dönemi ya da bir yıl geri kaydırılmış tarihler; satırlarda `previous`, ayrıca `previous_totals`) |
+| `trial-balance` (mizan) | Hesap kodu sırasıyla satırlar; üst hesaplar alt hesapların toplamını taşır. Her satırda `opening_debit/credit` (devir), `debit/credit` (dönem hareketi), `total_debit/credit` (kümülatif), `balance_debit/credit`. `groups`: TDHP sınıfı (1-9) ara toplamları; `totals` (bakiye sütunları hesap bazında ayrı toplanır, karşı bakiyeler birbirini silmez), `balanced` (borç = alacak) ve `difference`. | `level` (1..n, boşsa tüm seviyeler), `include_zero`, `compare_with_previous_year` (bir gün önce biten mali yılın aynı numaralı dönemi, o yıl yoksa bir yıl geri kaydırılmış tarihler; satırlarda `previous`, ayrıca `previous_totals`) |
 | `general-ledger` (büyük defter) | Tarih ve fiş numarasına göre satırlar, sayfalar arasında süren `running_balance` (borç pozitif). `meta`: hesap, `opening_balance`, `totals`, `closing_balance`. Üst hesap seçilirse alt hesapların satırları gelir. | `account_id`, `page`, `per_page` (en çok 500) |
 | `journal-book` (yevmiye defteri) | Mali yıl ve fiş numarası sırasıyla fişler ve satırları, fiş bazında sayfalı. `meta.carried_forward`: aynı mali yılda aralıktan önceki toplam; `page_brought_forward` (devreden), `page_totals`, `page_carried_forward` (nakledilen), `range_totals`. | `page`, `per_page` |
 | `account-statement` (cari ekstre tabanı) | Cariye bağlı satırlar, açılış ve yürüyen bakiye. `account_balances` cari boyutu taşımadığından her zaman satırlardan okunur. | `party_id`, `account_from`, `account_to` (`account_to` alt hesapları kapsar: 120 → 120.01), `page`, `per_page` |
 
 **Dışa aktarma:** Her raporun `/export?format=csv|xlsx` ucu vardır (varsayılan CSV, UTF-8 BOM).
 Sayfalama yoktur; aralığın tamamı yazılır. Satır sınırı `accounting.export_max_rows` (50.000);
-aşılırsa 422. Hücre `=`, `+`, `-`, `@`, sekme veya satır sonuyla başlıyorsa başına `'` eklenir;
+aşılırsa 422. XLSX hücreleri metin olarak yazılır (tutarlar kayan noktaya çevrilmez). Hücre `=`, `+`, `-`, `@`, sekme veya satır sonuyla başlıyorsa başına `'` eklenir;
 yalnızca sayı olan değerler (ör. `-3000.0000`) olduğu gibi kalır. Mizan dosyasının sonunda toplam
 satırı; büyük defter ve ekstrede başta açılış, sonda toplam satırı; yevmiye defterinde başta
 devreden, sonda toplam satırı bulunur.

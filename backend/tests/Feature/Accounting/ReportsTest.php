@@ -62,9 +62,9 @@ it('builds the trial balance of a period from account_balances with the worked n
         ->and($rows['500']['opening_credit'])->toBe('10000.0000')
         ->and($rows['500']['balance_credit'])->toBe('10000.0000')
         ->and($rows['770']['debit'])->toBe('500.0000')
-        ->and(Arr::only($data['totals'], ['opening_debit', 'opening_credit', 'debit', 'credit', 'total_debit', 'total_credit']))->toBe([
+        ->and(Arr::only($data['totals'], ['opening_debit', 'opening_credit', 'debit', 'credit', 'total_debit', 'total_credit', 'balance_debit', 'balance_credit']))->toBe([
             'opening_debit' => '10000.0000', 'opening_credit' => '10000.0000', 'debit' => '6500.0000', 'credit' => '6500.0000',
-            'total_debit' => '16500.0000', 'total_credit' => '16500.0000',
+            'total_debit' => '16500.0000', 'total_credit' => '16500.0000', 'balance_debit' => '16000.0000', 'balance_credit' => '16000.0000',
         ])
         ->and($data['balanced'])->toBeTrue()
         ->and($data['difference'])->toBe('0.0000');
@@ -320,6 +320,11 @@ it('names the party of ledger lines only when it belongs to the active company',
         public function find(string $id): ?PartyData
         {
             return [$this->foreign->id => $this->foreign, $this->own->id => $this->own][$id] ?? null;
+        }
+
+        public function findMany(array $ids): array
+        {
+            return array_filter(array_combine($ids, array_map($this->find(...), $ids)));
         }
 
         public function findByCode(string $code): ?PartyData
