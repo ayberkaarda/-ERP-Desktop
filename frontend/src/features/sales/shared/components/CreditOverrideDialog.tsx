@@ -22,6 +22,8 @@ interface CreditOverrideDialogProps {
   error: unknown
   onClose: () => void
   partyId: string
+  /** The stored order / invoice: the exposure answer then says what it adds (risk currency). */
+  documentId?: string | null
   /** This document's total and currency (shown when the API sends no breakdown). */
   documentTotal: string
   documentCurrency: string
@@ -37,6 +39,7 @@ export function CreditOverrideDialog({
   error,
   onClose,
   partyId,
+  documentId = null,
   documentTotal,
   documentCurrency,
   onOverride,
@@ -46,11 +49,13 @@ export function CreditOverrideDialog({
   const canOverride = usePermission(SALES_PERMS.creditOverride)
   const open = error !== null && error !== undefined
   const fromError = readCreditBreakdown(error)
-  const exposure = useExposure(open ? partyId : '')
+  const exposure = useExposure(open ? partyId : '', documentId)
   const currency = fromError.currency ?? exposure.data?.currency ?? documentCurrency
   const limit = fromError.limit ?? exposure.data?.limit ?? null
   const current = fromError.exposure ?? exposure.data?.total ?? null
-  const doc = fromError.document ?? documentTotal
+  // In the risk currency when the API tells (error details or the exposure answer).
+  const riskDocument = fromError.document ?? exposure.data?.document_amount ?? null
+  const doc = riskDocument ?? documentTotal
   const money = (v: string | null, c = currency) => (v === null ? '—' : formatMoney(v, c, locale))
 
   const breakdown = (
@@ -69,7 +74,7 @@ export function CreditOverrideDialog({
         <dd className="text-right tabular-nums">{money(current)}</dd>
         <dt className="text-muted-foreground">{t('credit.document')}</dt>
         <dd className="text-right tabular-nums">
-          {money(doc, fromError.document ? currency : documentCurrency)}
+          {money(doc, riskDocument !== null ? currency : documentCurrency)}
         </dd>
       </dl>
     </div>

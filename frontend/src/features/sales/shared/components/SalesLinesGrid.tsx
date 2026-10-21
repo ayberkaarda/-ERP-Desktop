@@ -21,7 +21,7 @@ import {
   baseQuantity,
   dec,
   emptyLine,
-  MANUAL_PRICE,
+  priceSourceGroup,
   toLineItem,
   trimDecimal,
   type DocValues,
@@ -258,8 +258,10 @@ export function SalesLinesGrid({
       render: (ctx) => {
         const resolved = preview.get(ctx.line.key)
         const manual = ctx.value.trim() !== ''
+        // The price list price when one resolves (an override shows it as the hint).
+        const listPrice = manual ? (resolved?.resolved_price ?? null) : null
         const resolvedText = resolved
-          ? formatDecimalDisplay(trimDecimal(resolved.unit_price), {
+          ? formatDecimalDisplay(trimDecimal(listPrice ?? resolved.unit_price), {
               locale,
               minFraction: 2,
               maxFraction: 4,
@@ -268,9 +270,7 @@ export function SalesLinesGrid({
         const source = manual
           ? t('lines.priceManual')
           : resolved
-            ? t(
-                `lines.priceSource.${resolved.price_source === MANUAL_PRICE ? 'manual' : resolved.price_source ? 'list' : 'none'}`,
-              )
+            ? t(`lines.priceSource.${priceSourceGroup(resolved.price_source)}`)
             : ''
         return (
           <div>
