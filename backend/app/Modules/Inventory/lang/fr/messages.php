@@ -72,4 +72,7 @@ return [
     'reorder_title' => ':count articles au niveau ou sous leur point de commande',
     'reorder_body' => 'Consultez les suggestions de réapprovisionnement : :items',
     'command_company_missing' => 'La société n’existe pas ou n’est pas active.',
+    'report_opening' => 'Solde initial',
+    'report_closing' => 'Solde final',
+    'report_total' => 'Total',
 ];

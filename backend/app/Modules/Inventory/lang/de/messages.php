@@ -72,4 +72,7 @@ return [
     'reorder_title' => ':count Artikel auf oder unter ihrem Meldebestand',
     'reorder_body' => 'Prüfen Sie die Bestellvorschläge: :items',
     'command_company_missing' => 'Das Unternehmen existiert nicht oder ist nicht aktiv.',
+    'report_opening' => 'Anfangsbestand',
+    'report_closing' => 'Endbestand',
+    'report_total' => 'Summe',
 ];

@@ -20,6 +20,7 @@ use App\Modules\Inventory\Models\StockLot;
 use App\Modules\Inventory\Models\StockMovement;
 use App\Modules\Inventory\Models\StockReservation;
 use App\Modules\Inventory\Models\WarehouseSetting;
+use App\Modules\Inventory\Policies\InventoryReportPolicy;
 use App\Modules\Inventory\Policies\StockDocumentPolicy;
 use App\Modules\Inventory\Policies\StockMovementPolicy;
 use App\Modules\Inventory\Policies\StockReservationPolicy;
@@ -69,6 +70,7 @@ final class InventoryServiceProvider extends ModuleServiceProvider
         Gate::policy(StockMovement::class, StockMovementPolicy::class);
         Gate::policy(StockReservation::class, StockReservationPolicy::class);
         Gate::policy(WarehouseSetting::class, WarehouseSettingPolicy::class);
+        Gate::define(InventoryReportPolicy::ABILITY, [InventoryReportPolicy::class, 'view']);
 
         InventorySettings::register($this->app->make(SettingsRegistrar::class));
         Event::listen(CompanyCreated::class, SeedInventoryRules::class);

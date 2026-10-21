@@ -72,4 +72,7 @@ return [
     'reorder_title' => ':count items at or below their reorder point',
     'reorder_body' => 'Check the reorder suggestions: :items',
     'command_company_missing' => 'The company does not exist or is not active.',
+    'report_opening' => 'Opening balance',
+    'report_closing' => 'Closing balance',
+    'report_total' => 'Total',
 ];
