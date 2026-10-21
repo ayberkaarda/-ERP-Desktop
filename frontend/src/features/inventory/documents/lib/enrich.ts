@@ -6,6 +6,26 @@ import type { ItemRef, StockDocument } from '../types'
 
 const LOOKUP_STALE = 5 * 60_000
 
+/** The active company moved away from the one a lookup was started for. */
+export class CompanyChangedError extends Error {
+  constructor() {
+    super('The active company changed during the lookup.')
+    this.name = 'CompanyChangedError'
+  }
+}
+
+/**
+ * Runs a lookup for `company` only while it is the active one (the HTTP layer sends the active
+ * company's header) and refuses the result if the company changed while it was in flight, so a
+ * response is never cached under another company's key.
+ */
+export async function forCompany<T>(company: string, fn: () => Promise<T>): Promise<T> {
+  if (activeCompany() !== company) throw new CompanyChangedError()
+  const result = await fn()
+  if (activeCompany() !== company) throw new CompanyChangedError()
+  return result
+}
+
 /**
  * Items by id through the per-item cache (["inventory", c, "docs", "lookups", "item", id]):
  * cached ones are reused, the rest are read in one go and seeded into the cache.
@@ -24,7 +44,7 @@ export async function resolveItems(
     else missing.push(id)
   }
   if (missing.length > 0) {
-    for (const item of await lookupsApi.itemsByIds(missing, signal)) {
+    for (const item of await forCompany(company, () => lookupsApi.itemsByIds(missing, signal))) {
       out.set(item.id, item)
       queryClient.setQueryData(invDocsKeys.item(item.id, company), item)
     }
@@ -47,7 +67,7 @@ export async function enrichDocument(
   const units = queryClient
     .query({
       queryKey: invDocsKeys.units(company),
-      queryFn: ({ signal: s }) => lookupsApi.units(s),
+      queryFn: ({ signal: s }) => forCompany(company, () => lookupsApi.units(s)),
       staleTime: LOOKUP_STALE,
     })
     .catch(() => [])
@@ -62,7 +82,8 @@ export async function enrichDocument(
       ? queryClient
           .query({
             queryKey: warehouseKeysFor(company).locations(warehouseId),
-            queryFn: ({ signal: s }) => stockWarehousesApi.locations(warehouseId, s),
+            queryFn: ({ signal: s }) =>
+              forCompany(company, () => stockWarehousesApi.locations(warehouseId, s)),
             staleTime: 60_000,
           })
           .catch(() => [])
