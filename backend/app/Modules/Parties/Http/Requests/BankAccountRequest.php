@@ -34,8 +34,8 @@ final class BankAccountRequest extends ChildRequest
                     $fail(Messages::get('invalid_iban'));
                 }
             }, $unique],
-            'swift' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/'],
-            'currency_code' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Z]{3}$/'],
+            'swift' => ['sometimes', 'nullable', 'string', 'regex:/\A[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?\z/'],
+            'currency_code' => ['sometimes', 'nullable', 'string', 'regex:/\A[A-Z]{3}\z/'],
             'is_default' => ['sometimes', 'boolean'],
         ];
     }

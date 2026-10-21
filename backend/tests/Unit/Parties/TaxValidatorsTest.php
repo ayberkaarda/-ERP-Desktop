@@ -104,14 +104,37 @@ describe('IBAN', function (): void {
         'TR37A006100519786457841326', // letter in bank code
         'DE5137040044053201300', // DE is 22 long
         'TR3300061005197864578413261', // 27 chars
+        'DE0537040044053201300A', // DE BBAN is 18 digits, a letter is not allowed
+        'GB731EST12345698765432', // GB bank code is 4 letters
+        'NL591234ABCD567890', // NL is 4 letters then 10 digits
         '', 'TR', '1234567890123456', 'TRXX0006100519786457841326', 'TR33-0006-1005',
     ]);
 
-    it('accepts unknown countries within the generic bounds only', function (): void {
-        // ZZ is not in the length table: structure and checksum still apply.
-        expect(Iban::isValid('ZZ92ABCD1234567890'))->toBeTrue()
-            ->and(Iban::isValid('ZZ93ABCD1234567890'))->toBeFalse()
-            ->and(Iban::isValid('ZZ92ABC'))->toBeFalse();
+    it('rejects countries missing from the registry even with a correct checksum', function (): void {
+        expect(Iban::isValid('ZZ92ABCD1234567890'))->toBeFalse()
+            ->and(Iban::isValid('XX'.substr('TR330006100519786457841326', 2)))->toBeFalse()
+            ->and(Iban::length('tr'))->toBe(26)
+            ->and(Iban::length('DE'))->toBe(22)
+            ->and(Iban::length('MT'))->toBe(31)
+            ->and(Iban::length('ZZ'))->toBeNull();
+    });
+
+    it('masks all but the country code and the last four characters', function (): void {
+        expect(Iban::mask('TR33 0006 1005 1978 6457 8413 26'))->toBe('TR'.str_repeat('*', 20).'1326')
+            ->and(Iban::mask('DE89370400440532013000'))->toBe('DE****************3000')
+            ->and(Iban::mask('ABC'))->toBe('***');
+    });
+});
+
+describe('trailing line breaks', function (): void {
+    it('rejects otherwise valid numbers followed by a newline', function (): void {
+        expect(Vkn::isValid("1234567890\n"))->toBeFalse()
+            ->and(Vkn::isValid('1234567890'))->toBeTrue()
+            ->and(Tckn::isValid("10000000146\n"))->toBeFalse()
+            ->and(Tckn::isValid('10000000146'))->toBeTrue()
+            ->and(TaxNumber::error(PartyType::Company, 'DE', "DE123\n"))->toBe('parties::messages.invalid_foreign_tax_number')
+            ->and(fn () => Vkn::checkDigit("123456789\n"))->toThrow(InvalidArgumentException::class)
+            ->and(fn () => Tckn::checkDigits("123456789\n"))->toThrow(InvalidArgumentException::class);
     });
 });
 
@@ -134,5 +157,14 @@ describe('tax number by party type and country', function (): void {
     it('strips separators only for Turkish numbers', function (): void {
         expect(TaxNumber::normalize(' 123 456-78.90 ', 'TR'))->toBe('1234567890')
             ->and(TaxNumber::normalize(' DE 123 ', 'DE'))->toBe('DE 123');
+    });
+
+    it('compares tax numbers in one canonical form', function (): void {
+        expect(TaxNumber::canonical('DE123456789'))->toBe('DE123456789')
+            ->and(TaxNumber::canonical('de123456789'))->toBe('DE123456789')
+            ->and(TaxNumber::canonical('DE 123.456-789'))->toBe('DE123456789')
+            ->and(TaxNumber::canonical('gb/12 34'))->toBe('GB1234')
+            ->and(TaxNumber::canonical(' - '))->toBeNull()
+            ->and(TaxNumber::canonical(null))->toBeNull();
     });
 });

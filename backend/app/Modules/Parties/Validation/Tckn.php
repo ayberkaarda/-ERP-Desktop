@@ -14,7 +14,7 @@ final class Tckn
 {
     public static function isValid(string $value): bool
     {
-        if (preg_match('/^[1-9]\d{10}$/', $value) !== 1) {
+        if (preg_match('/\A[1-9][0-9]{10}\z/', $value) !== 1) {
             return false;
         }
 
@@ -27,7 +27,7 @@ final class Tckn
      */
     public static function checkDigits(string $first9): string
     {
-        if (preg_match('/^[1-9]\d{8}$/', $first9) !== 1) {
+        if (preg_match('/\A[1-9][0-9]{8}\z/', $first9) !== 1) {
             throw new \InvalidArgumentException('Nine digits not starting with zero expected.');
         }
 

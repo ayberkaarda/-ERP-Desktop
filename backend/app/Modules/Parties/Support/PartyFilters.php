@@ -68,7 +68,7 @@ final class PartyFilters
         }
 
         $roles = PartyRole::values();
-        $pattern = '/^('.implode('|', $roles).')(,('.implode('|', $roles).'))*$/';
+        $pattern = '/\A('.implode('|', $roles).')(,('.implode('|', $roles).'))*\z/';
         $value = Validator::make(['filter' => ['role' => $filter['role']]], [
             'filter.role' => ['nullable', 'string', 'regex:'.$pattern],
         ])->validate()['filter']['role'] ?? null;

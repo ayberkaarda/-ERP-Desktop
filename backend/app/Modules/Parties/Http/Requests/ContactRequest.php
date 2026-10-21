@@ -14,7 +14,7 @@ final class ContactRequest extends ChildRequest
             'name' => [$this->required(), 'string', 'max:200'],
             'title' => ['sometimes', 'nullable', 'string', 'max:100'],
             'email' => ['sometimes', 'nullable', 'string', 'email', 'max:255'],
-            'phone' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^[0-9+()\-. ]{3,32}$/'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/\A[0-9+()\-. ]{3,32}\z/'],
             'is_primary' => ['sometimes', 'boolean'],
         ];
     }

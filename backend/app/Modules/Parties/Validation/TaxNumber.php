@@ -25,12 +25,27 @@ final class TaxNumber
     }
 
     /**
+     * Comparison form for uniqueness and duplicate search: upper case without spaces, dots,
+     * hyphens and slashes, so "DE 123.456-789" and "de123456789" are the same number.
+     */
+    public static function canonical(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $canonical = mb_strtoupper((string) preg_replace('/[\s.\-\/]+/u', '', $value));
+
+        return $canonical === '' ? null : $canonical;
+    }
+
+    /**
      * @return string|null translation key of the failure, null when valid
      */
     public static function error(PartyType $type, string $country, string $value): ?string
     {
         if (strtoupper($country) !== 'TR') {
-            return preg_match('/^[\p{L}\p{N}\-\/. ]{1,'.self::MAX_FOREIGN_LENGTH.'}$/u', $value) === 1
+            return preg_match('/\A[\p{L}\p{N}\-\/. ]{1,'.self::MAX_FOREIGN_LENGTH.'}\z/u', $value) === 1
                 ? null : 'parties::messages.invalid_foreign_tax_number';
         }
 

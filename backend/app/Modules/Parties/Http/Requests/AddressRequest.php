@@ -23,7 +23,7 @@ final class AddressRequest extends ChildRequest
             'district' => ['sometimes', 'nullable', 'string', 'max:100'],
             'city' => ['sometimes', 'nullable', 'string', 'max:100'],
             'postal_code' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'country' => ['sometimes', 'string', 'regex:/^[A-Z]{2}$/'],
+            'country' => ['sometimes', 'string', 'regex:/\A[A-Z]{2}\z/'],
             'is_default' => ['sometimes', 'boolean'],
         ];
     }
