@@ -369,6 +369,7 @@ final class MasterDataIntegrity
             ...self::SALES_CROSS_MODULE,
         ];
     }
+
     /**
      * Orphan counts per "table.column" (only entries with orphans), for the given keys.
      *
