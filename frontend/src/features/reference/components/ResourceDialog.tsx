@@ -1,4 +1,5 @@
 import { Loader2, RefreshCw } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useRef, useState, type ReactNode } from 'react'
 import type { FieldValues, UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -13,6 +14,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createIdempotencyKey, isApiError } from '@/platform'
+import { refKeys } from '../hooks/keys'
 import { useRefT } from '../i18n'
 
 export interface SubmitContext {
@@ -29,7 +31,7 @@ interface ResourceDialogProps<V extends FieldValues> {
   /** Throw (the API error) to keep the dialog open and show it. */
   onSubmit: (values: V, ctx: SubmitContext) => Promise<unknown>
   /** Re-reads the record after a VERSION_CONFLICT so the user can reapply the change. */
-  onReload?: () => void
+  onReload?: () => Promise<void>
   fieldLabels?: Record<string, string>
   /** Maps an API field name to a form field (nested payloads, renamed fields). */
   mapField?: (serverField: string) => string | null
@@ -55,26 +57,58 @@ export function ResourceDialog<V extends FieldValues>({
 }: ResourceDialogProps<V>) {
   const t = useRefT()
   const { t: tc } = useTranslation('common')
-  const keyRef = useRef(createIdempotencyKey())
+  const queryClient = useQueryClient()
+  // The key belongs to one exact payload: a changed payload gets a new key, a retry of the same
+  // payload replays the earlier request.
+  const attempt = useRef<{ hash: string; key: string } | null>(null)
+  const [uncertain, setUncertain] = useState(false)
+  const [reloading, setReloading] = useState(false)
+  const [reloadFailed, setReloadFailed] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [conflict, setConflict] = useState(false)
   const submitting = form.formState.isSubmitting
+  const busy = submitting || reloading
 
   const handleSubmit = async (values: V) => {
     setError(null)
     setConflict(false)
+    setUncertain(false)
+    const hash = JSON.stringify(values)
+    if (attempt.current?.hash !== hash) attempt.current = { hash, key: createIdempotencyKey() }
     try {
-      await onSubmit(values, { idempotencyKey: keyRef.current })
-      keyRef.current = createIdempotencyKey()
+      await onSubmit(values, { idempotencyKey: attempt.current.key })
+      attempt.current = null
       onOpenChange(false)
     } catch (e) {
-      if (isApiError(e) && e.code === 'VERSION_CONFLICT') setConflict(true)
-      else setError(e)
+      if (isApiError(e) && e.code === 'VERSION_CONFLICT') {
+        setConflict(true)
+      } else if (!isApiError(e) || e.status === 0 || e.status >= 500) {
+        // The request may have been applied although the answer was lost: refresh the lists so
+        // the user can check before submitting a different payload.
+        setUncertain(true)
+        void queryClient.invalidateQueries({ queryKey: refKeys.all })
+      } else {
+        setError(e)
+      }
+    }
+  }
+
+  const reload = async () => {
+    if (!onReload) return
+    setReloading(true)
+    setReloadFailed(false)
+    try {
+      await onReload()
+      setConflict(false)
+    } catch {
+      setReloadFailed(true)
+    } finally {
+      setReloading(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !submitting && onOpenChange(next)}>
+    <Dialog open={open} onOpenChange={(next) => !busy && onOpenChange(next)}>
       <DialogContent className={wide ? 'max-w-2xl' : undefined} closeLabel={tc('actions.close')}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -97,16 +131,27 @@ export function ResourceDialog<V extends FieldValues>({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  onClick={() => {
-                    setConflict(false)
-                    onReload()
-                  }}
+                  disabled={reloading}
+                  onClick={() => void reload()}
                 >
-                  <RefreshCw aria-hidden="true" />
+                  <RefreshCw
+                    className={reloading ? 'animate-spin' : undefined}
+                    aria-hidden="true"
+                  />
                   {t('conflict.reload')}
                 </Button>
               )}
             </div>
+          )}
+          {reloadFailed && (
+            <p role="alert" className="text-sm text-danger">
+              {t('conflict.reloadFailed')}
+            </p>
+          )}
+          {uncertain && (
+            <p role="alert" className="text-sm text-warning-soft-foreground">
+              {t('errors.uncertain')}
+            </p>
           )}
           <FormErrorSummary error={error} fieldLabels={fieldLabels} mapField={mapField} />
           <div className="grid gap-4 sm:grid-cols-2">{children}</div>
@@ -114,12 +159,12 @@ export function ResourceDialog<V extends FieldValues>({
             <Button
               type="button"
               variant="secondary"
-              disabled={submitting}
+              disabled={busy}
               onClick={() => onOpenChange(false)}
             >
               {tc('actions.cancel')}
             </Button>
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={busy}>
               {submitting && <Loader2 className="animate-spin" aria-hidden="true" />}
               {submitLabel ?? tc('actions.save')}
             </Button>

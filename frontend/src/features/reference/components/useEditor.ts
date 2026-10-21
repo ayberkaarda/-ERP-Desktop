@@ -25,12 +25,12 @@ export function useReloadableRecord<T, V extends FieldValues>(
   toValues: (record: T) => V,
 ) {
   const [record, setRecord] = useState<T | null>(initial)
-  const reload = useCallback(() => {
+  /** Resolves once the form shows the server state; rejects when the record cannot be read. */
+  const reload = useCallback(async () => {
     if (!record) return
-    void load(record).then((fresh) => {
-      setRecord(fresh)
-      reset(toValues(fresh))
-    })
+    const fresh = await load(record)
+    setRecord(fresh)
+    reset(toValues(fresh))
     // load/toValues are module-level functions of the calling dialog.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record, reset])

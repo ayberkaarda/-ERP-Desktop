@@ -10,7 +10,9 @@
   },
   "errors": {
     "generic": "L’action n’a pas pu être effectuée. Veuillez réessayer.",
-    "load": "Les données n’ont pas pu être chargées."
+    "load": "Les données n’ont pas pu être chargées.",
+    "uncertain": "Résultat inconnu : aucune réponse reçue. Les listes ont été actualisées ; vérifiez si l’enregistrement a été créé. Renvoyer les mêmes données est sans risque.",
+    "limitExceeded": "Trop d’enregistrements pour charger cette liste. Utilisez la recherche ou les filtres."
   },
   "states": {
     "loading": "Chargement…"
@@ -18,7 +20,8 @@
   "conflict": {
     "title": "Cet enregistrement a été modifié par quelqu’un d’autre",
     "body": "Chargez la dernière version et appliquez de nouveau votre modification.",
-    "reload": "Recharger"
+    "reload": "Recharger",
+    "reloadFailed": "L’enregistrement n’a pas pu être rechargé. Réessayez."
   },
   "fields": {
     "code": "Code",
@@ -80,7 +83,8 @@
     "status": {
       "never": "Aucun taux n’a encore été récupéré. Saisissez les taux manuellement en attendant ceux de la TCMB.",
       "fresh": "Les taux ont été mis à jour pour la dernière fois le {{date}}.",
-      "stale": "Les taux sont périmés : dernière mise à jour le {{date}} (il y a {{days}} jours). Pensez à saisir un taux manuellement."
+      "stale": "Les taux sont périmés : dernière mise à jour le {{date}} (il y a {{days}} jours). Pensez à saisir un taux manuellement.",
+      "unavailable": "Le statut des taux est indisponible."
     }
   },
   "taxCodes": {
@@ -208,7 +212,11 @@
       "title": "Devise de base",
       "description": "La devise utilisée pour les rapports et les conversions de taux de change.",
       "label": "Devise de base",
-      "hint": "Seules les devises activées pour la société peuvent être choisies."
+      "hint": "Seules les devises activées pour la société peuvent être choisies.",
+      "impact": "Changer la devise de base affecte les rapports et les conversions de taux.",
+      "confirmTitle": "Changer la devise de base ?",
+      "confirmBody": "La devise de base passera de {{from}} à {{to}}. Les rapports et conversions de taux sont affectés.",
+      "confirm": "Changer"
     }
   },
   "commands": {

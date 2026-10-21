@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Combobox, type ComboboxOption, type ComboboxProps } from '@/components/shared/form'
+import { toIsoDate } from '@/lib/datetime'
 import {
   useCostCenters,
   useCurrencies,
@@ -8,7 +9,8 @@ import {
   useWarehouses,
 } from '../hooks/useReference'
 import type { CostCenter, Currency, PaymentTerm, TaxCode, Warehouse } from '../types'
-import { taxRateLabel } from '../utils'
+import { taxRateLabel, taxValidity } from '../utils'
+import { LoadError } from './LoadError'
 
 type BaseProps = Omit<ComboboxProps, 'options' | 'value' | 'onChange' | 'filter' | 'loading'>
 
@@ -17,144 +19,120 @@ interface SelectProps<T> extends BaseProps {
   onChange: (value: string | null, row: T | null) => void
 }
 
-function useSelect<T>(
-  rows: T[] | undefined,
-  toOption: (row: T) => ComboboxOption,
-  onChange: (value: string | null, row: T | null) => void,
-) {
-  const entries = useMemo(
-    () => (rows ?? []).map((row) => ({ row, option: toOption(row) })),
-    // toOption is a module-level function in every caller.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows],
-  )
-  return {
-    options: entries.map((e) => e.option),
-    handleChange: (value: string | null) =>
-      onChange(value, entries.find((e) => e.option.value === value)?.row ?? null),
-  }
+interface LookupQuery<T> {
+  data: T[] | undefined
+  isLoading: boolean
+  isError: boolean
+  error: unknown
+  refetch: () => unknown
 }
 
-const currencyOption = (c: Currency) => ({
+interface LookupSelectProps<T> extends SelectProps<T> {
+  query: LookupQuery<T>
+  toOption: (row: T) => ComboboxOption
+  rowKey: (row: T) => string
+}
+
+/** Combobox over a looked-up list; a failed lookup shows an alert with retry, not an empty list. */
+function LookupSelect<T>({
+  query,
+  toOption,
+  rowKey,
+  value,
+  onChange,
+  ...props
+}: LookupSelectProps<T>) {
+  const rows = query.data
+  const options = useMemo(() => (rows ?? []).map(toOption), [rows, toOption])
+  if (query.isError) {
+    return <LoadError error={query.error} onRetry={() => void query.refetch()} />
+  }
+  return (
+    <Combobox
+      clearable
+      {...props}
+      value={value}
+      options={options}
+      loading={query.isLoading}
+      onChange={(next) => onChange(next, (rows ?? []).find((row) => rowKey(row) === next) ?? null)}
+    />
+  )
+}
+
+const currencyOption = (c: Currency): ComboboxOption => ({
   value: c.code,
   label: `${c.code} · ${c.name}`,
   description: c.symbol,
 })
+const currencyKey = (c: Currency) => c.code
 
 export interface CurrencySelectProps extends SelectProps<Currency> {
-  /** Only currencies activated for the company (default). */
+  /** Also offer currencies not activated for the company. */
   includeInactive?: boolean
 }
 
 /** Value is the ISO 4217 code. */
-export function CurrencySelect({
-  value,
-  onChange,
-  includeInactive,
-  ...props
-}: CurrencySelectProps) {
+export function CurrencySelect({ includeInactive, ...props }: CurrencySelectProps) {
   const query = useCurrencies({ activeOnly: !includeInactive })
-  const { options, handleChange } = useSelect(query.data, currencyOption, onChange)
-  return (
-    <Combobox
-      clearable
-      {...props}
-      value={value}
-      options={options}
-      loading={query.isLoading}
-      onChange={handleChange}
-    />
-  )
+  return <LookupSelect query={query} toOption={currencyOption} rowKey={currencyKey} {...props} />
 }
 
-const taxOption = (c: TaxCode) => {
-  const rate = taxRateLabel(c)
-  return {
-    value: c.id,
-    label: `${c.code} · ${c.name}`,
-    description: rate ?? undefined,
-  }
-}
+const taxOption = (c: TaxCode): ComboboxOption => ({
+  value: c.id,
+  label: `${c.code} · ${c.name}`,
+  description: taxRateLabel(c) ?? undefined,
+})
+const idKey = (row: { id: string }) => row.id
 
 export interface TaxCodeSelectProps extends SelectProps<TaxCode> {
   /** Restrict to one tax type, e.g. "vat". */
   type?: TaxCode['type']
+  /** Only codes effective on this calendar date (YYYY-MM-DD); defaults to today. */
+  asOf?: string
 }
 
-export function TaxCodeSelect({ value, onChange, type, ...props }: TaxCodeSelectProps) {
+export function TaxCodeSelect({ type, asOf, ...props }: TaxCodeSelectProps) {
   const query = useTaxCodes({ type })
-  const { options, handleChange } = useSelect(query.data, taxOption, onChange)
-  return (
-    <Combobox
-      clearable
-      {...props}
-      value={value}
-      options={options}
-      loading={query.isLoading}
-      onChange={handleChange}
-    />
+  const date = asOf ?? toIsoDate(new Date())
+  const effective = useMemo(
+    () => ({
+      ...query,
+      data: query.data?.filter((c) => taxValidity(c, date) === 'active'),
+    }),
+    [query, date],
   )
+  return <LookupSelect query={effective} toOption={taxOption} rowKey={idKey} {...props} />
 }
 
-const termOption = (p: PaymentTerm) => ({
+const termOption = (p: PaymentTerm): ComboboxOption => ({
   value: p.id,
   label: `${p.code} · ${p.name}`,
   description: `${p.due_days}`,
 })
 
-export function PaymentTermSelect({ value, onChange, ...props }: SelectProps<PaymentTerm>) {
+export function PaymentTermSelect(props: SelectProps<PaymentTerm>) {
   const query = usePaymentTerms()
-  const { options, handleChange } = useSelect(query.data, termOption, onChange)
-  return (
-    <Combobox
-      clearable
-      {...props}
-      value={value}
-      options={options}
-      loading={query.isLoading}
-      onChange={handleChange}
-    />
-  )
+  return <LookupSelect query={query} toOption={termOption} rowKey={idKey} {...props} />
 }
 
-const warehouseOption = (w: Warehouse) => ({
+const warehouseOption = (w: Warehouse): ComboboxOption => ({
   value: w.id,
   label: `${w.code} · ${w.name}`,
 })
 
-export function WarehouseSelect({ value, onChange, ...props }: SelectProps<Warehouse>) {
+export function WarehouseSelect(props: SelectProps<Warehouse>) {
   const query = useWarehouses()
-  const { options, handleChange } = useSelect(query.data, warehouseOption, onChange)
-  return (
-    <Combobox
-      clearable
-      {...props}
-      value={value}
-      options={options}
-      loading={query.isLoading}
-      onChange={handleChange}
-    />
-  )
+  return <LookupSelect query={query} toOption={warehouseOption} rowKey={idKey} {...props} />
 }
 
-const costCenterOption = (c: CostCenter) => ({
+const costCenterOption = (c: CostCenter): ComboboxOption => ({
   value: c.id,
   label: `${c.code} · ${c.name}`,
   disabled: !c.is_active,
 })
 
-/** Internal: also usable by other features through the hooks, kept off the public surface. */
-export function CostCenterSelect({ value, onChange, ...props }: SelectProps<CostCenter>) {
+/** Internal to this feature (project form). */
+export function CostCenterSelect(props: SelectProps<CostCenter>) {
   const query = useCostCenters()
-  const { options, handleChange } = useSelect(query.data, costCenterOption, onChange)
-  return (
-    <Combobox
-      clearable
-      {...props}
-      value={value}
-      options={options}
-      loading={query.isLoading}
-      onChange={handleChange}
-    />
-  )
+  return <LookupSelect query={query} toOption={costCenterOption} rowKey={idKey} {...props} />
 }

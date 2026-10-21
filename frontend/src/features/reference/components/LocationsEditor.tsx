@@ -56,7 +56,9 @@ export function LocationsEditor({ warehouseId }: { warehouseId: string }) {
       </div>
 
       {locations.isLoading && <Skeleton className="h-32 w-full" aria-label={t('states.loading')} />}
-      {locations.isError && <LoadError onRetry={() => void locations.refetch()} />}
+      {locations.isError && (
+        <LoadError error={locations.error} onRetry={() => void locations.refetch()} />
+      )}
       {locations.data && rows.length === 0 && (
         <EmptyState
           compact

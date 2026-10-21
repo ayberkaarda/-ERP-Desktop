@@ -69,8 +69,10 @@ describe('PaymentTermsPage', () => {
     const posts = db.calls.filter((c) => c.method === 'POST' && c.path === '/payment-terms')
     expect(posts).toHaveLength(2)
     expect(posts[1]?.body).toMatchObject({ code: 'NET45', due_days: 30, is_active: true })
-    // A retried submit keeps its key until the create succeeds.
-    expect(posts[0]?.headers.get('Idempotency-Key')).toBe(posts[1]?.headers.get('Idempotency-Key'))
+    // A changed payload is a different request: it never reuses the earlier key.
+    expect(posts[0]?.headers.get('Idempotency-Key')).not.toBe(
+      posts[1]?.headers.get('Idempotency-Key'),
+    )
     expect(await screen.findByText('NET45')).toBeInTheDocument()
   })
 
@@ -207,6 +209,8 @@ describe('ReferenceSettingsPage', () => {
     await pickOption(user, field, /USD/)
     expect(save).toBeEnabled()
     await user.click(save)
+    const confirm = await screen.findByRole('alertdialog')
+    await user.click(within(confirm).getByRole('button', { name: 'Değiştir' }))
 
     await waitFor(() => {
       const patch = db.calls.find((c) => c.method === 'PATCH' && c.path === '/settings')

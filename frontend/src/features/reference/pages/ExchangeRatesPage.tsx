@@ -45,7 +45,7 @@ function LatestRates() {
 
   if (latest.isLoading) return <Skeleton className="h-40 w-full" aria-label={t('states.loading')} />
   if (latest.isError) {
-    return <LoadError onRetry={() => void latest.refetch()} />
+    return <LoadError error={latest.error} onRetry={() => void latest.refetch()} />
   }
   if (rows.length === 0) return <EmptyState title={t('rates.emptyLatest')} compact />
 

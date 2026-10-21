@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { FieldShell } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,16 +25,18 @@ export function BaseCurrencyCard() {
   const value = draft ?? current.data ?? null
   const dirty = draft !== null && draft !== current.data
 
-  const submit = () => {
+  const [confirming, setConfirming] = useState(false)
+
+  const apply = async () => {
     if (!value) return
     setError(null)
-    save.mutate(value, {
-      onSuccess: () => {
-        setDraft(null)
-        platform.notify.success(t('settings.saved'))
-      },
-      onError: (e) => setError(isApiError(e) ? e.message : t('errors.generic')),
-    })
+    try {
+      await save.mutateAsync(value)
+      setDraft(null)
+      platform.notify.success(t('settings.saved'))
+    } catch (e) {
+      setError(isApiError(e) ? e.message : t('errors.generic'))
+    }
   }
 
   return (
@@ -46,7 +49,9 @@ export function BaseCurrencyCard() {
       </CardHeader>
       <CardContent className="max-w-sm space-y-3">
         {current.isLoading && <Skeleton className="h-9 w-full" aria-label={t('states.loading')} />}
-        {current.isError && <LoadError onRetry={() => void current.refetch()} />}
+        {current.isError && (
+          <LoadError error={current.error} onRetry={() => void current.refetch()} />
+        )}
         {current.isSuccess && (
           <form
             noValidate
@@ -54,7 +59,7 @@ export function BaseCurrencyCard() {
             aria-label={t('settings.baseCurrency.title')}
             onSubmit={(e) => {
               e.preventDefault()
-              submit()
+              setConfirming(true)
             }}
           >
             <FieldShell
@@ -79,9 +84,26 @@ export function BaseCurrencyCard() {
             ) : (
               <p className="text-xs text-muted-foreground">{t('settings.readOnly')}</p>
             )}
+            {dirty && (
+              <p className="text-xs text-warning-soft-foreground">
+                {t('settings.baseCurrency.impact')}
+              </p>
+            )}
           </form>
         )}
       </CardContent>
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        tone="primary"
+        title={t('settings.baseCurrency.confirmTitle')}
+        description={t('settings.baseCurrency.confirmBody', {
+          from: current.data ?? '',
+          to: value ?? '',
+        })}
+        confirmLabel={t('settings.baseCurrency.confirm')}
+        onConfirm={apply}
+      />
     </Card>
   )
 }

@@ -10,7 +10,9 @@
   },
   "errors": {
     "generic": "Die Aktion konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
-    "load": "Die Daten konnten nicht geladen werden."
+    "load": "Die Daten konnten nicht geladen werden.",
+    "uncertain": "Ergebnis unbekannt: Es kam keine Antwort. Die Listen wurden aktualisiert; prüfen Sie, ob der Datensatz angelegt wurde. Dieselben Daten erneut zu senden ist sicher.",
+    "limitExceeded": "Zu viele Datensätze, um diese Liste zu laden. Nutzen Sie Suche oder Filter."
   },
   "states": {
     "loading": "Wird geladen…"
@@ -18,7 +20,8 @@
   "conflict": {
     "title": "Der Datensatz wurde von jemand anderem geändert",
     "body": "Laden Sie die aktuelle Version und wenden Sie Ihre Änderung erneut an.",
-    "reload": "Neu laden"
+    "reload": "Neu laden",
+    "reloadFailed": "Der Datensatz konnte nicht neu geladen werden. Versuchen Sie es erneut."
   },
   "fields": {
     "code": "Code",
@@ -80,7 +83,8 @@
     "status": {
       "never": "Es wurden noch keine Kurse abgerufen. Erfassen Sie Kurse manuell, bis die TCMB-Kurse eintreffen.",
       "fresh": "Die Kurse wurden zuletzt am {{date}} aktualisiert.",
-      "stale": "Die Kurse sind veraltet: letzte Aktualisierung {{date}} (vor {{days}} Tagen). Erfassen Sie ggf. einen Kurs manuell."
+      "stale": "Die Kurse sind veraltet: letzte Aktualisierung {{date}} (vor {{days}} Tagen). Erfassen Sie ggf. einen Kurs manuell.",
+      "unavailable": "Der Kursstatus ist nicht verfügbar."
     }
   },
   "taxCodes": {
@@ -208,7 +212,11 @@
       "title": "Basiswährung",
       "description": "Die Währung für Berichte und Wechselkursumrechnungen.",
       "label": "Basiswährung",
-      "hint": "Es können nur für das Unternehmen aktivierte Währungen gewählt werden."
+      "hint": "Es können nur für das Unternehmen aktivierte Währungen gewählt werden.",
+      "impact": "Eine Änderung der Basiswährung wirkt sich auf Berichte und Wechselkursumrechnungen aus.",
+      "confirmTitle": "Basiswährung ändern?",
+      "confirmBody": "Die Basiswährung wechselt von {{from}} zu {{to}}. Berichte und Wechselkursumrechnungen sind betroffen.",
+      "confirm": "Ändern"
     }
   },
   "commands": {

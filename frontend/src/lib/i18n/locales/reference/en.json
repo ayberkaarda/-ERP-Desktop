@@ -10,7 +10,9 @@
   },
   "errors": {
     "generic": "The action could not be completed. Please try again.",
-    "load": "The data could not be loaded."
+    "load": "The data could not be loaded.",
+    "uncertain": "Outcome unknown: no response was received. The lists were refreshed; check whether the record was created. Submitting the same data again is safe.",
+    "limitExceeded": "Too many records to load this list. Use search or filters."
   },
   "states": {
     "loading": "Loading…"
@@ -18,7 +20,8 @@
   "conflict": {
     "title": "This record was changed by someone else",
     "body": "Load the latest version and apply your change again.",
-    "reload": "Reload"
+    "reload": "Reload",
+    "reloadFailed": "The record could not be reloaded. Try again."
   },
   "fields": {
     "code": "Code",
@@ -80,7 +83,8 @@
     "status": {
       "never": "No rates have been fetched yet. Enter rates manually until TCMB rates arrive.",
       "fresh": "Rates were last updated on {{date}}.",
-      "stale": "Rates are out of date: last update {{date}} ({{days}} days ago). Consider entering a rate manually."
+      "stale": "Rates are out of date: last update {{date}} ({{days}} days ago). Consider entering a rate manually.",
+      "unavailable": "Rate status is unavailable."
     }
   },
   "taxCodes": {
@@ -208,7 +212,11 @@
       "title": "Base currency",
       "description": "The currency used for reporting and exchange rate conversions.",
       "label": "Base currency",
-      "hint": "Only currencies activated for the company can be chosen."
+      "hint": "Only currencies activated for the company can be chosen.",
+      "impact": "Changing the base currency affects reporting and exchange rate conversions.",
+      "confirmTitle": "Change the base currency?",
+      "confirmBody": "The base currency will change from {{from}} to {{to}}. Reports and exchange rate conversions are affected.",
+      "confirm": "Change"
     }
   },
   "commands": {

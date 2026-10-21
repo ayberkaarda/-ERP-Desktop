@@ -178,7 +178,7 @@ export function TaxCodesPage() {
       </div>
 
       {all.isLoading && <Skeleton className="h-48 w-full" aria-label={t('states.loading')} />}
-      {all.isError && <LoadError onRetry={() => void all.refetch()} />}
+      {all.isError && <LoadError error={all.error} onRetry={() => void all.refetch()} />}
       {all.data && groups.length === 0 && <EmptyState title={t('taxCodes.empty')} compact />}
 
       <div className="space-y-6">

@@ -51,7 +51,9 @@ export function CostCentersPage() {
       }
     >
       {centers.isLoading && <Skeleton className="h-40 w-full" aria-label={t('states.loading')} />}
-      {centers.isError && <LoadError onRetry={() => void centers.refetch()} />}
+      {centers.isError && (
+        <LoadError error={centers.error} onRetry={() => void centers.refetch()} />
+      )}
       {centers.data && rows.length === 0 && (
         <EmptyState
           compact

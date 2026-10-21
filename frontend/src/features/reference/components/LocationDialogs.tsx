@@ -1,8 +1,10 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { locationsApi } from '../api/resources'
+import { refKeys } from '../hooks/keys'
 import { useLocationMutations } from '../hooks/useReference'
 import { useRefT } from '../i18n'
 import { locationSchema, toLocationInput, type LocationFormValues } from '../schemas'
@@ -11,6 +13,25 @@ import { subtreeIds } from '../utils'
 import { SelectField, TextField } from './fields'
 import { ResourceDialog } from './ResourceDialog'
 import { useReloadableRecord } from './useEditor'
+
+/**
+ * Re-reads the whole hierarchy (also refreshing the tree behind the dialog) and returns the
+ * current version of one location; rejects when it no longer exists.
+ */
+async function reloadLocation(
+  queryClient: QueryClient,
+  warehouseId: string,
+  record: WarehouseLocation,
+): Promise<WarehouseLocation> {
+  const rows = await queryClient.query({
+    queryKey: refKeys.locations(warehouseId),
+    queryFn: ({ signal }) => locationsApi.all(warehouseId, signal),
+    staleTime: 0,
+  })
+  const fresh = rows.find((l) => l.id === record.id)
+  if (!fresh) throw new Error('Location not found')
+  return fresh
+}
 
 interface ParentOption {
   value: string
@@ -52,6 +73,7 @@ export function LocationDialog({
   onClose,
 }: LocationDialogProps) {
   const t = useRefT()
+  const queryClient = useQueryClient()
   const { create, update } = useLocationMutations(warehouseId)
   const form = useForm<LocationFormValues>({
     resolver: zodResolver(locationSchema),
@@ -59,7 +81,7 @@ export function LocationDialog({
   })
   const { record, reload } = useReloadableRecord(
     initial,
-    async (r) => (await locationsApi.all(warehouseId)).find((l) => l.id === r.id) ?? r,
+    (r) => reloadLocation(queryClient, warehouseId, r),
     form.reset,
     (r) => toValues(r),
   )
@@ -126,13 +148,27 @@ interface LocationMoveDialogProps {
 }
 
 /** Re-parents a location; the API rejects cycles, the picker already leaves out the subtree. */
-export function LocationMoveDialog({ warehouseId, all, record, onClose }: LocationMoveDialogProps) {
+export function LocationMoveDialog({
+  warehouseId,
+  all,
+  record: initial,
+  onClose,
+}: LocationMoveDialogProps) {
   const t = useRefT()
+  const queryClient = useQueryClient()
   const { update } = useLocationMutations(warehouseId)
   const form = useForm<MoveValues>({
     resolver: zodResolver(moveSchema),
-    defaultValues: { parent_id: record.parent_id ?? '' },
+    defaultValues: { parent_id: initial.parent_id ?? '' },
   })
+  // After a conflict the record and the hierarchy are re-read before another attempt.
+  const { record: current, reload } = useReloadableRecord<WarehouseLocation, MoveValues>(
+    initial,
+    (r) => reloadLocation(queryClient, warehouseId, r),
+    form.reset,
+    (r) => ({ parent_id: r.parent_id ?? '' }),
+  )
+  const record = current ?? initial
   const parents = useParentOptions(all, record)
 
   return (
@@ -141,6 +177,7 @@ export function LocationMoveDialog({ warehouseId, all, record, onClose }: Locati
       onOpenChange={(open) => !open && onClose()}
       title={t('locations.moveTitle', { name: record.name })}
       form={form}
+      onReload={reload}
       fieldLabels={{ parent_id: t('locations.parent') }}
       submitLabel={t('locations.move')}
       onSubmit={async (values) => {

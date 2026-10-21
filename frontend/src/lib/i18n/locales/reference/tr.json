@@ -10,7 +10,9 @@
   },
   "errors": {
     "generic": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
-    "load": "Veriler yüklenemedi."
+    "load": "Veriler yüklenemedi.",
+    "uncertain": "Sonuç bilinmiyor: yanıt alınamadı. Listeler yenilendi; kaydın oluşup oluşmadığını denetleyin. Aynı veriyle tekrar göndermek güvenlidir.",
+    "limitExceeded": "Kayıt sayısı çok fazla; liste yüklenemedi. Arama ya da filtre kullanın."
   },
   "states": {
     "loading": "Yükleniyor…"
@@ -18,7 +20,8 @@
   "conflict": {
     "title": "Kayıt başka biri tarafından değiştirildi",
     "body": "Kaydın yeni sürümünü yükleyip değişikliğinizi yeniden uygulayın.",
-    "reload": "Yeniden yükle"
+    "reload": "Yeniden yükle",
+    "reloadFailed": "Kayıt yeniden yüklenemedi. Tekrar deneyin."
   },
   "fields": {
     "code": "Kod",
@@ -80,7 +83,8 @@
     "status": {
       "never": "Henüz hiç kur alınmadı. TCMB kurları alınana kadar elle kur girebilirsiniz.",
       "fresh": "Kurlar en son {{date}} tarihinde güncellendi.",
-      "stale": "Kurlar güncel değil: son güncelleme {{date}} ({{days}} gün önce). Elle kur girmeyi düşünün."
+      "stale": "Kurlar güncel değil: son güncelleme {{date}} ({{days}} gün önce). Elle kur girmeyi düşünün.",
+      "unavailable": "Kur durumu alınamadı."
     }
   },
   "taxCodes": {
@@ -208,7 +212,11 @@
       "title": "Ana para birimi",
       "description": "Raporlama ve kur dönüşümlerinde esas alınan para birimi.",
       "label": "Ana para birimi",
-      "hint": "Yalnızca şirkette etkin para birimleri seçilebilir."
+      "hint": "Yalnızca şirkette etkin para birimleri seçilebilir.",
+      "impact": "Ana para birimini değiştirmek raporlamayı ve kur dönüşümlerini etkiler.",
+      "confirmTitle": "Ana para birimi değişsin mi?",
+      "confirmBody": "Ana para birimi {{from}} yerine {{to}} olacak. Raporlar ve kur dönüşümleri bu değişiklikten etkilenir.",
+      "confirm": "Değiştir"
     }
   },
   "commands": {

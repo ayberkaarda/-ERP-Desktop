@@ -50,7 +50,9 @@ export function WarehouseDetailPage() {
       }
     >
       {warehouse.isLoading && <Skeleton className="h-24 w-full" aria-label={t('states.loading')} />}
-      {warehouse.isError && <LoadError onRetry={() => void warehouse.refetch()} />}
+      {warehouse.isError && (
+        <LoadError error={warehouse.error} onRetry={() => void warehouse.refetch()} />
+      )}
       {w && (
         <div className="space-y-6">
           <Card>
