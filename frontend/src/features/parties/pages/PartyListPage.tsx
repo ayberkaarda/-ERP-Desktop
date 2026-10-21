@@ -1,6 +1,6 @@
 import { createColumnHelper } from '@tanstack/react-table'
-import { Download, Plus } from 'lucide-react'
-import { useEffect, useMemo, useRef } from 'react'
+import { Download, Loader2, Plus } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import {
@@ -15,12 +15,20 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { Combobox } from '@/components/shared/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { useIntlLocale } from '@/lib/datetime'
 import { Can, usePermission } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
-import { platform } from '@/platform'
+import { isApiError, platform } from '@/platform'
+import { partiesApi } from '../api/parties'
 import { PartyStatusBadge, RoleBadges } from '../components/RoleBadges'
 import { useBulkSetActive, usePartyList } from '../hooks/useParties'
+import { saveBlob } from '../lib/download'
 import { countryOptions } from '../lib/options'
 import { PARTY_ROLES, type Party } from '../types'
 
@@ -64,6 +72,7 @@ export function PartyListPage() {
   const canUpdate = usePermission('parties.update')
   const bulk = useBulkSetActive()
   const rootRef = useRef<HTMLDivElement>(null)
+  const [exporting, setExporting] = useState(false)
   const rows = useMemo(() => list.data?.data ?? [], [list.data])
   const total = list.data?.meta?.pagination?.total ?? rows.length
 
@@ -175,6 +184,24 @@ export function PartyListPage() {
     return result.failedIds
   }
 
+  /** The list as filtered and sorted on screen (no paging), as a CSV or XLSX file. */
+  const exportList = async (format: 'csv' | 'xlsx') => {
+    const params = Object.fromEntries(
+      Object.entries(toListParams(query)).filter(([k]) => k !== 'page' && k !== 'per_page'),
+    )
+    setExporting(true)
+    try {
+      const file = await partiesApi.export(params, format)
+      saveBlob(file.blob, file.filename ?? `parties.${format}`)
+    } catch (error) {
+      platform.notify.error(
+        isApiError(error) && error.message ? error.message : t('list.exportFailed'),
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div ref={rootRef} className="mx-auto max-w-[1440px]">
       <PageHeader
@@ -183,16 +210,25 @@ export function PartyListPage() {
         actions={
           <>
             <Can permission="parties.export">
-              {/* Export endpoint arrives with the reporting phase. */}
-              <Button
-                variant="secondary"
-                aria-disabled="true"
-                title={t('list.exportSoon')}
-                onClick={() => platform.notify.info(t('list.exportSoon'))}
-              >
-                <Download aria-hidden="true" />
-                {t('list.export')}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" disabled={exporting}>
+                    {exporting ? (
+                      <Loader2 className="animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Download aria-hidden="true" />
+                    )}
+                    {t('list.export')}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {(['csv', 'xlsx'] as const).map((format) => (
+                    <DropdownMenuItem key={format} onSelect={() => void exportList(format)}>
+                      {t(format === 'csv' ? 'list.exportCsv' : 'list.exportXlsx')}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </Can>
             <Can permission="parties.create">
               <Button asChild>

@@ -133,6 +133,27 @@ export function partiesHandlers(db: PartiesDb) {
   const find = (id: string) => db.parties.find((p) => p.id === id)
 
   return [
+    // PartyController::export: same filters as the list, CSV by default, XLSX on request.
+    http.get('*/api/v1/parties/export', async ({ request }) => {
+      const url = await record(request)
+      const format = url.searchParams.get('format') ?? 'csv'
+      if (!['csv', 'xlsx'].includes(format)) return validation({ format: ['Geçersiz biçim.'] })
+      if (format === 'xlsx') {
+        return new HttpResponse(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0xff]), {
+          headers: {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': 'attachment; filename="parties-20260121-100000.xlsx"',
+          },
+        })
+      }
+      const csv = ['code,name', ...db.parties.map((p) => `${p.code},${p.name}`)].join('\n')
+      return new HttpResponse(csv, {
+        headers: {
+          'Content-Type': 'text/csv; charset=UTF-8',
+          'Content-Disposition': 'attachment; filename="parties-20260121-100000.csv"',
+        },
+      })
+    }),
     http.get('*/api/v1/parties/duplicates', async ({ request }) => {
       const url = await record(request)
       const tax = url.searchParams.get('tax_number') ?? ''

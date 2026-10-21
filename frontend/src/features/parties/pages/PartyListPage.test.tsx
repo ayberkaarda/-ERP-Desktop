@@ -120,6 +120,52 @@ describe('PartyListPage', () => {
     expect(within(grid()).queryAllByRole('checkbox')).toHaveLength(0)
   })
 
+  it('exports the filtered list as a binary XLSX file with the server file name', async () => {
+    const db = setupParties({ parties: seed() })
+    let last: Blob | null = null
+    const saved: { blob: Blob; name: string }[] = []
+    const create = vi.spyOn(URL, 'createObjectURL').mockImplementation((b) => {
+      last = b as Blob
+      return 'blob:x'
+    })
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      if (last) saved.push({ blob: last, name: this.download })
+    })
+    const user = userEvent.setup()
+    renderParties('/parties')
+    await within(await screen.findByRole('grid', { name: 'Cari listesi' })).findByText(
+      'Anadolu Makina',
+    )
+    await user.click(screen.getByRole('button', { name: 'Tedarikçiler' }))
+    await user.click(screen.getByRole('button', { name: 'Dışa aktar' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Excel (XLSX) olarak indir' }))
+
+    await waitFor(() => expect(saved).toHaveLength(1))
+    expect(saved[0]?.name).toBe('parties-20260121-100000.xlsx')
+    const bytes = new Uint8Array(await must(saved[0]).blob.arrayBuffer())
+    expect([...bytes.slice(0, 2)]).toEqual([0x50, 0x4b])
+    const call = must(db.calls.find((c) => c.path === '/api/v1/parties/export'))
+    const params = new URLSearchParams(call.search)
+    expect(params.get('format')).toBe('xlsx')
+    expect(params.get('filter[role]')).toBe('supplier')
+    expect(params.has('page')).toBe(false)
+    create.mockRestore()
+    revoke.mockRestore()
+    click.mockRestore()
+  })
+
+  it('hides the export without parties.export', async () => {
+    setupParties({ parties: seed() }, ['parties.view'])
+    renderParties('/parties')
+    await within(await screen.findByRole('grid', { name: 'Cari listesi' })).findByText(
+      'Anadolu Makina',
+    )
+    expect(screen.queryByRole('button', { name: 'Dışa aktar' })).not.toBeInTheDocument()
+  })
+
   it('shows the empty state with a create action when there are no parties', async () => {
     setupParties()
     renderParties('/parties')
