@@ -16,10 +16,16 @@ use Illuminate\Support\Facades\Gate;
 
 final class DeliveryController extends SalesDocumentController
 {
-    public function __construct(
-        private readonly DeliveryService $deliveries,
-        private readonly InvoiceService $invoices,
-    ) {}
+    // Services are resolved per call: the router keeps controller instances between requests.
+    private function deliveryService(): DeliveryService
+    {
+        return app(DeliveryService::class);
+    }
+
+    private function invoiceService(): InvoiceService
+    {
+        return app(InvoiceService::class);
+    }
 
     protected function model(): string
     {
@@ -29,27 +35,27 @@ final class DeliveryController extends SalesDocumentController
     /** Direct delivery (no order); needs the company setting sales.allow_direct_delivery. */
     public function store(DocumentRequest $request): JsonResponse
     {
-        return $this->respond($this->deliveries->createDirect($request->headerData(), $request->lineData() ?? [], $this->actor($request), $this->canOverridePrice($request)), status: 201);
+        return $this->respond($this->deliveryService()->createDirect($request->headerData(), $request->lineData() ?? [], $this->actor($request), $this->canOverridePrice($request)), status: 201);
     }
 
     public function update(DocumentRequest $request, string $id): JsonResponse
     {
         $delivery = $this->delivery($id, 'update');
 
-        return $this->respond($this->deliveries->update($delivery, $request->headerData(), $request->lineData(), (int) $request->optionalVersion(), $this->actor($request), $this->canOverridePrice($request)));
+        return $this->respond($this->deliveryService()->update($delivery, $request->headerData(), $request->lineData(), (int) $request->optionalVersion(), $this->actor($request), $this->canOverridePrice($request)));
     }
 
     public function destroy(Request $request, string $id): JsonResponse
     {
         Gate::authorize('delete', SalesDelivery::class);
-        $this->deliveries->delete($this->delivery($id, 'delete'), QuoteController::version($request));
+        $this->deliveryService()->delete($this->delivery($id, 'delete'), QuoteController::version($request));
 
         return ApiResponse::noContent();
     }
 
     public function post(ActionRequest $request, string $id): JsonResponse
     {
-        [$delivery, $replayed] = $this->deliveries->post($this->delivery($id, 'post'), $request->optionalVersion(), $this->actor($request));
+        [$delivery, $replayed] = $this->deliveryService()->post($this->delivery($id, 'post'), $request->optionalVersion(), $this->actor($request));
 
         return $this->respond($delivery, replayed: $replayed);
     }
@@ -61,7 +67,7 @@ final class DeliveryController extends SalesDocumentController
         // service on the locked row, so a delivery posted meanwhile cannot be reversed with update.
         $delivery = $this->delivery($id, 'cancel');
 
-        return $this->respond($this->deliveries->cancel($delivery, $request->optionalVersion(), $request->text('reason'), $request->text('date'), $this->actor($request)));
+        return $this->respond($this->deliveryService()->cancel($delivery, $request->optionalVersion(), $request->text('reason'), $request->text('date'), $this->actor($request)));
     }
 
     /** Invoice draft of the posted delivery (lines: delivery_line_id, quantity; omitted = all not invoiced). */
@@ -69,7 +75,7 @@ final class DeliveryController extends SalesDocumentController
     {
         $delivery = $this->delivery($id, 'view');
 
-        return $this->respond($this->invoices->createFromDelivery($delivery, $request->headerData(), $request->lineData(), $this->actor($request)), status: 201);
+        return $this->respond($this->invoiceService()->createFromDelivery($delivery, $request->headerData(), $request->lineData(), $this->actor($request)), status: 201);
     }
 
     private function delivery(string $id, string $ability): SalesDelivery

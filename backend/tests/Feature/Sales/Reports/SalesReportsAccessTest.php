@@ -5,7 +5,6 @@ declare(strict_types=1);
 use App\Modules\Sales\Reports\Http\Requests\SalesReportRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Route;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\Support\Actors;
@@ -76,13 +75,7 @@ it('rejects invalid parameters with 422', function (string $uri): void {
 ]);
 
 it('keeps every report inside the active company', function (): void {
-    // The same user in a second company with its own sales. The router keeps controller instances
-    // between requests and the document controllers hold services built with the first company's
-    // context, so they are rebuilt before acting in the second company.
-    foreach (Route::getRoutes() as $route) {
-        $route->flushController();
-    }
-
+    // The same user in a second company with its own sales.
     $other = Actors::companyFor($this->w->user, [...SalesKit::ALL, 'sales.reports.view']);
     $wh = SalesKit::warehouse($other, 'FOREIGN');
     $unit = SalesKit::unit($other, 'BOX');

@@ -15,22 +15,19 @@ use App\Modules\Workflow\Events\ApprovalRejected;
  */
 final class OrderApprovalListener
 {
-    public function __construct(
-        private readonly OrderService $orders,
-        private readonly CompanyContext $company,
-    ) {}
+    // Resolved per event inside the event company: nothing retains a company context.
 
     public function completed(ApprovalCompleted $event): void
     {
         if ($event->documentType === OrderService::APPROVAL_TYPE) {
-            $this->company->runAs($event->companyId, fn () => $this->orders->approvalCompleted($event->documentId));
+            app(CompanyContext::class)->runAs($event->companyId, fn () => app(OrderService::class)->approvalCompleted($event->documentId));
         }
     }
 
     public function rejected(ApprovalRejected $event): void
     {
         if ($event->documentType === OrderService::APPROVAL_TYPE) {
-            $this->company->runAs($event->companyId, fn () => $this->orders->approvalRejected($event->documentId));
+            app(CompanyContext::class)->runAs($event->companyId, fn () => app(OrderService::class)->approvalRejected($event->documentId));
         }
     }
 }

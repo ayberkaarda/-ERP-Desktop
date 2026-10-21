@@ -18,7 +18,11 @@ use Illuminate\Support\Facades\Gate;
  */
 final class ReturnController extends SalesDocumentController
 {
-    public function __construct(private readonly ReturnService $returns) {}
+    // Services are resolved per call: the router keeps controller instances between requests.
+    private function returnService(): ReturnService
+    {
+        return app(ReturnService::class);
+    }
 
     protected function model(): string
     {
@@ -29,39 +33,39 @@ final class ReturnController extends SalesDocumentController
     {
         $return = $this->salesReturn($id, 'update');
 
-        return $this->respond($this->returns->update($return, $request->headerData(), $request->lineData(), (int) $request->optionalVersion()));
+        return $this->respond($this->returnService()->update($return, $request->headerData(), $request->lineData(), (int) $request->optionalVersion()));
     }
 
     public function destroy(Request $request, string $id): JsonResponse
     {
         Gate::authorize('delete', SalesReturn::class);
-        $this->returns->delete($this->salesReturn($id, 'delete'), QuoteController::version($request));
+        $this->returnService()->delete($this->salesReturn($id, 'delete'), QuoteController::version($request));
 
         return ApiResponse::noContent();
     }
 
     public function approve(ActionRequest $request, string $id): JsonResponse
     {
-        return $this->respond($this->returns->approve($this->salesReturn($id, 'approve'), $request->optionalVersion(), $this->actor($request)));
+        return $this->respond($this->returnService()->approve($this->salesReturn($id, 'approve'), $request->optionalVersion(), $this->actor($request)));
     }
 
     public function receive(ActionRequest $request, string $id): JsonResponse
     {
-        [$return, $replayed] = $this->returns->receive($this->salesReturn($id, 'receive'), $request->optionalVersion(), $this->actor($request));
+        [$return, $replayed] = $this->returnService()->receive($this->salesReturn($id, 'receive'), $request->optionalVersion(), $this->actor($request));
 
         return $this->respond($return, replayed: $replayed);
     }
 
     public function credit(ActionRequest $request, string $id): JsonResponse
     {
-        [$return, $replayed] = $this->returns->credit($this->salesReturn($id, 'credit'), $request->optionalVersion(), $this->actor($request));
+        [$return, $replayed] = $this->returnService()->credit($this->salesReturn($id, 'credit'), $request->optionalVersion(), $this->actor($request));
 
         return $this->respond($return, replayed: $replayed);
     }
 
     public function cancel(ActionRequest $request, string $id): JsonResponse
     {
-        return $this->respond($this->returns->cancel($this->salesReturn($id, 'update'), $request->optionalVersion(), $this->actor($request)));
+        return $this->respond($this->returnService()->cancel($this->salesReturn($id, 'update'), $request->optionalVersion(), $this->actor($request)));
     }
 
     private function salesReturn(string $id, string $ability): SalesReturn
