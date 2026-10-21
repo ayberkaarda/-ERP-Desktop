@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { accountsApi } from './api'
 import { AccountTypeBadge } from './components'
 import { useAccT } from './i18n'
-import { accKeys } from './keys'
+import { useAccKeys } from './keys'
 import type { Account } from './types'
 
 export interface AccountComboboxProps extends Partial<FieldControlProps> {
@@ -41,10 +41,11 @@ export function AccountCombobox({
 }: AccountComboboxProps) {
   const t = useAccT()
   const queryClient = useQueryClient()
+  const keys = useAccKeys()
   // Rows of the latest search: a pick returns exactly the record the user saw.
   const lastResults = useRef(new Map<string, Account>())
   const current = useQuery({
-    queryKey: accKeys.account(value ?? ''),
+    queryKey: keys.account(value ?? ''),
     queryFn: ({ signal }) => accountsApi.get(value ?? '', signal),
     enabled: Boolean(value),
     staleTime: 5 * 60_000,
@@ -92,11 +93,10 @@ export function AccountCombobox({
         loadOptions={loadOptions}
         onChange={(id) => {
           const picked = id ? lastResults.current.get(id) : undefined
-          if (picked) queryClient.setQueryData(accKeys.account(picked.id), picked)
+          if (picked) queryClient.setQueryData(keys.account(picked.id), picked)
           onChange(
             id,
-            picked ??
-              (id ? (queryClient.getQueryData<Account>(accKeys.account(id)) ?? null) : null),
+            picked ?? (id ? (queryClient.getQueryData<Account>(keys.account(id)) ?? null) : null),
           )
         }}
       />

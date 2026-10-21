@@ -4,7 +4,7 @@ import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { ApiError, platform } from '@/platform'
 import { ActionDialog } from '../../shared/ActionDialog'
 import { useAccT } from '../../shared/i18n'
-import { accKeys } from '../../shared/keys'
+import { useAccKeys } from '../../shared/keys'
 import { periodsApi } from '../../shared/api'
 import { usePeriods, usePeriodTransition } from '../../shared/queries'
 import type { AccountingPeriod, PeriodAction } from '../../shared/types'
@@ -58,6 +58,7 @@ export function PeriodActionDialog({
   const t = useAccT()
   const locale = useIntlLocale()
   const qc = useQueryClient()
+  const keys = useAccKeys()
   const transition = usePeriodTransition()
   const key = ACTION_KEY[action]
   // Live from the board's query, so a refresh moves the draft count (and the block) with it.
@@ -70,7 +71,7 @@ export function PeriodActionDialog({
     const yearId = period.fiscal_year_id
     // Re-read right before submitting; the list on screen may be minutes old.
     const list = await qc.query({
-      queryKey: accKeys.periods(yearId),
+      queryKey: keys.periods(yearId),
       queryFn: ({ signal }) => periodsApi.forYear(yearId, signal),
       staleTime: 0,
     })
@@ -99,7 +100,7 @@ export function PeriodActionDialog({
       requireReason={action === 'reopen'}
       confirmDisabled={blockedUpFront}
       onConfirm={confirm}
-      onReload={() => qc.invalidateQueries({ queryKey: accKeys.periods(period.fiscal_year_id) })}
+      onReload={() => qc.invalidateQueries({ queryKey: keys.periods(period.fiscal_year_id) })}
       renderError={(error) => {
         const reason = readBlockedReason(error)
         return reason ? <BlockedPanel reason={reason} /> : null

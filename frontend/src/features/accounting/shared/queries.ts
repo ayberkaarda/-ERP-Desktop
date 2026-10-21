@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ListQueryState } from '@/components/shared/data-table'
 import { accountsApi, fiscalYearsApi, periodsApi, rulesApi } from './api'
-import { accKeys } from './keys'
+import { useAccKeys } from './keys'
 import type {
   AccountInput,
   AccountingPeriod,
@@ -14,8 +14,9 @@ import type {
 // --- Accounts -------------------------------------------------------------------------------
 
 export function useAccountList(query: ListQueryState, enabled = true) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.accountList(query),
+    queryKey: keys.accountList(query),
     queryFn: ({ signal }) => accountsApi.list(query, signal),
     placeholderData: keepPreviousData,
     enabled,
@@ -23,8 +24,9 @@ export function useAccountList(query: ListQueryState, enabled = true) {
 }
 
 export function useAccountTree(enabled = true) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.accountTree(),
+    queryKey: keys.accountTree(),
     queryFn: ({ signal }) => accountsApi.tree(signal),
     staleTime: 60_000,
     enabled,
@@ -32,16 +34,18 @@ export function useAccountTree(enabled = true) {
 }
 
 export function useAccount(id: string | null) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.account(id ?? ''),
+    queryKey: keys.account(id ?? ''),
     queryFn: ({ signal }) => accountsApi.get(id ?? '', signal),
     enabled: Boolean(id),
   })
 }
 
 export function useAccountBalance(id: string | null, asOf: string) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.balance(id ?? '', asOf),
+    queryKey: keys.balance(id ?? '', asOf),
     queryFn: ({ signal }) => accountsApi.balance(id ?? '', asOf, signal),
     enabled: Boolean(id) && /^\d{4}-\d{2}-\d{2}$/.test(asOf),
   })
@@ -53,7 +57,8 @@ function useInvalidate(key: readonly unknown[]) {
 }
 
 export function useSaveAccount() {
-  const invalidate = useInvalidate(accKeys.accounts())
+  const keys = useAccKeys()
+  const invalidate = useInvalidate(keys.accounts())
   return useMutation({
     mutationFn: (
       args:
@@ -68,7 +73,8 @@ export function useSaveAccount() {
 }
 
 export function useDeleteAccount() {
-  const invalidate = useInvalidate(accKeys.accounts())
+  const keys = useAccKeys()
+  const invalidate = useInvalidate(keys.accounts())
   return useMutation({
     mutationFn: ({ id, version }: { id: string; version: number }) =>
       accountsApi.remove(id, version),
@@ -79,26 +85,29 @@ export function useDeleteAccount() {
 // --- Fiscal years ---------------------------------------------------------------------------
 
 export function useFiscalYears(enabled = true) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.fiscalYears(),
+    queryKey: keys.fiscalYears(),
     queryFn: ({ signal }) => fiscalYearsApi.all(signal),
     enabled,
   })
 }
 
 export function useCreateFiscalYear() {
+  const keys = useAccKeys()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ input, key }: { input: FiscalYearInput; key: string }) =>
       fiscalYearsApi.create(input, key),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: accKeys.fiscalYears() })
-      void qc.invalidateQueries({ queryKey: accKeys.periods() })
+      void qc.invalidateQueries({ queryKey: keys.fiscalYears() })
+      void qc.invalidateQueries({ queryKey: keys.periods() })
     },
   })
 }
 
 export function useUpdateFiscalYear() {
+  const keys = useAccKeys()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({
@@ -111,13 +120,14 @@ export function useUpdateFiscalYear() {
       patch: Partial<FiscalYearInput>
     }) => fiscalYearsApi.update(id, version, patch),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: accKeys.fiscalYears() })
-      void qc.invalidateQueries({ queryKey: accKeys.periods() })
+      void qc.invalidateQueries({ queryKey: keys.fiscalYears() })
+      void qc.invalidateQueries({ queryKey: keys.periods() })
     },
   })
 }
 
 export function useYearTransition() {
+  const keys = useAccKeys()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (
@@ -129,15 +139,16 @@ export function useYearTransition() {
         ? fiscalYearsApi.close(args.year, args.key)
         : fiscalYearsApi.reopen(args.year, args.reason, args.key),
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: accKeys.fiscalYears() })
-      void qc.invalidateQueries({ queryKey: accKeys.periods() })
+      void qc.invalidateQueries({ queryKey: keys.fiscalYears() })
+      void qc.invalidateQueries({ queryKey: keys.periods() })
     },
   })
 }
 
 export function useClosingPreview(id: string | null) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.closingPreview(id ?? ''),
+    queryKey: keys.closingPreview(id ?? ''),
     queryFn: ({ signal }) => fiscalYearsApi.closingPreview(id ?? '', signal),
     enabled: Boolean(id),
     retry: false,
@@ -147,14 +158,16 @@ export function useClosingPreview(id: string | null) {
 // --- Periods --------------------------------------------------------------------------------
 
 export function usePeriods(fiscalYearId: string | null) {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.periods(fiscalYearId ?? ''),
+    queryKey: keys.periods(fiscalYearId ?? ''),
     queryFn: ({ signal }) => periodsApi.forYear(fiscalYearId ?? '', signal),
     enabled: Boolean(fiscalYearId),
   })
 }
 
 export function usePeriodTransition() {
+  const keys = useAccKeys()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({
@@ -166,21 +179,23 @@ export function usePeriodTransition() {
       action: PeriodAction
       reason: string | null
     }) => periodsApi.transition(period, action, reason),
-    onSettled: () => qc.invalidateQueries({ queryKey: accKeys.periods() }),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.periods() }),
   })
 }
 
 // --- Determination rules --------------------------------------------------------------------
 
 export function useRules() {
+  const keys = useAccKeys()
   return useQuery({
-    queryKey: accKeys.rules(),
+    queryKey: keys.rules(),
     queryFn: ({ signal }) => rulesApi.all(signal),
   })
 }
 
 export function useSaveRule() {
-  const invalidate = useInvalidate(accKeys.rules())
+  const keys = useAccKeys()
+  const invalidate = useInvalidate(keys.rules())
   return useMutation({
     mutationFn: (
       args:
@@ -200,7 +215,8 @@ export function useSaveRule() {
 }
 
 export function useDeleteRule() {
-  const invalidate = useInvalidate(accKeys.rules())
+  const keys = useAccKeys()
+  const invalidate = useInvalidate(keys.rules())
   return useMutation({
     mutationFn: ({ id, version }: { id: string; version: number }) => rulesApi.remove(id, version),
     onSuccess: invalidate,

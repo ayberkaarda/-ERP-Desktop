@@ -97,8 +97,13 @@ describe('commands', () => {
       ...determinationCommands,
     ]
     expect(new Set(all.map((c) => c.id)).size).toBe(all.length)
+    const names = (p: (typeof all)[number]['permission']): readonly string[] =>
+      p === undefined ? [] : typeof p === 'string' ? [p] : 'anyOf' in p ? p.anyOf : p
     expect(
-      all.every((c) => typeof c.permission === 'string' && c.permission.startsWith('accounting.')),
+      all.every((c) => {
+        const list = names(c.permission)
+        return list.length > 0 && list.every((n) => n.startsWith('accounting.'))
+      }),
     ).toBe(true)
     const navigate = vi.fn()
     void accountsCommands[0]?.run({ navigate })

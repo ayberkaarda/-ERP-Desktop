@@ -10,7 +10,7 @@ import { ActionDialog } from '../../shared/ActionDialog'
 import { errorMessage } from '../../shared/errors'
 import { usePayloadKeys } from '../../shared/idempotency'
 import { useAccT } from '../../shared/i18n'
-import { accKeys } from '../../shared/keys'
+import { useAccKeys } from '../../shared/keys'
 import {
   useClosingPreview,
   useFiscalYears,
@@ -90,6 +90,7 @@ export function YearTransitionDialog({
 }) {
   const t = useAccT()
   const qc = useQueryClient()
+  const keys = useAccKeys()
   const keyFor = usePayloadKeys()
   const transition = useYearTransition()
   const [ack, setAck] = useState(false)
@@ -108,9 +109,7 @@ export function YearTransitionDialog({
   const notClosed = (periods.data ?? []).filter((p) => p.status !== 'closed')
 
   const confirm = async (reason: string | null) => {
-    const cached = qc
-      .getQueryData<FiscalYear[]>(accKeys.fiscalYears())
-      ?.find((y) => y.id === year.id)
+    const cached = qc.getQueryData<FiscalYear[]>(keys.fiscalYears())?.find((y) => y.id === year.id)
     if (cached && cached.version !== base.version) throw new Error(t('fiscal.changed.body'))
     const fresh = base
     if (action === 'close') {
@@ -145,7 +144,7 @@ export function YearTransitionDialog({
       requireReason={action === 'reopen'}
       confirmDisabled={changed || (action === 'close' && !ack)}
       onConfirm={confirm}
-      onReload={() => qc.invalidateQueries({ queryKey: accKeys.fiscalYears() })}
+      onReload={() => qc.invalidateQueries({ queryKey: keys.fiscalYears() })}
     >
       {changed && (
         <div
