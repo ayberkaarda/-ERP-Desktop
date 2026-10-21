@@ -34,13 +34,15 @@ export const salesDocsKeys = {
 
 /**
  * Keys of other areas a posted/issued/reversed sales document makes stale: fe-sales1's orders
- * (delivered/invoiced quantities), the stock screens and the journal of that company.
+ * (delivered/invoiced quantities), the stock screens, the journal and the account balances of that company.
  */
 export function foreignKeys(company: string) {
   return [
     ['sales', company, 'orders'],
     ['inventory', company],
     ['accounting-journal', company],
+    // Account balances (Accounting chart of accounts) change with every posting.
+    ['accounting', company, 'accounts', 'balance'],
   ] as const
 }
 

@@ -35,6 +35,8 @@ describe('sales kit', () => {
     expect(keys).toContain(JSON.stringify(['sales', 'c2', 'orders']))
     expect(keys).toContain(JSON.stringify(['inventory', 'c2']))
     expect(keys).toContain(JSON.stringify(['accounting-journal', 'c2']))
+    // Account balances live under the accounting scope, not the journal one.
+    expect(keys).toContain(JSON.stringify(['accounting', 'c2', 'accounts', 'balance']))
     expect(keys.every((k) => k.includes('"c2"'))).toBe(true)
     await qc.cancelQueries()
   })
