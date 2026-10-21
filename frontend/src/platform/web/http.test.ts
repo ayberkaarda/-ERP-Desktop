@@ -1,7 +1,13 @@
 import { http, HttpResponse } from 'msw'
 import { server } from '@/test/msw/server'
 import { ApiError } from '../types'
-import { createWebHttp, isStaleRequest, STALE_REQUEST, withIdempotency } from './http'
+import {
+  createWebHttp,
+  filenameFromDisposition,
+  isStaleRequest,
+  STALE_REQUEST,
+  withIdempotency,
+} from './http'
 
 const client = createWebHttp({ getCompanyId: () => 'company-1' })
 
@@ -226,5 +232,59 @@ describe('CSRF replay guards', () => {
     expect(error.code).toBe(STALE_REQUEST)
     expect(isStaleRequest(error)).toBe(true)
     expect(posts).toBe(1)
+  })
+})
+
+describe('web http download', () => {
+  it('returns the binary body as a Blob with the server file name', async () => {
+    const bytes = new Uint8Array([0x50, 0x4b, 0xff, 0x00, 0xc3])
+    let companyHeader: string | null = null
+    server.use(
+      http.get('*/api/v1/report/export', ({ request }) => {
+        companyHeader = request.headers.get('X-Company-Id')
+        return new HttpResponse(bytes, {
+          headers: { 'Content-Disposition': 'attachment; filename="mizan.xlsx"' },
+        })
+      }),
+    )
+    const res = await client.download('/report/export', { params: { format: 'xlsx' } })
+    expect([...new Uint8Array(await res.blob.arrayBuffer())]).toEqual([...bytes])
+    expect(res.filename).toBe('mizan.xlsx')
+    expect(companyHeader).toBe('company-1')
+  })
+
+  it('reads the JSON error envelope from a Blob error body', async () => {
+    server.use(
+      http.get('*/api/v1/report/export', () =>
+        HttpResponse.json(
+          {
+            errors: { message: 'Çok satır', code: 'VALIDATION_FAILED', fields: { filter: ['x'] } },
+          },
+          { status: 422 },
+        ),
+      ),
+    )
+    const error = await rejection(client.download('/report/export'))
+    expect(error.code).toBe('VALIDATION_FAILED')
+    expect(error.fields).toEqual({ filter: ['x'] })
+  })
+
+  it('refuses absolute URLs', async () => {
+    const error = await rejection(client.download('https://evil.test/x'))
+    expect(error.code).toBe('INVALID_URL')
+  })
+
+  it.each([
+    ['attachment; filename="a.csv"', 'a.csv'],
+    ['attachment; filename="x.xlsx"; filename*=UTF-8\'\'mizan%20%C3%A7.xlsx', 'mizan ç.xlsx'],
+    ['attachment; filename="../../etc/passwd"', 'passwd'],
+    ['attachment; filename="..\\..\\boot.ini"', 'boot.ini'],
+    ['attachment; filename=".hidden"', 'hidden'],
+    ['attachment; filename="a\u0000b<c>.csv"', 'a_b_c_.csv'],
+    ["attachment; filename*=UTF-8''%E0%A4%A", null],
+    ['attachment', null],
+    ['attachment; filename=""', null],
+  ])('parses Content-Disposition %j safely', (header, expected) => {
+    expect(filenameFromDisposition(header)).toBe(expected)
   })
 })

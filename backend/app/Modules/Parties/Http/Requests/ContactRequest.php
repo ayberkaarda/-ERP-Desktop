@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Parties\Http\Requests;
 
+/**
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
+ */
 final class ContactRequest extends ChildRequest
 {
     /** @return array<string, list<string>> */

@@ -16,6 +16,8 @@ use App\Modules\Catalog\Models\Unit;
 use App\Modules\Catalog\Models\UnitConversion;
 use App\Modules\Catalog\Services\CategoryTree;
 use App\Modules\Catalog\Services\ReferenceGuards;
+use App\Modules\Reference\Models\Currency;
+use App\Modules\Reference\Services\CurrencyCatalog;
 use Closure;
 use Illuminate\Contracts\Container\Container;
 use Illuminate\Support\Str;
@@ -93,9 +95,23 @@ final class Catalog
 
     public static function priceList(string $company, array $attributes = []): PriceList
     {
-        return self::in($company, fn (): PriceList => PriceList::query()->create([
-            'code' => 'PL'.Str::upper(Str::random(6)), 'name' => 'List', 'currency_code' => 'TRY', ...$attributes,
-        ]));
+        $attributes = ['code' => 'PL'.Str::upper(Str::random(6)), 'name' => 'List', 'currency_code' => 'TRY', ...$attributes];
+        self::currency((string) $attributes['currency_code']);
+
+        return self::in($company, fn (): PriceList => PriceList::query()->create($attributes));
+    }
+
+    /**
+     * The global currency row that price_lists.currency_code references (shipped ISO rows, or a
+     * placeholder for made up codes).
+     */
+    public static function currency(string $code): void
+    {
+        CurrencyCatalog::ensure([$code]);
+
+        if (! Currency::query()->withTrashed()->where('code', $code)->exists()) {
+            Currency::factory()->create(['code' => $code]);
+        }
     }
 
     public static function line(string $company, PriceList $list, Item $item, Unit $unit, string $price, array $attributes = []): PriceListLine

@@ -10,6 +10,8 @@ use Illuminate\Validation\Validator;
 
 /**
  * Alternate unit of an item: 1 unit_id = factor base units.
+ *
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
  */
 final class ItemUnitRequest extends CatalogRequest
 {

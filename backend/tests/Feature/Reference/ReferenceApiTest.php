@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Modules\Organization\Models\Branch;
+use App\Modules\Parties\Models\Party;
 use App\Modules\Reference\Contracts\CurrencyLookup;
 use App\Modules\Reference\Contracts\DimensionLookup;
 use App\Modules\Reference\Contracts\PaymentTermLookup;
@@ -19,6 +21,7 @@ use App\Modules\Reference\Models\Project;
 use App\Modules\Reference\Models\TaxCode;
 use App\Modules\Reference\Models\Warehouse;
 use App\Modules\Reference\Services\ExternalReferences;
+use App\Modules\Reference\Services\NullLookup;
 use App\Modules\Settings\Contracts\SettingsReader;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
@@ -200,6 +203,7 @@ it('provides scoped lookups for active master records', function (): void {
 });
 
 it('returns latest manual rates and TCMB staleness with authorization', function (): void {
+    $this->seed(ReferenceSeeder::class);
     $this->travelTo(now()->setDate(2026, 10, 21)->startOfDay());
     Sanctum::actingAs(Actors::user(['exchange_rates.view']));
     $headers = ['X-Company-Id' => $this->company];
@@ -239,35 +243,27 @@ it('registers a company base currency setting with a validated default', functio
     expect(app(CompanyContext::class)->runAs($other, fn () => $reader->get('company.base_currency')))->toBe('TRY');
 });
 
-it('uses providing-module contract bindings and rejects unavailable foreign references', function (): void {
+it('checks branches and parties through the Organization and Parties lookups of the active company', function (): void {
     $user = Actors::user(['warehouses.create', 'projects.create']);
+    $other = Actors::companyFor($user);
     Sanctum::actingAs($user);
-    $branch = (string) Str::uuid();
-    $party = (string) Str::uuid();
-    $headers = ['X-Company-Id' => $this->company, 'Idempotency-Key' => (string) Str::uuid()];
-    $this->postJson('/api/v1/warehouses', ['code' => 'B1', 'name' => 'Branch', 'branch_id' => $branch], $headers)->assertUnprocessable();
-    app()->instance(ExternalReferences::BRANCH_LOOKUP, new class($branch)
-    {
-        public function __construct(private string $id) {}
+    [$branch, $party] = app(CompanyContext::class)->runAs($this->company, fn (): array => [Branch::factory()->create(), Party::factory()->create()]);
+    [$foreignBranch, $foreignParty] = app(CompanyContext::class)->runAs($other, fn (): array => [Branch::factory()->create(), Party::factory()->create()]);
+    $inactiveBranch = app(CompanyContext::class)->runAs($this->company, fn (): Branch => Branch::factory()->create(['is_active' => false]));
+    $post = fn (string $uri, array $data) => $this->postJson($uri, $data, ['X-Company-Id' => $this->company, 'Idempotency-Key' => (string) Str::uuid()]);
 
-        public function exists(string $id): bool
-        {
-            return $id === $this->id;
-        }
-    });
-    app()->instance(ExternalReferences::PARTY_LOOKUP, new class($party)
-    {
-        public function __construct(private string $id) {}
+    foreach ([(string) Str::uuid(), $foreignBranch->id, $inactiveBranch->id] as $id) {
+        $post('/api/v1/warehouses', ['code' => 'B1', 'name' => 'Branch', 'branch_id' => $id])->assertUnprocessable()->assertJsonValidationErrors(['branch_id'], 'errors.fields');
+    }
+    foreach ([(string) Str::uuid(), $foreignParty->id] as $id) {
+        $post('/api/v1/projects', ['code' => 'P1', 'name' => 'Project', 'party_id' => $id])->assertUnprocessable()->assertJsonValidationErrors(['party_id'], 'errors.fields');
+    }
+    $post('/api/v1/warehouses', ['code' => 'B1', 'name' => 'Branch', 'branch_id' => $branch->id])->assertCreated()->assertJsonPath('data.branch_id', $branch->id);
+    $post('/api/v1/projects', ['code' => 'P1', 'name' => 'Project', 'party_id' => $party->id])->assertCreated()->assertJsonPath('data.party_id', $party->id);
 
-        public function find(string $id): ?object
-        {
-            return $id === $this->id ? (object) ['id' => $id] : null;
-        }
-    });
-    $headers['Idempotency-Key'] = (string) Str::uuid();
-    $this->postJson('/api/v1/warehouses', ['code' => 'B1', 'name' => 'Branch', 'branch_id' => $branch], $headers)->assertCreated();
-    $headers['Idempotency-Key'] = (string) Str::uuid();
-    $this->postJson('/api/v1/projects', ['code' => 'P1', 'name' => 'Project', 'party_id' => $party], $headers)->assertCreated();
+    // Bare install (no Organization / Parties): the fallback lookups verify nothing.
+    app()->instance(ExternalReferences::BRANCH_LOOKUP, new NullLookup);
+    $post('/api/v1/warehouses', ['code' => 'B2', 'name' => 'Branch', 'branch_id' => $branch->id])->assertUnprocessable();
 });
 
 it('maintains one default warehouse and blocks deletion of referenced records', function (): void {

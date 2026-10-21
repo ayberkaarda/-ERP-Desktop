@@ -385,6 +385,7 @@ it('exports the filtered list as CSV with formula cells neutralised', function (
 });
 
 it('serves the PartyLookup contract scoped to the active company', function (): void {
+    $this->seed(ReferenceSeeder::class);
     $party = partyIn($this->company, ['code' => 'P123456', 'roles' => ['customer', 'supplier'], 'risk_limit' => '250.5', 'risk_currency_code' => 'TRY']);
     $lookup = app(PartyLookup::class);
 

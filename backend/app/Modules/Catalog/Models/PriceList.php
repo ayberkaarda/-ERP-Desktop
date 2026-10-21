@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Catalog\Models;
 
 use App\Core\Documents\HasVersion;
+use App\Modules\Files\Contracts\Attachable;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
@@ -22,7 +23,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-class PriceList extends CatalogModel
+class PriceList extends CatalogModel implements Attachable
 {
     use HasVersion;
     use SoftDeletes;

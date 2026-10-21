@@ -1,0 +1,255 @@
+{
+  "nav": {
+    "accounting": "Comptabilité",
+    "entries": "Écritures comptables",
+    "reports": "Rapports",
+    "trialBalance": "Balance générale",
+    "generalLedger": "Grand livre",
+    "journalBook": "Livre-journal"
+  },
+  "palette": {
+    "newEntry": "Nouvelle écriture"
+  },
+  "actions": {
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "ok": "OK",
+    "retry": "Réessayer",
+    "save": "Enregistrer"
+  },
+  "status": {
+    "draft": "Brouillon",
+    "posted": "Validée",
+    "reversed": "Contrepassée"
+  },
+  "entryType": {
+    "opening": "Ouverture",
+    "general": "Opérations diverses",
+    "receipt": "Encaissement",
+    "payment": "Décaissement",
+    "adjustment": "Régularisation",
+    "revaluation": "Réévaluation de change",
+    "closing": "Clôture",
+    "reversal": "Contrepassation",
+    "system": "Système"
+  },
+  "fields": {
+    "number": "N° d'écriture",
+    "entryDate": "Date",
+    "entryType": "Type d'écriture",
+    "description": "Libellé",
+    "status": "Statut",
+    "source": "Origine",
+    "totalDebit": "Total débit",
+    "totalCredit": "Total crédit"
+  },
+  "list": {
+    "title": "Écritures comptables",
+    "description": "Écritures en brouillon, validées et contrepassées.",
+    "new": "Nouvelle écriture",
+    "filters": "Filtres des écritures",
+    "unnumbered": "Brouillon"
+  },
+  "filters": {
+    "dateFrom": "Date de début",
+    "dateTo": "Date de fin",
+    "account": "Compte",
+    "party": "Tiers",
+    "amountMin": "Montant minimum",
+    "amountMax": "Montant maximum",
+    "clear": "Effacer tous les filtres"
+  },
+  "presets": {
+    "views": "Vues enregistrées",
+    "params": "Paramètres enregistrés",
+    "empty": "Rien d'enregistré pour l'instant.",
+    "remove": "Supprimer {{name}}",
+    "saveCurrent": "Enregistrer les réglages actuels…",
+    "saveTitle": "Enregistrer les réglages",
+    "saveBody": "Les filtres et paramètres choisis sont conservés dans ce navigateur sous ce nom.",
+    "name": "Nom"
+  },
+  "export": {
+    "label": "Exporter",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Le fichier n'a pas pu être téléchargé."
+  },
+  "picker": {
+    "currency": "Devise : {{code}}",
+    "requiresParty": "Tiers obligatoire",
+    "requiresCostCenter": "Centre de coûts obligatoire",
+    "requiresProject": "Projet obligatoire"
+  },
+  "lines": {
+    "title": "Lignes d'écriture",
+    "account": "Compte",
+    "description": "Libellé",
+    "debit": "Débit",
+    "credit": "Crédit",
+    "fxAmount": "Montant en devise",
+    "fxRate": "Cours",
+    "baseAmount": "Contre-valeur",
+    "applyBase": "Reporter la contre-valeur sur la ligne {{index}}",
+    "party": "Tiers",
+    "costCenter": "Centre de coûts",
+    "project": "Projet",
+    "dimensions": "Axes",
+    "required": "Obligatoire",
+    "optional": "Facultatif",
+    "notApplicable": "Sans objet pour ce compte",
+    "count": "Lignes : {{count}} / {{max}}",
+    "keys": "F9 ou = : solde sur cette ligne · Entrée après un débit saute le crédit · Ctrl+S enregistre le brouillon",
+    "maxReached": "Une écriture compte au plus {{max}} lignes."
+  },
+  "balance": {
+    "balanced": "Écriture équilibrée",
+    "empty": "Aucun montant saisi",
+    "creditShort": "Crédit manquant : {{amount}}",
+    "debitShort": "Débit manquant : {{amount}}",
+    "debitTotal": "Débit",
+    "creditTotal": "Crédit",
+    "difference": "Écart",
+    "totals": "Total"
+  },
+  "validation": {
+    "account": "Choisissez un compte.",
+    "amountRequired": "Saisissez un montant au débit ou au crédit.",
+    "bothSides": "Une ligne ne peut pas porter à la fois un débit et un crédit.",
+    "party": "Ce compte exige un tiers.",
+    "costCenter": "Ce compte exige un centre de coûts.",
+    "project": "Ce compte exige un projet.",
+    "fxAmount": "Un compte en devise exige un montant en devise.",
+    "fxRate": "Un compte en devise exige un cours.",
+    "minLines": "Saisissez au moins une ligne.",
+    "maxLines": "Une écriture compte au plus {{max}} lignes.",
+    "descriptionTooLong": "Le libellé ne peut dépasser 500 caractères."
+  },
+  "editor": {
+    "newTitle": "Nouvelle écriture",
+    "editTitle": "Écriture en brouillon",
+    "description": "Saisissez les lignes au clavier ; validez une fois l'écriture équilibrée.",
+    "saveDraft": "Enregistrer le brouillon",
+    "post": "Valider",
+    "postNeedsBalance": "Les totaux débit et crédit doivent être égaux pour valider.",
+    "showAllDimensions": "Afficher toutes les colonnes d'axes",
+    "saved": "Brouillon enregistré.",
+    "delete": "Supprimer le brouillon",
+    "deleteTitle": "Supprimer le brouillon ?",
+    "deleteBody": "Le brouillon et ses lignes sont supprimés définitivement.",
+    "deleted": "Brouillon supprimé."
+  },
+  "post": {
+    "title": "Valider l'écriture ?",
+    "body": "Une écriture validée reçoit son numéro de journal ; elle ne peut plus être modifiée, seulement contrepassée.",
+    "summary": "{{date}} · {{count}} lignes · Débit {{debit}} · Crédit {{credit}}",
+    "confirm": "Valider",
+    "doneTitle": "Écriture validée",
+    "doneBody": "L'écriture a reçu le numéro de journal {{number}}.",
+    "unbalancedNow": "L'écriture n'est plus équilibrée et n'a pas été validée. Rechargez-la et vérifiez-la."
+  },
+  "reverse": {
+    "action": "Contrepasser",
+    "title": "Contrepasser {{number}}",
+    "body": "Une nouvelle écriture inversant débits et crédits est créée et liée à celle-ci.",
+    "date": "Date de contrepassation",
+    "reason": "Motif",
+    "reasonRequired": "Le motif doit compter au moins 3 caractères.",
+    "confirm": "Créer la contrepassation",
+    "done": "Contrepassation {{number}} créée."
+  },
+  "view": {
+    "title": "Écriture {{number}}",
+    "noNumber": "sans numéro",
+    "postedAt": "Validée le",
+    "manual": "Saisie manuelle",
+    "reverses": "Cette écriture contrepasse :",
+    "reversedBy": "Contrepassée par :",
+    "openEntry": "ouvrir l'écriture",
+    "reason": "Motif",
+    "audit": "Historique"
+  },
+  "conflict": {
+    "title": "Quelqu'un d'autre a modifié cette écriture",
+    "body": "Chargez la dernière version avant d'enregistrer ; vos modifications ne sont pas fusionnées.",
+    "reload": "Charger la dernière version"
+  },
+  "errors": {
+    "generic": "L'opération n'a pas pu aboutir.",
+    "loadFailed": "Les données n'ont pas pu être chargées.",
+    "refreshFailed": "La dernière version n'a pas pu être récupérée ; l'affichage peut être périmé."
+  },
+  "reports": {
+    "parameters": "Paramètres du rapport",
+    "rangeMode": "Choix de la période",
+    "mode": {
+      "range": "Plage de dates",
+      "period": "Période comptable"
+    },
+    "period": "Période",
+    "choosePeriod": "Choisir une période",
+    "loading": "Chargement…",
+    "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
+    "run": "Lancer le rapport",
+    "choose": "Choisissez les paramètres et lancez le rapport.",
+    "noRows": "Aucune ligne pour ces paramètres.",
+    "periodsFailed": "Les périodes n'ont pas pu être chargées."
+  },
+  "trialBalance": {
+    "title": "Balance générale",
+    "description": "À-nouveaux, mouvements et soldes par compte ; les totaux débit et crédit sont contrôlés.",
+    "level": "Niveau",
+    "levelOption": "Niveau {{level}}",
+    "includeZero": "Afficher les comptes soldés",
+    "compare": "Comparer avec l'exercice précédent",
+    "account": "Compte",
+    "opening": "À-nouveaux",
+    "movements": "Mouvements",
+    "balance": "Solde",
+    "previousBalance": "Solde N-1",
+    "debit": "Débit",
+    "credit": "Crédit",
+    "totals": "Total général",
+    "balanced": "Débit = Crédit",
+    "unbalanced": "Balance déséquilibrée · écart mouvements {{movement}} · écart soldes {{balance}}",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
+    "expand": "Déplier les sous-comptes de {{code}}",
+    "collapse": "Replier les sous-comptes de {{code}}"
+  },
+  "ledger": {
+    "title": "Grand livre",
+    "description": "Solde d'ouverture, mouvements et solde progressif d'un compte.",
+    "account": "Compte",
+    "choose": "Choisissez un compte et une plage de dates, puis lancez le rapport.",
+    "opening": "Solde d'ouverture (report)",
+    "closing": "Totaux et solde de clôture",
+    "balance": "Solde",
+    "debitSide": "D",
+    "creditSide": "C",
+    "noMovements": "Aucun mouvement sur cette période.",
+    "rows": "Mouvements : {{count}}",
+    "loadMore": "Charger plus ({{loaded}} / {{total}})"
+  },
+  "book": {
+    "title": "Livre-journal",
+    "description": "Écritures validées par ordre de numéro ; chaque page porte les totaux reportés et à reporter.",
+    "pageSize": "Lignes par page",
+    "pageSizeOption": "{{count}} lignes",
+    "print": "Imprimer",
+    "page": "Page {{number}} / {{total}}",
+    "accountCode": "N° de compte",
+    "accountName": "Intitulé du compte",
+    "entryNo": "Journal n° {{number}}",
+    "broughtForward": "Report",
+    "pageTotal": "Total de la page",
+    "carriedForward": "À reporter",
+    "grandTotal": "Total général",
+    "empty": "Aucune écriture validée sur cette période.",
+    "tooLarge": "La période est trop longue pour l'affichage ; réduisez-la ou exportez."
+  },
+  "changed": {
+    "title": "L'écriture a été modifiée ailleurs",
+    "body": "Une version plus récente a été enregistrée pendant votre saisie. Chargez la dernière version avant d'enregistrer."
+  }
+}

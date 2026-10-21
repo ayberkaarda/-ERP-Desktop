@@ -32,7 +32,8 @@ abstract class ChildRequest extends FormRequest
 
     protected function creating(): bool
     {
-        return $this->route('child') === null;
+        // POST is the only creating route; decided by the method so the API document sees it too.
+        return $this->isMethod('POST');
     }
 
     protected function required(): string

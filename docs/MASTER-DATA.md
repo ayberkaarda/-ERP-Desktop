@@ -75,7 +75,63 @@ flowchart TD
 - Catalog, Reference için `CurrencyLookup`, `TaxCodeLookup`, `UnitLookup` (Catalog içi) ve fiyat çözümlemede `PriceResolver` kullanır; Parties kaydındaki para/vade/fiyat listesi ve vergi/depo gibi yabancı UUID varlıkları ilgili sağlayıcının lookup arayüzüyle denetlenir.
 - Parties, para birimi, ödeme vadesi ve fiyat listesi referanslarını sağlayıcı sözleşmeleriyle kontrol eder. Proje `party_id` ilişkisi Parties `PartyLookup` ile doğrulanır.
 - Reference projelerdeki `party_id` değerini `PartyLookup`, depo/birim/vergi/döviz referanslarını kendi sözleşmeleriyle sunar. Modüller başka modülün tablo/modeline doğrudan sorgu atmaz.
-- Diğer modül henüz yoksa testlerde sağlayıcı modülün `App\Modules\<Provider>\Contracts` ad alanındaki varsayılan `NullLookup` “kullanılamıyor” sonucunu verir; gerçek arayüz bütünleşmede bağlanır.
+- Sağlayıcı modül kurulu değilse (çıplak kurulum) varsayılan `NullLookup` “kullanılamıyor” sonucunu verir; tam kurulumda gerçek arayüzler bağlıdır (bkz. Entegrasyon).
+
+## Entegrasyon
+
+Faz 2 modülleri bütünleşmede birbirine aşağıdaki şekilde bağlandı. Uygulama denetimi (aktif şirkette lookup, başka şirketin kimliği için 422) aynen sürer; veritabanı anahtarları ek güvencedir.
+
+### Yabancı anahtar haritası
+
+| Tablo.sütun | Hedef | ON DELETE |
+|---|---|---|
+| Reference, Parties ve Catalog'daki tüm `company_id` sütunları (22 tablo; `exchange_rates` ve `tax_codes` için null = global satır) | `companies.id` | RESTRICT |
+| `parties.payment_term_id` | `payment_terms.id` | RESTRICT |
+| `parties.price_list_id` | `price_lists.id` | RESTRICT |
+| `items.default_tax_code_id`, `items.purchase_tax_code_id` | `tax_codes.id` | RESTRICT |
+| `projects.party_id` | `parties.id` | RESTRICT |
+| `projects.cost_center_id` (modül içi, önceden vardı) | `cost_centers.id` | NO ACTION |
+| `warehouses.branch_id` | `branches.id` | RESTRICT |
+| `discount_rules.party_id` | `parties.id` | RESTRICT |
+| `company_currencies.currency_code`, `exchange_rates.currency_code`, `parties.default_currency_code`, `parties.risk_currency_code`, `party_bank_accounts.currency_code`, `price_lists.currency_code` | `currencies.code` (global) | RESTRICT (güncellemede de) |
+
+- Gerekçe: ana veriler normalde yumuşak silinir; anahtarlar yalnızca kalıcı silme/temizlemede devreye girer. SET NULL bir carinin vadesini ya da kalemin vergi kodunu sessizce değiştirirdi, CASCADE ana veriyi yok ederdi; bu yüzden temizlik bilinçli ve sıralı yapılmalıdır.
+- Kapsam dışı: `discount_rules.scope_ref` (kapsama göre kalem, kategori veya cari), dosya/onay çok biçimli kimlikleri.
+- Göçler: `app/Modules/Organization/Database/migrations/2026_12_09_200100_*` (company_id) ve `database/migrations/2026_12_09_100100_*` (modüller arası). Kurulu olmayan modülün tabloları atlanır.
+- Dolu veritabanı: göçler önce yetim satırları (var olmayan kayda işaret eden referans) tablo.sütun başına sayılarıyla raporlar ve durur; sessiz onarım yoktur. `php artisan master-data:repair-orphans --dry-run` listeyi gösterir; seçeneksiz çalıştırma yalnızca boşaltılabilecek referansları NULL yapar (vade, fiyat listesi, vergi kodları, proje carisi, depo şubesi, varsayılan ve banka hesabı para birimi; `version` artar, etkinlik günlüğüne yazılmaz). `company_id`, zorunlu para birimi kodları, risk para birimi ve cari indirim kuralları elle düzeltilmelidir (komut bu durumda 1 ile çıkar). Anahtarlar `NOT VALID` eklenir ve ayrı adımlarda `VALIDATE CONSTRAINT` ile doğrulanır (göç tek işlemde çalışmaz), böylece yazma kilitleri kısa kalır; yarıda kalan göç tekrar çalıştırılabilir.
+- Şirketler arası tutarlılık: tek sütunlu anahtarlar bir kaydın başka şirketin kaydına işaret etmesini engellemez (bileşik kiracı anahtarları şimdilik fazla müdahaleci). Yazmada bunu modül lookup'ları engeller (422). Eski veya doğrudan SQL ile yazılmış veri için salt okunur denetim: `php artisan master-data:audit-tenancy` (bulgu varsa tablo.sütun sayılarını yazar, uyarı günlüğe düşer ve 1 ile çıkar; zamanlayıcıya veya CI'a eklenebilir). Global satırlar (`company_id` boş, örn. tohumlanmış vergi kodları) serbesttir.
+
+### Lookup bağlamaları
+
+- Organization `Contracts\BranchLookup::exists(id)` eklendi (aktif şirketin etkin, silinmemiş şubesi). Reference depolarda `branch_id`, projelerde `party_id` için gerçek `BranchLookup` / `PartyLookup` kullanır; `NullLookup` yalnızca modül yokken (çıplak kurulum) devrededir.
+- Parties gerçek `CurrencyLookup`, `PaymentTermLookup`, `PriceListLookup`; Catalog gerçek `TaxCodeLookup`, `CurrencyLookup`, `PartyLookup` ile çalışır. `parties.allow_unverified_references` bayrağı çıplak kurulum için kalır (varsayılan kapalı).
+- `GET /pricing/resolve` başka şirketin ya da bilinmeyen bir `party_id` değerini artık 422 ile reddeder.
+- Ek dosya: `Party`, `Item`, `PriceList`, `Project`, `Warehouse` Files `Attachable` sözleşmesini uygular. Morph adları: `party`, `item`, `price_list`, `reference_projects`, `reference_warehouses`.
+
+### Şirket açılış varsayılanları
+
+Yeni şirket (`POST /companies`, tek işlemde) `CompanyCreated` olayıyla şunları alır; her modül kendi dinleyicisini kaydeder (Reference `SeedCompanyDefaults`, Catalog `SeedDefaultUnits`):
+
+- Para birimleri: TRY, USD, EUR, GBP `company_currencies` içinde etkin; global satırlar yoksa oluşturulur (ReferenceSeeder gerekmez). Ana para birimi ayarı `company.base_currency` = TRY (kayıt defteri varsayılanı).
+- Ödeme vadeleri: `CASH` (Peşin, 0 gün), `NET15`, `NET30`, `NET45`, `NET60`, `NET90` ("N gün vadeli").
+- Depo: `MAIN` (Ana depo, varsayılan; şirketin zaten varsayılan deposu varsa varsayılan yapılmaz) ve tek konum `DEFAULT` (Varsayılan konum, bin).
+- Masraf merkezi: kök `GENERAL` (Genel).
+- Birimler: `PCS` (Adet), `KG`, `G`, `LT`, `M`, `CM`, `M2`, `M3`, `BOX` (Kutu), `PACK` (Paket), `HOUR` (Saat), `DAY` (Gün); dönüşümler KG→G 1000, M→CM 100, DAY→HOUR 24 (BOX/PCS kaleme özgü olduğundan eklenmez).
+- Kodlar İngilizce ve sabittir; adlar şirketin `general.default_locale` dilinde (varsayılan tr) lang dosyalarından gelir.
+- İdempotent: kodu mevcut (yumuşak silinmiş dahil) kayıt dokunulmadan bırakılır; olay tekrarlansa da çoğaltma ya da sıfırlama olmaz. Dinleyicilerden biri hata verirse şirket de oluşmaz. Açılış şirket başına danışma kilidiyle (Reference ve Catalog API yazmalarıyla aynı kilit) sıralanır; eklemeler çakışmaya dayanıklıdır (global para birimleri `ON CONFLICT DO NOTHING`, diğerleri `createOrFirst`). ReferenceSeeder yumuşak silinmiş tohum satırlarını geri getirmez.
+- `CompanyCreated(seedDefaults: false)` varsayılanları atlar (içe aktarma, test fikstürleri; `Identity::company()` testlerde varsayılan olarak boş şirket kurar, `defaults: true` ile gerçek akış).
+
+### Tohumlar ve zamanlama
+
+- `DatabaseSeeder` sırasıyla `IdentitySeeder`, `ReferenceSeeder`, `SuperAdminSeeder` çalıştırır; hepsi tekrar çalıştırılabilir (ReferenceSeeder yalnızca eksik global para birimi ve vergi kodlarını ekler, var olanları değiştirmez). Geliştirme ortamında: `ADMIN_EMAIL=... ADMIN_PASSWORD=... php artisan db:seed` (yalnızca kendi geliştirme veritabanınızda).
+- TCMB kurları her gün 16:00 (Europe/Istanbul) `rates:fetch-tcmb` ile çekilir (Reference sağlayıcısı kaydeder; `withoutOverlapping`, `onOneServer`). Denetim: `php artisan schedule:list --timezone=Europe/Istanbul` çıktısında `0 16 * * *  php artisan rates:fetch-tcmb` satırı görünmelidir.
+
+### Liste ve belge ekleri
+
+- `GET /exchange-rates`: `filter[date_from]`, `filter[date_to]` (dahil; şirketin manuel kurları + global TCMB) ve mevcut `filter[rate_date]`.
+- `GET /currencies`: `filter[company_active]=1|0`; şirket etkinliği satırla birlikte tek sorguda seçilir (satır başına sorgu yok).
+- `GET /logs/audit`: her kayıtta `causer: {id, name}` (e-posta yok; silinmiş kullanıcının adı korunur).
+- OpenAPI: Parties, Catalog ve Reference için POST ve PATCH gövdeleri ayrı belgelenir; `version` yalnızca PATCH'te zorunludur.
 
 ## Çevrimdışı ve masaüstü notları
 

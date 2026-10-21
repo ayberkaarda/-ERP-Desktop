@@ -127,11 +127,17 @@ it('validates units, categories and tax codes', function (): void {
     Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $vat, 'purchase_tax_code_id' => $vat])
         ->assertCreated()->assertJsonPath('data.default_tax_code_id', $vat);
 
-    // Without the Reference module the id is kept as an opaque uuid.
+    // A custom code of another company is not visible here.
+    $foreign = Catalog::in($this->other, fn (): string => TaxCode::factory()->create(['company_id' => $this->other, 'code' => 'OWN'])->id);
+    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $foreign])
+        ->assertStatus(422)->assertJsonValidationErrors(['default_tax_code_id'], 'errors.fields');
+
+    // Without the Reference module the id is kept as an opaque uuid (items.default_tax_code_id
+    // references tax_codes, so the id must exist; the lookup that would reject it is gone).
     $lookup = app(TaxCodeLookup::class);
     app()->offsetUnset(TaxCodeLookup::class);
-    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $unknown])
-        ->assertCreated()->assertJsonPath('data.default_tax_code_id', $unknown);
+    Catalog::post($this->admin, $this->company, 'items', ['name' => 'X', 'type' => 'stock', 'base_unit_id' => $this->pcs->id, 'default_tax_code_id' => $foreign])
+        ->assertCreated()->assertJsonPath('data.default_tax_code_id', $foreign);
     app()->instance(TaxCodeLookup::class, $lookup);
 
     $deleted = Catalog::unit($this->company, 'OLD');

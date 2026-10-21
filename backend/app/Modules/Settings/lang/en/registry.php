@@ -9,4 +9,5 @@ return [
     'security.session_timeout_minutes' => 'Session timeout (minutes)',
     'security.require_two_factor' => 'Require two-factor authentication',
     'notifications.email_enabled' => 'Email notifications',
+    'company.base_currency' => 'Base currency',
 ];
