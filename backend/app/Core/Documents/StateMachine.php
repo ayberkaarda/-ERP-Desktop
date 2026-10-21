@@ -111,7 +111,10 @@ abstract class StateMachine
 
         // Keep the caller's pending edits, but never its status or version.
         $pending = array_diff_key($model->getDirty(), [$model->statusColumn() => true, 'version' => true]);
-        $model->setRawAttributes($locked->getAttributes(), true);
+        // Drop cached cast objects first: syncOriginal() would merge them into the original and the
+        // pending edit (e.g. a decimal set and read back) would no longer be dirty, so never saved.
+        $model->setRawAttributes($locked->getAttributes());
+        $model->syncOriginal();
 
         if ($pending !== []) {
             $model->setRawAttributes(array_merge($model->getAttributes(), $pending));
