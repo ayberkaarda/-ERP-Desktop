@@ -6,6 +6,7 @@ use App\Modules\Inventory\Enums\DocumentType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\Accounting\Books;
+use Tests\Support\Actors;
 use Tests\Support\Inventory\Inv;
 
 uses(RefreshDatabase::class);
@@ -93,7 +94,7 @@ it('moves stock between warehouses at source cost', function (): void {
 });
 
 it('refuses a valuation method change once movements exist', function (): void {
-    $admin = Tests\Support\Actors::user(['settings.view', 'settings.update']);
+    $admin = Actors::user(['settings.view', 'settings.update']);
     Books::as($admin, $this->company)->patchJson('/api/v1/settings', ['settings' => ['inventory.valuation_method' => 'fifo']])->assertOk();
     Books::as($admin, $this->company)->patchJson('/api/v1/settings', ['settings' => ['inventory.valuation_method' => 'moving_average']])->assertOk();
 

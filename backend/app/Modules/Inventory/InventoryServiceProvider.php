@@ -75,7 +75,7 @@ final class InventoryServiceProvider extends ModuleServiceProvider
 
         // Core has no schedule hook yet, so the module registers its jobs itself.
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->command('inventory:expire-reservations')->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
+            $schedule->command('inventory:expire-reservations')->everyMinute()->withoutOverlapping()->onOneServer();
             $schedule->command('inventory:check-reorder')->dailyAt('07:00')->timezone('Europe/Istanbul')->withoutOverlapping()->onOneServer();
         });
 

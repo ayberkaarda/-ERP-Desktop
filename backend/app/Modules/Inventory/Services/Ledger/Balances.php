@@ -176,14 +176,22 @@ final class Balances
             }
 
             $row = $this->rows[$key];
-            DB::statement(<<<'SQL'
-                INSERT INTO stock_balances (company_id, item_id, warehouse_id, location_id, lot_id, on_hand, reserved, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, now())
-                ON CONFLICT (company_id, item_id, warehouse_id, location_id, lot_id) DO UPDATE SET
-                    on_hand = stock_balances.on_hand + excluded.on_hand,
-                    reserved = stock_balances.reserved + excluded.reserved,
-                    updated_at = now()
-                SQL, [$this->companyId, $row['item'], $row['warehouse'], $row['location'], $row['lot'], Stock::qty($delta['on_hand']), Stock::qty($delta['reserved'])]);
+            $onHand = Stock::qty($delta['on_hand']);
+            $reserved = Stock::qty($delta['reserved']);
+            // UPDATE first: check constraints judge an INSERT ... ON CONFLICT row before the conflict,
+            // so negative deltas cannot go through an upsert. The pair lock rules out a concurrent insert.
+            $updated = DB::update(
+                'UPDATE stock_balances SET on_hand = on_hand + ?, reserved = reserved + ?, updated_at = now()
+                 WHERE company_id = ? AND item_id = ? AND warehouse_id = ? AND location_id = ? AND lot_id = ?',
+                [$onHand, $reserved, $this->companyId, $row['item'], $row['warehouse'], $row['location'], $row['lot']],
+            );
+
+            if ($updated === 0) {
+                DB::table('stock_balances')->insert([
+                    'company_id' => $this->companyId, 'item_id' => $row['item'], 'warehouse_id' => $row['warehouse'],
+                    'location_id' => $row['location'], 'lot_id' => $row['lot'], 'on_hand' => $onHand, 'reserved' => $reserved, 'updated_at' => now(),
+                ]);
+            }
         }
 
         $this->deltas = [];

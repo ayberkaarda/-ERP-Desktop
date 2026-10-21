@@ -25,6 +25,8 @@ final class ReorderAdvisor
 {
     public const string PERMISSION = 'inventory.stock.view';
 
+    public const string NOTIFICATION = 'inventory.reorder';
+
     public function __construct(
         private readonly CompanyContext $company,
         private readonly CompanyDirectory $directory,
@@ -90,7 +92,7 @@ final class ReorderAdvisor
 
             foreach ($query->get() as $user) {
                 if ($this->authorizer->allows($user, self::PERMISSION, $companyId)) {
-                    $this->notifier->notify($user->id, 'inventory.reorder', [
+                    $this->notifier->notify($user->id, self::NOTIFICATION, [
                         'title' => Messages::get('reorder_title', ['count' => count($items)]),
                         'body' => Messages::get('reorder_body', ['items' => $codes]),
                         'url' => '/inventory/reorder',
