@@ -88,6 +88,11 @@ final class Books
                 return null;
             }
 
+            public function findMany(array $ids): array
+            {
+                return [];
+            }
+
             public function findByCode(string $code): ?PartyData
             {
                 return null;

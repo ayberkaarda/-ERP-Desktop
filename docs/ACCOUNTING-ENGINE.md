@@ -182,3 +182,36 @@ Makine ve Cihazlar" (açıklamalarda "Makina"); 308/408 "İhraç Farkı" (açık
 9. **`flags` seçimleri** (requires_party, is_revaluable) Tebliğ hükmü değildir; ürün ekibiyle
    gözden geçirilmeli (ör. 101 Alınan Çekler için cari zorunluluğu, 340 Alınan Sipariş
    Avansları için kur değerlemesi).
+
+## 6. Raporlar (API)
+
+Tüm uçlar `GET /api/v1/reports/...` altındadır, `accounting.reports.view` izni ister (varsayılan
+roller: Accountant, Viewer) ve yalnızca etkin şirketin verisini okur. İzin, doğrulamadan önce
+denetlenir (izinsiz çağrı her zaman 403). Hatalı parametreler standart `VALIDATION_ERROR`
+zarfıyla 422 döner. Tutarlar her zaman dört ondalıklı metindir (`"1250.0000"`).
+
+**Aralık:** `period_id` ya da kapsayıcı `date_from` + `date_to` (Y-m-d); ikisi birlikte verilemez.
+Dönem isteğinde o döneme kaydedilmiş fişler sayılır, açılış ondan önceki dönemlerdir (13. düzeltme
+dönemi 12. dönemden ayrı tutulur). Tarih isteğinde açılış `date_from` öncesindeki tüm kayıtlardır.
+
+**Sayılan fişler:** `posted` ve `reversed` durumundakiler (ters kayıt ayrı bir fiş olduğundan
+orijinal fiş geçmişte kalır, iki fiş birbirini sıfırlar). Taslaklar hiçbir raporda yer almaz.
+
+**Veri kaynağı:** Hiçbir dönemi bölmeyen tarih aralıkları ve dönem istekleri `account_balances`
+tablosundan, diğerleri `journal_lines` üzerinden hesaplanır; yanıttaki `source` alanı
+(`balances` | `lines`) hangisinin kullanıldığını gösterir. Testler iki kaynağın aynı sonucu
+verdiğini doğrular. Her rapor tek bir `REPEATABLE READ, READ ONLY` işlem içinde okunur.
+
+| Uç | İçerik | Parametreler |
+|---|---|---|
+| `trial-balance` (mizan) | Hesap kodu sırasıyla satırlar; üst hesaplar alt hesapların toplamını taşır. Her satırda `opening_debit/credit` (devir), `debit/credit` (dönem hareketi), `total_debit/credit` (kümülatif), `balance_debit/credit`. `groups`: TDHP sınıfı (1-9) ara toplamları; `totals` (bakiye sütunları hesap bazında ayrı toplanır, karşı bakiyeler birbirini silmez), `balanced` (borç = alacak) ve `difference`. | `level` (1..n, boşsa tüm seviyeler), `include_zero`, `compare_with_previous_year` (bir gün önce biten mali yılın aynı numaralı dönemi, o yıl yoksa bir yıl geri kaydırılmış tarihler; satırlarda `previous`, ayrıca `previous_totals`) |
+| `general-ledger` (büyük defter) | Tarih ve fiş numarasına göre satırlar, sayfalar arasında süren `running_balance` (borç pozitif). `meta`: hesap, `opening_balance`, `totals`, `closing_balance`. Üst hesap seçilirse alt hesapların satırları gelir. | `account_id`, `page`, `per_page` (en çok 500) |
+| `journal-book` (yevmiye defteri) | Mali yıl ve fiş numarası sırasıyla fişler ve satırları, fiş bazında sayfalı. `meta.carried_forward`: aynı mali yılda aralıktan önceki toplam; `page_brought_forward` (devreden), `page_totals`, `page_carried_forward` (nakledilen), `range_totals`. | `page`, `per_page` |
+| `account-statement` (cari ekstre tabanı) | Cariye bağlı satırlar, açılış ve yürüyen bakiye. `account_balances` cari boyutu taşımadığından her zaman satırlardan okunur. | `party_id`, `account_from`, `account_to` (`account_to` alt hesapları kapsar: 120 → 120.01), `page`, `per_page` |
+
+**Dışa aktarma:** Her raporun `/export?format=csv|xlsx` ucu vardır (varsayılan CSV, UTF-8 BOM).
+Sayfalama yoktur; aralığın tamamı yazılır. Satır sınırı `accounting.export_max_rows` (50.000);
+aşılırsa 422. XLSX hücreleri metin olarak yazılır (tutarlar kayan noktaya çevrilmez). Hücre `=`, `+`, `-`, `@`, sekme veya satır sonuyla başlıyorsa başına `'` eklenir;
+yalnızca sayı olan değerler (ör. `-3000.0000`) olduğu gibi kalır. Mizan dosyasının sonunda toplam
+satırı; büyük defter ve ekstrede başta açılış, sonda toplam satırı; yevmiye defterinde başta
+devreden, sonda toplam satırı bulunur.

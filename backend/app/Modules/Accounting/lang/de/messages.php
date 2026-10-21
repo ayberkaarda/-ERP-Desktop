@@ -86,4 +86,7 @@ return [
     'import_empty' => 'Die Datei ist leer.',
     'import_header' => 'Die erste Zeile muss die Spaltennamen enthalten (mindestens code und name).',
     'export_too_large' => 'Der Export würde :max Zeilen überschreiten; schränken Sie die Filter ein.',
+    'report_opening' => 'Anfangssaldo',
+    'report_brought_forward' => 'Übertrag',
+    'report_total' => 'Summe',
 ];
