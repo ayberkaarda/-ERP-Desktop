@@ -1,0 +1,202 @@
+{
+  "title": "Parties",
+  "list": {
+    "description": "Customer and supplier records",
+    "grid": "Party list",
+    "new": "New party",
+    "emptyTitle": "No parties yet",
+    "emptyBody": "Create your first customer or supplier.",
+    "emptyFilteredTitle": "No matching parties",
+    "emptyFilteredBody": "Change the search or filters.",
+    "views": "Preset views",
+    "viewAll": "All",
+    "viewCustomers": "Customers",
+    "viewSuppliers": "Suppliers",
+    "viewInactive": "Inactive",
+    "country": "Country",
+    "export": "Export",
+    "exportSoon": "Export is coming soon",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "bulkDone": "{{count}} parties updated.",
+    "bulkFailed": "{{count}} parties could not be updated; they stay selected so you can retry."
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Name",
+    "legal_name": "Legal name",
+    "type": "Type",
+    "roles": "Roles",
+    "tax_office": "Tax office",
+    "tax_number": "Tax / ID number",
+    "country": "Country",
+    "default_currency_code": "Default currency",
+    "risk_limit": "Risk limit",
+    "risk_currency_code": "Risk currency",
+    "is_active": "Active",
+    "status": "Status",
+    "notes": "Notes",
+    "tags": "Tags"
+  },
+  "types": {
+    "company": "Legal entity",
+    "person": "Individual"
+  },
+  "roles": {
+    "customer": "Customer",
+    "supplier": "Supplier"
+  },
+  "status": {
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "hints": {
+    "vkn": "10-digit Turkish tax number (VKN)",
+    "tckn": "11-digit Turkish national ID (TCKN)",
+    "foreign": "Foreign party: the country's tax number",
+    "tags": "Separate with commas",
+    "shortcut": "Ctrl+Enter to save"
+  },
+  "validation": {
+    "rolesRequired": "Select at least one role.",
+    "vknLength": "The tax number must have 10 digits.",
+    "vknChecksum": "Invalid tax number (check digit does not match).",
+    "tcknLength": "The national ID must have 11 digits.",
+    "tcknChecksum": "Invalid national ID (check digits do not match).",
+    "foreign": "Up to 32 characters; letters, digits and . - / are allowed.",
+    "country": "Select a two-letter country code.",
+    "currency": "Select a three-letter currency code.",
+    "riskCurrency": "Select a currency for the risk limit.",
+    "email": "Enter a valid e-mail address.",
+    "ibanFormat": "An IBAN starts with a country code and check digits.",
+    "ibanLength": "Wrong IBAN length for this country.",
+    "ibanTrFormat": "Invalid TR IBAN layout (26 characters, reserved digit 0).",
+    "ibanChecksum": "IBAN check digits do not match.",
+    "swift": "A SWIFT code has 8 or 11 characters.",
+    "tooLong": "Text is too long.",
+    "ibanCountry": "This country code has no IBAN.",
+    "ibanBban": "The bank/account part does not match this country's IBAN layout."
+  },
+  "form": {
+    "createTitle": "New party",
+    "editTitle": "Edit party",
+    "identity": "Identity",
+    "tax": "Tax details",
+    "commercial": "Commercial details",
+    "other": "Other",
+    "save": "Save",
+    "create": "Create",
+    "cancel": "Cancel",
+    "created": "Party created: {{code}}",
+    "saved": "Changes saved.",
+    "saveFailed": "Could not save.",
+    "subresourcesAfterCreate": "Addresses, contacts and bank accounts are added after saving.",
+    "changedElsewhere": "Someone else changed this record while you were editing. Saving will report a conflict; you can load the latest version."
+  },
+  "duplicates": {
+    "title": "Similar parties exist",
+    "body": "Before saving, check whether this company is already registered.",
+    "byTaxNumber": "same tax number",
+    "byName": "similar name",
+    "inactive": "inactive"
+  },
+  "conflict": {
+    "title": "Someone else changed this record",
+    "body": "The record was updated while you were editing. Load the latest version and apply your changes again.",
+    "reload": "Load latest",
+    "keep": "Back to editing"
+  },
+  "detail": {
+    "edit": "Edit",
+    "activate": "Activate",
+    "deactivate": "Deactivate",
+    "delete": "Delete",
+    "deleteTitle": "Delete party?",
+    "deleteBody": "{{name}} will be deleted. Parties used on documents cannot be deleted; deactivate them instead.",
+    "deleted": "Party deleted.",
+    "activated": "Party activated.",
+    "deactivated": "Party deactivated.",
+    "summary": "Summary",
+    "loadFailed": "Could not load the party.",
+    "notFound": "Party not found.",
+    "backToList": "Back to list",
+    "none": "—",
+    "tabs": "Party sections",
+    "addresses": "Addresses",
+    "contacts": "Contacts",
+    "bankAccounts": "Bank accounts",
+    "attachments": "Attachments",
+    "history": "History"
+  },
+  "sub": {
+    "add": "Add",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete this row?",
+    "deleteBody": "This row will be deleted permanently.",
+    "saved": "Saved.",
+    "deleted": "Deleted.",
+    "failed": "The action failed.",
+    "conflict": "Someone else changed this row; the list was refreshed.",
+    "loadFailed": "Could not load the list.",
+    "actions": "Actions",
+    "default": "Default",
+    "makeDefault": "Make default",
+    "primary": "Primary",
+    "makePrimary": "Make primary",
+    "rowLabel": "Row {{index}}",
+    "newRow": "New row",
+    "keyboardHint": "Enter saves, Esc cancels.",
+    "changedElsewhere": "This row was changed elsewhere; saving will report a conflict."
+  },
+  "address": {
+    "empty": "No addresses.",
+    "type": "Type",
+    "label": "Label",
+    "line1": "Address line 1",
+    "line2": "Address line 2",
+    "district": "District",
+    "city": "City",
+    "postal_code": "Postal code",
+    "country": "Country",
+    "is_default": "Default",
+    "types": {
+      "billing": "Billing",
+      "shipping": "Shipping",
+      "other": "Other"
+    }
+  },
+  "contact": {
+    "empty": "No contacts.",
+    "name": "Full name",
+    "title": "Title",
+    "email": "E-mail",
+    "phone": "Phone",
+    "is_primary": "Primary"
+  },
+  "bank": {
+    "empty": "No bank accounts.",
+    "bank_name": "Bank",
+    "iban": "IBAN",
+    "swift": "SWIFT",
+    "currency_code": "Currency",
+    "is_default": "Default"
+  },
+  "quickCreate": {
+    "title": "Quick party",
+    "description": "Save the basics now; complete the details later on the party record.",
+    "submit": "Create and select"
+  },
+  "combobox": {
+    "placeholder": "Search by name, code or tax number",
+    "create": "Create new party",
+    "inactive": "Inactive"
+  },
+  "commands": {
+    "list": "Parties",
+    "new": "New party",
+    "search": "Search parties"
+  }
+}
