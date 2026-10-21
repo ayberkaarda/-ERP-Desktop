@@ -69,6 +69,14 @@ final class FiscalYearController extends AccountingController
         return ApiResponse::success($this->resolve(new FiscalYearResource($year), $request));
     }
 
+    public function closePreview(string $id): JsonResponse
+    {
+        $year = FiscalYear::query()->findOrFail($id);
+        Gate::authorize('close', $year);
+
+        return ApiResponse::success($this->closing->preview($year));
+    }
+
     public function reopen(FiscalYearStatusRequest $request, string $id): JsonResponse
     {
         $year = FiscalYear::query()->findOrFail($id);

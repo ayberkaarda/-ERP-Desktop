@@ -17,6 +17,7 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
     Route::post('fiscal-years', [FiscalYearController::class, 'store'])->middleware('idempotent');
     Route::get('fiscal-years/{id}', [FiscalYearController::class, 'show'])->whereUuid('id');
     Route::patch('fiscal-years/{id}', [FiscalYearController::class, 'update'])->whereUuid('id');
+    Route::get('fiscal-years/{id}/close-preview', [FiscalYearController::class, 'closePreview'])->whereUuid('id');
     Route::post('fiscal-years/{id}/close', [FiscalYearController::class, 'close'])->whereUuid('id');
     Route::post('fiscal-years/{id}/reopen', [FiscalYearController::class, 'reopen'])->whereUuid('id');
 

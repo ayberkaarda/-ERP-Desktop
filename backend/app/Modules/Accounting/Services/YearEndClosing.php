@@ -19,10 +19,12 @@ use App\Modules\Accounting\Support\Ledger;
 use App\Modules\Accounting\Support\LineInput;
 use App\Modules\Accounting\Support\Messages;
 use Brick\Math\BigDecimal;
+use Closure;
 use DateTimeImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Year-end closing (TDHP default, configurable through accounting.closing_mapping):
@@ -79,7 +81,10 @@ final class YearEndClosing
             $opening = AccountingPeriod::query()->with('fiscalYear')->where('fiscal_year_id', $next->id)->orderBy('number')->firstOrFail();
             $this->periods->assertPostable($opening, allowSoftClosed: true);
 
-            $this->generate($locked, $next, $last, $opening, $actor);
+            $this->generate($locked, $next->code, function (EntryType $type, array $lines, array $attributes) use ($actor, $last, $opening): void {
+                $periodId = $type === EntryType::Opening ? $opening->id : $last->id;
+                $this->poster->book($lines, $attributes, $actor, true, $periodId, strict: false);
+            });
 
             foreach (AccountingPeriod::query()->where('fiscal_year_id', $locked->id)->where('status', '<>', PeriodStatus::Closed->value)->get() as $period) {
                 $period->status = PeriodStatus::Closed;
@@ -98,6 +103,73 @@ final class YearEndClosing
 
             return $locked->load('periods');
         });
+    }
+
+    /**
+     * What close() would generate, computed without writing anything. Conditions that would block
+     * the closing are reported as warnings instead of failing.
+     *
+     * @return array{result: string, result_side: string|null, result_account_code: string|null, entries: list<array{entry_type: string, description: string, entry_date: string, line_count: int, total_debit: string, total_credit: string}>, warnings: list<string>}
+     */
+    public function preview(FiscalYear $year): array
+    {
+        $warnings = [];
+
+        if (! $year->isOpen()) {
+            $warnings[] = Messages::get('fiscal_year_already_closed');
+        }
+
+        $previous = FiscalYear::query()->whereDate('end_date', '<', $year->start_date->format('Y-m-d'))->orderByDesc('end_date')->first();
+
+        if ($previous !== null && $previous->isOpen()) {
+            $warnings[] = Messages::get('previous_year_open', ['year' => $previous->code]);
+        }
+
+        if (JournalEntry::query()->where('fiscal_year_id', $year->id)->where('status', EntryStatus::Draft->value)->exists()) {
+            $warnings[] = Messages::get('year_has_drafts');
+        }
+
+        $last = AccountingPeriod::query()->where('fiscal_year_id', $year->id)->orderByDesc('number')->first();
+
+        if ($last !== null && $last->status === PeriodStatus::Closed && $year->isOpen()) {
+            $warnings[] = Messages::get('closing_period_closed', ['period' => $last->number]);
+        }
+
+        $nextStart = (new DateTimeImmutable($year->end_date->format('Y-m-d')))->modify('+1 day');
+        $next = FiscalYear::query()->whereDate('start_date', $nextStart->format('Y-m-d'))->first();
+        $nextCode = $next !== null ? $next->code : (preg_match('/^\d{4}$/', $year->code) === 1 ? (string) ((int) $year->code + 1) : $nextStart->format('Y'));
+
+        $entries = [];
+        $result = ['result' => '0.0000', 'result_side' => null, 'result_account_code' => null];
+
+        try {
+            $result = $this->generate($year, $nextCode, function (EntryType $type, array $lines, array $attributes) use (&$entries): void {
+                $debit = BigDecimal::zero()->toScale(4);
+                $credit = BigDecimal::zero()->toScale(4);
+
+                foreach ($lines as $line) {
+                    $debit = $debit->plus($line->debit);
+                    $credit = $credit->plus($line->credit);
+                }
+
+                $entries[] = [
+                    'entry_type' => $type->value,
+                    'description' => is_string($attributes['description']) ? $attributes['description'] : '',
+                    'entry_date' => is_string($attributes['entry_date']) ? $attributes['entry_date'] : '',
+                    'line_count' => count($lines),
+                    'total_debit' => (string) $debit,
+                    'total_credit' => (string) $credit,
+                ];
+            });
+        } catch (ValidationException $e) {
+            foreach ($e->errors() as $messages) {
+                foreach ($messages as $message) {
+                    $warnings[] = (string) $message;
+                }
+            }
+        }
+
+        return [...$result, 'entries' => $entries, 'warnings' => $warnings];
     }
 
     public function reopen(FiscalYear $year, string $reason, ?string $actor, ?int $version = null): FiscalYear
@@ -156,7 +228,13 @@ final class YearEndClosing
         return AccountingPeriod::query()->with('fiscalYear')->where('fiscal_year_id', $year->id)->orderByDesc('number')->lockForUpdate()->firstOrFail();
     }
 
-    private function generate(FiscalYear $year, FiscalYear $next, AccountingPeriod $last, AccountingPeriod $opening, ?string $actor): void
+    /**
+     * Computes the closing and opening entries and hands each one to $book.
+     *
+     * @param  Closure(EntryType, list<LineInput>, array<string, mixed>): void  $book
+     * @return array{result: string, result_side: string|null, result_account_code: string|null}
+     */
+    private function generate(FiscalYear $year, string $nextCode, Closure $book): array
     {
         $mapping = $this->settings->closingMapping();
         $special = [$mapping['result_account'], ...$mapping['tax_accounts'], $mapping['net_result_account']];
@@ -180,20 +258,23 @@ final class YearEndClosing
 
         // 1. Income statement accounts into the result account.
         $sources = $accounts->filter(fn (Account $a): bool => $isIncome($a) && ! in_array($a->code, $special, true));
-        $this->transfer($sources, $this->account($byCode, $mapping['result_account']), $balances, $year, $last, $date, $actor, "{$run}:income", 'closing_income');
+        $this->transfer($sources, $this->account($byCode, $mapping['result_account']), $balances, $year, $date, $book, "{$run}:income", 'closing_income');
 
         // 2. Result and tax provisions into the net result account.
         $resultCodes = [$mapping['result_account'], ...$mapping['tax_accounts']];
         $sources = $byCode->filter(fn (Account $a): bool => in_array($a->code, $resultCodes, true))->values();
-        $this->transfer($sources, $this->account($byCode, $mapping['net_result_account']), $balances, $year, $last, $date, $actor, "{$run}:result", 'closing_result');
+        $this->transfer($sources, $this->account($byCode, $mapping['net_result_account']), $balances, $year, $date, $book, "{$run}:result", 'closing_result');
 
         // 3. Net result into profit (credit balance) or loss (debit balance).
         $net = $this->account($byCode, $mapping['net_result_account']);
         $netBalance = $balances[$net->id] ?? BigDecimal::zero();
+        $result = ['result' => (string) $netBalance->abs()->toScale(4), 'result_side' => null, 'result_account_code' => null];
 
         if (! $netBalance->isZero()) {
             $target = $this->account($byCode, $netBalance->isNegative() ? $mapping['profit_account'] : $mapping['loss_account']);
-            $this->transfer(collect([$net]), $target, $balances, $year, $last, $date, $actor, "{$run}:net", 'closing_net');
+            $result['result_side'] = $netBalance->isNegative() ? 'credit' : 'debit';
+            $result['result_account_code'] = $target->code;
+            $this->transfer(collect([$net]), $target, $balances, $year, $date, $book, "{$run}:net", 'closing_net');
         }
 
         // 4. Balance sheet accounts closed; 5. reopened in the next year.
@@ -220,14 +301,16 @@ final class YearEndClosing
         }
 
         if ($lines === []) {
-            return;
+            return $result;
         }
 
-        $this->poster->book($lines, $this->attributes(EntryType::Closing, $date, $year, "{$run}:balance", 'closing_balance_sheet'), $actor, true, $last->id, strict: false);
+        $book(EntryType::Closing, $lines, $this->attributes(EntryType::Closing, $date, $year, "{$run}:balance", 'closing_balance_sheet'));
 
-        $openingDate = new DateTimeImmutable($next->start_date->format('Y-m-d'));
+        $openingDate = $date->modify('+1 day');
         $mirrored = array_map(static fn (LineInput $l): LineInput => $l->mirrored(), $lines);
-        $this->poster->book($mirrored, $this->attributes(EntryType::Opening, $openingDate, $year, "{$run}:opening", 'opening_entry', $next->code), $actor, true, $opening->id, strict: false);
+        $book(EntryType::Opening, $mirrored, $this->attributes(EntryType::Opening, $openingDate, $year, "{$run}:opening", 'opening_entry', $nextCode));
+
+        return $result;
     }
 
     /**
@@ -235,8 +318,9 @@ final class YearEndClosing
      *
      * @param  Collection<int, Account>  $sources
      * @param  array<string, BigDecimal>  $balances  debit-positive balances, updated in place
+     * @param  Closure(EntryType, list<LineInput>, array<string, mixed>): void  $book
      */
-    private function transfer(Collection $sources, Account $target, array &$balances, FiscalYear $year, AccountingPeriod $last, DateTimeImmutable $date, ?string $actor, string $purpose, string $descriptionKey): void
+    private function transfer(Collection $sources, Account $target, array &$balances, FiscalYear $year, DateTimeImmutable $date, Closure $book, string $purpose, string $descriptionKey): void
     {
         $lines = [];
         $sum = BigDecimal::zero();
@@ -266,7 +350,7 @@ final class YearEndClosing
         }
 
         $balances[$target->id] = ($balances[$target->id] ?? BigDecimal::zero())->plus($sum);
-        $this->poster->book($lines, $this->attributes(EntryType::Closing, $date, $year, $purpose, $descriptionKey), $actor, true, $last->id, strict: false);
+        $book(EntryType::Closing, $lines, $this->attributes(EntryType::Closing, $date, $year, $purpose, $descriptionKey));
     }
 
     /**

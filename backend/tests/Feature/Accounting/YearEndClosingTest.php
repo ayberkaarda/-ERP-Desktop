@@ -184,3 +184,42 @@ it('needs accounting.year.close for closing and reopening', function (): void {
     Books::postJson($this->closer, Books::company(), "fiscal-years/{$this->year->id}/close")->assertForbidden();
     expect(Books::fiscalYear($this->company, '2027')->status->value)->toBe('open');
 });
+
+it('previews the closing without writing anything', function (): void {
+    workedExample($this->company, $this->party);
+    $before = Books::in($this->company, fn (): int => JournalEntry::query()->count());
+
+    $preview = Books::as($this->closer, $this->company)->getJson("/api/v1/fiscal-years/{$this->year->id}/close-preview")
+        ->assertOk()
+        ->assertJsonPath('data.result', '2100.0000')
+        ->assertJsonPath('data.result_side', 'credit')
+        ->assertJsonPath('data.result_account_code', '590')
+        ->assertJsonPath('data.warnings', [])
+        ->json('data.entries');
+
+    expect(collect($preview)->pluck('entry_type')->all())->toBe(['closing', 'closing', 'closing', 'closing', 'opening'])
+        ->and($preview[0])->toMatchArray(['entry_date' => '2027-12-31', 'line_count' => 4, 'total_debit' => '10000.0000', 'total_credit' => '10000.0000'])
+        ->and($preview[4]['entry_date'])->toBe('2028-01-01')
+        ->and($preview[4]['total_debit'])->toBe($preview[3]['total_credit'])
+        ->and(Books::in($this->company, fn (): int => JournalEntry::query()->count()))->toBe($before)
+        ->and(Books::in($this->company, fn (): bool => FiscalYear::query()->where('code', '2028')->exists()))->toBeFalse()
+        ->and(Books::fiscalYear($this->company, '2027')->status->value)->toBe('open');
+});
+
+it('reports blocking conditions of the closing preview as warnings and needs accounting.year.close', function (): void {
+    Books::year($this->company, '2026');
+    Books::in($this->company, fn () => app(JournalDrafts::class)->create([
+        'entry_type' => 'general', 'entry_date' => '2027-05-01', 'lines' => [['account_code' => '100', 'debit' => '1']],
+    ], null));
+
+    Books::as($this->closer, $this->company)->getJson("/api/v1/fiscal-years/{$this->year->id}/close-preview")
+        ->assertOk()
+        ->assertJsonPath('data.warnings', [
+            __('accounting::messages.previous_year_open', ['year' => '2026']),
+            __('accounting::messages.year_has_drafts'),
+        ])
+        ->assertJsonPath('data.entries', []);
+
+    $viewer = Actors::user(['accounting.periods.view', 'accounting.periods.manage']);
+    Books::as($viewer, $this->company)->getJson("/api/v1/fiscal-years/{$this->year->id}/close-preview")->assertForbidden();
+});
