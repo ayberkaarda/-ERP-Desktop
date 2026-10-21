@@ -86,4 +86,7 @@ return [
     'import_empty' => 'Le fichier est vide.',
     'import_header' => 'La première ligne doit contenir les noms de colonnes (au moins code et name).',
     'export_too_large' => 'L’export dépasserait :max lignes ; affinez les filtres.',
+    'report_opening' => 'Solde d’ouverture',
+    'report_brought_forward' => 'Report',
+    'report_total' => 'Total',
 ];

@@ -86,4 +86,7 @@ return [
     'import_empty' => 'Dosya boş.',
     'import_header' => 'İlk satır kolon adlarını içermelidir (en az code ve name).',
     'export_too_large' => 'Dışa aktarma :max satırı aşar; filtreleri daraltın.',
+    'report_opening' => 'Açılış bakiyesi',
+    'report_brought_forward' => 'Devreden',
+    'report_total' => 'Toplam',
 ];

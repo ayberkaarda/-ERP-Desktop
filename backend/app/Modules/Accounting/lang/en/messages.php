@@ -86,4 +86,7 @@ return [
     'import_empty' => 'The file is empty.',
     'import_header' => 'The first row must contain the column names (at least code and name).',
     'export_too_large' => 'The export would exceed :max rows; narrow the filters.',
+    'report_opening' => 'Opening balance',
+    'report_brought_forward' => 'Brought forward',
+    'report_total' => 'Total',
 ];
