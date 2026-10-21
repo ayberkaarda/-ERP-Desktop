@@ -23,14 +23,11 @@ use Illuminate\Support\Str;
  */
 final class Settlement implements ReceivableSettlement
 {
-    public function __construct(
-        private readonly CompanyContext $company,
-        private readonly InvoiceMachine $machine,
-    ) {}
+    public function __construct(private readonly InvoiceMachine $machine) {}
 
     public function apply(string $companyId, string $invoiceId, string $amount, string $reference): SettlementData
     {
-        return $this->company->runAs($companyId, fn (): SettlementData => Sales::transaction(function () use ($invoiceId, $amount, $reference): SettlementData {
+        return app(CompanyContext::class)->runAs($companyId, fn (): SettlementData => Sales::transaction(function () use ($invoiceId, $amount, $reference): SettlementData {
             $invoice = $this->lockInvoice($invoiceId);
             $reference = $this->reference($reference);
             $value = $this->amount($amount);
@@ -62,7 +59,7 @@ final class Settlement implements ReceivableSettlement
 
     public function unapply(string $companyId, string $invoiceId, string $reference): SettlementData
     {
-        return $this->company->runAs($companyId, fn (): SettlementData => Sales::transaction(function () use ($invoiceId, $reference): SettlementData {
+        return app(CompanyContext::class)->runAs($companyId, fn (): SettlementData => Sales::transaction(function () use ($invoiceId, $reference): SettlementData {
             $invoice = $this->lockInvoice($invoiceId);
             $reference = $this->reference($reference);
             $application = ReceivableApplication::query()->where('invoice_id', $invoice->id)->where('reference', $reference)->first();

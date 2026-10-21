@@ -13,7 +13,7 @@ use Illuminate\Support\Str;
 
 final class InvoiceDirectory implements SalesInvoiceLookup
 {
-    public function __construct(private readonly CompanyContext $company) {}
+    // The company context is resolved per call (no retained context).
 
     public function find(string $id): ?SalesInvoiceData
     {
@@ -24,7 +24,7 @@ final class InvoiceDirectory implements SalesInvoiceLookup
 
     public function openForParty(string $companyId, string $partyId): array
     {
-        return $this->company->runAs($companyId, fn (): array => array_values(SalesInvoice::query()
+        return app(CompanyContext::class)->runAs($companyId, fn (): array => array_values(SalesInvoice::query()
             ->where('party_id', $partyId)->whereIn('status', InvoiceStatus::open())->where('balance_due', '>', 0)
             ->orderBy('due_date')->orderBy('document_date')->orderBy('id')->get()
             ->map(static fn (SalesInvoice $i): SalesInvoiceData => SalesInvoiceData::of($i))->all()));

@@ -21,10 +21,16 @@ use Illuminate\Support\Facades\Gate;
 
 final class InvoiceController extends SalesDocumentController
 {
-    public function __construct(
-        private readonly InvoiceService $invoices,
-        private readonly ReturnService $returns,
-    ) {}
+    // Services are resolved per call: the router keeps controller instances between requests.
+    private function invoiceService(): InvoiceService
+    {
+        return app(InvoiceService::class);
+    }
+
+    private function returnService(): ReturnService
+    {
+        return app(ReturnService::class);
+    }
 
     protected function model(): string
     {
@@ -40,7 +46,7 @@ final class InvoiceController extends SalesDocumentController
     {
         $this->authorizeSources($request->lineData() ?? []);
 
-        return $this->respond($this->invoices->create($request->headerData(), $request->lineData() ?? [], $this->actor($request), $this->canOverridePrice($request)), status: 201);
+        return $this->respond($this->invoiceService()->create($request->headerData(), $request->lineData() ?? [], $this->actor($request), $this->canOverridePrice($request)), status: 201);
     }
 
     public function update(DocumentRequest $request, string $id): JsonResponse
@@ -48,13 +54,13 @@ final class InvoiceController extends SalesDocumentController
         $invoice = $this->invoice($id, 'update');
         $this->authorizeSources($request->lineData() ?? []);
 
-        return $this->respond($this->invoices->update($invoice, $request->headerData(), $request->lineData(), (int) $request->optionalVersion(), $this->actor($request), $this->canOverridePrice($request)));
+        return $this->respond($this->invoiceService()->update($invoice, $request->headerData(), $request->lineData(), (int) $request->optionalVersion(), $this->actor($request), $this->canOverridePrice($request)));
     }
 
     public function destroy(Request $request, string $id): JsonResponse
     {
         Gate::authorize('delete', SalesInvoice::class);
-        $this->invoices->delete($this->invoice($id, 'delete'), QuoteController::version($request));
+        $this->invoiceService()->delete($this->invoice($id, 'delete'), QuoteController::version($request));
 
         return ApiResponse::noContent();
     }
@@ -62,7 +68,7 @@ final class InvoiceController extends SalesDocumentController
     /** Body: version?, credit_override_reason?. Issued invoices are returned unchanged (meta.replayed). */
     public function issue(ActionRequest $request, string $id): JsonResponse
     {
-        [$invoice, $replayed, $warnings] = $this->invoices->issue($this->invoice($id, 'issue'), $request->optionalVersion(),
+        [$invoice, $replayed, $warnings] = $this->invoiceService()->issue($this->invoice($id, 'issue'), $request->optionalVersion(),
             $request->text('credit_override_reason'), $this->canOverrideCredit($request), $this->actor($request));
 
         return $this->respond($invoice, $this->warningsMeta($warnings), replayed: $replayed);
@@ -73,7 +79,7 @@ final class InvoiceController extends SalesDocumentController
     {
         $invoice = $this->invoice($id, 'reverse');
         $reason = $request->text('reason') ?? Messages::fail('reason', 'reason_required');
-        [$invoice, $replayed] = $this->invoices->reverse($invoice, $request->optionalVersion(),
+        [$invoice, $replayed] = $this->invoiceService()->reverse($invoice, $request->optionalVersion(),
             $request->text('date') ?? now()->toDateString(), $reason, $request->boolean('reverse_stock'), $this->actor($request));
 
         return $this->respond($invoice, replayed: $replayed);
@@ -81,7 +87,7 @@ final class InvoiceController extends SalesDocumentController
 
     public function cancel(ActionRequest $request, string $id): JsonResponse
     {
-        return $this->respond($this->invoices->cancel($this->invoice($id, 'update'), $request->optionalVersion(), $this->actor($request)));
+        return $this->respond($this->invoiceService()->cancel($this->invoice($id, 'update'), $request->optionalVersion(), $this->actor($request)));
     }
 
     /** Return draft of the issued invoice (lines: invoice_line_id, quantity, lot_no, serial_numbers; omitted = all returnable). */
@@ -89,7 +95,7 @@ final class InvoiceController extends SalesDocumentController
     {
         $invoice = $this->invoice($id, 'view');
 
-        return $this->respond($this->returns->createFromInvoice($invoice, $request->headerData(), $request->lineData(), $this->actor($request)), status: 201);
+        return $this->respond($this->returnService()->createFromInvoice($invoice, $request->headerData(), $request->lineData(), $this->actor($request)), status: 201);
     }
 
     /**

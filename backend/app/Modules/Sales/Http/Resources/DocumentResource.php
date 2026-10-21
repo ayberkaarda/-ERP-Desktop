@@ -101,6 +101,7 @@ final class DocumentResource extends JsonResource
                 'journal_entry_id' => $doc->journal_entry_id, 'cost_total' => (string) $doc->cost_total,
                 'posted_at' => self::time($doc->posted_at), 'posted_by' => $doc->posted_by, 'cancelled_at' => self::time($doc->cancelled_at),
                 'cancel_reason' => $doc->cancel_reason, 'reversal_stock_document_id' => $doc->reversal_stock_document_id,
+                'reversal_date' => $doc->reversal_date?->format('Y-m-d'),
             ],
             $doc instanceof SalesInvoice => [
                 'invoice_type' => $doc->invoice_type->value, 'order_id' => $doc->order_id, 'delivery_id' => $doc->delivery_id,

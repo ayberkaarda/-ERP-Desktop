@@ -29,6 +29,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -237,8 +238,10 @@ final class DeliveryService extends DocumentService
                 }
             }
 
-            $reversed = $this->stock->reverse((string) $delivery->stock_document_id, new DateTimeImmutable($date ?? now()->toDateString()), $reason);
+            $reversalDate = $date ?? now()->toDateString();
+            $reversed = $this->stock->reverse((string) $delivery->stock_document_id, new DateTimeImmutable($reversalDate), $reason);
             $delivery->reversal_stock_document_id = $reversed->documentId;
+            $delivery->reversal_date = Carbon::parse($reversalDate);
 
             if ($order !== null) {
                 $orderLines = $order->lines()->get()->keyBy('id');

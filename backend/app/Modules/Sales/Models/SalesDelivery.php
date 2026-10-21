@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $cancelled_by
  * @property string|null $cancel_reason
  * @property string|null $reversal_stock_document_id
+ * @property Carbon|null $reversal_date
  * @property-read Collection<int, SalesDeliveryLine> $lines
  */
 class SalesDelivery extends SalesDocument
@@ -54,6 +55,6 @@ class SalesDelivery extends SalesDocument
 
     protected function extraCasts(): array
     {
-        return ['status' => DeliveryStatus::class, 'cost_total' => DecimalCast::class.':4', 'posted_at' => 'datetime', 'cancelled_at' => 'datetime'];
+        return ['status' => DeliveryStatus::class, 'cost_total' => DecimalCast::class.':4', 'posted_at' => 'datetime', 'cancelled_at' => 'datetime', 'reversal_date' => 'date'];
     }
 }

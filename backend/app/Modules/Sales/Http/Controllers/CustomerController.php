@@ -35,10 +35,7 @@ final class CustomerController
 {
     public const array PERMISSIONS = ['sales.quotes.view', 'sales.orders.view', 'sales.invoices.view'];
 
-    public function __construct(
-        private readonly PartyLookup $parties,
-        private readonly CompanyContext $company,
-    ) {}
+    // No constructor dependencies: the router keeps one controller instance across requests.
 
     /**
      * `?document_id=` (an order or sale invoice of this customer the caller may view) adds
@@ -49,7 +46,7 @@ final class CustomerController
     {
         Gate::authorize('sales-customer-view');
         $party = $this->party($id);
-        $data = $exposure->exposure($this->company->id(), $party)->toArray();
+        $data = $exposure->exposure(app(CompanyContext::class)->id(), $party)->toArray();
         $data['document_amount'] = null;
         $documentId = $request->query('document_id');
 
@@ -67,7 +64,7 @@ final class CustomerController
     {
         Gate::authorize('sales-customer-view');
         $party = $this->party($id);
-        $company = $this->company->id();
+        $company = app(CompanyContext::class)->id();
         $invoices = DB::table('sales_invoices')->where('company_id', $company)->where('party_id', $party)
             ->whereIn('status', InvoiceStatus::booked())
             ->selectRaw("count(*) FILTER (WHERE invoice_type = 'sale') AS invoice_count,
@@ -115,7 +112,7 @@ final class CustomerController
 
     private function party(string $id): string
     {
-        if (! Str::isUuid($id) || $this->parties->find($id) === null) {
+        if (! Str::isUuid($id) || app(PartyLookup::class)->find($id) === null) {
             abort(404);
         }
 

@@ -27,17 +27,12 @@ use Illuminate\Support\Facades\DB;
  */
 final class ExposureCalculator implements CustomerExposure
 {
-    public function __construct(
-        private readonly CompanyContext $company,
-        private readonly PartyLookup $parties,
-        private readonly ExchangeRateProvider $rates,
-        private readonly SalesSettings $settings,
-    ) {}
+    // Dependencies that read the active company are resolved per call (no retained context).
 
     public function exposure(string $companyId, string $partyId): ExposureData
     {
-        return $this->company->runAs($companyId, function () use ($companyId, $partyId): ExposureData {
-            $party = $this->parties->find($partyId);
+        return app(CompanyContext::class)->runAs($companyId, function () use ($companyId, $partyId): ExposureData {
+            $party = app(PartyLookup::class)->find($partyId);
             [$invoices, $orders] = $this->localParts($companyId, $partyId);
 
             return $this->inRiskCurrency($partyId, $party?->riskLimit, $party?->riskCurrencyCode, $invoices, $orders);
@@ -67,7 +62,7 @@ final class ExposureCalculator implements CustomerExposure
 
     public function inRiskCurrency(string $partyId, ?string $limit, ?string $riskCurrency, BigDecimal $invoices, BigDecimal $orders): ExposureData
     {
-        $base = $this->settings->baseCurrency();
+        $base = app(SalesSettings::class)->baseCurrency();
         $currency = $riskCurrency ?? $base;
         $rate = $this->toRisk($base, $currency);
         $inv = RoundingPolicy::currency($invoices->multipliedBy($rate));
@@ -94,7 +89,7 @@ final class ExposureCalculator implements CustomerExposure
         }
 
         try {
-            return BigDecimal::of($this->rates->rate($base, $currency, new DateTimeImmutable(now()->toDateString())));
+            return BigDecimal::of(app(ExchangeRateProvider::class)->rate($base, $currency, new DateTimeImmutable(now()->toDateString())));
         } catch (RateNotFound) {
             Messages::fail('party_id', 'fx_rate_missing', ['currency' => $currency]);
         }
