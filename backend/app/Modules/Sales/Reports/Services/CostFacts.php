@@ -11,16 +11,15 @@ use App\Modules\Sales\Reports\Data\ReportFilters;
 use App\Modules\Sales\Reports\Support\Num;
 use Closure;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Streams the cost of goods sold in a range from the costs the stock postings recorded on the sales
  * documents (the same figures the stock movements and the COGS journal carry):
  * - a posted delivery line adds its cost_total on the delivery date (the stock issue date);
- * - a posted delivery cancelled later subtracts it on the day of cancellation (cancelled_at in the
- *   application time zone: Sales keeps no separate reversal date, so a reversal dated explicitly
- *   to another day falls on the cancellation day here);
+ * - a posted delivery cancelled later subtracts it on its stock reversal date (reversal_date: the
+ *   date its stock issue and COGS entry were reversed, whenever the cancellation happened);
+ * Every joined row is of the active company (line and header both).
  * - a received (or credited) return line subtracts its cost_total on the return date (return_in).
  */
 final class CostFacts
@@ -34,17 +33,13 @@ final class CostFacts
     {
         $from = (string) $f->dateFrom;
         $to = (string) $f->dateTo;
-        $tz = (string) config('app.timezone', 'UTC');
-        $start = Carbon::parse($from, $tz)->startOfDay();
-        $end = Carbon::parse($to, $tz)->addDay()->startOfDay();
-
         $deliveries = DB::table('sales_delivery_lines as l')->join('sales_deliveries as d', 'd.id', '=', 'l.document_id')
-            ->where('d.company_id', $f->companyId)->whereNotNull('d.posted_at')
+            ->where('d.company_id', $f->companyId)->where('l.company_id', $f->companyId)->whereNotNull('d.posted_at')
             ->where(fn (Builder $q) => $q->whereBetween('d.document_date', [$from, $to])
-                ->orWhere(fn (Builder $r) => $r->where('d.status', DeliveryStatus::Cancelled->value)->where('d.cancelled_at', '>=', $start)->where('d.cancelled_at', '<', $end)))
+                ->orWhere(fn (Builder $r) => $r->where('d.status', DeliveryStatus::Cancelled->value)->whereBetween('d.reversal_date', [$from, $to])))
             ->tap(fn (Builder $q) => $this->filter($q, $f, 'd', 'd.warehouse_id'))
             ->orderBy('l.id')
-            ->select(['l.id', 'l.item_id', 'l.base_quantity', 'l.cost_total', 'd.document_date', 'd.status', 'd.cancelled_at', 'd.party_id', 'd.party_name', 'd.warehouse_id']);
+            ->select(['l.id', 'l.item_id', 'l.base_quantity', 'l.cost_total', 'd.document_date', 'd.status', 'd.reversal_date', 'd.party_id', 'd.party_name', 'd.warehouse_id']);
 
         foreach ($deliveries->lazyById(1000, 'l.id', 'id') as $row) {
             if (! $this->matches($f, (string) $row->item_id)) {
@@ -59,8 +54,8 @@ final class CostFacts
                 $sink(new CostFact((string) $row->document_date, 'delivery', (string) $row->party_id, (string) $row->party_name, (string) $row->item_id, $warehouse, $qty, $cost));
             }
 
-            if ($row->status === DeliveryStatus::Cancelled->value && $row->cancelled_at !== null) {
-                $date = Carbon::parse((string) $row->cancelled_at)->setTimezone($tz)->format('Y-m-d');
+            if ($row->status === DeliveryStatus::Cancelled->value && is_string($row->reversal_date)) {
+                $date = $row->reversal_date;
 
                 if ($f->inRange($date)) {
                     $sink(new CostFact($date, 'delivery_reversal', (string) $row->party_id, (string) $row->party_name, (string) $row->item_id, $warehouse, $qty->negated(), $cost->negated()));
@@ -69,7 +64,7 @@ final class CostFacts
         }
 
         $returns = DB::table('sales_return_lines as l')->join('sales_returns as r', 'r.id', '=', 'l.document_id')
-            ->where('r.company_id', $f->companyId)
+            ->where('r.company_id', $f->companyId)->where('l.company_id', $f->companyId)
             ->whereIn('r.status', [ReturnStatus::Received->value, ReturnStatus::Credited->value])
             ->whereNotNull('l.cost_total')
             ->whereBetween('r.document_date', [$from, $to])

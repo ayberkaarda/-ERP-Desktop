@@ -97,3 +97,19 @@ it('takes the margin COGS from the costs the stock movements and the COGS accoun
     // Initial receipts are not sales; only sales documents moved stock in June apart from them.
     expect(DB::table('stock_movements')->where('company_id', $this->w->company)->where('occurred_at', '>=', '2027-06-02')->where('movement_type', 'receipt')->exists())->toBeFalse();
 });
+
+it('books the COGS reversal of a cancelled delivery on its stock reversal date, not on the day of cancellation', function (): void {
+    // Cancelled on 5 July with the reversal dated 30 June: stock and ledger reverse June's COGS.
+    Carbon\Carbon::setTestNow('2027-07-05 10:00:00');
+    SalesKit::post($this->w->user, $this->w->company, "sales-deliveries/{$this->h->d2['id']}/cancel", ['reason' => 'Wrong goods', 'date' => '2027-06-30'])
+        ->assertOk()->assertJsonPath('data.reversal_date', '2027-06-30');
+
+    foreach ([['2027-06-01', '2027-06-30', '100.0000'], ['2027-07-01', '2027-07-31', '0.0000']] as [$from, $to, $expected]) {
+        expect(($this->get)("margin?date_from={$from}&date_to={$to}")->json('meta.totals.cogs'))->toBe($expected, "{$from}..{$to}")
+            ->and(($this->cogs)($from, $to))->toBe($expected);
+    }
+
+    // Delivered-not-invoiced: D2 counts until 29 June and no longer from the reversal date.
+    expect(($this->get)('delivery-vs-invoice?as_of=2027-06-29')->json('meta.totals.uninvoiced_cost'))->toBe('100.0000')
+        ->and(($this->get)('delivery-vs-invoice?as_of=2027-06-30')->json('meta.totals.uninvoiced_cost'))->toBe('0.0000');
+});

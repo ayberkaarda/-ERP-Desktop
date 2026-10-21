@@ -39,7 +39,7 @@ final class RevenueFacts
         $to = (string) $f->dateTo;
 
         $this->headers($f)->chunkById(self::CHUNK, function ($headers) use ($f, $from, $to, $sink): void {
-            $lines = DB::table('sales_invoice_lines')->whereIn('document_id', $headers->pluck('id')->all())
+            $lines = DB::table('sales_invoice_lines')->where('company_id', $f->companyId)->whereIn('document_id', $headers->pluck('id')->all())
                 ->orderBy('document_id')->orderBy('line_no')
                 ->get(['document_id', 'item_id', 'item_type', 'warehouse_id', 'base_quantity', 'net_amount', 'tax_amount'])
                 ->groupBy('document_id');
@@ -101,7 +101,7 @@ final class RevenueFacts
             ->when($f->partyId !== null, fn (Builder $q) => $q->where('i.party_id', $f->partyId))
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('i.currency_code', $f->currencyCode))
             ->when($f->itemId !== null, fn (Builder $q) => $q->whereExists(fn (Builder $e) => $e->selectRaw('1')->from('sales_invoice_lines as fl')
-                ->whereColumn('fl.document_id', 'i.id')->where('fl.item_id', $f->itemId)))
+                ->whereColumn('fl.document_id', 'i.id')->where('fl.company_id', $f->companyId)->where('fl.item_id', $f->itemId)))
             ->select(['i.id', 'i.status', 'i.invoice_type', 'i.document_date', 'i.reversal_date', 'i.party_id', 'i.party_name',
                 'i.currency_code', 'i.warehouse_id', 'i.total_local', 'i.tax_total_local']);
     }

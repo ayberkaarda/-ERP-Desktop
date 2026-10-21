@@ -14,13 +14,13 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Carbon;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Goods delivered and not invoiced as of a date, rebuilt from the document dates:
  * - delivery lines of deliveries posted on or before as_of and not cancelled by then (a delivery
- *   cancelled after as_of still counts; cancellation day = cancelled_at in the application time zone);
+ *   whose stock reversal is dated after as_of still counts);
  * - invoiced = sale invoice lines on that delivery line issued on or before as_of and not reversed
  *   by then (reversal_date after as_of still counts as invoiced);
  * - in_draft_quantity: current draft/pending invoice lines on it (today, not as of).
@@ -114,12 +114,10 @@ final class DeliveryInvoiceReport
 
     private function query(ReportFilters $f, string $asOf): Builder
     {
-        $tz = (string) config('app.timezone', 'UTC');
-        $endOfDay = Carbon::parse($asOf, $tz)->addDay()->startOfDay();
         $booked = [...InvoiceStatus::booked(), InvoiceStatus::Reversed->value];
         $drafts = [InvoiceStatus::Draft->value, InvoiceStatus::PendingApproval->value];
         $invoiced = DB::table('sales_invoice_lines as il')->join('sales_invoices as i', 'i.id', '=', 'il.document_id')
-            ->where('i.company_id', $f->companyId)->where('i.invoice_type', InvoiceType::Sale->value)->whereNotNull('il.delivery_line_id')
+            ->where('i.company_id', $f->companyId)->where('il.company_id', $f->companyId)->where('i.invoice_type', InvoiceType::Sale->value)->whereNotNull('il.delivery_line_id')
             ->groupBy('il.delivery_line_id')
             ->select('il.delivery_line_id')
             ->selectRaw(
@@ -129,12 +127,12 @@ final class DeliveryInvoiceReport
             ->selectRaw('coalesce(sum(il.quantity) FILTER (WHERE i.status = ANY(?::text[])), 0) AS in_draft', [self::pgArray($drafts)]);
 
         return DB::table('sales_delivery_lines as l')->join('sales_deliveries as d', 'd.id', '=', 'l.document_id')
-            ->leftJoin('sales_orders as o', 'o.id', '=', 'd.order_id')
+            ->leftJoin('sales_orders as o', fn (JoinClause $j) => $j->on('o.id', '=', 'd.order_id')->where('o.company_id', '=', $f->companyId))
             ->leftJoinSub($invoiced, 'inv', 'inv.delivery_line_id', '=', 'l.id')
-            ->where('d.company_id', $f->companyId)->whereNotNull('d.posted_at')
+            ->where('d.company_id', $f->companyId)->where('l.company_id', $f->companyId)->whereNotNull('d.posted_at')
             ->where('d.document_date', '<=', $asOf)
             ->where(fn (Builder $q) => $q->where('d.status', DeliveryStatus::Posted->value)
-                ->orWhere(fn (Builder $r) => $r->where('d.status', DeliveryStatus::Cancelled->value)->where('d.cancelled_at', '>=', $endOfDay)))
+                ->orWhere(fn (Builder $r) => $r->where('d.status', DeliveryStatus::Cancelled->value)->where('d.reversal_date', '>', $asOf)))
             ->when($f->dateFrom !== null, fn (Builder $q) => $q->where('d.document_date', '>=', $f->dateFrom))
             ->when($f->dateTo !== null, fn (Builder $q) => $q->where('d.document_date', '<=', $f->dateTo))
             ->when($f->partyId !== null, fn (Builder $q) => $q->where('d.party_id', $f->partyId))

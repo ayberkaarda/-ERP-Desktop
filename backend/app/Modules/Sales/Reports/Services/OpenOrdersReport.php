@@ -113,7 +113,7 @@ final class OpenOrdersReport
     private function query(ReportFilters $f): Builder
     {
         return DB::table('sales_order_lines as l')->join('sales_orders as o', 'o.id', '=', 'l.document_id')
-            ->where('o.company_id', $f->companyId)
+            ->where('o.company_id', $f->companyId)->where('l.company_id', $f->companyId)
             ->whereIn('o.status', OrderStatus::openValues())
             ->when($f->dateFrom !== null, fn (Builder $q) => $q->where('o.document_date', '>=', $f->dateFrom))
             ->when($f->dateTo !== null, fn (Builder $q) => $q->where('o.document_date', '<=', $f->dateTo))

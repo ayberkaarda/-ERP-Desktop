@@ -12,6 +12,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Facades\DB;
 use stdClass;
 
@@ -95,15 +96,16 @@ final class QuoteConversionReport
     private function query(ReportFilters $f): Builder
     {
         return DB::table('sales_quotes as q')
-            ->leftJoin('sales_orders as o', 'o.id', '=', 'q.converted_order_id')
+            ->leftJoin('sales_orders as o', fn (JoinClause $j) => $j->on('o.id', '=', 'q.converted_order_id')->where('o.company_id', '=', $f->companyId))
             ->where('q.company_id', $f->companyId)
             ->where('q.status', '<>', QuoteStatus::Draft->value)
             ->whereBetween('q.document_date', [(string) $f->dateFrom, (string) $f->dateTo])
-            ->whereNotExists(fn (Builder $e) => $e->selectRaw('1')->from('sales_quotes as n')->whereColumn('n.previous_revision_id', 'q.id'))
+            ->whereNotExists(fn (Builder $e) => $e->selectRaw('1')->from('sales_quotes as n')->whereColumn('n.previous_revision_id', 'q.id')
+                ->where('n.company_id', $f->companyId))
             ->when($f->partyId !== null, fn (Builder $q) => $q->where('q.party_id', $f->partyId))
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('q.currency_code', $f->currencyCode))
             ->when($f->itemId !== null, fn (Builder $q) => $q->whereExists(fn (Builder $e) => $e->selectRaw('1')->from('sales_quote_lines as l')
-                ->whereColumn('l.document_id', 'q.id')->where('l.item_id', $f->itemId)))
+                ->whereColumn('l.document_id', 'q.id')->where('l.company_id', $f->companyId)->where('l.item_id', $f->itemId)))
             ->select(['q.id', 'q.status', 'q.document_date', 'q.party_id', 'q.party_name', 'q.total_local', 'q.tax_total_local', 'o.document_date as order_date']);
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Modules\Sales\Reports\Http\Requests\SalesReportRequest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\Support\Actors;
@@ -140,4 +141,47 @@ it('exports exact decimal text with formulas guarded and enforces the row cap', 
     ($this->get)('by-customer/export?date_from=2027-06-01&date_to=2027-06-30')->assertUnprocessable();
     ($this->get)('top-customers/export?limit=1&date_from=2027-06-01&date_to=2027-06-30')->assertOk();
     ($this->get)('by-customer?date_from=2027-06-01&date_to=2027-06-30')->assertOk();
+});
+
+it('ignores rows of another company attached to this company documents', function (): void {
+    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-10', 'lines' => [['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '100']],
+    ])->assertCreated()->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}/send")->assertOk();
+
+    $uris = [
+        'sales-by-period?date_from=2027-06-01&date_to=2027-06-30', 'by-item?date_from=2027-06-01&date_to=2027-06-30',
+        'margin?date_from=2027-06-01&date_to=2027-06-30', 'return-rate?date_from=2027-06-01&date_to=2027-06-30',
+        'open-orders', 'delivery-vs-invoice', 'customer-ageing?group_by=invoice',
+        'quote-conversion?date_from=2027-06-01&date_to=2027-06-30', "quote-conversion?date_from=2027-06-01&date_to=2027-06-30&item_id={$this->w->item->id}",
+    ];
+    $snapshot = fn (): array => array_map(fn (string $uri): array => ($this->get)($uri)->assertOk()->json(), $uris);
+    $before = $snapshot();
+
+    // Rows of company B pointing into company A documents (the single-column foreign keys allow it).
+    $b = Actors::companyFor($this->w->user, []);
+    $copy = function (string $table, string $id, array $changes) use ($b): void {
+        $row = (array) DB::table($table)->where('id', $id)->first();
+        DB::table($table)->insert([...$row, 'id' => (string) Str::uuid7(), 'company_id' => $b, ...$changes]);
+    };
+    DB::statement('ALTER TABLE sales_invoice_lines DISABLE TRIGGER sales_invoice_lines_guard');
+    DB::statement('ALTER TABLE sales_delivery_lines DISABLE TRIGGER sales_delivery_lines_guard');
+    $copy('sales_invoice_lines', $this->h->inv1['lines'][0]['id'], ['line_no' => 99]);
+    $copy('sales_invoice_lines', $this->h->inv2['lines'][0]['id'], ['line_no' => 98, 'delivery_line_id' => $this->h->d2['lines'][0]['id'], 'item_id' => $this->w->item->id, 'quantity' => '2']);
+    $copy('sales_delivery_lines', $this->h->d2['lines'][0]['id'], ['line_no' => 99]);
+    $copy('sales_order_lines', $this->h->o2['lines'][0]['id'], ['line_no' => 99]);
+    $returnLine = DB::table('sales_return_lines')->where('document_id', $this->h->crn['return_id'])->value('id');
+    $copy('sales_return_lines', (string) $returnLine, ['line_no' => 99]);
+    $copy('sales_quote_lines', $quote['lines'][0]['id'], ['line_no' => 99, 'item_id' => $this->w->item->id]);
+    $copy('sales_quotes', $quote['id'], ['number' => null, 'previous_revision_id' => $quote['id'], 'status' => 'sent']);
+    DB::table('sales_receivable_applications')->insert([
+        'id' => (string) Str::uuid7(), 'company_id' => $b, 'invoice_id' => $this->h->inv1['id'], 'reference' => 'FOREIGN', 'amount' => '50',
+        'applied_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+    ]);
+    DB::statement('ALTER TABLE sales_invoice_lines ENABLE TRIGGER sales_invoice_lines_guard');
+    DB::statement('ALTER TABLE sales_delivery_lines ENABLE TRIGGER sales_delivery_lines_guard');
+
+    foreach ($snapshot() as $n => $after) {
+        expect($after)->toBe($before[$n], $uris[$n]);
+    }
 });

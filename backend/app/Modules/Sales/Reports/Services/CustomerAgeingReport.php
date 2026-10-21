@@ -107,6 +107,7 @@ final class CustomerAgeingReport
         $endOfDay = Carbon::parse($asOf, $tz)->addDay()->startOfDay();
         $settled = DB::table('sales_receivable_applications as a')
             ->whereColumn('a.invoice_id', 'i.id')
+            ->where('a.company_id', $f->companyId)
             ->where('a.applied_at', '<', $endOfDay)
             ->where(fn (Builder $q) => $q->whereNull('a.unapplied_at')->orWhere('a.unapplied_at', '>=', $endOfDay))
             ->selectRaw('coalesce(sum(a.amount), 0)');
