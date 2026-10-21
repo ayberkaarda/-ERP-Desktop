@@ -40,6 +40,18 @@ import salesReportsDe from './locales/sales-reports/de.json'
 import salesReportsEn from './locales/sales-reports/en.json'
 import salesReportsFr from './locales/sales-reports/fr.json'
 import salesReportsTr from './locales/sales-reports/tr.json'
+import salesSharedDe from './locales/sales-shared/de.json'
+import salesSharedEn from './locales/sales-shared/en.json'
+import salesSharedFr from './locales/sales-shared/fr.json'
+import salesSharedTr from './locales/sales-shared/tr.json'
+import salesQuotesDe from './locales/sales-quotes/de.json'
+import salesQuotesEn from './locales/sales-quotes/en.json'
+import salesQuotesFr from './locales/sales-quotes/fr.json'
+import salesQuotesTr from './locales/sales-quotes/tr.json'
+import salesOrdersDe from './locales/sales-orders/de.json'
+import salesOrdersEn from './locales/sales-orders/en.json'
+import salesOrdersFr from './locales/sales-orders/fr.json'
+import salesOrdersTr from './locales/sales-orders/tr.json'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
@@ -73,6 +85,9 @@ void i18n.use(initReactI18next).init({
       'inventory-stock': inventoryStockTr,
       'sales-docs': salesDocsTr,
       'sales-reports': salesReportsTr,
+      'sales-shared': salesSharedTr,
+      'sales-quotes': salesQuotesTr,
+      'sales-orders': salesOrdersTr,
     },
     en: {
       translation: en,
@@ -86,6 +101,9 @@ void i18n.use(initReactI18next).init({
       'inventory-stock': inventoryStockEn,
       'sales-docs': salesDocsEn,
       'sales-reports': salesReportsEn,
+      'sales-shared': salesSharedEn,
+      'sales-quotes': salesQuotesEn,
+      'sales-orders': salesOrdersEn,
     },
     de: {
       translation: de,
@@ -99,6 +117,9 @@ void i18n.use(initReactI18next).init({
       'inventory-stock': inventoryStockDe,
       'sales-docs': salesDocsDe,
       'sales-reports': salesReportsDe,
+      'sales-shared': salesSharedDe,
+      'sales-quotes': salesQuotesDe,
+      'sales-orders': salesOrdersDe,
     },
     fr: {
       translation: fr,
@@ -112,6 +133,9 @@ void i18n.use(initReactI18next).init({
       'inventory-stock': inventoryStockFr,
       'sales-docs': salesDocsFr,
       'sales-reports': salesReportsFr,
+      'sales-shared': salesSharedFr,
+      'sales-quotes': salesQuotesFr,
+      'sales-orders': salesOrdersFr,
     },
   },
   ns: [
@@ -126,6 +150,9 @@ void i18n.use(initReactI18next).init({
     'inventory-stock',
     'sales-docs',
     'sales-reports',
+    'sales-shared',
+    'sales-quotes',
+    'sales-orders',
   ],
   lng: storedLanguage(),
   fallbackLng: 'tr',

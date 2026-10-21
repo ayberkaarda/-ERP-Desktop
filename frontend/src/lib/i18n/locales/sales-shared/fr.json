@@ -1,0 +1,234 @@
+{
+  "nav": {
+    "sales": "Ventes",
+    "quotes": "Devis",
+    "orders": "Commandes"
+  },
+  "kind": {
+    "quote": "Devis",
+    "order": "Commande"
+  },
+  "quoteStatus": {
+    "draft": "Brouillon",
+    "sent": "Envoyé",
+    "accepted": "Accepté",
+    "rejected": "Refusé",
+    "expired": "Expiré",
+    "converted": "Transformé en commande",
+    "cancelled": "Annulé"
+  },
+  "orderStatus": {
+    "draft": "Brouillon",
+    "pending_approval": "En attente d'approbation",
+    "confirmed": "Confirmée",
+    "partially_delivered": "Partiellement livrée",
+    "delivered": "Livrée",
+    "partially_invoiced": "Partiellement facturée",
+    "invoiced": "Facturée",
+    "closed": "Clôturée",
+    "cancelled": "Annulée"
+  },
+  "fields": {
+    "number": "Numéro",
+    "status": "Statut",
+    "party": "Client",
+    "taxNumber": "Centre des impôts / numéro",
+    "documentDate": "Date du document",
+    "validUntil": "Valable jusqu'au",
+    "requestedDeliveryDate": "Date de livraison souhaitée",
+    "dueDate": "Date d'échéance",
+    "currency": "Devise",
+    "fxRate": "Taux de change",
+    "fxRateHelp": "Laisser vide pour utiliser le taux de la date du document.",
+    "paymentTerm": "Condition de paiement",
+    "warehouse": "Entrepôt",
+    "revision": "Révision",
+    "total": "Total",
+    "notes": "Notes",
+    "notesHelp": "Visible sur le document envoyé au client.",
+    "internalNotes": "Notes internes",
+    "internalNotesHelp": "Visibles uniquement dans l'entreprise."
+  },
+  "filters": {
+    "title": "Filtres",
+    "dateFrom": "Date de début",
+    "dateTo": "Date de fin",
+    "party": "Client",
+    "item": "Article",
+    "number": "Numéro",
+    "clear": "Effacer les filtres"
+  },
+  "views": {
+    "title": "Vues enregistrées",
+    "empty": "Aucune vue enregistrée pour l'instant.",
+    "saveCurrent": "Enregistrer les filtres actuels…",
+    "saveTitle": "Enregistrer la vue",
+    "saveBody": "Les filtres et la recherche sont stockés dans ce navigateur, pour vous seul et dans cette entreprise.",
+    "name": "Nom de la vue",
+    "remove": "Supprimer la vue {{name}}"
+  },
+  "export": {
+    "label": "Exporter",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "L'export a échoué."
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "retry": "Réessayer"
+  },
+  "errors": {
+    "generic": "L'opération n'a pas pu aboutir.",
+    "load": "Le document n'a pas pu être chargé."
+  },
+  "conflict": {
+    "title": "Quelqu'un d'autre a modifié ce document",
+    "body": "Chargez la version actuelle avant d'enregistrer. Vos modifications non enregistrées seront perdues.",
+    "reload": "Charger la version actuelle"
+  },
+  "reason": {
+    "tooShort": "Saisissez au moins {{min}} caractères."
+  },
+  "editor": {
+    "new": "Nouveau",
+    "newTitle": "Nouveau : {{kind}}",
+    "editTitle": "{{kind}} {{number}}",
+    "reviseTitle": "Révision de la commande {{number}}",
+    "unnumbered": "(sans numéro)",
+    "header": "Informations du document",
+    "notes": "Notes et avertissements",
+    "saveDraft": "Enregistrer le brouillon",
+    "saveRevise": "Enregistrer la révision",
+    "cancelRevise": "Abandonner la révision",
+    "saved": "Brouillon enregistré.",
+    "revised": "Commande révisée.",
+    "delete": "Supprimer le brouillon",
+    "deleteTitle": "Supprimer ce brouillon ({{kind}}) ?",
+    "deleteBody": "Le brouillon et ses lignes sont supprimés définitivement.",
+    "deleted": "Brouillon supprimé.",
+    "readOnly": "Vous n'êtes pas autorisé à modifier ce document."
+  },
+  "validation": {
+    "party": "Choisissez un client.",
+    "currency": "Choisissez une devise.",
+    "minLines": "Saisissez au moins une ligne.",
+    "maxLines": "Un document peut contenir au plus {{max}} lignes.",
+    "item": "Choisissez un article.",
+    "unit": "Choisissez une unité.",
+    "quantity": "Saisissez une quantité supérieure à zéro (6 décimales au plus).",
+    "price": "Saisissez un prix valide (4 décimales au plus).",
+    "discountPercent": "La remise doit être comprise entre 0 et 100.",
+    "discountAmount": "Saisissez un montant de remise valide.",
+    "validUntil": "La date de validité ne peut pas précéder la date du document.",
+    "fxRate": "Le taux doit être supérieur à zéro (6 décimales au plus)."
+  },
+  "lines": {
+    "title": "Lignes",
+    "item": "Article",
+    "quantity": "Quantité",
+    "unit": "Unité",
+    "unitPrice": "Prix unitaire",
+    "discountPercent": "Rem. %",
+    "discountAmount": "Mt remise",
+    "discount": "Remise",
+    "tax": "Taxe",
+    "net": "Montant net",
+    "lineTotal": "Total ligne",
+    "delivered": "Livré",
+    "invoiced": "Facturé",
+    "pricePlaceholder": "Automatique",
+    "priceLocked": "Vous ne pouvez pas modifier les prix ; le prix vient de la liste de prix.",
+    "priceManual": "Prix saisi",
+    "priceSource": {
+      "manual": "Prix saisi",
+      "list": "Depuis la liste de prix",
+      "none": "Aucun prix trouvé"
+    },
+    "netTax": "Net {{net}} · TVA {{rate}} %",
+    "stock": {
+      "ok": "Disponible : {{quantity}} {{unit}}",
+      "low": "Disponible : {{quantity}} {{unit}} (faible)",
+      "short": "Stock insuffisant : {{quantity}} {{unit}} disponibles"
+    }
+  },
+  "totals": {
+    "title": "Totaux",
+    "calculating": "Calcul en cours…",
+    "failed": "Les totaux n'ont pas pu être calculés.",
+    "empty": "Les totaux sont calculés par le serveur dès que des lignes sont saisies.",
+    "subtotal": "Sous-total",
+    "discount": "Remise",
+    "tax": "Total des taxes",
+    "taxRow": "{{code}} {{rate}} % (base {{base}})",
+    "total": "Total général",
+    "local": "En devise de l'entreprise (taux {{rate}})"
+  },
+  "warnings": {
+    "title": "Avertissements",
+    "line": "Ligne {{index}}"
+  },
+  "exposure": {
+    "loading": "Chargement du risque…",
+    "unavailable": "Risque indisponible.",
+    "unlimited": "Pas de limite de crédit · encours {{exposure}}",
+    "ok": "Crédit disponible {{available}} / {{limit}}",
+    "tight": "Limite presque atteinte : {{available}} / {{limit}}",
+    "over": "Limite dépassée : {{available}} / {{limit}}",
+    "breakdown": "Factures ouvertes {{invoices}} · Commandes non facturées {{orders}}"
+  },
+  "credit": {
+    "title": "Limite de crédit dépassée",
+    "blocked": "Ce document dépasse la limite de crédit du client.",
+    "breakdown": "Détail du risque",
+    "limit": "Limite de crédit",
+    "exposure": "Encours actuel",
+    "document": "Ce document",
+    "overrideBody": "Saisissez un motif pour confirmer malgré la limite ; il est consigné dans le journal d'audit.",
+    "reason": "Motif du dépassement",
+    "override": "Confirmer malgré la limite",
+    "noPermission": "Vous n'êtes pas autorisé à confirmer au-delà de la limite. Demandez l'aide d'un utilisateur habilité."
+  },
+  "chain": {
+    "title": "Chaîne documentaire",
+    "unnumbered": "(sans numéro)",
+    "type": {
+      "sales_quote": "Devis",
+      "sales_order": "Commande",
+      "sales_delivery": "Bon de livraison",
+      "sales_invoice": "Facture",
+      "sales_return": "Retour"
+    },
+    "status": {
+      "draft": "Brouillon",
+      "sent": "Envoyé",
+      "accepted": "Accepté",
+      "rejected": "Refusé",
+      "expired": "Expiré",
+      "converted": "Transformé",
+      "cancelled": "Annulé",
+      "pending_approval": "En attente d'approbation",
+      "confirmed": "Confirmé",
+      "partially_delivered": "Partiellement livré",
+      "delivered": "Livré",
+      "partially_invoiced": "Partiellement facturé",
+      "invoiced": "Facturé",
+      "closed": "Clôturé",
+      "posted": "Comptabilisé",
+      "issued": "Émis",
+      "partially_paid": "Partiellement payé",
+      "paid": "Payé",
+      "reversed": "Extourné",
+      "approved": "Approuvé",
+      "received": "Réceptionné",
+      "credited": "Avoir émis",
+      "other": "Autre"
+    }
+  },
+  "view": {
+    "lines": "Lignes",
+    "audit": "Journal d'audit",
+    "attachments": "Pièces jointes"
+  }
+}

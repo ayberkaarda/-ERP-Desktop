@@ -1,0 +1,234 @@
+{
+  "nav": {
+    "sales": "Satış",
+    "quotes": "Teklifler",
+    "orders": "Siparişler"
+  },
+  "kind": {
+    "quote": "Teklif",
+    "order": "Sipariş"
+  },
+  "quoteStatus": {
+    "draft": "Taslak",
+    "sent": "Gönderildi",
+    "accepted": "Kabul edildi",
+    "rejected": "Reddedildi",
+    "expired": "Süresi doldu",
+    "converted": "Siparişe dönüştü",
+    "cancelled": "İptal edildi"
+  },
+  "orderStatus": {
+    "draft": "Taslak",
+    "pending_approval": "Onay bekliyor",
+    "confirmed": "Onaylandı",
+    "partially_delivered": "Kısmen sevk edildi",
+    "delivered": "Sevk edildi",
+    "partially_invoiced": "Kısmen faturalandı",
+    "invoiced": "Faturalandı",
+    "closed": "Kapandı",
+    "cancelled": "İptal edildi"
+  },
+  "fields": {
+    "number": "Belge no",
+    "status": "Durum",
+    "party": "Müşteri",
+    "taxNumber": "Vergi dairesi / no",
+    "documentDate": "Belge tarihi",
+    "validUntil": "Geçerlilik tarihi",
+    "requestedDeliveryDate": "İstenen teslim tarihi",
+    "dueDate": "Vade tarihi",
+    "currency": "Para birimi",
+    "fxRate": "Kur",
+    "fxRateHelp": "Boş bırakılırsa belge tarihindeki kur kullanılır.",
+    "paymentTerm": "Ödeme vadesi",
+    "warehouse": "Depo",
+    "revision": "Revizyon",
+    "total": "Toplam",
+    "notes": "Notlar",
+    "notesHelp": "Müşteriye giden belgede görünür.",
+    "internalNotes": "İç notlar",
+    "internalNotesHelp": "Yalnızca şirket içinde görünür."
+  },
+  "filters": {
+    "title": "Filtreler",
+    "dateFrom": "Başlangıç tarihi",
+    "dateTo": "Bitiş tarihi",
+    "party": "Müşteri",
+    "item": "Stok kartı",
+    "number": "Belge no",
+    "clear": "Filtreleri temizle"
+  },
+  "views": {
+    "title": "Kayıtlı görünümler",
+    "empty": "Henüz kayıtlı görünüm yok.",
+    "saveCurrent": "Geçerli filtreleri kaydet…",
+    "saveTitle": "Görünümü kaydet",
+    "saveBody": "Filtreler ve arama bu tarayıcıda, yalnızca sizin için ve bu şirkette saklanır.",
+    "name": "Görünüm adı",
+    "remove": "{{name}} görünümünü sil"
+  },
+  "export": {
+    "label": "Dışa aktar",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Dışa aktarılamadı."
+  },
+  "actions": {
+    "save": "Kaydet",
+    "cancel": "Vazgeç",
+    "close": "Kapat",
+    "retry": "Yeniden dene"
+  },
+  "errors": {
+    "generic": "İşlem tamamlanamadı.",
+    "load": "Belge yüklenemedi."
+  },
+  "conflict": {
+    "title": "Belge başka biri tarafından değiştirildi",
+    "body": "Değişikliklerinizi kaydetmeden önce güncel hâlini yükleyin. Kaydedilmemiş düzenlemeleriniz kaybolur.",
+    "reload": "Güncel hâlini yükle"
+  },
+  "reason": {
+    "tooShort": "En az {{min}} karakter yazın."
+  },
+  "editor": {
+    "new": "Yeni",
+    "newTitle": "Yeni {{kind}}",
+    "editTitle": "{{kind}} {{number}}",
+    "reviseTitle": "Sipariş {{number}} revizyonu",
+    "unnumbered": "(numarasız)",
+    "header": "Belge bilgileri",
+    "notes": "Notlar ve uyarılar",
+    "saveDraft": "Taslağı kaydet",
+    "saveRevise": "Revizyonu kaydet",
+    "cancelRevise": "Revizyondan vazgeç",
+    "saved": "Taslak kaydedildi.",
+    "revised": "Sipariş revize edildi.",
+    "delete": "Taslağı sil",
+    "deleteTitle": "{{kind}} taslağı silinsin mi?",
+    "deleteBody": "Taslak ve satırları kalıcı olarak silinir.",
+    "deleted": "Taslak silindi.",
+    "readOnly": "Bu belgeyi düzenleme yetkiniz yok."
+  },
+  "validation": {
+    "party": "Müşteri seçin.",
+    "currency": "Para birimi seçin.",
+    "minLines": "En az bir satır girin.",
+    "maxLines": "Bir belgede en çok {{max}} satır olabilir.",
+    "item": "Stok kartı seçin.",
+    "unit": "Birim seçin.",
+    "quantity": "Sıfırdan büyük bir miktar girin (en çok 6 ondalık).",
+    "price": "Geçerli bir fiyat girin (en çok 4 ondalık).",
+    "discountPercent": "İndirim oranı 0 ile 100 arasında olmalı.",
+    "discountAmount": "Geçerli bir indirim tutarı girin.",
+    "validUntil": "Geçerlilik tarihi belge tarihinden önce olamaz.",
+    "fxRate": "Kur sıfırdan büyük olmalı (en çok 6 ondalık)."
+  },
+  "lines": {
+    "title": "Satırlar",
+    "item": "Stok kartı",
+    "quantity": "Miktar",
+    "unit": "Birim",
+    "unitPrice": "Birim fiyat",
+    "discountPercent": "İnd. %",
+    "discountAmount": "İnd. tutarı",
+    "discount": "İndirim",
+    "tax": "Vergi",
+    "net": "Net tutar",
+    "lineTotal": "Satır toplamı",
+    "delivered": "Sevk edilen",
+    "invoiced": "Faturalanan",
+    "pricePlaceholder": "Otomatik",
+    "priceLocked": "Fiyatı değiştirme yetkiniz yok; fiyat listesinden gelir.",
+    "priceManual": "Elle girilen fiyat",
+    "priceSource": {
+      "manual": "Elle girilen fiyat",
+      "list": "Fiyat listesinden",
+      "none": "Fiyat bulunamadı"
+    },
+    "netTax": "Net {{net}} · KDV %{{rate}}",
+    "stock": {
+      "ok": "Kullanılabilir: {{quantity}} {{unit}}",
+      "low": "Kullanılabilir: {{quantity}} {{unit}} (az)",
+      "short": "Yetersiz stok: {{quantity}} {{unit}} kullanılabilir"
+    }
+  },
+  "totals": {
+    "title": "Toplamlar",
+    "calculating": "Hesaplanıyor…",
+    "failed": "Toplamlar hesaplanamadı.",
+    "empty": "Satır girildiğinde toplamlar sunucuda hesaplanır.",
+    "subtotal": "Ara toplam",
+    "discount": "İndirim",
+    "tax": "Vergi toplamı",
+    "taxRow": "{{code}} %{{rate}} (matrah {{base}})",
+    "total": "Genel toplam",
+    "local": "Şirket para birimiyle (kur {{rate}})"
+  },
+  "warnings": {
+    "title": "Uyarılar",
+    "line": "{{index}}. satır"
+  },
+  "exposure": {
+    "loading": "Risk bilgisi yükleniyor…",
+    "unavailable": "Risk bilgisi alınamadı.",
+    "unlimited": "Risk limiti yok · açık risk {{exposure}}",
+    "ok": "Kullanılabilir limit {{available}} / {{limit}}",
+    "tight": "Limit dolmak üzere: {{available}} / {{limit}}",
+    "over": "Limit aşılıyor: {{available}} / {{limit}}",
+    "breakdown": "Açık faturalar {{invoices}} · Faturalanmamış siparişler {{orders}}"
+  },
+  "credit": {
+    "title": "Kredi limiti aşılıyor",
+    "blocked": "Bu belge müşterinin kredi limitini aşıyor.",
+    "breakdown": "Risk dökümü",
+    "limit": "Kredi limiti",
+    "exposure": "Mevcut risk",
+    "document": "Bu belge",
+    "overrideBody": "Limit aşımıyla onaylamak için gerekçe yazın; gerekçe denetim kaydına işlenir.",
+    "reason": "Aşım gerekçesi",
+    "override": "Limiti aşarak onayla",
+    "noPermission": "Limit aşımını onaylama yetkiniz yok. Yetkili bir kullanıcıdan destek isteyin."
+  },
+  "chain": {
+    "title": "Belge zinciri",
+    "unnumbered": "(numarasız)",
+    "type": {
+      "sales_quote": "Teklif",
+      "sales_order": "Sipariş",
+      "sales_delivery": "İrsaliye",
+      "sales_invoice": "Fatura",
+      "sales_return": "İade"
+    },
+    "status": {
+      "draft": "Taslak",
+      "sent": "Gönderildi",
+      "accepted": "Kabul edildi",
+      "rejected": "Reddedildi",
+      "expired": "Süresi doldu",
+      "converted": "Dönüştürüldü",
+      "cancelled": "İptal edildi",
+      "pending_approval": "Onay bekliyor",
+      "confirmed": "Onaylandı",
+      "partially_delivered": "Kısmen sevk edildi",
+      "delivered": "Sevk edildi",
+      "partially_invoiced": "Kısmen faturalandı",
+      "invoiced": "Faturalandı",
+      "closed": "Kapandı",
+      "posted": "Kesinleşti",
+      "issued": "Kesildi",
+      "partially_paid": "Kısmen ödendi",
+      "paid": "Ödendi",
+      "reversed": "Ters kayıt yapıldı",
+      "approved": "Onaylandı",
+      "received": "Teslim alındı",
+      "credited": "Alacak dekontu kesildi",
+      "other": "Diğer"
+    }
+  },
+  "view": {
+    "lines": "Satırlar",
+    "audit": "Denetim kaydı",
+    "attachments": "Ekler"
+  }
+}

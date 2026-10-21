@@ -1,0 +1,79 @@
+{
+  "list": {
+    "title": "Commandes clients",
+    "description": "Commandes des clients, état d'approbation, avancement des livraisons et de la facturation.",
+    "new": "Nouvelle commande",
+    "exportName": "commandes-clients"
+  },
+  "palette": {
+    "list": "Commandes clients",
+    "new": "Nouvelle commande client"
+  },
+  "actions": {
+    "confirm": "Confirmer",
+    "revise": "Réviser",
+    "cancel": "Annuler la commande",
+    "createDelivery": "Créer un bon de livraison",
+    "createInvoice": "Créer une facture",
+    "confirmed": "Commande confirmée.",
+    "sentForApproval": "Commande envoyée pour approbation.",
+    "cancelled": "Commande annulée.",
+    "failed": "L'opération n'a pas pu aboutir."
+  },
+  "confirm": {
+    "title": "Confirmer la commande ?",
+    "body": "{{number}} ({{total}}) pour {{customer}} est confirmée ; la limite de crédit est vérifiée et le stock réservé. Au-delà du seuil d'approbation, la commande est envoyée pour approbation."
+  },
+  "cancel": {
+    "title": "Annuler la commande ?",
+    "body": "Les réservations sont libérées. L'annulation est définitive.",
+    "reason": "Motif d'annulation"
+  },
+  "approval": {
+    "tab": "Approbation",
+    "pending": "La commande attend une approbation. Une fois approuvée, elle passe automatiquement à l'état confirmé.",
+    "rejected": "Approbation refusée : {{comment}}",
+    "unavailable": "L'approbation ne peut pas être affichée."
+  },
+  "creditOverridden": "Confirmée malgré la limite de crédit. Motif : {{reason}}",
+  "wizard": {
+    "close": "Fermer",
+    "step": "Étape {{step}} sur {{total}}",
+    "step1": "Quantités",
+    "step2": "Date et récapitulatif",
+    "linesLabel": "Lignes de commande",
+    "item": "Article",
+    "ordered": "Commandé",
+    "delivered": "Livré",
+    "invoiced": "Facturé",
+    "remaining": "Restant",
+    "service": "(service)",
+    "quantityFor": "Quantité : {{item}}",
+    "fillAll": "Reprendre tous les restants",
+    "clear": "Effacer",
+    "exceeds": "{{max}} au maximum.",
+    "invalid": "Saisissez une quantité valide.",
+    "nothingChosen": "Saisissez une quantité sur au moins une ligne.",
+    "tolerance": "Tolérance de surlivraison : {{percent}} %",
+    "deliverOnInvoice": "Livrer avec la facture les lignes de stock non livrées",
+    "deliverOnInvoiceHelp": "Un bon de livraison est créé automatiquement à l'émission de la facture et le stock est diminué.",
+    "documentDate": "Date du document",
+    "warehouse": "Entrepôt",
+    "summary": "Récapitulatif",
+    "back": "Retour",
+    "next": "Suivant",
+    "failed": "Le document n'a pas pu être créé.",
+    "delivery": {
+      "title": "Bon de livraison pour {{number}}",
+      "quantity": "Quantité livrée",
+      "create": "Créer un bon de livraison brouillon",
+      "created": "Bon de livraison {{number}} créé en brouillon."
+    },
+    "invoice": {
+      "title": "Facture pour {{number}}",
+      "quantity": "Quantité facturée",
+      "create": "Créer une facture brouillon",
+      "created": "Facture {{number}} créée en brouillon."
+    }
+  }
+}

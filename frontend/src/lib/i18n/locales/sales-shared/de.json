@@ -1,0 +1,234 @@
+{
+  "nav": {
+    "sales": "Verkauf",
+    "quotes": "Angebote",
+    "orders": "Aufträge"
+  },
+  "kind": {
+    "quote": "Angebot",
+    "order": "Auftrag"
+  },
+  "quoteStatus": {
+    "draft": "Entwurf",
+    "sent": "Versendet",
+    "accepted": "Angenommen",
+    "rejected": "Abgelehnt",
+    "expired": "Abgelaufen",
+    "converted": "In Auftrag umgewandelt",
+    "cancelled": "Storniert"
+  },
+  "orderStatus": {
+    "draft": "Entwurf",
+    "pending_approval": "Wartet auf Freigabe",
+    "confirmed": "Bestätigt",
+    "partially_delivered": "Teilweise geliefert",
+    "delivered": "Geliefert",
+    "partially_invoiced": "Teilweise fakturiert",
+    "invoiced": "Fakturiert",
+    "closed": "Abgeschlossen",
+    "cancelled": "Storniert"
+  },
+  "fields": {
+    "number": "Belegnummer",
+    "status": "Status",
+    "party": "Kunde",
+    "taxNumber": "Finanzamt / Steuernummer",
+    "documentDate": "Belegdatum",
+    "validUntil": "Gültig bis",
+    "requestedDeliveryDate": "Gewünschtes Lieferdatum",
+    "dueDate": "Fälligkeitsdatum",
+    "currency": "Währung",
+    "fxRate": "Wechselkurs",
+    "fxRateHelp": "Leer lassen, um den Kurs des Belegdatums zu verwenden.",
+    "paymentTerm": "Zahlungsziel",
+    "warehouse": "Lager",
+    "revision": "Revision",
+    "total": "Gesamt",
+    "notes": "Notizen",
+    "notesHelp": "Erscheint auf dem Beleg für den Kunden.",
+    "internalNotes": "Interne Notizen",
+    "internalNotesHelp": "Nur innerhalb des Unternehmens sichtbar."
+  },
+  "filters": {
+    "title": "Filter",
+    "dateFrom": "Von Datum",
+    "dateTo": "Bis Datum",
+    "party": "Kunde",
+    "item": "Artikel",
+    "number": "Belegnummer",
+    "clear": "Filter zurücksetzen"
+  },
+  "views": {
+    "title": "Gespeicherte Ansichten",
+    "empty": "Noch keine gespeicherten Ansichten.",
+    "saveCurrent": "Aktuelle Filter speichern…",
+    "saveTitle": "Ansicht speichern",
+    "saveBody": "Filter und Suche werden in diesem Browser gespeichert, nur für Sie und in diesem Unternehmen.",
+    "name": "Name der Ansicht",
+    "remove": "Ansicht {{name}} löschen"
+  },
+  "export": {
+    "label": "Exportieren",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Export fehlgeschlagen."
+  },
+  "actions": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "close": "Schließen",
+    "retry": "Erneut versuchen"
+  },
+  "errors": {
+    "generic": "Der Vorgang konnte nicht abgeschlossen werden.",
+    "load": "Der Beleg konnte nicht geladen werden."
+  },
+  "conflict": {
+    "title": "Der Beleg wurde von jemand anderem geändert",
+    "body": "Laden Sie vor dem Speichern die aktuelle Fassung. Ungespeicherte Änderungen gehen verloren.",
+    "reload": "Aktuelle Fassung laden"
+  },
+  "reason": {
+    "tooShort": "Geben Sie mindestens {{min}} Zeichen ein."
+  },
+  "editor": {
+    "new": "Neu",
+    "newTitle": "Neu: {{kind}}",
+    "editTitle": "{{kind}} {{number}}",
+    "reviseTitle": "Revision von Auftrag {{number}}",
+    "unnumbered": "(ohne Nummer)",
+    "header": "Belegangaben",
+    "notes": "Notizen und Hinweise",
+    "saveDraft": "Entwurf speichern",
+    "saveRevise": "Revision speichern",
+    "cancelRevise": "Revision verwerfen",
+    "saved": "Entwurf gespeichert.",
+    "revised": "Auftrag revidiert.",
+    "delete": "Entwurf löschen",
+    "deleteTitle": "Entwurf ({{kind}}) löschen?",
+    "deleteBody": "Der Entwurf und seine Positionen werden endgültig gelöscht.",
+    "deleted": "Entwurf gelöscht.",
+    "readOnly": "Sie dürfen diesen Beleg nicht bearbeiten."
+  },
+  "validation": {
+    "party": "Wählen Sie einen Kunden.",
+    "currency": "Wählen Sie eine Währung.",
+    "minLines": "Geben Sie mindestens eine Position ein.",
+    "maxLines": "Ein Beleg kann höchstens {{max}} Positionen haben.",
+    "item": "Wählen Sie einen Artikel.",
+    "unit": "Wählen Sie eine Einheit.",
+    "quantity": "Geben Sie eine Menge größer null ein (höchstens 6 Nachkommastellen).",
+    "price": "Geben Sie einen gültigen Preis ein (höchstens 4 Nachkommastellen).",
+    "discountPercent": "Der Rabatt muss zwischen 0 und 100 liegen.",
+    "discountAmount": "Geben Sie einen gültigen Rabattbetrag ein.",
+    "validUntil": "Gültig bis darf nicht vor dem Belegdatum liegen.",
+    "fxRate": "Der Kurs muss größer null sein (höchstens 6 Nachkommastellen)."
+  },
+  "lines": {
+    "title": "Positionen",
+    "item": "Artikel",
+    "quantity": "Menge",
+    "unit": "Einheit",
+    "unitPrice": "Einzelpreis",
+    "discountPercent": "Rab. %",
+    "discountAmount": "Rab.-Betrag",
+    "discount": "Rabatt",
+    "tax": "Steuer",
+    "net": "Nettobetrag",
+    "lineTotal": "Positionssumme",
+    "delivered": "Geliefert",
+    "invoiced": "Fakturiert",
+    "pricePlaceholder": "Automatisch",
+    "priceLocked": "Sie dürfen Preise nicht ändern; der Preis kommt aus der Preisliste.",
+    "priceManual": "Eingegebener Preis",
+    "priceSource": {
+      "manual": "Eingegebener Preis",
+      "list": "Aus der Preisliste",
+      "none": "Kein Preis gefunden"
+    },
+    "netTax": "Netto {{net}} · MwSt. {{rate}} %",
+    "stock": {
+      "ok": "Verfügbar: {{quantity}} {{unit}}",
+      "low": "Verfügbar: {{quantity}} {{unit}} (knapp)",
+      "short": "Bestand reicht nicht: {{quantity}} {{unit}} verfügbar"
+    }
+  },
+  "totals": {
+    "title": "Summen",
+    "calculating": "Wird berechnet…",
+    "failed": "Die Summen konnten nicht berechnet werden.",
+    "empty": "Sobald Positionen erfasst sind, berechnet der Server die Summen.",
+    "subtotal": "Zwischensumme",
+    "discount": "Rabatt",
+    "tax": "Steuersumme",
+    "taxRow": "{{code}} {{rate}} % (Bemessung {{base}})",
+    "total": "Gesamtsumme",
+    "local": "In Unternehmenswährung (Kurs {{rate}})"
+  },
+  "warnings": {
+    "title": "Hinweise",
+    "line": "Position {{index}}"
+  },
+  "exposure": {
+    "loading": "Risiko wird geladen…",
+    "unavailable": "Risiko nicht verfügbar.",
+    "unlimited": "Kein Kreditlimit · offenes Risiko {{exposure}}",
+    "ok": "Verfügbares Limit {{available}} / {{limit}}",
+    "tight": "Limit fast ausgeschöpft: {{available}} / {{limit}}",
+    "over": "Limit überschritten: {{available}} / {{limit}}",
+    "breakdown": "Offene Rechnungen {{invoices}} · Nicht fakturierte Aufträge {{orders}}"
+  },
+  "credit": {
+    "title": "Kreditlimit überschritten",
+    "blocked": "Dieser Beleg überschreitet das Kreditlimit des Kunden.",
+    "breakdown": "Risikoaufstellung",
+    "limit": "Kreditlimit",
+    "exposure": "Aktuelles Risiko",
+    "document": "Dieser Beleg",
+    "overrideBody": "Geben Sie eine Begründung ein, um trotz Überschreitung zu bestätigen; sie wird protokolliert.",
+    "reason": "Begründung der Überschreitung",
+    "override": "Trotz Limit bestätigen",
+    "noPermission": "Sie dürfen keine Limitüberschreitung bestätigen. Wenden Sie sich an einen berechtigten Benutzer."
+  },
+  "chain": {
+    "title": "Belegkette",
+    "unnumbered": "(ohne Nummer)",
+    "type": {
+      "sales_quote": "Angebot",
+      "sales_order": "Auftrag",
+      "sales_delivery": "Lieferschein",
+      "sales_invoice": "Rechnung",
+      "sales_return": "Retoure"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "sent": "Versendet",
+      "accepted": "Angenommen",
+      "rejected": "Abgelehnt",
+      "expired": "Abgelaufen",
+      "converted": "Umgewandelt",
+      "cancelled": "Storniert",
+      "pending_approval": "Wartet auf Freigabe",
+      "confirmed": "Bestätigt",
+      "partially_delivered": "Teilweise geliefert",
+      "delivered": "Geliefert",
+      "partially_invoiced": "Teilweise fakturiert",
+      "invoiced": "Fakturiert",
+      "closed": "Abgeschlossen",
+      "posted": "Gebucht",
+      "issued": "Ausgestellt",
+      "partially_paid": "Teilweise bezahlt",
+      "paid": "Bezahlt",
+      "reversed": "Storniert (Gegenbuchung)",
+      "approved": "Genehmigt",
+      "received": "Eingegangen",
+      "credited": "Gutgeschrieben",
+      "other": "Sonstige"
+    }
+  },
+  "view": {
+    "lines": "Positionen",
+    "audit": "Änderungsprotokoll",
+    "attachments": "Anhänge"
+  }
+}

@@ -1,0 +1,234 @@
+{
+  "nav": {
+    "sales": "Sales",
+    "quotes": "Quotes",
+    "orders": "Orders"
+  },
+  "kind": {
+    "quote": "Quote",
+    "order": "Order"
+  },
+  "quoteStatus": {
+    "draft": "Draft",
+    "sent": "Sent",
+    "accepted": "Accepted",
+    "rejected": "Rejected",
+    "expired": "Expired",
+    "converted": "Converted to order",
+    "cancelled": "Cancelled"
+  },
+  "orderStatus": {
+    "draft": "Draft",
+    "pending_approval": "Pending approval",
+    "confirmed": "Confirmed",
+    "partially_delivered": "Partially delivered",
+    "delivered": "Delivered",
+    "partially_invoiced": "Partially invoiced",
+    "invoiced": "Invoiced",
+    "closed": "Closed",
+    "cancelled": "Cancelled"
+  },
+  "fields": {
+    "number": "Number",
+    "status": "Status",
+    "party": "Customer",
+    "taxNumber": "Tax office / number",
+    "documentDate": "Document date",
+    "validUntil": "Valid until",
+    "requestedDeliveryDate": "Requested delivery date",
+    "dueDate": "Due date",
+    "currency": "Currency",
+    "fxRate": "Exchange rate",
+    "fxRateHelp": "Leave empty to use the rate of the document date.",
+    "paymentTerm": "Payment term",
+    "warehouse": "Warehouse",
+    "revision": "Revision",
+    "total": "Total",
+    "notes": "Notes",
+    "notesHelp": "Shown on the document sent to the customer.",
+    "internalNotes": "Internal notes",
+    "internalNotesHelp": "Visible inside the company only."
+  },
+  "filters": {
+    "title": "Filters",
+    "dateFrom": "From date",
+    "dateTo": "To date",
+    "party": "Customer",
+    "item": "Item",
+    "number": "Number",
+    "clear": "Clear filters"
+  },
+  "views": {
+    "title": "Saved views",
+    "empty": "No saved views yet.",
+    "saveCurrent": "Save current filters…",
+    "saveTitle": "Save view",
+    "saveBody": "Filters and search are stored in this browser, for you only and in this company.",
+    "name": "View name",
+    "remove": "Delete view {{name}}"
+  },
+  "export": {
+    "label": "Export",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Export failed."
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "retry": "Retry"
+  },
+  "errors": {
+    "generic": "The action could not be completed.",
+    "load": "The document could not be loaded."
+  },
+  "conflict": {
+    "title": "Someone else changed this document",
+    "body": "Load the current version before saving. Your unsaved edits will be lost.",
+    "reload": "Load current version"
+  },
+  "reason": {
+    "tooShort": "Enter at least {{min}} characters."
+  },
+  "editor": {
+    "new": "New",
+    "newTitle": "New {{kind}}",
+    "editTitle": "{{kind}} {{number}}",
+    "reviseTitle": "Revision of order {{number}}",
+    "unnumbered": "(no number)",
+    "header": "Document details",
+    "notes": "Notes and warnings",
+    "saveDraft": "Save draft",
+    "saveRevise": "Save revision",
+    "cancelRevise": "Discard revision",
+    "saved": "Draft saved.",
+    "revised": "Order revised.",
+    "delete": "Delete draft",
+    "deleteTitle": "Delete this {{kind}} draft?",
+    "deleteBody": "The draft and its lines are deleted permanently.",
+    "deleted": "Draft deleted.",
+    "readOnly": "You may not edit this document."
+  },
+  "validation": {
+    "party": "Choose a customer.",
+    "currency": "Choose a currency.",
+    "minLines": "Enter at least one line.",
+    "maxLines": "A document can have at most {{max}} lines.",
+    "item": "Choose an item.",
+    "unit": "Choose a unit.",
+    "quantity": "Enter a quantity above zero (up to 6 decimals).",
+    "price": "Enter a valid price (up to 4 decimals).",
+    "discountPercent": "The discount must be between 0 and 100.",
+    "discountAmount": "Enter a valid discount amount.",
+    "validUntil": "Valid until cannot be before the document date.",
+    "fxRate": "The rate must be above zero (up to 6 decimals)."
+  },
+  "lines": {
+    "title": "Lines",
+    "item": "Item",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "unitPrice": "Unit price",
+    "discountPercent": "Disc. %",
+    "discountAmount": "Disc. amount",
+    "discount": "Discount",
+    "tax": "Tax",
+    "net": "Net amount",
+    "lineTotal": "Line total",
+    "delivered": "Delivered",
+    "invoiced": "Invoiced",
+    "pricePlaceholder": "Automatic",
+    "priceLocked": "You may not change prices; the price comes from the price list.",
+    "priceManual": "Entered price",
+    "priceSource": {
+      "manual": "Entered price",
+      "list": "From price list",
+      "none": "No price found"
+    },
+    "netTax": "Net {{net}} · VAT {{rate}}%",
+    "stock": {
+      "ok": "Available: {{quantity}} {{unit}}",
+      "low": "Available: {{quantity}} {{unit}} (low)",
+      "short": "Not enough stock: {{quantity}} {{unit}} available"
+    }
+  },
+  "totals": {
+    "title": "Totals",
+    "calculating": "Calculating…",
+    "failed": "Totals could not be calculated.",
+    "empty": "Totals are calculated by the server once lines are entered.",
+    "subtotal": "Subtotal",
+    "discount": "Discount",
+    "tax": "Tax total",
+    "taxRow": "{{code}} {{rate}}% (base {{base}})",
+    "total": "Grand total",
+    "local": "In company currency (rate {{rate}})"
+  },
+  "warnings": {
+    "title": "Warnings",
+    "line": "Line {{index}}"
+  },
+  "exposure": {
+    "loading": "Loading risk…",
+    "unavailable": "Risk is not available.",
+    "unlimited": "No credit limit · open exposure {{exposure}}",
+    "ok": "Available credit {{available}} / {{limit}}",
+    "tight": "Limit nearly used: {{available}} / {{limit}}",
+    "over": "Limit exceeded: {{available}} / {{limit}}",
+    "breakdown": "Open invoices {{invoices}} · Uninvoiced orders {{orders}}"
+  },
+  "credit": {
+    "title": "Credit limit exceeded",
+    "blocked": "This document exceeds the customer's credit limit.",
+    "breakdown": "Risk breakdown",
+    "limit": "Credit limit",
+    "exposure": "Current exposure",
+    "document": "This document",
+    "overrideBody": "Enter a reason to confirm over the limit; it is recorded in the audit log.",
+    "reason": "Override reason",
+    "override": "Confirm over the limit",
+    "noPermission": "You may not confirm over the limit. Ask an authorised user for help."
+  },
+  "chain": {
+    "title": "Document chain",
+    "unnumbered": "(no number)",
+    "type": {
+      "sales_quote": "Quote",
+      "sales_order": "Order",
+      "sales_delivery": "Delivery note",
+      "sales_invoice": "Invoice",
+      "sales_return": "Return"
+    },
+    "status": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "expired": "Expired",
+      "converted": "Converted",
+      "cancelled": "Cancelled",
+      "pending_approval": "Pending approval",
+      "confirmed": "Confirmed",
+      "partially_delivered": "Partially delivered",
+      "delivered": "Delivered",
+      "partially_invoiced": "Partially invoiced",
+      "invoiced": "Invoiced",
+      "closed": "Closed",
+      "posted": "Posted",
+      "issued": "Issued",
+      "partially_paid": "Partially paid",
+      "paid": "Paid",
+      "reversed": "Reversed",
+      "approved": "Approved",
+      "received": "Received",
+      "credited": "Credited",
+      "other": "Other"
+    }
+  },
+  "view": {
+    "lines": "Lines",
+    "audit": "Audit trail",
+    "attachments": "Attachments"
+  }
+}
