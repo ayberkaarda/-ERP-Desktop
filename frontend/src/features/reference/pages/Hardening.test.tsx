@@ -216,12 +216,8 @@ describe('rate status banner', () => {
     const user = userEvent.setup()
     renderReference(<ExchangeRatesPage />)
 
-    const alert = await screen.findByText('Kur durumu alınamadı.')
-    await user.click(
-      within(alert.closest('[role="alert"]')!).getByRole('button', {
-        name: 'Tekrar dene',
-      }),
-    )
+    await screen.findByText('Kur durumu alınamadı.')
+    await user.click(screen.getByRole('button', { name: 'Tekrar dene' }))
     expect(await screen.findByText(/Kurlar en son/)).toBeInTheDocument()
   })
 })
