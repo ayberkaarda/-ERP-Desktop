@@ -30,8 +30,39 @@ it('aggregates the permissions.php of every module under app/Modules', function 
         ->and($catalog->all())->toContain('users.view', 'companies.delete', 'approvals.decide')
         ->and($catalog->superAdminOnly())->toBe(['companies.delete'])
         ->and($catalog->grantsFor('HR'))->toContain('users.create', 'departments.update', 'files.view')
-        ->and($catalog->grantsFor('Sales'))->toEqualCanonicalizing(['companies.view', 'branches.view', 'departments.view', 'files.view', 'files.create', 'notifications.view'])
+        ->and($catalog->grantsFor('Sales'))->toContain('companies.view', 'branches.view', 'departments.view', 'files.view', 'files.create', 'notifications.view')
         ->and($catalog->grantsFor('Accountant'))->toContain('settings.view', 'users.view');
+
+    // Grants per role are exactly what the module files declare for that role (or '*').
+    foreach (['Accountant', 'Sales', 'Purchasing', 'Warehouse', 'HR', 'Viewer'] as $role) {
+        $declared = [];
+        foreach ($catalog->files() as $file) {
+            foreach ((require $file)['permissions'] as $name => $options) {
+                $roles = $options['roles'] ?? [];
+                if (in_array($role, $roles, true) || in_array('*', $roles, true)) {
+                    $declared[] = $name;
+                }
+            }
+        }
+
+        $grants = $catalog->grantsFor($role);
+        expect($grants)->toEqualCanonicalizing($declared)
+            // Invariants: no default role (other than Admin) gets super-admin-only or administrative permissions.
+            ->and(array_intersect($grants, $catalog->superAdminOnly()))->toBe([])
+            ->and(array_filter($grants, fn (string $p): bool => str_starts_with($p, 'roles.') || (str_starts_with($p, 'companies.') && $p !== 'companies.view')))->toBe([]);
+    }
+
+    // Viewer only reads; the one exception is what every role gets ('*', e.g. files.create for attachments).
+    $everyRole = array_values(array_intersect(...array_map(
+        fn (string $role): array => $catalog->grantsFor($role),
+        ['Accountant', 'Sales', 'Purchasing', 'Warehouse', 'HR', 'Viewer'],
+    )));
+    $writes = array_filter(
+        array_diff($catalog->grantsFor('Viewer'), $everyRole),
+        fn (string $p): bool => preg_match('/\.(create|update|delete|manage|assign|decide|export|status|reset_password)$/', $p) === 1,
+    );
+    expect($writes)->toBe([])
+        ->and($catalog->grantsFor('Viewer'))->toContain('notifications.view');
 });
 
 it('has no duplicate permission names across modules', function (): void {
