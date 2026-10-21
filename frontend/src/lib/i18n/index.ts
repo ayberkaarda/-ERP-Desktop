@@ -12,6 +12,10 @@ import catalogDe from './locales/catalog/de.json'
 import catalogEn from './locales/catalog/en.json'
 import catalogFr from './locales/catalog/fr.json'
 import catalogTr from './locales/catalog/tr.json'
+import inventoryDocsDe from './locales/inventory-docs/de.json'
+import inventoryDocsEn from './locales/inventory-docs/en.json'
+import inventoryDocsFr from './locales/inventory-docs/fr.json'
+import inventoryDocsTr from './locales/inventory-docs/tr.json'
 import commonDe from './locales/common/de.json'
 import commonEn from './locales/common/en.json'
 import commonFr from './locales/common/fr.json'
@@ -53,6 +57,7 @@ void i18n.use(initReactI18next).init({
       parties: partiesTr,
       reference: referenceTr,
       accountingJournal: accountingJournalTr,
+      inventoryDocs: inventoryDocsTr,
     },
     en: {
       translation: en,
@@ -62,6 +67,7 @@ void i18n.use(initReactI18next).init({
       parties: partiesEn,
       reference: referenceEn,
       accountingJournal: accountingJournalEn,
+      inventoryDocs: inventoryDocsEn,
     },
     de: {
       translation: de,
@@ -71,6 +77,7 @@ void i18n.use(initReactI18next).init({
       parties: partiesDe,
       reference: referenceDe,
       accountingJournal: accountingJournalDe,
+      inventoryDocs: inventoryDocsDe,
     },
     fr: {
       translation: fr,
@@ -80,9 +87,19 @@ void i18n.use(initReactI18next).init({
       parties: partiesFr,
       reference: referenceFr,
       accountingJournal: accountingJournalFr,
+      inventoryDocs: inventoryDocsFr,
     },
   },
-  ns: ['translation', 'common', 'accounting', 'accountingJournal', 'catalog', 'parties', 'reference'],
+  ns: [
+    'translation',
+    'common',
+    'accounting',
+    'accountingJournal',
+    'catalog',
+    'parties',
+    'reference',
+    'inventoryDocs',
+  ],
   lng: storedLanguage(),
   fallbackLng: 'tr',
   supportedLngs: SUPPORTED_LANGUAGES,
