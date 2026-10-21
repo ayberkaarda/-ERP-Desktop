@@ -26,6 +26,16 @@ enum OrderStatus: string
         return [self::Confirmed, self::PartiallyDelivered, self::Delivered, self::PartiallyInvoiced];
     }
 
+    /**
+     * Orders counted as customer exposure: confirmed and not finished, and those waiting for approval.
+     *
+     * @return list<string>
+     */
+    public static function exposureValues(): array
+    {
+        return [...self::openValues(), self::PendingApproval->value];
+    }
+
     /** @return list<string> */
     public static function openValues(): array
     {

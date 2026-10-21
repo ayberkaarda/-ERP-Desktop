@@ -9,6 +9,7 @@ use App\Modules\Sales\Data\CreditCheck;
 use App\Modules\Sales\Enums\DocumentKind;
 use App\Modules\Sales\Enums\OrderStatus;
 use App\Modules\Sales\Events\SalesOrderConfirmed;
+use App\Modules\Sales\Exceptions\CreditLimitExceeded;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Services\Composer\DocumentComposer;
 use App\Modules\Sales\Services\Machines\OrderMachine;
@@ -159,20 +160,38 @@ final class OrderService extends DocumentService
     /** Approval granted (ApprovalCompleted): confirm and reserve; a reservation the stock cannot cover is skipped. */
     public function approvalCompleted(string $orderId): void
     {
-        $order = Sales::transaction(function () use ($orderId): ?SalesOrder {
+        $result = Sales::transaction(function () use ($orderId): ?array {
             $order = SalesOrder::query()->whereKey($orderId)->lockForUpdate()->first();
 
             if ($order === null || $order->status !== OrderStatus::PendingApproval) {
                 return null;
             }
 
+            // Exposure may have grown while the order waited: check again under the party's credit
+            // lock; over the limit in block mode only an override authorized at submission passes.
+            try {
+                $party = $this->composer->party($order->party_id);
+                $check = $this->credit->check($order->company_id, $party, (string) $order->total_local, $order->id, '0',
+                    $order->credit_override_reason, $order->credit_override_by !== null);
+            } catch (CreditLimitExceeded|ValidationException) {
+                $order->approval_comment = Messages::get('approval_credit_blocked');
+                $this->machine->transition($order, OrderStatus::Draft);
+
+                return [$order, 'approval_credit_blocked'];
+            }
+
+            if ($check !== null && $check->overridden) {
+                activity()->performedOn($order)->withProperties(['reason' => $order->credit_override_reason, 'check' => $check->toArray(), 'at' => 'approval'])
+                    ->event('credit_override')->log('credit_override');
+            }
+
             $this->finalize($order, null, tolerateShortage: true);
 
-            return $order;
+            return [$order, 'approval_granted'];
         });
 
-        if ($order !== null) {
-            $this->notifyCreator($order, 'approval_granted');
+        if ($result !== null) {
+            $this->notifyCreator($result[0], $result[1]);
         }
     }
 
@@ -214,7 +233,11 @@ final class OrderService extends DocumentService
         $threshold = $this->settings->approvalThreshold();
 
         if ($threshold !== null && $order->total_local->isGreaterThanOrEqualTo($threshold)) {
-            $this->machine->transition($order, OrderStatus::PendingApproval, $actor);
+            if ($order->status !== OrderStatus::PendingApproval) {
+                $this->machine->transition($order, OrderStatus::PendingApproval, $actor);
+            }
+
+            // A revision of a pending order replaces its request (Workflow cancels the old one).
             $request = $this->approvals->start($order, self::APPROVAL_TYPE, (string) $order->total_local, (string) $order->revision);
             DB::table('sales_orders')->where('id', $order->id)->update(['approval_request_id' => $request->getKey()]);
             $order->setRawAttributes([...$order->getAttributes(), 'approval_request_id' => $request->getKey()], true);

@@ -39,6 +39,8 @@ beforeEach(function (): void {
         Artisan::call('migrate', ['--force' => true]);
     }
 
+    // Currencies are global rows: remember which existed so the ones added here are removed again.
+    $this->currencies = DB::table('currencies')->pluck('code')->all();
     SalesKit::boot();
     config(['database.connections.pgsql_second' => config('database.connections.pgsql')]);
     $this->a = DB::connection('pgsql');
@@ -84,6 +86,7 @@ afterEach(function (): void {
     }
     $this->a->statement('SET session_replication_role = DEFAULT');
     Companies::remove($this->company);
+    $this->a->table('currencies')->whereNotIn('code', $this->currencies)->delete();
     app(CompanyContext::class)->clear();
     DB::purge('pgsql_second');
     Carbon::setTestNow();

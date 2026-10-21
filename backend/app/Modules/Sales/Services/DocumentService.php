@@ -124,7 +124,7 @@ abstract class DocumentService
 
     /**
      * A source line copied at $quantity: same item, unit, price, discount (the absolute discount
-     * prorated) and tax code; the tax rate is looked up again at the new date unless $keepRate.
+     * prorated), stored base quantity (prorated) and tax code; the tax rate is looked up again at the new date unless $keepRate.
      *
      * @return array<string, mixed>
      */
@@ -135,6 +135,10 @@ abstract class DocumentService
         if (! $discount->isZero() && ! Sales::dec($quantity)->isEqualTo($source->quantity)) {
             $discount = $discount->multipliedBy($quantity)->dividedBy($source->quantity, 2, RoundingMode::HalfUp);
         }
+
+        $base = Sales::dec($quantity)->isEqualTo($source->quantity)
+            ? $source->base_quantity
+            : $source->base_quantity->multipliedBy($quantity)->dividedBy($source->quantity, 6, RoundingMode::HalfUp);
 
         return [
             'item_id' => $source->item_id,
@@ -150,6 +154,7 @@ abstract class DocumentService
             'warehouse_id' => $source->warehouse_id,
             '_fixed' => true,
             '_tax_rate' => $keepRate ? (string) $source->tax_rate : null,
+            '_base_quantity' => (string) $base,
         ];
     }
 

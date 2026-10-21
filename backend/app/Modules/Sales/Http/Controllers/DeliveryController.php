@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Http\Controllers;
 
 use App\Core\Http\ApiResponse;
-use App\Modules\Sales\Enums\DeliveryStatus;
 use App\Modules\Sales\Http\Requests\ActionRequest;
 use App\Modules\Sales\Http\Requests\DocumentRequest;
 use App\Modules\Sales\Models\SalesDelivery;
@@ -58,8 +57,9 @@ final class DeliveryController extends SalesDocumentController
     /** Draft: cancel (update). Posted: reverse the stock (reverse; body reason required, date optional). */
     public function cancel(ActionRequest $request, string $id): JsonResponse
     {
+        // The exact permission (update for a draft, reverse for a posted delivery) is checked by the
+        // service on the locked row, so a delivery posted meanwhile cannot be reversed with update.
         $delivery = $this->delivery($id, 'cancel');
-        Gate::authorize($delivery->status === DeliveryStatus::Posted ? 'reverse' : 'update', $delivery);
 
         return $this->respond($this->deliveries->cancel($delivery, $request->optionalVersion(), $request->text('reason'), $request->text('date'), $this->actor($request)));
     }

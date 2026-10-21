@@ -7,7 +7,11 @@ namespace App\Modules\Sales\Http\Controllers;
 use App\Core\Http\ApiResponse;
 use App\Modules\Sales\Http\Requests\ActionRequest;
 use App\Modules\Sales\Http\Requests\DocumentRequest;
+use App\Modules\Sales\Models\SalesDelivery;
+use App\Modules\Sales\Models\SalesDeliveryLine;
 use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Sales\Models\SalesOrder;
+use App\Modules\Sales\Models\SalesOrderLine;
 use App\Modules\Sales\Services\InvoiceService;
 use App\Modules\Sales\Services\ReturnService;
 use App\Modules\Sales\Support\Messages;
@@ -34,12 +38,15 @@ final class InvoiceController extends SalesDocumentController
 
     public function store(DocumentRequest $request): JsonResponse
     {
+        $this->authorizeSources($request->lineData() ?? []);
+
         return $this->respond($this->invoices->create($request->headerData(), $request->lineData() ?? [], $this->actor($request), $this->canOverridePrice($request)), status: 201);
     }
 
     public function update(DocumentRequest $request, string $id): JsonResponse
     {
         $invoice = $this->invoice($id, 'update');
+        $this->authorizeSources($request->lineData() ?? []);
 
         return $this->respond($this->invoices->update($invoice, $request->headerData(), $request->lineData(), (int) $request->optionalVersion(), $this->actor($request), $this->canOverridePrice($request)));
     }
@@ -83,6 +90,32 @@ final class InvoiceController extends SalesDocumentController
         $invoice = $this->invoice($id, 'view');
 
         return $this->respond($this->returns->createFromInvoice($invoice, $request->headerData(), $request->lineData(), $this->actor($request)), status: 201);
+    }
+
+    /**
+     * Lines copied from orders or deliveries need view permission on those documents, as the
+     * conversion endpoints do.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function authorizeSources(array $lines): void
+    {
+        $ids = static fn (string $key): array => array_values(array_filter(array_map(
+            static fn (array $l): ?string => is_string($l[$key] ?? null) ? $l[$key] : null, $lines)));
+        $deliveryLines = $ids('delivery_line_id');
+        $orderLines = $ids('order_line_id');
+
+        if ($deliveryLines !== []) {
+            foreach (SalesDelivery::query()->whereIn('id', SalesDeliveryLine::query()->select('document_id')->whereIn('id', $deliveryLines))->get() as $delivery) {
+                Gate::authorize('view', $delivery);
+            }
+        }
+
+        if ($orderLines !== []) {
+            foreach (SalesOrder::query()->whereIn('id', SalesOrderLine::query()->select('document_id')->whereIn('id', $orderLines))->get() as $order) {
+                Gate::authorize('view', $order);
+            }
+        }
     }
 
     private function invoice(string $id, string $ability): SalesInvoice

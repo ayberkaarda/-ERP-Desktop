@@ -23,6 +23,7 @@ use App\Modules\Sales\Services\Composer\DocumentComposer;
 use App\Modules\Sales\Services\Machines\ReturnMachine;
 use App\Modules\Sales\Support\Messages;
 use App\Modules\Sales\Support\Sales;
+use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -274,6 +275,8 @@ final class ReturnService extends DocumentService
                 $serials = $delivery->serial_numbers;
             }
 
+            $this->assertSerials($serials, $delivery, $qty, $exceptReturnId, "lines.{$i}.serial_numbers");
+
             $lot = is_string($line['lot_no'] ?? null) && $line['lot_no'] !== '' ? $line['lot_no'] : $delivery?->lot_no;
             $unitCost = $delivery?->unit_cost;
             $baseQty = $source->base_quantity->multipliedBy($qty)->dividedBy($source->quantity, 6, RoundingMode::HalfUp);
@@ -289,6 +292,46 @@ final class ReturnService extends DocumentService
         }
 
         return [$inputs, $extras];
+    }
+
+    /**
+     * Serial numbers coming back must be ones the original delivery shipped, one per unit, and not
+     * held by another return that is not cancelled.
+     *
+     * @param  list<string>  $serials
+     */
+    private function assertSerials(array $serials, ?SalesDeliveryLine $delivery, BigDecimal $qty, ?string $exceptReturnId, string $field): void
+    {
+        $shipped = $delivery === null ? [] : $delivery->serial_numbers;
+
+        if ($shipped === []) {
+            if ($serials !== []) {
+                Messages::fail($field, 'return_serial_unknown');
+            }
+
+            return;
+        }
+
+        if (count($serials) !== count(array_unique($serials)) || ! $qty->isEqualTo(count($serials))) {
+            Messages::fail($field, 'return_serial_count');
+        }
+
+        if (array_diff($serials, $shipped) !== []) {
+            Messages::fail($field, 'return_serial_unknown');
+        }
+
+        $taken = [];
+
+        foreach (SalesReturnLine::query()->where('delivery_line_id', $delivery->id)
+            ->whereIn('document_id', SalesReturn::query()->select('id')->where('status', '<>', ReturnStatus::Cancelled->value)
+                ->when($exceptReturnId !== null, fn ($q) => $q->whereKeyNot($exceptReturnId)))
+            ->get() as $other) {
+            $taken = [...$taken, ...$other->serial_numbers];
+        }
+
+        if (array_intersect($serials, $taken) !== []) {
+            Messages::fail($field, 'return_serial_taken');
+        }
     }
 
     /** @return list<array<string, mixed>> */

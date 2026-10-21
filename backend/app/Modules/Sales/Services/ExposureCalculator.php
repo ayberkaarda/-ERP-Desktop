@@ -20,7 +20,8 @@ use DateTimeImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
- * exposure = open invoice balances (credit notes net them) + confirmed, not invoiced order value,
+ * exposure = open invoice balances (credit notes net them) + confirmed (or pending approval), not
+ * invoiced order value,
  * each valued at its document's rate in company currency, then converted to the risk currency at
  * today's rate. Remaining order value = line_total * (quantity - invoiced) / quantity.
  */
@@ -56,7 +57,7 @@ final class ExposureCalculator implements CustomerExposure
             ->value('amount');
 
         $orders = DB::table('sales_order_lines as l')->join('sales_orders as o', 'o.id', '=', 'l.document_id')
-            ->where('o.company_id', $companyId)->where('o.party_id', $partyId)->whereIn('o.status', OrderStatus::openValues())
+            ->where('o.company_id', $companyId)->where('o.party_id', $partyId)->whereIn('o.status', OrderStatus::exposureValues())
             ->when($excludeOrderId !== null, fn ($q) => $q->where('o.id', '<>', $excludeOrderId))
             ->selectRaw('coalesce(sum(round(l.line_total * greatest(l.quantity - l.invoiced_quantity, 0) / l.quantity * o.fx_rate, 2)), 0) AS amount')
             ->value('amount');

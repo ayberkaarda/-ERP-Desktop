@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sales\Services;
 
 use App\Modules\Inventory\Contracts\StockService;
+use App\Modules\Inventory\Data\StockPosted;
 use App\Modules\Inventory\Data\StockPostingLine;
 use App\Modules\Inventory\Data\StockPostingRequest;
 use App\Modules\Inventory\Enums\DocumentType;
@@ -28,7 +29,8 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Deliveries (dispatch notes): from an order (bounded by the remaining quantity plus the
@@ -49,6 +51,7 @@ final class DeliveryService extends DocumentService
         private readonly OrderProgress $progress,
         private readonly Quantities $quantities,
         private readonly SalesSettings $settings,
+        private readonly OrderReservations $reservations,
     ) {
         parent::__construct($composer, $store);
     }
@@ -191,7 +194,8 @@ final class DeliveryService extends DocumentService
 
     /**
      * Cancels a draft, or reverses a posted delivery that nothing has invoiced (stock back through
-     * StockService::reverse on $date, order quantities reduced). Reservations are not restored.
+     * StockService::reverse on $date, order quantities reduced, the order's reservations renewed).
+     * The actor is authorized against the locked delivery: update for a draft, reverse for a posted one.
      */
     public function cancel(SalesDelivery $delivery, ?int $version, ?string $reason, ?string $date, ?Authenticatable $actor, bool $fromInvoice = false): SalesDelivery
     {
@@ -205,6 +209,10 @@ final class DeliveryService extends DocumentService
 
             if ($delivery->invoice_id !== null && ! $fromInvoice) {
                 Messages::fail('document', 'delivery_belongs_to_invoice');
+            }
+
+            if (! $fromInvoice && $actor !== null) {
+                Gate::forUser($actor)->authorize($delivery->status === DeliveryStatus::Posted ? 'reverse' : 'update', $delivery);
             }
 
             $delivery->cancelled_at = now();
@@ -240,10 +248,13 @@ final class DeliveryService extends DocumentService
 
                     if ($orderLine instanceof SalesOrderLine) {
                         $this->progress->addDelivered($orderLine, $line->quantity->negated());
+                        // The posting consumed (part of) the reservation: hold the open quantity again.
+                        $this->reservations->releaseLine($order->company_id, $orderLine);
                     }
                 }
 
                 $this->progress->refresh($order, $actor);
+                $this->rereserve($order, $actor);
             }
 
             return $this->machine->transition($delivery, DeliveryStatus::Cancelled, $actor);
@@ -262,12 +273,14 @@ final class DeliveryService extends DocumentService
         $inputs = [];
         $extras = [];
         $orderLines = $order?->lines()->get()->keyBy('id');
+        $requested = [];
 
         foreach ($lines as $i => $line) {
             $orderLine = $line->order_line_id === null ? null : $orderLines?->get($line->order_line_id);
 
             if ($orderLine instanceof SalesOrderLine) {
-                $this->assertWithinOrder($orderLine, $line->quantity, null, "lines.{$i}.quantity");
+                $requested[$orderLine->id] = ($requested[$orderLine->id] ?? BigDecimal::zero())->plus($line->quantity);
+                $this->assertWithinOrder($orderLine, $requested[$orderLine->id], null, "lines.{$i}.quantity");
             }
 
             $inputs[] = [...$this->fixedLine($line, (string) $line->quantity, true), 'source_line_id' => $line->id];
@@ -305,6 +318,7 @@ final class DeliveryService extends DocumentService
         }
 
         $stockLines = [];
+        $requested = [];
 
         foreach ($lines as $i => $line) {
             if (! $line->isStock()) {
@@ -314,7 +328,9 @@ final class DeliveryService extends DocumentService
             $orderLine = $line->order_line_id === null ? null : $orderLines?->get($line->order_line_id);
 
             if ($orderLine instanceof SalesOrderLine) {
-                $this->assertWithinOrder($orderLine, $line->quantity, $delivery->id, "lines.{$i}.quantity", includeHeld: true);
+                // Several lines of one order line count together.
+                $requested[$orderLine->id] = ($requested[$orderLine->id] ?? BigDecimal::zero())->plus($line->quantity);
+                $this->assertWithinOrder($orderLine, $requested[$orderLine->id], $delivery->id, "lines.{$i}.quantity", includeHeld: true);
             }
 
             $reservation = $orderLine instanceof SalesOrderLine && $orderLine->reservation_id !== null
@@ -335,7 +351,7 @@ final class DeliveryService extends DocumentService
             movementType: MovementType::Issue, reason: (string) $delivery->number, postedBy: self::actorId($actor),
         ));
 
-        $costs = $this->lineCosts($posted->documentId);
+        $costs = $this->lineCosts($posted);
         $total = BigDecimal::zero()->toScale(4);
 
         foreach ($lines as $line) {
@@ -374,26 +390,33 @@ final class DeliveryService extends DocumentService
     }
 
     /**
-     * Cost and lots of each stock document line, read back from the movements the posting wrote
-     * (read-only; the StockPosted result carries only the document total).
+     * Cost and lots of each stock document line as reported by the posting.
      *
      * @return array<int, array{cost: string, lots: string|null}>
      */
-    private function lineCosts(string $stockDocumentId): array
+    private function lineCosts(StockPosted $posted): array
     {
-        $rows = DB::table('stock_movements as m')->join('stock_document_lines as l', 'l.id', '=', 'm.document_line_id')
-            ->leftJoin('stock_lots as lot', 'lot.id', '=', 'm.lot_id')
-            ->where('m.document_id', $stockDocumentId)->whereNull('m.reverses_id')
-            ->groupBy('l.line_no')
-            ->selectRaw('l.line_no, sum(m.total_cost) AS cost, string_agg(DISTINCT lot.lot_no, \',\') AS lots')
-            ->get();
         $out = [];
 
-        foreach ($rows as $row) {
-            $out[(int) $row->line_no] = ['cost' => (string) $row->cost, 'lots' => is_string($row->lots) ? $row->lots : null];
+        foreach ($posted->lines as $line) {
+            $out[$line->lineNo] = ['cost' => $line->totalCost, 'lots' => $line->lotNos === [] ? null : implode(',', $line->lotNos)];
         }
 
         return $out;
+    }
+
+    /** Re-reserves the open quantities of an order still open (company setting and warehouse policy permitting). */
+    private function rereserve(SalesOrder $order, ?Authenticatable $actor): void
+    {
+        if (! $this->settings->reserveOnConfirm() || ! in_array($order->status, OrderStatus::open(), true)) {
+            return;
+        }
+
+        try {
+            Sales::transaction(fn (): array => $this->reservations->reserve($order, self::actorId($actor)));
+        } catch (ValidationException) {
+            // A hard policy without enough free stock: the order stays without a reservation.
+        }
     }
 
     /**

@@ -21,6 +21,7 @@ use App\Modules\Sales\Models\SalesInvoiceLine;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesOrderLine;
 use App\Modules\Sales\Models\SalesReturn;
+use App\Modules\Sales\Services\Composer\Composed;
 use App\Modules\Sales\Services\Composer\DocumentComposer;
 use App\Modules\Sales\Services\Machines\InvoiceMachine;
 use App\Modules\Sales\Services\Machines\ReturnMachine;
@@ -71,8 +72,9 @@ final class InvoiceService extends DocumentService
         return Sales::transaction(function () use ($data, $lines, $actor, $canOverridePrice): SalesInvoice {
             $deliver = (bool) ($data['deliver_on_invoice'] ?? false);
             $this->lockSources($lines);
-            [$inputs, $extras] = $this->sourceLines($lines, $deliver, null, (string) ($data['party_id'] ?? ''));
+            [$inputs, $extras, $currencies] = $this->sourceLines($lines, $deliver, null, (string) ($data['party_id'] ?? ''));
             $composed = $this->compose($data, $inputs, $canOverridePrice);
+            $this->assertCurrencies($currencies, (string) $composed->header['currency_code']);
             $this->assertDeliverable($composed->lines, $extras, $deliver);
             $invoice = $this->store->create(new SalesInvoice, $composed, $this->headerExtras($data, $extras), $extras, self::actorId($actor));
             $this->logOverrides($invoice, $composed, $actor);
@@ -208,8 +210,9 @@ final class InvoiceService extends DocumentService
 
             $deliver = array_key_exists('deliver_on_invoice', $data) ? (bool) $data['deliver_on_invoice'] : $invoice->deliver_on_invoice;
             $header = $this->mergedHeader($invoice, $data);
-            [$inputs, $extras] = $this->sourceLines($lines, $deliver, $invoice->id, (string) $header['party_id']);
+            [$inputs, $extras, $currencies] = $this->sourceLines($lines, $deliver, $invoice->id, (string) $header['party_id']);
             $composed = $this->compose($header, $inputs, $canOverridePrice);
+            $this->assertCurrencies($currencies, (string) $composed->header['currency_code']);
             $this->assertDeliverable($composed->lines, $extras, $deliver);
             $this->store->replace($invoice, $composed, ['deliver_on_invoice' => $deliver], $extras);
             $this->logOverrides($invoice, $composed, $actor);
@@ -246,8 +249,7 @@ final class InvoiceService extends DocumentService
     public function issue(SalesInvoice $invoice, ?int $version, ?string $overrideReason, bool $canOverride, ?Authenticatable $actor): array
     {
         return Sales::transaction(function () use ($invoice, $version, $overrideReason, $canOverride, $actor): array {
-            $orders = $this->lockSources($this->linesAsInput($invoice));
-            $invoice = $this->lock($invoice);
+            [$invoice, $orders] = $this->lockWithSources($invoice);
 
             if (in_array($invoice->status->value, InvoiceStatus::booked(), true) || $invoice->status === InvoiceStatus::Reversed) {
                 return [$invoice, true, []];
@@ -271,8 +273,7 @@ final class InvoiceService extends DocumentService
     public function reverse(SalesInvoice $invoice, ?int $version, string $date, string $reason, bool $reverseStock, ?Authenticatable $actor): array
     {
         return Sales::transaction(function () use ($invoice, $version, $date, $reason, $reverseStock, $actor): array {
-            $orders = $this->lockSources($this->linesAsInput($invoice));
-            $invoice = $this->lock($invoice);
+            [$invoice, $orders] = $this->lockWithSources($invoice);
 
             if ($invoice->status === InvoiceStatus::Reversed) {
                 return [$invoice, true];
@@ -349,7 +350,7 @@ final class InvoiceService extends DocumentService
         $header = $this->mergedHeader($original, ['document_date' => $return->document_date->format('Y-m-d')]);
         $header['fx_rate'] = (string) $original->fx_rate;
         $header['due_date'] = $return->document_date->format('Y-m-d');
-        $composed = $this->compose($header, $inputs, true);
+        $composed = $this->allocateCredit($this->compose($header, $inputs, true), $extras, $originalLines->all(), (string) $original->fx_rate);
         $credit = $this->store->create(new SalesInvoice, $composed, [
             'invoice_type' => InvoiceType::Return->value, 'original_invoice_id' => $original->id, 'return_id' => $return->id,
             'order_id' => $original->order_id, 'source_type' => 'sales_return', 'source_id' => $return->id,
@@ -357,6 +358,93 @@ final class InvoiceService extends DocumentService
         [$credit] = $this->issueLocked($this->lock($credit), [], null, false, $actor);
 
         return $credit;
+    }
+
+    /**
+     * Credit notes never give back more than the original line: amounts already credited (credit
+     * notes not reversed) are deducted, the credit that completes a line's quantity takes exactly
+     * what remains, and partial credits are capped by it. Header totals follow the lines.
+     *
+     * @param  list<array<string, mixed>>  $extras
+     * @param  array<string, SalesInvoiceLine>  $originals
+     */
+    private function allocateCredit(Composed $composed, array $extras, array $originals, string $fxRate): Composed
+    {
+        $lines = $composed->lines;
+
+        foreach ($lines as $i => $row) {
+            $source = $originals[(string) ($extras[$i]['original_line_id'] ?? '')] ?? null;
+
+            if ($source === null) {
+                continue;
+            }
+
+            $prev = DB::table('sales_invoice_lines as l')->join('sales_invoices as i', 'i.id', '=', 'l.document_id')
+                ->where('l.original_line_id', $source->id)->whereIn('i.status', InvoiceStatus::booked())
+                ->selectRaw('coalesce(sum(l.quantity), 0) AS qty, coalesce(sum(l.line_discount), 0) AS discount, coalesce(sum(l.net_amount), 0) AS net, coalesce(sum(l.tax_amount), 0) AS tax')
+                ->first();
+            $left = [
+                'discount' => $source->line_discount->minus((string) ($prev->discount ?? '0')),
+                'net' => $source->net_amount->minus((string) ($prev->net ?? '0')),
+                'tax' => $source->tax_amount->minus((string) ($prev->tax ?? '0')),
+            ];
+            $final = Sales::dec((string) ($prev->qty ?? '0'))->plus((string) $row['quantity'])->isGreaterThanOrEqualTo($source->quantity);
+            $amounts = [];
+
+            foreach (['discount' => 'line_discount', 'net' => 'net_amount', 'tax' => 'tax_amount'] as $key => $column) {
+                $value = Sales::dec((string) $row[$column]);
+                $amounts[$key] = $final || $value->isGreaterThan($left[$key]) ? $left[$key] : $value;
+                $amounts[$key] = $amounts[$key]->isNegative() ? BigDecimal::zero() : $amounts[$key];
+            }
+
+            $lines[$i] = [...$row,
+                'line_discount' => Sales::money($amounts['discount']),
+                'net_amount' => Sales::money($amounts['net']),
+                'tax_amount' => Sales::money($amounts['tax']),
+                'gross_amount' => Sales::money($amounts['net']->plus($amounts['discount'])),
+                'line_total' => Sales::money($amounts['net']->plus($amounts['tax'])),
+            ];
+        }
+
+        return new Composed([...$composed->header, ...self::retotal($lines, $fxRate)], $lines, $composed->totals, $composed->warnings, $composed->priceOverrides, $composed->pricing);
+    }
+
+    /**
+     * Header totals of given lines with the rules of TotalsEngine (tax per tax code converted, net
+     * locally as the difference).
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return array<string, string>
+     */
+    private static function retotal(array $lines, string $fxRate): array
+    {
+        $sum = ['gross_amount' => BigDecimal::zero(), 'line_discount' => BigDecimal::zero(), 'tax_amount' => BigDecimal::zero(), 'line_total' => BigDecimal::zero()];
+        $taxes = [];
+
+        foreach ($lines as $line) {
+            foreach (array_keys($sum) as $column) {
+                $sum[$column] = $sum[$column]->plus((string) $line[$column]);
+            }
+
+            $key = ($line['tax_code_id'] ?? '').'|'.(string) $line['tax_rate'];
+            $taxes[$key] = ($taxes[$key] ?? BigDecimal::zero())->plus((string) $line['tax_amount']);
+        }
+
+        $taxLocal = BigDecimal::zero();
+
+        foreach ($taxes as $tax) {
+            $taxLocal = $taxLocal->plus(RoundingPolicy::currency($tax->multipliedBy($fxRate)));
+        }
+
+        $totalLocal = RoundingPolicy::currency($sum['line_total']->multipliedBy($fxRate));
+        $discountLocal = RoundingPolicy::currency($sum['line_discount']->multipliedBy($fxRate));
+
+        return [
+            'subtotal' => Sales::money($sum['gross_amount']), 'discount_total' => Sales::money($sum['line_discount']),
+            'tax_total' => Sales::money($sum['tax_amount']), 'total' => Sales::money($sum['line_total']),
+            'subtotal_local' => Sales::money($totalLocal->minus($taxLocal)->plus($discountLocal)), 'discount_total_local' => Sales::money($discountLocal),
+            'tax_total_local' => Sales::money($taxLocal), 'total_local' => Sales::money($totalLocal),
+        ];
     }
 
     /**
@@ -537,14 +625,16 @@ final class InvoiceService extends DocumentService
      * Turns invoice line input into composer input plus source columns, enforcing the bounds.
      *
      * @param  list<array<string, mixed>>  $lines
-     * @return array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>}
+     * @return array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>, 2: array<int, string>}
      */
     private function sourceLines(array $lines, bool $deliver, ?string $exceptInvoiceId, string $partyId, bool $recheck = false): array
     {
         $inputs = [];
         $extras = [];
+        $currencies = [];
         $perDelivery = [];
         $perOrder = [];
+        $perOrderDirect = [];
 
         foreach ($lines as $i => $line) {
             $field = "lines.{$i}";
@@ -573,6 +663,7 @@ final class InvoiceService extends DocumentService
 
                 $inputs[] = [...$this->fixedLine($source, (string) $qty), 'source_line_id' => $source->id];
                 $extras[] = ['delivery_line_id' => $source->id, 'order_line_id' => $source->order_line_id];
+                $currencies[$i] = $delivery->currency_code;
 
                 continue;
             }
@@ -603,6 +694,18 @@ final class InvoiceService extends DocumentService
                     Messages::fail("{$field}.quantity", 'invoice_exceeds_order', ['remaining' => Sales::qty($allowed->minus($invoiced))]);
                 }
 
+                if ($source->isStock() && ! $recheck) {
+                    // Goods delivered at issue add to what deliveries already hold of the order line.
+                    $perOrderDirect[$source->id] = ($perOrderDirect[$source->id] ?? BigDecimal::zero())->plus($qty);
+                    $held = $this->quantities->deliveredOrHeld($source->id);
+
+                    if ($held->plus($perOrderDirect[$source->id])->isGreaterThan($allowed)) {
+                        Messages::fail("{$field}.quantity", 'delivery_exceeds_order', ['remaining' => Sales::qty($allowed->minus($held)->isNegative() ? '0' : $allowed->minus($held))]);
+                    }
+                }
+
+                $currencies[$i] = $order->currency_code;
+
                 $inputs[] = [...$this->fixedLine($source, (string) $qty), 'source_line_id' => $source->id];
                 $extras[] = ['delivery_line_id' => null, 'order_line_id' => $source->id];
 
@@ -613,7 +716,36 @@ final class InvoiceService extends DocumentService
             $extras[] = ['delivery_line_id' => null, 'order_line_id' => null];
         }
 
-        return [$inputs, $extras];
+        return [$inputs, $extras, $currencies];
+    }
+
+    /**
+     * Source documents keep their prices in their own currency: an invoice of them must use it.
+     *
+     * @param  array<int, string>  $currencies  line index => source currency
+     */
+    private function assertCurrencies(array $currencies, string $currency): void
+    {
+        foreach ($currencies as $i => $source) {
+            if ($source !== $currency) {
+                Messages::fail('currency_code', 'source_currency_mismatch', ['currency' => $source, 'line' => $i + 1]);
+            }
+        }
+    }
+
+    /**
+     * Locks the sources the stored lines name, then the invoice, then again the sources of the
+     * lines as they are once the invoice is locked (a concurrent edit may have changed them before;
+     * now no line can change any more), so progress is applied to the orders actually invoiced.
+     *
+     * @return array{0: SalesInvoice, 1: array<string, SalesOrder>}
+     */
+    private function lockWithSources(SalesInvoice $invoice): array
+    {
+        $orders = $this->lockSources($this->linesAsInput($invoice));
+        $locked = $this->lock($invoice);
+
+        return [$locked, $orders + $this->lockSources($this->linesAsInput($locked))];
     }
 
     /**

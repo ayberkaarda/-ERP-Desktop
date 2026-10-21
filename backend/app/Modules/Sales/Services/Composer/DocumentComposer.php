@@ -10,6 +10,7 @@ use App\Modules\Catalog\Contracts\PriceResolver;
 use App\Modules\Catalog\Contracts\UnitLookup;
 use App\Modules\Catalog\Data\ItemData;
 use App\Modules\Inventory\Contracts\WarehouseLookup;
+use App\Modules\Parties\Contracts\PartyAddressLookup;
 use App\Modules\Parties\Contracts\PartyLookup;
 use App\Modules\Parties\Data\PartyData;
 use App\Modules\Reference\Contracts\CurrencyLookup;
@@ -28,7 +29,6 @@ use App\Modules\Sales\Support\SalesSettings;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -44,6 +44,7 @@ final class DocumentComposer
 {
     public function __construct(
         private readonly PartyLookup $parties,
+        private readonly PartyAddressLookup $addresses,
         private readonly ItemLookup $items,
         private readonly UnitLookup $units,
         private readonly PriceResolver $prices,
@@ -222,7 +223,10 @@ final class DocumentComposer
             Messages::fail("{$field}.quantity", 'quantity_positive');
         }
 
-        $baseQty = $unit === $item->baseUnitId ? $qty : $this->units->convert($qty, $unit, $item->baseUnitId, $item->id, 6);
+        // A line copied from a source document keeps the source's stored base quantity (prorated):
+        // a later change of the unit conversion must not change what was delivered or invoiced.
+        $fixedBase = self::str($line['_base_quantity'] ?? null);
+        $baseQty = $fixedBase ?? ($unit === $item->baseUnitId ? $qty : $this->units->convert($qty, $unit, $item->baseUnitId, $item->id, 6));
         $lineWarehouse = self::str($line['warehouse_id'] ?? null);
         $this->assertWarehouse($lineWarehouse, "{$field}.warehouse_id");
 
@@ -367,25 +371,22 @@ final class DocumentComposer
         }
     }
 
-    /** Document date plus the payment term's days (read-only lookup of the Reference row). */
+    /** Document date plus the payment term's days. */
     private function dueDate(?string $paymentTermId, string $date): string
     {
-        $days = $paymentTermId === null ? null : DB::table('payment_terms')->where('id', $paymentTermId)->value('due_days');
+        $days = $paymentTermId === null ? null : $this->paymentTerms->dueDays($paymentTermId);
 
-        return (new DateTimeImmutable($date))->modify('+'.(is_numeric($days) ? (int) $days : 0).' days')->format('Y-m-d');
+        return (new DateTimeImmutable($date))->modify('+'.($days ?? 0).' days')->format('Y-m-d');
     }
 
     /**
-     * Default billing address of the party (read-only lookup of the Parties row; PartyLookup has no addresses).
+     * Default billing address of the party.
      *
      * @return array<string, mixed>|null
      */
     private function billingAddress(string $partyId): ?array
     {
-        $row = DB::table('party_addresses')->where('party_id', $partyId)->where('type', 'billing')
-            ->orderByDesc('is_default')->orderBy('created_at')->first(['label', 'line1', 'line2', 'district', 'city', 'postal_code', 'country']);
-
-        return $row === null ? null : (array) $row;
+        return $this->addresses->billingAddress($partyId);
     }
 
     private static function str(mixed $value): ?string
