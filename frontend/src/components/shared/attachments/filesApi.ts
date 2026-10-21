@@ -1,4 +1,5 @@
 import type { HttpClient } from '@/platform/types'
+import { createIdempotencyKey, withIdempotency } from '@/platform/web/http'
 import type { AttachmentApi, FileMeta } from './types'
 
 const PER_PAGE = 100
@@ -11,24 +12,42 @@ export interface AttachableRef {
   id: string
 }
 
+interface ListMeta {
+  last_page?: number
+  pagination?: { last_page?: number }
+}
+
 /**
  * Binds AttachmentPanel to the /files endpoints. The HTTP client is injected (platform.http in
- * the app, a test client in specs), so shared components never import the network layer.
+ * the app, a test client in specs), so shared components never create their own network client.
  */
 export function createFilesApi(
   http: Pick<HttpClient, 'get' | 'post' | 'delete'>,
   attachable: AttachableRef,
   baseUrl = '/api/v1',
+  newKey: () => string = createIdempotencyKey,
 ): AttachmentApi {
+  // POST /files is idempotent on the API: one key per selected file, so retrying the same file
+  // replays instead of storing it twice, while a newly selected file gets its own key.
+  const keys = new WeakMap<File, string>()
+  const keyFor = (file: File) => {
+    let key = keys.get(file)
+    if (!key) {
+      key = newKey()
+      keys.set(file, key)
+    }
+    return key
+  }
+
   return {
     key: `${attachable.type}:${attachable.id}`,
-    // Assumed listing contract (being confirmed with the svc lane):
-    // GET /files?filter[attachable_type]=&filter[attachable_id]=&page=&per_page= (ListQuery
-    // paginator, meta.last_page). All pages are fetched so documents with >100 files show fully.
+    // GET /files?filter[attachable_type]=&filter[attachable_id]=&page=&per_page= (Core ListQuery
+    // paginator: meta.pagination.last_page; a flat meta.last_page is accepted too). All pages are
+    // fetched so documents with >100 files show fully.
     async list() {
       const all: FileMeta[] = []
       for (let page = 1; page <= MAX_PAGES; page++) {
-        const res = await http.get<{ data: FileMeta[]; meta?: { last_page?: number } }>('/files', {
+        const res = await http.get<{ data: FileMeta[]; meta?: ListMeta }>('/files', {
           params: {
             'filter[attachable_type]': attachable.type,
             'filter[attachable_id]': attachable.id,
@@ -37,7 +56,7 @@ export function createFilesApi(
           },
         })
         all.push(...res.data)
-        const last = res.meta?.last_page
+        const last = res.meta?.pagination?.last_page ?? res.meta?.last_page
         if (last !== undefined ? page >= last : res.data.length < PER_PAGE) break
       }
       return all
@@ -47,7 +66,11 @@ export function createFilesApi(
       body.append('file', file)
       body.append('attachable_type', attachable.type)
       body.append('attachable_id', attachable.id)
-      const res = await http.post<{ data: FileMeta }>('/files', body, { signal })
+      const res = await http.post<{ data: FileMeta }>(
+        '/files',
+        body,
+        withIdempotency({ signal }, keyFor(file)),
+      )
       return res.data
     },
     async remove(id) {

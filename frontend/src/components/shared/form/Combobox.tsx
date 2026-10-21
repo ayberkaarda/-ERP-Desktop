@@ -173,6 +173,8 @@ export function Combobox({
               setTyped(true)
               setHighlight(0)
               onQueryChange?.(e.target.value)
+              // Emptying the text empties the value: the field never shows blank while holding an id.
+              if (e.target.value === '' && value !== null) onChange(null, null)
               if (!open) {
                 setOpenState(true)
                 onOpenChange?.(true)
@@ -187,12 +189,15 @@ export function Combobox({
           />
           <div className="absolute inset-y-0 right-1 flex items-center gap-0.5">
             {clearable && selected && !disabled && (
+              // Reachable with Tab so the selection can be cleared without a pointer.
               <button
                 type="button"
-                tabIndex={-1}
                 aria-label={t('combobox.clear')}
                 className="rounded-xs p-1 text-muted-foreground hover:text-foreground"
-                onClick={() => onChange(null, null)}
+                onClick={() => {
+                  onChange(null, null)
+                  anchorRef.current?.querySelector('input')?.focus()
+                }}
               >
                 <X className="size-3.5" aria-hidden="true" />
               </button>
