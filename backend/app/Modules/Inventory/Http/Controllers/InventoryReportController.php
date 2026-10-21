@@ -149,14 +149,14 @@ final class InventoryReportController
      */
     public function ageing(AgeingRequest $request, AgeingReport $report): AnonymousResourceCollection
     {
-        $table = ReadSnapshot::run(fn (): ReportTable => $report->build($request->filters(), $request->asOf(), $request->groupBy(), $request->today()));
+        $table = ReadSnapshot::run(fn (): ReportTable => $report->build($request->filters(), $request->asOf(), $request->groupBy()));
 
         return $this->paged($table, $request, AgeingRowResource::class);
     }
 
     public function ageingExport(AgeingRequest $request, AgeingReport $report): StreamedResponse|BinaryFileResponse
     {
-        $table = ReadSnapshot::run(fn (): ReportTable => $report->build($request->filters(), $request->asOf(), $request->groupBy(), $request->today()));
+        $table = ReadSnapshot::run(fn (): ReportTable => $report->build($request->filters(), $request->asOf(), $request->groupBy()));
 
         return $this->download('stock-ageing', $request, $table);
     }

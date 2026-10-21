@@ -13,10 +13,12 @@ use DateTimeImmutable;
 /**
  * Stock turnover over a range, per item (default), item x warehouse, warehouse or category.
  * opening_value: stock value before date_from; closing_value: as of date_to;
- * average_value = (opening + closing) / 2; consumption_value: net value issued in the range (issues
+ * average_value = (opening + closing) / 2, exact at scale 5 (so row averages add up to the total
+ * average); consumption_value: net value issued in the range (issues
  * and production use less their reversals); turnover = consumption / average (scale 4, null without
  * average stock); days_on_hand = days in range / turnover = average x days / consumption (scale 2,
- * null without consumption). Rows without any stock or consumption are left out.
+ * null without consumption), both computed from the exact average and rounded only for output; the
+ * totals apply the same formulas to the summed exact figures. Rows without any stock or consumption are left out.
  */
 final class TurnoverReport
 {
@@ -98,7 +100,9 @@ final class TurnoverReport
      */
     public static function ratios(BigDecimal $opening, BigDecimal $closing, BigDecimal $consumed, int $days): array
     {
-        $average = $opening->plus($closing)->dividedBy(2, 4, RoundingMode::HalfEven);
+        // Half of two 4-decimal amounts is exact at scale 5: shown unrounded, so the rows add up to the
+        // total, and the ratios use the exact figure (rounded only in the result).
+        $average = $opening->plus($closing)->dividedBy(2, 5, RoundingMode::Unnecessary);
 
         return [
             'consumed_value' => ReportQuery::money($consumed),

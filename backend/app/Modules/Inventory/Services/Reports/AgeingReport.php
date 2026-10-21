@@ -17,10 +17,15 @@ use Illuminate\Support\Facades\DB;
 /**
  * Stock ageing as of a date, in the buckets 0-30, 31-60, 61-90 and over 90 days since receipt.
  *
- * Basis "layers" (FIFO companies, as_of today or later): the open FIFO cost layers with their
- * receipt date, remaining quantity and remaining value. Basis "receipts" (otherwise): the quantity on
- * hand at as_of is matched with the newest inbound movements first (the stock left is the stock
- * received last); inbound movements reversed by as_of do not count. Values: FIFO at the cost of each
+ * Basis "layers" (FIFO companies): the FIFO cost layers as they stood at as_of, rebuilt from the
+ * movements dated on or before it: a layer exists once the movement that opened it is dated, its
+ * remaining quantity and value are the opening amounts less the portions consumed from it
+ * (cost_layer_id) plus those given back to it by reversals, and a layer whose opening movement was
+ * reversed is gone. Each keeps its receipt date, which a transfer carries over from the source
+ * layer, so neither transfers nor reversals make stock younger; later-dated receipts and
+ * consumption do not count. Basis "receipts" (moving average): the quantity on hand at as_of is
+ * matched with the newest inbound movements first (the stock left is the stock received last);
+ * inbound movements reversed by as_of do not count. Values: FIFO at the cost of each
  * receipt, moving average at the pair's average; the rounding remainder goes to the newest part, so
  * every row adds up to the stock value. Quantity no receipt explains falls into the oldest bucket.
  */
@@ -34,10 +39,10 @@ final class AgeingReport
         private readonly InventorySettings $settings,
     ) {}
 
-    public function build(ReportFilters $f, string $asOf, string $groupBy, string $today): ReportTable
+    public function build(ReportFilters $f, string $asOf, string $groupBy): ReportTable
     {
         $method = $this->settings->valuationMethod();
-        $useLayers = $method === ValuationMethod::Fifo && $asOf >= $today;
+        $useLayers = $method === ValuationMethod::Fifo;
         $pairs = [];
 
         foreach ($this->query->pairTotals($f, $asOf) as $key => $pair) {
@@ -46,7 +51,7 @@ final class AgeingReport
             }
         }
 
-        $parts = $useLayers ? $this->layers($f) : $this->receipts($f, $asOf);
+        $parts = $useLayers ? $this->layers($f, $asOf) : $this->receipts($f, $asOf);
         $this->allocate($pairs, $parts, $asOf, $method);
         $fields = ['quantity', 'value'];
 
@@ -139,13 +144,28 @@ final class AgeingReport
     }
 
     /**
-     * Open FIFO layers newest first per pair.
+     * FIFO layers as they stood at as_of, newest receipt first per pair.
      *
      * @return list<array{key: string, date: string, qty: BigDecimal, value: BigDecimal|null}>
      */
-    private function layers(ReportFilters $f): array
+    private function layers(ReportFilters $f, string $asOf): array
     {
-        $query = DB::table('stock_cost_layers as c')->where('c.company_id', $f->companyId)->where('c.remaining_qty', '>', 0);
+        // Portions taken from (out) or given back to (in) a layer up to as_of, other than the
+        // movement that opened it.
+        $changes = DB::table('stock_movements as x')
+            ->join('stock_cost_layers as cl', 'cl.id', '=', 'x.cost_layer_id')
+            ->where('x.company_id', $f->companyId)->where('x.occurred_at', '<=', $asOf)
+            ->whereColumn('x.id', '<>', 'cl.movement_id')
+            ->groupBy('x.cost_layer_id')
+            ->selectRaw("x.cost_layer_id, sum(CASE WHEN x.direction = 'in' THEN x.quantity ELSE -x.quantity END) as qty,
+                sum(CASE WHEN x.direction = 'in' THEN x.total_cost ELSE -x.total_cost END) as value");
+
+        $query = DB::table('stock_cost_layers as c')
+            ->join('stock_movements as m', fn ($j) => $j->on('m.id', '=', 'c.movement_id')->where('m.occurred_at', '<=', $asOf))
+            ->leftJoinSub($changes, 'ch', 'ch.cost_layer_id', '=', 'c.id')
+            ->where('c.company_id', $f->companyId)
+            ->whereNotExists(fn ($q) => $q->from('stock_movements as r')->whereColumn('r.reverses_id', 'c.movement_id')->where('r.occurred_at', '<=', $asOf))
+            ->whereRaw('c.original_qty + coalesce(ch.qty, 0) > 0');
 
         if ($f->warehouseId !== null) {
             $query->where('c.warehouse_id', $f->warehouseId);
@@ -161,13 +181,14 @@ final class AgeingReport
         }
 
         $rows = $query->orderBy('c.item_id')->orderBy('c.warehouse_id')->orderByDesc('c.received_at')->orderByDesc('c.id')
-            ->get(['c.item_id', 'c.warehouse_id', 'c.received_at', 'c.remaining_qty', 'c.remaining_value']);
+            ->selectRaw('c.item_id, c.warehouse_id, c.received_at, c.original_qty + coalesce(ch.qty, 0) as qty, m.total_cost + coalesce(ch.value, 0) as value')
+            ->get();
 
         return array_values(array_map(static fn ($row): array => [
             'key' => $row->item_id.'|'.$row->warehouse_id,
             'date' => (string) $row->received_at,
-            'qty' => Stock::dec((string) $row->remaining_qty),
-            'value' => Stock::dec((string) $row->remaining_value),
+            'qty' => Stock::dec((string) $row->qty),
+            'value' => Stock::dec((string) $row->value),
         ], $rows->all()));
     }
 

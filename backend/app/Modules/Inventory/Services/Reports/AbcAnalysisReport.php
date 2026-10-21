@@ -14,7 +14,8 @@ use Brick\Math\BigDecimal;
  * positive value are ranked by value (descending, then code); share = value / total x 100 and
  * cumulative_share runs down the ranking. Class A while the cumulative share before the item is
  * below `a` (default 80), B while below `b` (default 95), C otherwise: the item that crosses a limit
- * still belongs to the higher class, and the first item is always A.
+ * still belongs to the higher class, and the first item is always A. Classes are decided on exact
+ * values; share and cumulative_share are rounded (scale 4) for output only.
  */
 final class AbcAnalysisReport
 {
@@ -54,8 +55,9 @@ final class AbcAnalysisReport
         $classes = ['A' => ['items' => 0, 'value' => BigDecimal::zero()], 'B' => ['items' => 0, 'value' => BigDecimal::zero()], 'C' => ['items' => 0, 'value' => BigDecimal::zero()]];
 
         foreach ($ranked as $i => $entry) {
-            $before = ReportQuery::percent($cumulative, $total);
-            $class = $before->isLessThan($a) ? 'A' : ($before->isLessThan($b) ? 'B' : 'C');
+            // Exact: cumulative / total x 100 < limit  <=>  cumulative x 100 < total x limit.
+            $before = $cumulative->multipliedBy(100);
+            $class = $before->isLessThan($total->multipliedBy($a)) ? 'A' : ($before->isLessThan($total->multipliedBy($b)) ? 'B' : 'C');
             $cumulative = $cumulative->plus($entry['value']);
             $classes[$class]['items']++;
             $classes[$class]['value'] = $classes[$class]['value']->plus($entry['value']);

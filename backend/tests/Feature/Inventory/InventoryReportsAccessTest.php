@@ -190,3 +190,31 @@ it('stays fast and query-bounded on a few thousand movements and agrees with the
         expect($row['quantity'])->toBe(Inv::onHand($this->company, $row['item_id'], $row['warehouse_id']));
     }
 });
+
+it('simulates FIFO over many open layers in linear time', function (): void {
+    $rows = [];
+    $doc = (string) Str::uuid7();
+
+    // 20 000 receipts of 1 (cost 1..5 in turn), then 10 000 issues of 1 a month later.
+    for ($i = 0; $i < 30000; $i++) {
+        $in = $i < 20000;
+        $cost = $in ? 1 + $i % 5 : 3;
+        $rows[] = [
+            'company_id' => $this->company, 'item_id' => $this->item, 'warehouse_id' => $this->wh,
+            'movement_type' => $in ? 'receipt' : 'issue', 'direction' => $in ? 'in' : 'out', 'quantity' => 1, 'unit_cost' => $cost,
+            'total_cost' => $cost, 'occurred_at' => $in ? '2027-03-01' : '2027-04-01', 'document_type' => 'perf', 'document_id' => $doc,
+        ];
+    }
+
+    foreach (array_chunk($rows, 1000) as $chunk) {
+        DB::table('stock_movements')->insert($chunk);
+    }
+
+    $started = microtime(true);
+    $response = ($this->get)('valuation?method=fifo&as_of=2027-04-30')->assertOk();
+    $elapsed = microtime(true) - $started;
+
+    // The first 10 000 layers are consumed; 2 000 of each cost 1..5 remain.
+    expect($response->json('data.0'))->toMatchArray(['quantity' => '10000.000000', 'value' => '30000.0000'])
+        ->and($elapsed)->toBeLessThan(15.0);
+});

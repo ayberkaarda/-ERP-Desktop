@@ -154,10 +154,10 @@ it('ages FIFO stock by its open layers and leaves reversed receipts out', functi
     expect($layers->json('meta.basis'))->toBe('layers')
         ->and($layers->json('data.0'))->toMatchArray(['qty_0_30' => '10.000000', 'value_0_30' => '140.0000', 'qty_31_60' => '5.000000', 'value_31_60' => '60.0000', 'value' => '200.0000']);
 
-    // The receipt-based view of the same day agrees (FIFO costs of the receipts).
-    $receipts = ($this->report)('ageing', ['as_of' => '2027-06-14']);
-    expect($receipts->json('meta.basis'))->toBe('receipts')
-        ->and($receipts->json('data.0'))->toMatchArray(['value_0_30' => '140.0000', 'value_31_60' => '60.0000']);
+    // Before the issue (as of 11 June) all three layers were still whole.
+    $receipts = ($this->report)('ageing', ['as_of' => '2027-06-11']);
+    expect($receipts->json('meta.basis'))->toBe('layers')
+        ->and($receipts->json('data.0'))->toMatchArray(['value_0_30' => '140.0000', 'qty_31_60' => '10.000000', 'value_31_60' => '120.0000', 'qty_over_90' => '10.000000', 'value_over_90' => '100.0000', 'value' => '360.0000']);
 });
 
 it('lists lots expiring within the window with expired ones flagged', function (): void {
@@ -220,11 +220,11 @@ it('computes turnover and days on hand from opening, closing and consumption', f
     // average (1000 + 500) / 2 = 750; 500 / 750 = 0.6667 times; 750 x 15 / 500 = 22.50 days
     expect($row)->toMatchArray([
         'opening_quantity' => '1000.000000', 'opening_value' => '1000.0000', 'closing_quantity' => '500.000000', 'closing_value' => '500.0000',
-        'consumed_quantity' => '500.000000', 'consumed_value' => '500.0000', 'average_value' => '750.0000', 'turnover' => '0.6667', 'days_on_hand' => '22.50',
+        'consumed_quantity' => '500.000000', 'consumed_value' => '500.0000', 'average_value' => '750.00000', 'turnover' => '0.6667', 'days_on_hand' => '22.50',
     ])
         ->and(collect($response->json('data'))->firstWhere('item_code', 'IDLE'))->toMatchArray(['turnover' => '0.0000', 'days_on_hand' => null])
         ->and($response->json('meta'))->toMatchArray(['days' => 15])
-        ->and($response->json('meta.totals'))->toMatchArray(['opening_value' => '1030.0000', 'closing_value' => '530.0000', 'consumed_value' => '500.0000', 'average_value' => '780.0000', 'turnover' => '0.6410', 'days_on_hand' => '23.40']);
+        ->and($response->json('meta.totals'))->toMatchArray(['opening_value' => '1030.0000', 'closing_value' => '530.0000', 'consumed_value' => '500.0000', 'average_value' => '780.00000', 'turnover' => '0.6410', 'days_on_hand' => '23.40']);
 });
 
 it('prints a kartex with opening, running balances across pages and closing', function (): void {
@@ -271,4 +271,68 @@ it('summarises movements per item and warehouse with movement type totals', func
         ->and(Inv::valuation($this->company, $this->item, $this->wh)['value'])->toBe($main['closing_value'])
         ->and(collect($response->json('meta.by_type'))->firstWhere('movement_type', 'receipt'))->toMatchArray(['direction' => 'in', 'movements' => 3, 'value' => '240.0000'])
         ->and($response->json('meta.totals.closing_value'))->toBe(Inv::totalValue($this->company));
+});
+
+it('keeps the FIFO receipt date across transfers and reversals in dated ageing', function (): void {
+    Inv::fifo($this->company);
+    Inv::receive($this->company, $this->wh, $this->item, '10', '5', date: '2027-02-01');
+    Inv::post($this->company, DocumentType::Transfer, $this->wh, [Inv::line($this->item, '10')], '2027-06-14', target: $this->wh2);
+    $other = Inv::item($this->company, ['code' => 'B-200'])->id;
+    Inv::receive($this->company, $this->wh, $other, '10', '3', date: '2027-02-01');
+    $issue = Inv::issue($this->company, $this->wh, $other, '4', date: '2027-06-10');
+    Inv::in($this->company, fn () => app(StockService::class)->reverse($issue->documentId, new DateTimeImmutable('2027-06-12'), 'mistake'));
+
+    $rows = collect(($this->report)('ageing', ['as_of' => '2027-06-14'])->json('data'));
+    $moved = $rows->first(fn (array $r): bool => $r['item_code'] === 'A-100' && $r['warehouse_code'] === 'SIDE');
+    $returned = $rows->firstWhere('item_code', 'B-200');
+
+    expect($moved)->toMatchArray(['qty_0_30' => '0.000000', 'qty_over_90' => '10.000000', 'value_over_90' => '50.0000'])
+        ->and($returned)->toMatchArray(['qty_0_30' => '0.000000', 'qty_over_90' => '10.000000', 'value_over_90' => '30.0000'])
+        ->and(collect(($this->report)('ageing', ['as_of' => '2027-06-11'])->json('data'))->firstWhere('item_code', 'B-200'))
+        ->toMatchArray(['qty_over_90' => '6.000000', 'value_over_90' => '18.0000', 'quantity' => '6.000000']);
+});
+
+it('rebuilds FIFO layers at as_of without later-dated receipts or consumption', function (): void {
+    Inv::fifo($this->company);
+    Inv::receive($this->company, $this->wh, $this->item, '10', '5', date: '2027-02-01');
+    Inv::receive($this->company, $this->wh, $this->item, '10', '7', date: '2027-06-20');
+    Inv::issue($this->company, $this->wh, $this->item, '5', date: '2027-06-25');
+
+    expect(($this->report)('ageing')->json('data.0'))->toMatchArray([
+        'quantity' => '10.000000', 'value' => '50.0000', 'qty_0_30' => '0.000000', 'qty_over_90' => '10.000000', 'value_over_90' => '50.0000',
+    ]);
+});
+
+it('simulates FIFO in the ledger layer order, a backdated receipt first', function (): void {
+    Inv::receive($this->company, $this->wh, $this->item, '1', '20', date: '2027-06-10');
+    Inv::receive($this->company, $this->wh, $this->item, '1', '10', date: '2027-06-01');
+    Inv::issue($this->company, $this->wh, $this->item, '1', date: '2027-06-12');
+
+    expect(($this->report)('valuation')->json('data.0.value'))->toBe('15.0000')
+        ->and(($this->report)('valuation', ['method' => 'fifo'])->json('data.0.value'))->toBe('20.0000');
+});
+
+it('classifies ABC on exact shares, not rounded percentages', function (): void {
+    foreach (['BIG' => '7999999', 'SMALL' => '2000001'] as $code => $qty) {
+        $id = Inv::item($this->company, ['code' => $code])->id;
+        Inv::receive($this->company, $this->wh, $id, $qty, '1', date: '2027-05-01');
+        Inv::issue($this->company, $this->wh, $id, $qty, date: '2027-06-05');
+    }
+
+    // The share before SMALL is 79.99999 %: below 80, so SMALL is still A.
+    expect(array_column(($this->report)('abc-analysis', ['date_from' => '2027-06-01'])->json('data'), 'class'))->toBe(['A', 'A']);
+});
+
+it('derives turnover from the exact average and lets row averages add up to the total', function (): void {
+    foreach (['T-1', 'T-2'] as $code) {
+        $id = Inv::item($this->company, ['code' => $code])->id;
+        Inv::receive($this->company, $this->wh, $id, '1', '0.0001', date: '2027-05-01');
+        Inv::issue($this->company, $this->wh, $id, '1', date: '2027-06-01');
+    }
+
+    $response = ($this->report)('turnover', ['date_from' => '2027-06-01', 'date_to' => '2027-06-01']);
+
+    // average 0.00005; 0.0001 / 0.00005 = 2 times; 0.00005 x 1 day / 0.0001 = 0.5 days
+    expect($response->json('data.0'))->toMatchArray(['average_value' => '0.00005', 'turnover' => '2.0000', 'days_on_hand' => '0.50'])
+        ->and($response->json('meta.totals'))->toMatchArray(['average_value' => '0.00010', 'turnover' => '2.0000', 'days_on_hand' => '0.50']);
 });

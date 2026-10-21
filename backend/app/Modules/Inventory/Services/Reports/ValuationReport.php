@@ -7,6 +7,7 @@ namespace App\Modules\Inventory\Services\Reports;
 use App\Modules\Inventory\Data\Reports\ReportFilters;
 use App\Modules\Inventory\Data\Reports\ReportTable;
 use App\Modules\Inventory\Enums\ValuationMethod;
+use App\Modules\Inventory\Services\Costing\Layer;
 use App\Modules\Inventory\Services\Costing\Pair;
 use App\Modules\Inventory\Services\Costing\Valuator;
 use App\Modules\Inventory\Support\InventorySettings;
@@ -20,8 +21,10 @@ use Brick\Math\BigDecimal;
  * total_cost of the movements up to as_of, which is what the stock account shows (basis "booked").
  * With the other method the movements up to as_of are replayed in posting order through the same
  * Valuator the ledger uses (basis "simulated"): inbound movements keep their booked cost, outbound
- * ones are re-costed (moving average, or FIFO layers oldest first). A simulation is a what-if figure
- * and does not reconcile with the journal.
+ * ones are re-costed (moving average, or FIFO layers in the ledger's own order: receipt date, then
+ * creation order, so a backdated receipt is consumed first). A simulation is a what-if figure and
+ * does not reconcile with the journal. Exhausted layers are dropped as they empty, so the replay
+ * stays linear in the number of movements.
  */
 final class ValuationReport
 {
@@ -66,16 +69,61 @@ final class ValuationReport
 
             if ($m->direction === 'in') {
                 $valuator->inbound($pair, $qty, null, Stock::dec((string) $m->total_cost), (string) $m->occurred_at, (string) $m->id);
+                self::placeNewestLayer($pair);
             } else {
                 $valuator->outbound($pair, $qty);
+                self::dropConsumedLayers($pair);
             }
-
-            // Fully consumed layers are of no further use in a replay.
-            $pair->layers = array_values(array_filter($pair->layers, static fn ($l): bool => $l->remainingQty->isPositive()));
         }
 
         return array_values(array_map(static fn (Pair $p): array => [
             'item_id' => $p->itemId, 'warehouse_id' => $p->warehouseId, 'quantity' => $p->quantity, 'value' => $p->value,
         ], $pairs));
+    }
+
+    /**
+     * The Valuator appends a new layer; a backdated receipt belongs before later-dated layers, in
+     * the order the ledger itself consumes them (Layer::insertionIndex).
+     */
+    private static function placeNewestLayer(Pair $pair): void
+    {
+        $layers = $pair->layers;
+        $count = count($layers);
+
+        if ($count < 2) {
+            return;
+        }
+
+        $new = $layers[$count - 1];
+
+        if (strcmp($layers[$count - 2]->receivedAt, $new->receivedAt) <= 0) {
+            return;
+        }
+
+        $rest = array_slice($layers, 0, $count - 1);
+        $at = Layer::insertionIndex($rest, $new->receivedAt);
+
+        if ($at < $count - 1) {
+            array_splice($rest, $at, 0, [$new]);
+            $pair->layers = $rest;
+        }
+    }
+
+    /**
+     * Layers are consumed from the front, so the exhausted ones form a prefix. It is cut off in
+     * batches, so that neither consuming nor cutting rescans the open layers over and over.
+     */
+    private static function dropConsumedLayers(Pair $pair): void
+    {
+        $count = count($pair->layers);
+        $exhausted = 0;
+
+        while ($exhausted < $count && ! $pair->layers[$exhausted]->remainingQty->isPositive()) {
+            $exhausted++;
+        }
+
+        if ($exhausted > 0 && ($exhausted >= 256 || $exhausted * 2 >= $count)) {
+            $pair->layers = array_slice($pair->layers, $exhausted);
+        }
     }
 }
