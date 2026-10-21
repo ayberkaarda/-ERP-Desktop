@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Identity\Services;
 
+use App\Models\User;
 use App\Modules\Identity\Models\Activity;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Validator;
@@ -35,7 +37,8 @@ final class AuditQuery
             'to' => ['sometimes', 'date', 'after_or_equal:from'],
         ])->validate();
 
-        $query = Activity::query();
+        // Causers (users, also soft deleted ones) are loaded in one query for the {id, name} the list shows.
+        $query = Activity::query()->with(['causer' => fn (MorphTo $morph) => $morph->constrain([User::class => fn (Builder $users) => $users->withTrashed()])]);
 
         if (isset($range['from']) && is_string($range['from'])) {
             $query->where('created_at', '>=', Carbon::parse($range['from']));
