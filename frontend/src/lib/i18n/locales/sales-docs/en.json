@@ -229,7 +229,8 @@
     "applied": "Quantity spread over {{count}} lots.",
     "shortage": "Lots were not enough; {{quantity}} left without a lot.",
     "skippedExpired": "{{count}} expired lots skipped.",
-    "failed": "Lots could not be read."
+    "failed": "Lots could not be read.",
+    "stale": "The line changed while the lots were loading; the suggestion was not applied."
   },
   "delivery": {
     "listTitle": "Delivery notes",

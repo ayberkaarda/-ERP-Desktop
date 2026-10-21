@@ -229,7 +229,8 @@
     "applied": "Miktar {{count}} lota dağıtıldı.",
     "shortage": "Lotlar yetmedi; {{quantity}} lotsuz kaldı.",
     "skippedExpired": "Son kullanma tarihi geçmiş {{count}} lot atlandı.",
-    "failed": "Lotlar okunamadı."
+    "failed": "Lotlar okunamadı.",
+    "stale": "Satır lotlar yüklenirken değişti; öneri uygulanmadı."
   },
   "delivery": {
     "listTitle": "Sevk irsaliyeleri",

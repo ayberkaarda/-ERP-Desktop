@@ -229,7 +229,8 @@
     "applied": "Quantité répartie sur {{count}} lots.",
     "shortage": "Lots insuffisants ; {{quantity}} reste sans lot.",
     "skippedExpired": "{{count}} lots périmés ignorés.",
-    "failed": "Les lots n'ont pas pu être lus."
+    "failed": "Les lots n'ont pas pu être lus.",
+    "stale": "La ligne a changé pendant le chargement des lots ; la proposition n'a pas été appliquée."
   },
   "delivery": {
     "listTitle": "Bons de livraison",

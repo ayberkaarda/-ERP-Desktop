@@ -98,6 +98,36 @@ describe('delivery editor', () => {
     ])
   })
 
+  it('discards a FEFO answer when the line changed while the lots were loading', async () => {
+    let release: () => void = () => undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const db = setupSales({ db: { lotsGate: gate } })
+    const user = userEvent.setup()
+    renderSales(`/sales/deliveries/new?order=${ORDER_1}`)
+    const table = await screen.findByRole('table', { name: 'İrsaliye satırları' })
+    await user.click(
+      within(table).getByRole('button', {
+        name: '1. satır için ilk son kullanma tarihli lotları öner',
+      }),
+    )
+    await waitFor(() => expect(db.calls.some((c) => c.path === '/stock-lots')).toBe(true))
+    // The user changes the quantity before the lots arrive.
+    const quantity = within(table).getByLabelText('Miktar, 1. satır')
+    await user.clear(quantity)
+    await user.type(quantity, '5')
+    await user.tab()
+    release()
+    expect(
+      await screen.findByText('Satır lotlar yüklenirken değişti; öneri uygulanmadı.'),
+    ).toBeInTheDocument()
+    expect(within(table).getByLabelText('Miktar, 1. satır')).toHaveValue('5')
+    expect(within(table).getByLabelText('Lot, 1. satır')).toHaveValue('')
+    expect(within(table).getByLabelText('Miktar, 2. satır')).toHaveValue('2')
+    expect(within(table).queryByLabelText('Miktar, 3. satır')).not.toBeInTheDocument()
+  })
+
   it('requires serials for serial-tracked lines', async () => {
     setupSales()
     const user = userEvent.setup()

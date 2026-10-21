@@ -12,6 +12,8 @@ import type {
 import type { LotAllocation } from './fefo'
 
 export interface DeliveryLineValues {
+  /** Stable client id of the row (never sent): async results find their row by it. */
+  rowKey: string
   /** Order line delivered ('' on direct deliveries). */
   sourceLineId: string
   itemId: string
@@ -38,8 +40,17 @@ export interface DeliveryValues {
   lines: DeliveryLineValues[]
 }
 
+let rowSeq = 0
+
+/** A new client row id; unique within the page session. */
+export function nextRowKey(): string {
+  rowSeq += 1
+  return `row-${rowSeq}`
+}
+
 export function emptyLine(): DeliveryLineValues {
   return {
+    rowKey: nextRowKey(),
     sourceLineId: '',
     itemId: '',
     itemLabel: '',
@@ -130,6 +141,7 @@ export function valuesFromDelivery(
     warehouseId: d.warehouse_id,
     notes: d.notes ?? '',
     lines: d.lines.map((l: DeliveryLine) => ({
+      rowKey: nextRowKey(),
       sourceLineId: l.source_line_id ?? '',
       itemId: l.item_id,
       itemLabel: label(l.item_code, l.item_name) || (l.description ?? ''),
@@ -284,8 +296,20 @@ export function applyAllocations(
 ): DeliveryLineValues[] {
   const line = lines[index]
   if (!line) return [...lines]
-  const split = allocations.map((a) => ({ ...line, lotNo: a.lot_no, quantity: a.quantity }))
-  if (dec(shortage).greaterThan(0)) split.push({ ...line, lotNo: '', quantity: shortage })
+  // The first part keeps the row's identity; the others are new rows.
+  const split = allocations.map((a, i) => ({
+    ...line,
+    rowKey: i === 0 ? line.rowKey : nextRowKey(),
+    lotNo: a.lot_no,
+    quantity: a.quantity,
+  }))
+  if (dec(shortage).greaterThan(0))
+    split.push({
+      ...line,
+      rowKey: split.length === 0 ? line.rowKey : nextRowKey(),
+      lotNo: '',
+      quantity: shortage,
+    })
   if (split.length === 0) return [...lines]
   return [...lines.slice(0, index), ...split, ...lines.slice(index + 1)]
 }

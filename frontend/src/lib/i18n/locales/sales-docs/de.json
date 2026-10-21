@@ -229,7 +229,8 @@
     "applied": "Menge auf {{count}} Chargen verteilt.",
     "shortage": "Chargen reichten nicht; {{quantity}} ohne Charge.",
     "skippedExpired": "{{count}} abgelaufene Chargen übersprungen.",
-    "failed": "Chargen konnten nicht gelesen werden."
+    "failed": "Chargen konnten nicht gelesen werden.",
+    "stale": "Die Position hat sich beim Laden der Chargen geändert; der Vorschlag wurde nicht übernommen."
   },
   "delivery": {
     "listTitle": "Lieferscheine",

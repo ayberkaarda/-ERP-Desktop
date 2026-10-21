@@ -58,6 +58,8 @@ export interface SalesDocsDb {
   /** Canned report rows and meta by API path. */
   reports: Record<string, { rows: Record<string, unknown>[]; meta: Record<string, unknown> }>
   creditMode: 'off' | 'warn' | 'block'
+  /** When set, /stock-lots answers only after it resolves (slow responses). */
+  lotsGate?: Promise<void>
   /** Permissions the API checks itself (credit override). */
   permissions: string[]
   /** Paths whose next N calls fail at the network level (lost response). */
@@ -817,6 +819,7 @@ export function salesDocsHandlers(db: SalesDocsDb) {
     }),
     http.get(`${base}/stock-lots`, async ({ request }) => {
       const { url } = await record(request)
+      if (db.lotsGate) await db.lotsGate
       const item = url.searchParams.get('filter[item_id]')
       const wh = url.searchParams.get('filter[warehouse_id]')
       const rows = db.lots.filter((l) => l.item_id === item && (!wh || l.warehouse_id === wh))

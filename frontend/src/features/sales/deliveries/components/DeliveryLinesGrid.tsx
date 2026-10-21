@@ -15,14 +15,12 @@ import { salesDocsKeys } from '../../invoices/kit/keys'
 import { qty } from '../../invoices/kit/money'
 import { MAX_LINES } from '../../invoices/kit/types'
 import { deliveriesApi } from '../api'
-import { allocateFefo } from '../lib/fefo'
+import { fefoRequestFor, planFefo } from '../lib/fefo'
 import {
-  applyAllocations,
   emptyLine,
   exceedsRemaining,
   isSkipped,
   parseSerials,
-  takenByOthers,
   type DeliveryLineValues,
   type DeliveryValues,
 } from '../lib/lines'
@@ -41,7 +39,6 @@ export function DeliveryLinesGrid({ disabled, fromOrder }: DeliveryLinesGridProp
   const queryClient = useQueryClient()
   const form = useFormContext<DeliveryValues>()
   const lines = useWatch({ control: form.control, name: 'lines' })
-  const warehouseId = useWatch({ control: form.control, name: 'warehouseId' })
   const [serialsFor, setSerialsFor] = useState<number | null>(null)
   const [fefoBusy, setFefoBusy] = useState<number | null>(null)
   const showLot = lines.some((l) => l.tracking === 'lot') || !fromOrder
@@ -58,13 +55,11 @@ export function DeliveryLinesGrid({ disabled, fromOrder }: DeliveryLinesGridProp
   /** Splits the line over lots by first expiry (expired lots are left out). */
   const suggestFefo = async (index: number) => {
     const current = form.getValues('lines')
+    const header = form.getValues('warehouseId')
     const line = current[index]
-    const wh = line && line.warehouseId !== '' ? line.warehouseId : warehouseId
-    if (!line || !wh || isSkipped(line)) return
-    if (current.length >= MAX_LINES) {
-      platform.notify.warning(t('lines.maxReached', { max: MAX_LINES }))
-      return
-    }
+    const req = fefoRequestFor(current, index, header)
+    const wh = line && line.warehouseId !== '' ? line.warehouseId : header
+    if (!line || !req || !wh || isSkipped(line)) return
     setFefoBusy(index)
     try {
       const lots = await queryClient.query({
@@ -72,18 +67,28 @@ export function DeliveryLinesGrid({ disabled, fromOrder }: DeliveryLinesGridProp
         queryFn: ({ signal }) => deliveriesApi.lots(line.itemId, wh, signal),
         staleTime: 30_000,
       })
-      const result = allocateFefo(
+      // Re-read the form: the user may have edited, removed or moved rows meanwhile.
+      const plan = planFefo(
+        form.getValues('lines'),
+        form.getValues('warehouseId'),
+        req,
         lots,
-        line.quantity,
         toIsoDate(new Date()),
-        takenByOthers(current, index),
       )
-      if (result.allocations.length === 0) {
+      if (plan.kind === 'stale') {
+        platform.notify.warning(t('fefo.stale'))
+        return
+      }
+      if (plan.kind === 'tooMany') {
+        platform.notify.warning(t('lines.maxReached', { max: MAX_LINES }))
+        return
+      }
+      if (plan.kind === 'none') {
         platform.notify.warning(t('fefo.none'))
         return
       }
-      const next = applyAllocations(current, index, result.allocations, result.shortage)
-      form.setValue('lines', next.slice(0, MAX_LINES), { shouldDirty: true, shouldValidate: false })
+      const { result } = plan
+      form.setValue('lines', plan.lines, { shouldDirty: true, shouldValidate: false })
       if (result.shortage !== '0') {
         platform.notify.warning(t('fefo.shortage', { quantity: qty(result.shortage, locale) }))
       } else {
