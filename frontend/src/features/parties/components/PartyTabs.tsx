@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { AttachmentPanel } from '@/components/shared/attachments'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { usePermission } from '@/lib/permissions'
 import { partyFilesApi } from '../api/parties'
 import { usePartyAudit } from '../hooks/useParties'
 import type { Party } from '../types'
@@ -23,7 +24,10 @@ interface PartyTabsProps {
 export function PartyTabs({ party, canEdit, withRecordTabs = false }: PartyTabsProps) {
   const { t } = useTranslation('parties')
   const [params, setParams] = useSearchParams()
-  const tabs: Tab[] = withRecordTabs ? [...BASE_TABS, 'attachments', 'history'] : BASE_TABS
+  // The audit log is its own permission (GET /logs/audit needs audit.view).
+  const canAudit = usePermission('audit.view')
+  const recordTabs: Tab[] = canAudit ? ['attachments', 'history'] : ['attachments']
+  const tabs: Tab[] = withRecordTabs ? [...BASE_TABS, ...recordTabs] : BASE_TABS
   const requested = params.get('tab') as Tab | null
   const current: Tab = requested && tabs.includes(requested) ? requested : 'addresses'
 

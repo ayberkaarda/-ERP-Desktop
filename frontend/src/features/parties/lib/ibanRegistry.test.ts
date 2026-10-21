@@ -27,13 +27,16 @@ describe('iban registry contract', () => {
     expect(isValidIban(entry.example)).toBe(true)
   })
 
-  it.each(entries)('rejects the %s example once its check digits are mutated', (_country, entry) => {
-    const check = Number(entry.example.slice(2, 4))
-    const mutated = String(((check - 2 + 1) % 97) + 2).padStart(2, '0')
-    const iban = entry.example.slice(0, 2) + mutated + entry.example.slice(4)
-    expect(iban).not.toBe(entry.example)
-    expect(isValidIban(iban)).toBe(false)
-  })
+  it.each(entries)(
+    'rejects the %s example once its check digits are mutated',
+    (_country, entry) => {
+      const check = Number(entry.example.slice(2, 4))
+      const mutated = String(((check - 2 + 1) % 97) + 2).padStart(2, '0')
+      const iban = entry.example.slice(0, 2) + mutated + entry.example.slice(4)
+      expect(iban).not.toBe(entry.example)
+      expect(isValidIban(iban)).toBe(false)
+    },
+  )
 
   it.each(entries)('rejects the %s example one character too long or too short', (_c, entry) => {
     expect(ibanProblem(`${entry.example}0`)).toBe('length')

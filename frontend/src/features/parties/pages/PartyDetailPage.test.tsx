@@ -135,6 +135,55 @@ describe('PartyDetailPage', () => {
     expect(screen.queryByRole('link', { name: 'Düzenle' })).not.toBeInTheDocument()
   })
 
+  it('deletes with the version the user saw', async () => {
+    const party = makeParty({ name: 'Silinecek Ltd', version: 3 })
+    const db = setupParties({ parties: [party] })
+    const user = userEvent.setup()
+    const { router } = renderParties(`/parties/${party.id}`)
+    await screen.findByRole('heading', { level: 1, name: 'Silinecek Ltd' })
+    await user.click(screen.getByRole('button', { name: 'Sil' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sil' }),
+    )
+    await waitFor(() => expect(router.state.location.pathname).toBe('/parties'))
+    expect(db.calls.find((c) => c.method === 'DELETE')?.search).toBe('?version=3')
+    expect(db.parties).toHaveLength(0)
+  })
+
+  it('stays on a party the server deactivated because it is in use', async () => {
+    const party = makeParty({ name: 'Kullanımda AŞ' })
+    const db = setupParties({ parties: [party], inUseIds: new Set([party.id]) })
+    const user = userEvent.setup()
+    const { router } = renderParties(`/parties/${party.id}`)
+    await screen.findByRole('heading', { level: 1, name: 'Kullanımda AŞ' })
+    await user.click(screen.getByRole('button', { name: 'Sil' }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sil' }),
+    )
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(router.state.location.pathname).toBe(`/parties/${party.id}`)
+    expect(db.parties[0]).toMatchObject({ is_active: false, version: 2 })
+    expect(await screen.findByRole('button', { name: 'Aktifleştir' })).toBeInTheDocument()
+  })
+
+  it('sends the row version when deleting a sub-resource', async () => {
+    const party = makeParty()
+    const db = setupParties({
+      parties: [party],
+      addresses: [address(party.id, { label: 'Eski', version: 4 })],
+    })
+    const user = userEvent.setup()
+    renderParties(`/parties/${party.id}`)
+    const table = await screen.findByRole('table', { name: 'Adresler' })
+    await within(table).findByText('Eski')
+    await user.click(within(table).getByRole('button', { name: /Sil/ }))
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Sil' }),
+    )
+    await waitFor(() => expect(db.addresses).toHaveLength(0))
+    expect(db.calls.find((c) => c.method === 'DELETE')?.search).toBe('?version=4')
+  })
+
   it('shows a not-found state', async () => {
     setupParties()
     renderParties('/parties/0192b000-0000-7000-8000-ffffffffffff')

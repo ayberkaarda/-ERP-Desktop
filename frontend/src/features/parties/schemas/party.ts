@@ -1,7 +1,7 @@
 import Decimal from 'decimal.js'
 import { z } from 'zod'
 import { MSG } from '@/lib/forms/schemas'
-import { taxNumberProblem } from '../lib/taxNumber'
+import { normalizeTaxNumber, taxNumberProblem } from '../lib/taxNumber'
 import { PARTY_ROLES, PARTY_TYPES, type Party, type PartyInput } from '../types'
 
 // Messages are i18n keys; `parties:` ones resolve in this feature's namespace.
@@ -120,7 +120,7 @@ export function formValuesToInput(v: PartyFormValues, base?: Party): PartyInput 
     type: v.type,
     roles: v.roles,
     tax_office: orNull(v.tax_office),
-    tax_number: orNull(v.tax_number.replace(/\s+/g, v.country === 'TR' ? '' : ' ')),
+    tax_number: orNull(normalizeTaxNumber(v.tax_number, v.country)),
     country: v.country,
     default_currency_code: orNull(v.default_currency_code),
     payment_term_id: base?.payment_term_id ?? null,

@@ -65,12 +65,19 @@ export function useUpdateParty() {
   })
 }
 
+/** Resolves with the party when the server deactivated it instead (still in use). */
 export function useDeleteParty() {
   const queryClient = useQueryClient()
   const companyId = useCompanyId()
+  const store = useStoreParty()
   return useMutation({
-    mutationFn: (id: string) => partiesApi.remove(id),
-    onSuccess: (_data, id) => {
+    mutationFn: ({ id, version }: { id: string; version: number }) =>
+      partiesApi.remove(id, version),
+    onSuccess: (result, { id }) => {
+      if (result.deactivated) {
+        store(result.deactivated)
+        return
+      }
       queryClient.removeQueries({ queryKey: partyKeys.detail(companyId, id) })
       void queryClient.invalidateQueries({ queryKey: partyKeys.lists(companyId) })
     },
@@ -134,15 +141,29 @@ const MIN_NAME = 3
  * Possible duplicates for what is being typed. Advisory only: it never blocks saving, and
  * a failing lookup is silent.
  */
-export function useDuplicateCheck(taxNumber: string, name: string, excludeId?: string) {
+export function useDuplicateCheck(
+  taxNumber: string,
+  name: string,
+  excludeId?: string,
+  country?: string,
+) {
   const companyId = useCompanyId()
   const tax = useDebouncedValue(taxNumber.trim(), 400)
   const nm = useDebouncedValue(name.trim(), 400)
   const sendTax = tax.length >= MIN_TAX ? tax : ''
   const sendName = nm.length >= MIN_NAME ? nm : ''
+  // The server normalizes the tax number by country and can leave the edited party out itself.
   const query = useQuery({
-    queryKey: partyKeys.duplicates(companyId, sendTax, sendName),
-    queryFn: ({ signal }) => partiesApi.duplicates({ tax_number: sendTax, name: sendName }, signal),
+    queryKey: [
+      ...partyKeys.duplicates(companyId, sendTax, sendName),
+      country ?? '',
+      excludeId ?? '',
+    ],
+    queryFn: ({ signal }) =>
+      partiesApi.duplicates(
+        { tax_number: sendTax, name: sendName, country, exclude_id: excludeId },
+        signal,
+      ),
     enabled: sendTax !== '' || sendName !== '',
     staleTime: 60_000,
     retry: false,

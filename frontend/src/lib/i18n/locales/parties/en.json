@@ -116,6 +116,7 @@
     "deleted": "Party deleted.",
     "activated": "Party activated.",
     "deactivated": "Party deactivated.",
+    "deactivatedInUse": "The party is in use, so it was deactivated instead of deleted.",
     "summary": "Summary",
     "loadFailed": "Could not load the party.",
     "notFound": "Party not found.",

@@ -116,6 +116,7 @@
     "deleted": "Geschäftspartner gelöscht.",
     "activated": "Geschäftspartner aktiviert.",
     "deactivated": "Geschäftspartner deaktiviert.",
+    "deactivatedInUse": "Der Geschäftspartner wird verwendet und wurde daher deaktiviert statt gelöscht.",
     "summary": "Übersicht",
     "loadFailed": "Geschäftspartner konnte nicht geladen werden.",
     "notFound": "Geschäftspartner nicht gefunden.",

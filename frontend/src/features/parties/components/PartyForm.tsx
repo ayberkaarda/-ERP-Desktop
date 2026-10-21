@@ -298,8 +298,11 @@ function TaxNumberField() {
 
 function DuplicateHint({ excludeId }: { excludeId?: string }) {
   const { control } = useFormContext<PartyFormValues>()
-  const [taxNumber, name] = useWatch({ control, name: ['tax_number', 'name'] })
-  const { matches } = useDuplicateCheck(taxNumber, name, excludeId)
+  const [taxNumber, name, country] = useWatch({
+    control,
+    name: ['tax_number', 'name', 'country'],
+  })
+  const { matches } = useDuplicateCheck(taxNumber, name, excludeId, country)
   return (
     <div className="sm:col-span-2">
       <DuplicateWarning matches={matches} />
