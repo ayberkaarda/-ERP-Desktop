@@ -98,6 +98,8 @@ Faz 2 modülleri bütünleşmede birbirine aşağıdaki şekilde bağlandı. Uyg
 - Gerekçe: ana veriler normalde yumuşak silinir; anahtarlar yalnızca kalıcı silme/temizlemede devreye girer. SET NULL bir carinin vadesini ya da kalemin vergi kodunu sessizce değiştirirdi, CASCADE ana veriyi yok ederdi; bu yüzden temizlik bilinçli ve sıralı yapılmalıdır.
 - Kapsam dışı: `discount_rules.scope_ref` (kapsama göre kalem, kategori veya cari), dosya/onay çok biçimli kimlikleri.
 - Göçler: `app/Modules/Organization/Database/migrations/2026_12_09_200100_*` (company_id) ve `database/migrations/2026_12_09_100100_*` (modüller arası). Kurulu olmayan modülün tabloları atlanır.
+- Dolu veritabanı: göçler önce yetim satırları (var olmayan kayda işaret eden referans) tablo.sütun başına sayılarıyla raporlar ve durur; sessiz onarım yoktur. `php artisan master-data:repair-orphans --dry-run` listeyi gösterir; seçeneksiz çalıştırma yalnızca boşaltılabilecek referansları NULL yapar (vade, fiyat listesi, vergi kodları, proje carisi, depo şubesi, varsayılan ve banka hesabı para birimi; `version` artar, etkinlik günlüğüne yazılmaz). `company_id`, zorunlu para birimi kodları, risk para birimi ve cari indirim kuralları elle düzeltilmelidir (komut bu durumda 1 ile çıkar). Anahtarlar `NOT VALID` eklenir ve ayrı adımlarda `VALIDATE CONSTRAINT` ile doğrulanır (göç tek işlemde çalışmaz), böylece yazma kilitleri kısa kalır; yarıda kalan göç tekrar çalıştırılabilir.
+- Şirketler arası tutarlılık: tek sütunlu anahtarlar bir kaydın başka şirketin kaydına işaret etmesini engellemez (bileşik kiracı anahtarları şimdilik fazla müdahaleci). Yazmada bunu modül lookup'ları engeller (422). Eski veya doğrudan SQL ile yazılmış veri için salt okunur denetim: `php artisan master-data:audit-tenancy` (bulgu varsa tablo.sütun sayılarını yazar, uyarı günlüğe düşer ve 1 ile çıkar; zamanlayıcıya veya CI'a eklenebilir). Global satırlar (`company_id` boş, örn. tohumlanmış vergi kodları) serbesttir.
 
 ### Lookup bağlamaları
 
@@ -116,7 +118,7 @@ Yeni şirket (`POST /companies`, tek işlemde) `CompanyCreated` olayıyla şunla
 - Masraf merkezi: kök `GENERAL` (Genel).
 - Birimler: `PCS` (Adet), `KG`, `G`, `LT`, `M`, `CM`, `M2`, `M3`, `BOX` (Kutu), `PACK` (Paket), `HOUR` (Saat), `DAY` (Gün); dönüşümler KG→G 1000, M→CM 100, DAY→HOUR 24 (BOX/PCS kaleme özgü olduğundan eklenmez).
 - Kodlar İngilizce ve sabittir; adlar şirketin `general.default_locale` dilinde (varsayılan tr) lang dosyalarından gelir.
-- İdempotent: kodu mevcut (yumuşak silinmiş dahil) kayıt dokunulmadan bırakılır; olay tekrarlansa da çoğaltma ya da sıfırlama olmaz. Dinleyicilerden biri hata verirse şirket de oluşmaz.
+- İdempotent: kodu mevcut (yumuşak silinmiş dahil) kayıt dokunulmadan bırakılır; olay tekrarlansa da çoğaltma ya da sıfırlama olmaz. Dinleyicilerden biri hata verirse şirket de oluşmaz. Açılış şirket başına danışma kilidiyle (Reference ve Catalog API yazmalarıyla aynı kilit) sıralanır; eklemeler çakışmaya dayanıklıdır (global para birimleri `ON CONFLICT DO NOTHING`, diğerleri `createOrFirst`). ReferenceSeeder yumuşak silinmiş tohum satırlarını geri getirmez.
 - `CompanyCreated(seedDefaults: false)` varsayılanları atlar (içe aktarma, test fikstürleri; `Identity::company()` testlerde varsayılan olarak boş şirket kurar, `defaults: true` ile gerçek akış).
 
 ### Tohumlar ve zamanlama
