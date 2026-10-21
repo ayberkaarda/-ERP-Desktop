@@ -48,8 +48,9 @@ final class ReferenceSeeder extends Seeder
     /** @param array<string, mixed> $attributes */
     private function tax(string $code, array $attributes, string $source, string $status, bool $periodVerified, string $note): void
     {
-        // Existing reference rows are preserved until a reviewed migration replaces them.
-        $record = TaxCode::query()->withoutGlobalScope('visible')->whereNull('company_id')->where('code', $code)->first();
+        // Existing reference rows are preserved until a reviewed migration replaces them; a row an
+        // administrator soft deleted counts as existing, so re-seeding does not bring it back.
+        $record = TaxCode::query()->withoutGlobalScope('visible')->withTrashed()->whereNull('company_id')->where('code', $code)->first();
         if ($record === null) {
             $record = new TaxCode($attributes + [
                 'code' => $code, 'is_active' => true,
