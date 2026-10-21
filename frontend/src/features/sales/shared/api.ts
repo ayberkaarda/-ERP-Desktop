@@ -1,6 +1,6 @@
 import { toListParams, type ListQueryState } from '@/components/shared/data-table'
 import type { AuditEntry } from '@/components/shared/AuditTrail'
-import { platform, withIdempotency } from '@/platform'
+import { ApiError, platform, withIdempotency } from '@/platform'
 import type {
   ApiAuditRow,
   ApiSalesOrder,
@@ -234,15 +234,24 @@ export interface ItemStockSummary extends StockFigures {
   warehouses: (StockFigures & { warehouse_id: string })[]
 }
 
-/** Every page of a small lookup list (100 per page, at most 10 pages). */
-async function fetchAll<T>(url: string, signal?: AbortSignal): Promise<T[]> {
+export const LIMIT_EXCEEDED = 'LIMIT_EXCEEDED'
+/** Safety stop: 100 pages of 100 rows. */
+export const MAX_LOOKUP_PAGES = 100
+
+/**
+ * Every page of a lookup list up to the reported last page. Never returns a partial list: past
+ * MAX_LOOKUP_PAGES it fails with LIMIT_EXCEEDED instead of passing a capped result as complete.
+ */
+export async function fetchAll<T>(url: string, signal?: AbortSignal): Promise<T[]> {
   const out: T[] = []
-  for (let page = 1; page <= 10; page++) {
+  for (let page = 1; ; page++) {
     const res = await http().get<Paginated<T>>(url, { params: { page, per_page: 100 }, signal })
+    if (res.meta.pagination.last_page > MAX_LOOKUP_PAGES) {
+      throw new ApiError(0, LIMIT_EXCEEDED, `More than ${MAX_LOOKUP_PAGES * 100} rows.`)
+    }
     out.push(...res.data)
-    if (page >= res.meta.pagination.last_page || res.data.length === 0) break
+    if (page >= res.meta.pagination.last_page || res.data.length === 0) return out
   }
-  return out
 }
 
 /** Lookups owned by other modules: Catalog units, Inventory stock, Workflow approvals. */

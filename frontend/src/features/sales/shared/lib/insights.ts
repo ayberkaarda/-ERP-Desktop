@@ -49,6 +49,8 @@ export function exposureState(
   exposure: CustomerExposure,
   documentTotal: string | null,
   documentCurrency: string,
+  /** What this document already contributes to the exposure (a confirmed order being revised). */
+  counted: string | null = null,
 ): ExposureState {
   if (exposure.limit === null || !isDecimal(exposure.limit))
     return { tone: 'unlimited', after: null }
@@ -56,7 +58,8 @@ export function exposureState(
     ? new Decimal(exposure.available)
     : new Decimal(exposure.limit).minus(dec(exposure.total))
   const comparable = documentTotal !== null && documentCurrency === exposure.currency
-  const after = comparable ? available.minus(dec(documentTotal)) : available
+  // Only the change counts when the exposure already holds this document.
+  const after = comparable ? available.minus(dec(documentTotal).minus(dec(counted))) : available
   if (after.isNegative()) return { tone: 'over', after: after.toString() }
   const limit = new Decimal(exposure.limit)
   if (limit.gt(0) && after.lt(limit.mul('0.2'))) return { tone: 'tight', after: after.toString() }

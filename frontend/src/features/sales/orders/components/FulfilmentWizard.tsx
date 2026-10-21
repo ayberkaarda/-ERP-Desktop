@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Loader2 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { DateInput, FieldShell, QuantityInput } from '@/components/shared/form'
@@ -22,13 +22,13 @@ import { useCompanyStore } from '@/stores/company'
 import { ordersApi, type SalesOrder } from '../../shared/api'
 import { errorMessage } from '../../shared/lib/errors'
 import {
+  fulfilmentKeys,
   fulfilmentLines,
   needsDeliverOnInvoice,
   quantityProblem,
   remainingFor,
   type FulfilmentMode,
 } from '../../shared/lib/fulfilment'
-import { usePayloadKeys } from '../../shared/lib/idempotency'
 import { documentPath } from '../../shared/lib/insights'
 import { invalidateSales } from '../../shared/lib/keys'
 import type { FulfilmentInput } from '../../shared/types'
@@ -41,14 +41,24 @@ interface FulfilmentWizardProps {
 
 /** Opens the wizard only while `mode` is set; a new mode starts from fresh defaults. */
 export function FulfilmentWizard({ order, mode, onClose }: FulfilmentWizardProps) {
+  // While the document is being created the dialog cannot be dismissed.
+  const [pending, setPending] = useState(false)
   return (
     <Dialog
       open={mode !== null}
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open && !pending) onClose()
       }}
     >
-      {mode && <WizardBody key={mode} order={order} mode={mode} onClose={onClose} />}
+      {mode && (
+        <WizardBody
+          key={mode}
+          order={order}
+          mode={mode}
+          onClose={onClose}
+          onPendingChange={setPending}
+        />
+      )}
     </Dialog>
   )
 }
@@ -62,16 +72,17 @@ function WizardBody({
   order,
   mode,
   onClose,
+  onPendingChange,
 }: {
   order: SalesOrder
   mode: FulfilmentMode
   onClose: () => void
+  onPendingChange: (pending: boolean) => void
 }) {
   const { t } = useTranslation('sales-orders')
   const locale = useIntlLocale()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const keyFor = usePayloadKeys()
   const company = useCompanyStore((s) => s.activeCompanyId)
   const overPercent = order.over_delivery_percent ?? '0'
   const offerDeliverOnInvoice = mode === 'invoice' && needsDeliverOnInvoice(order.lines)
@@ -102,13 +113,13 @@ function WizardBody({
 
   const create = useMutation({
     mutationFn: (input: FulfilmentInput) => {
-      const key = keyFor({ mode, order: order.id, ...input })
+      const key = fulfilmentKeys.keyFor({ company, mode, order: order.id, ...input })
       return mode === 'delivery'
         ? ordersApi.createDelivery(order.id, input, key)
         : ordersApi.createInvoice(order.id, input, key)
     },
-    onSuccess: (doc) => {
-      keyFor.reset()
+    onSuccess: (doc, input) => {
+      fulfilmentKeys.release({ company, mode, order: order.id, ...input })
       invalidateSales(queryClient, company ?? 'none')
       if (useCompanyStore.getState().activeCompanyId !== company) return
       platform.notify.success(t(`wizard.${mode}.created`, { number: doc.number ?? '' }))
@@ -128,6 +139,11 @@ function WizardBody({
       if (Object.keys(mapped).length > 0) setStep(1)
     },
   })
+
+  useEffect(() => {
+    onPendingChange(create.isPending)
+  }, [create.isPending, onPendingChange])
+  useEffect(() => () => onPendingChange(false), [onPendingChange])
 
   const submit = () => {
     const input: FulfilmentInput = { document_date: documentDate, lines: chosen }

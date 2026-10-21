@@ -40,7 +40,7 @@ import {
   type DocValues,
 } from '../lib/lines'
 import { SALES_PERMS } from '../permissions'
-import { MAX_LINES, type SalesKind, type SalesWarning } from '../types'
+import { MAX_LINES, type PreviewLine, type SalesKind, type SalesWarning } from '../types'
 import { SalesStatusBadge, VersionConflictAlert } from './common'
 import { CreditOverrideDialog } from './CreditOverrideDialog'
 import { ExposureBadge } from './ExposureBadge'
@@ -126,10 +126,31 @@ export function SalesDocumentEditor<T extends SalesDoc>({
   })
   const { isDirty } = useFormState({ control: form.control })
   const values = useWatch({ control: form.control }) as DocValues
-  const preview = usePreviewTotals(previewInput(values, kind))
+  // An unchanged stored document shows what is stored (and what send/confirm act on); the
+  // server preview only runs once something was edited.
+  const pristine = base !== null && !isDirty
+  const preview = usePreviewTotals(pristine ? null : previewInput(values, kind))
   const previewByKey = useMemo(
-    () => new Map((preview.data?.lines ?? []).map((l) => [l.key, l])),
-    [preview.data],
+    () =>
+      new Map<string, PreviewLine>(
+        pristine
+          ? base.lines.map((l) => [
+              l.id,
+              {
+                key: l.id,
+                unit_price: l.unit_price,
+                price_source: l.price_source,
+                base_quantity: l.base_quantity,
+                net_amount: l.net_amount,
+                tax_code_id: l.tax_code_id,
+                tax_rate: l.tax_rate,
+                tax_amount: l.tax_amount,
+                line_total: l.line_total,
+              },
+            ])
+          : (preview.data?.lines ?? []).map((l) => [l.key, l]),
+      ),
+    [pristine, base, preview.data],
   )
   const partyId = values.partyId
   const currency = values.currencyCode
@@ -265,8 +286,8 @@ export function SalesDocumentEditor<T extends SalesDoc>({
   const busy = save.isPending || remove.isPending
   const actionError = conflict || creditError ? null : save.error
   const kindLabel = t(`kind.${kind}`)
-  const warnings = preview.data?.warnings ?? (isDirty ? [] : (base?.warnings ?? []))
-  const totals = preview.data ?? (base && !isDirty ? base : null)
+  const warnings = pristine ? (base.warnings ?? []) : (preview.data?.warnings ?? [])
+  const totals = pristine ? base : (preview.data ?? null)
   const lineLabel = (w: SalesWarning) => {
     if (w.line_key) {
       const index = values.lines.findIndex((l) => l.key === w.line_key)
@@ -404,6 +425,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
                 documentCurrency={
                   preview.data?.local_currency_code ?? base?.local_currency_code ?? currency
                 }
+                counted={revising && base?.party_id === partyId ? base.total_local : null}
               />
             )}
           </div>

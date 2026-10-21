@@ -55,7 +55,9 @@ export function OrderActions({
   const canCancel = usePermission(SALES_ACCESS.orderCancel)
   const canDeliver = usePermission(SALES_ACCESS.createDelivery)
   const canInvoice = usePermission(SALES_ACCESS.createInvoice)
-  const [confirming, setConfirming] = useState(false)
+  /** The saved order the confirmation describes and confirms (edits are saved first). */
+  const [confirming, setConfirming] = useState<SalesOrder | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [credit, setCredit] = useState<{ error: unknown; target: SalesOrder } | null>(null)
   const [wizard, setWizard] = useState<FulfilmentMode | null>(null)
@@ -107,9 +109,19 @@ export function OrderActions({
   const target = async () => (ensureSaved ? await ensureSaved() : order)
 
   /** Credit blocks open the override dialog; conflicts ask for a reload; others toast. */
+  const openConfirm = async () => {
+    setPreparing(true)
+    try {
+      // Validation or save errors are shown in the form; no dialog opens.
+      const doc = await target()
+      if (doc) setConfirming(doc)
+    } finally {
+      setPreparing(false)
+    }
+  }
+
   const runConfirm = async () => {
-    const doc = await target()
-    // Validation or save errors are shown in the form; the dialog closes.
+    const doc = confirming
     if (!doc) return
     try {
       await confirm.mutateAsync({ target: doc })
@@ -136,7 +148,7 @@ export function OrderActions({
     }
   }
 
-  const pending = busy || confirm.isPending || cancel.isPending
+  const pending = busy || preparing || confirm.isPending || cancel.isPending
 
   return (
     <>
@@ -180,7 +192,7 @@ export function OrderActions({
         </Button>
       )}
       {canConfirm && allowed.includes('confirm') && (
-        <Button type="button" disabled={pending} onClick={() => setConfirming(true)}>
+        <Button type="button" disabled={pending} onClick={() => void openConfirm()}>
           {confirm.isPending ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
           ) : (
@@ -190,14 +202,16 @@ export function OrderActions({
         </Button>
       )}
       <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
+        open={confirming !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(null)
+        }}
         tone="primary"
         title={t('confirm.title')}
         description={t('confirm.body', {
-          number: order.number ?? '',
-          customer: order.party.name,
-          total: formatMoney(order.total, order.currency_code, locale),
+          number: confirming?.number ?? '',
+          customer: confirming?.party.name ?? '',
+          total: confirming ? formatMoney(confirming.total, confirming.currency_code, locale) : '',
         })}
         confirmLabel={t('actions.confirm')}
         onConfirm={runConfirm}

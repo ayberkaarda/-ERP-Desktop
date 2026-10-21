@@ -50,6 +50,27 @@ describe('order list', () => {
 })
 
 describe('order confirmation', () => {
+  it('saves edits first and confirms exactly the order the dialog describes', async () => {
+    const db = setupSales({ db: { creditMode: 'off' } })
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}20')
+    await user.click(screen.getByRole('button', { name: 'Onayla' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sipariş onaylansın mı?' })
+    // Saved before the dialog opened: 20 × 10 + 20% VAT.
+    expect(db.calls.some((c) => c.method === 'PATCH')).toBe(true)
+    expect(within(dialog).getByText(/240,00/)).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Onayla' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Sipariş SIP2026000001' }),
+    ).toBeInTheDocument()
+    expect(db.calls.find((c) => c.path === `/sales-orders/${ORDER_DRAFT}/confirm`)?.body).toEqual({
+      version: 2,
+    })
+  })
+
   it('opens the credit override dialog on a block and confirms with a reason', async () => {
     const db = setupSales()
     const user = userEvent.setup()
@@ -133,6 +154,47 @@ describe('order confirmation', () => {
 })
 
 describe('order fulfilment', () => {
+  it('keeps the wizard open while creating and reuses the key after a lost response', async () => {
+    const db = setupSales({
+      db: { dropNext: ['/sales-orders/deliveries'], delay: { '/sales-orders/deliveries': 400 } },
+    })
+    const user = userEvent.setup()
+    const { router } = renderSales(`/sales/orders/${ORDER_CONFIRMED}`)
+    await screen.findByRole('heading', { name: 'Sipariş SIP2026000002' })
+    const create = async () => {
+      await user.click(screen.getByRole('button', { name: 'İrsaliye oluştur' }))
+      const dialog = await screen.findByRole('dialog', { name: 'SIP2026000002 için irsaliye' })
+      await user.click(within(dialog).getByRole('button', { name: 'İleri' }))
+      await user.click(
+        await within(dialog).findByRole('button', { name: 'Taslak irsaliye oluştur' }),
+      )
+      return dialog
+    }
+    const dialog = await create()
+    // Pending: Escape and the close button do not dismiss the dialog.
+    await user.keyboard('{Escape}')
+    await user.click(within(dialog).getByRole('button', { name: 'Kapat' }))
+    expect(screen.getByRole('dialog', { name: 'SIP2026000002 için irsaliye' })).toBeInTheDocument()
+    // The response is lost; the user closes the wizard and tries again with the same quantities.
+    expect(await within(dialog).findByRole('alert')).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await create()
+    await waitFor(() =>
+      expect(router.state.location.pathname).toMatch(/^\/sales\/deliveries\/d-new-/),
+    )
+    const keys = db.calls
+      .filter((c) => c.path === `/sales-orders/${ORDER_CONFIRMED}/deliveries`)
+      .map((c) => c.headers.get('Idempotency-Key'))
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
+    // One delivery only: the retry was replayed.
+    const order = db.orders.find((x) => x.id === ORDER_CONFIRMED)
+    expect(
+      order?.links?.filter((l) => l.type === 'sales_delivery' && l.id.startsWith('d-new-')),
+    ).toHaveLength(1)
+  })
+
   it('creates a partial delivery bounded by the remaining quantity', async () => {
     const db = setupSales()
     const user = userEvent.setup()

@@ -263,7 +263,7 @@ export interface PreviewTotalsInput {
   fx_rate: string | null
   price_list_id: string | null
   warehouse_id: string | null
-  lines: (Omit<SalesLineInput, 'id' | 'warehouse_id' | 'description'> & { key: string })[]
+  lines: (Omit<SalesLineInput, 'id' | 'description'> & { key: string })[]
 }
 
 export interface PreviewLine {

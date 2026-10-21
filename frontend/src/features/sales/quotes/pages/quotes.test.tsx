@@ -165,6 +165,25 @@ describe('quote editor', () => {
     })
   })
 
+  it('shows the stored prices and totals of an unchanged draft, previewing only after edits', async () => {
+    const db = setupSales()
+    // The price list changed after the draft was stored.
+    db.prices[ITEM_BOLT] = '12.0000'
+    const user = userEvent.setup()
+    renderSales(`/sales/quotes/${QUOTE_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    expect(within(table).getByTestId('line-total-0')).toHaveTextContent('120,00')
+    expect(screen.getByTestId('totals')).toHaveTextContent('120,00')
+    await new Promise((r) => setTimeout(r, 600))
+    expect(db.calls.some((c) => c.path === '/sales-documents/preview-totals')).toBe(false)
+    expect(screen.getByTestId('totals')).not.toHaveTextContent('144,00')
+    // After an edit the server reprices: 11 × 12,00 + 20%.
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}11')
+    await user.tab()
+    await waitFor(() => expect(screen.getByTestId('totals')).toHaveTextContent('158,40'))
+  })
+
   it('offers a reload when someone else saved the draft first', async () => {
     const db = setupSales()
     const user = userEvent.setup()

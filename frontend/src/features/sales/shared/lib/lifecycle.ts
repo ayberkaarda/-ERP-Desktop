@@ -1,3 +1,4 @@
+import { deliverableQuantity, invoiceableQuantity } from './fulfilment'
 import { dec } from './lines'
 import type { OrderStatus, QuoteStatus, SalesOrderLine } from '../types'
 
@@ -46,16 +47,23 @@ export function hasInvoices(lines: readonly SalesOrderLine[]): boolean {
 export function orderActions(order: {
   status: OrderStatus
   lines: SalesOrderLine[]
+  over_delivery_percent?: string | null
 }): OrderAction[] {
   const { status, lines } = order
+  const over = order.over_delivery_percent ?? '0'
   if (status === 'draft') return ['edit', 'delete', 'confirm', 'cancel']
   if (status === 'pending_approval') return ['cancel']
+  // A fully invoiced order may still hold delivered quantity beyond the order (tolerance).
+  if (status === 'invoiced')
+    return lines.some((l) => invoiceableQuantity(l).gt(0)) ? ['createInvoice'] : []
   if (!FULFILLING.includes(status)) return []
   const out: OrderAction[] = []
   const delivered = hasDeliveries(lines)
   if (status === 'confirmed' && !delivered) out.push('revise')
   if (!delivered && !hasInvoices(lines)) out.push('cancel')
-  if (lines.some((l) => dec(l.quantity).gt(dec(l.delivered_quantity)))) out.push('createDelivery')
-  if (lines.some((l) => dec(l.quantity).gt(dec(l.invoiced_quantity)))) out.push('createInvoice')
+  // Same bounds as the wizard: tolerance for deliveries, delivered or deliver-on-invoice for invoices.
+  if (lines.some((l) => deliverableQuantity(l, over).gt(0))) out.push('createDelivery')
+  if (lines.some((l) => invoiceableQuantity(l).gt(0) || invoiceableQuantity(l, true).gt(0)))
+    out.push('createInvoice')
   return out
 }

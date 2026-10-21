@@ -13,12 +13,19 @@ interface ExposureBadgeProps {
   /** This document's total in company currency (compared when the risk currency matches). */
   documentTotal: string | null
   documentCurrency: string
+  /** This document's share already inside the exposure (revising a confirmed order). */
+  counted?: string | null
 }
 
 const TONE = { unlimited: 'neutral', ok: 'success', tight: 'warning', over: 'danger' } as const
 
 /** Customer risk: limit, current exposure and what remains after this document. */
-export function ExposureBadge({ partyId, documentTotal, documentCurrency }: ExposureBadgeProps) {
+export function ExposureBadge({
+  partyId,
+  documentTotal,
+  documentCurrency,
+  counted = null,
+}: ExposureBadgeProps) {
   const { t } = useTranslation('sales-shared')
   const locale = useIntlLocale()
   const allowed = usePermission(SALES_ACCESS.exposure)
@@ -39,7 +46,7 @@ export function ExposureBadge({ partyId, documentTotal, documentCurrency }: Expo
     )
   }
   const e = exposure.data
-  const state = exposureState(e, documentTotal, documentCurrency)
+  const state = exposureState(e, documentTotal, documentCurrency, counted)
   const money = (v: string) => formatMoney(v, e.currency, locale)
   const Icon =
     state.tone === 'over' ? ShieldAlert : state.tone === 'unlimited' ? ShieldQuestion : ShieldCheck

@@ -172,12 +172,14 @@ export function SalesLinesGrid({
           onChange={(id, item) => {
             ctx.setValue(id ?? '')
             if (!id || !item) {
-              set(ctx.index, { item: null, unitId: '', unitCode: '', factor: '1' })
+              set(ctx.index, { item: null, unitId: '', unitCode: '', factor: '1', variantId: '' })
               return
             }
             const picked = toLineItem(item)
             set(ctx.index, {
               item: picked,
+              // A variant belongs to the previous item.
+              variantId: '',
               unitId: picked.base_unit_id,
               unitCode: picked.base_unit_code ?? '',
               factor: '1',

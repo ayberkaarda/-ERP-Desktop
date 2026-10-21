@@ -46,8 +46,13 @@ export function QuoteActions({
   const canState = usePermission(SALES_ACCESS.quoteState)
   const canConvert = usePermission(SALES_ACCESS.quoteConvert)
   const canRevise = usePermission(SALES_ACCESS.quoteRevise)
-  const [confirming, setConfirming] = useState<Exclude<Step, 'reject'> | null>(null)
-  const [rejecting, setRejecting] = useState(false)
+  // Dialogs open on the saved quote (pending edits are saved first) and act on exactly it.
+  const [confirming, setConfirming] = useState<{
+    step: Exclude<Step, 'reject'>
+    target: SalesQuote
+  } | null>(null)
+  const [rejecting, setRejecting] = useState<SalesQuote | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const allowed = quoteActions(quote.status)
 
   const run = useMutation({
@@ -115,14 +120,18 @@ export function QuoteActions({
     },
   })
 
-  const perform = async (step: Step, reason?: string) => {
-    const target = ensureSaved ? await ensureSaved() : quote
-    // Validation or save errors are shown in the form; the dialog closes.
-    if (!target) return
-    await run.mutateAsync({ step, target, reason })
+  /** Saves pending edits; validation or save errors stay in the form and no dialog opens. */
+  const prepare = async (open: (target: SalesQuote) => void) => {
+    setPreparing(true)
+    try {
+      const target = ensureSaved ? await ensureSaved() : quote
+      if (target) open(target)
+    } finally {
+      setPreparing(false)
+    }
   }
 
-  const pending = busy || run.isPending
+  const pending = busy || preparing || run.isPending
   const button = (step: Exclude<Step, 'reject'>, icon: typeof Send, primary = false) => {
     const Icon = icon
     return (
@@ -131,7 +140,7 @@ export function QuoteActions({
         type="button"
         variant={primary ? 'primary' : 'secondary'}
         disabled={pending}
-        onClick={() => setConfirming(step)}
+        onClick={() => void prepare((target) => setConfirming({ step, target }))}
       >
         {run.isPending && run.variables.step === step ? (
           <Loader2 className="animate-spin" aria-hidden="true" />
@@ -151,7 +160,7 @@ export function QuoteActions({
           type="button"
           variant="secondary"
           disabled={pending}
-          onClick={() => setRejecting(true)}
+          onClick={() => void prepare(setRejecting)}
         >
           <X aria-hidden="true" />
           {t('actions.reject')}
@@ -166,24 +175,30 @@ export function QuoteActions({
           if (!open) setConfirming(null)
         }}
         tone="primary"
-        title={confirming ? t(`confirm.${confirming}.title`) : undefined}
+        title={confirming ? t(`confirm.${confirming.step}.title`) : undefined}
         description={
-          confirming ? t(`confirm.${confirming}.body`, { number: quote.number ?? '' }) : undefined
+          confirming
+            ? t(`confirm.${confirming.step}.body`, { number: confirming.target.number ?? '' })
+            : undefined
         }
-        confirmLabel={confirming ? t(`actions.${confirming}`) : undefined}
+        confirmLabel={confirming ? t(`actions.${confirming.step}`) : undefined}
         onConfirm={async () => {
-          if (confirming) await perform(confirming)
+          if (confirming) await run.mutateAsync(confirming)
         }}
       />
       <ReasonDialog
-        open={rejecting}
-        onOpenChange={setRejecting}
+        open={rejecting !== null}
+        onOpenChange={(open) => {
+          if (!open) setRejecting(null)
+        }}
         title={t('confirm.reject.title')}
-        description={t('confirm.reject.body', { number: quote.number ?? '' })}
+        description={t('confirm.reject.body', { number: rejecting?.number ?? '' })}
         label={t('confirm.reject.reason')}
         confirmLabel={t('actions.reject')}
         tone="danger"
-        onConfirm={(reason) => perform('reject', reason)}
+        onConfirm={async (reason) => {
+          if (rejecting) await run.mutateAsync({ step: 'reject', target: rejecting, reason })
+        }}
       />
     </>
   )

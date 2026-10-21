@@ -73,6 +73,9 @@ export interface LineValues {
   discountPercent: string
   discountAmount: string
   taxCodeId: string
+  /** Variant and warehouse override of a stored line; kept unless the item changes. */
+  variantId: string
+  warehouseId: string
 }
 
 export interface DocValues {
@@ -112,6 +115,8 @@ export function emptyLine(): LineValues {
     discountPercent: '',
     discountAmount: '',
     taxCodeId: '',
+    variantId: '',
+    warehouseId: '',
   }
 }
 
@@ -186,6 +191,8 @@ export function lineToValues(l: SalesLine): LineValues {
     discountPercent: optional(l.discount_percent),
     discountAmount: optional(l.discount_amount),
     taxCodeId: l.tax_code_id ?? '',
+    variantId: l.variant_id ?? '',
+    warehouseId: l.warehouse_id ?? '',
   }
 }
 
@@ -214,7 +221,7 @@ const orZero = (v: string) => (v.trim() === '' ? '0' : v.trim())
 export function lineToInput(l: LineValues): SalesLineInput {
   const line: SalesLineInput = {
     item_id: l.itemId,
-    variant_id: null,
+    variant_id: orNull(l.variantId),
     description: orNull(l.description),
     quantity: l.quantity.trim(),
     unit_id: l.unitId,
@@ -222,7 +229,7 @@ export function lineToInput(l: LineValues): SalesLineInput {
     discount_percent: orZero(l.discountPercent),
     discount_amount: orZero(l.discountAmount),
     tax_code_id: orNull(l.taxCodeId),
-    warehouse_id: null,
+    warehouse_id: orNull(l.warehouseId),
   }
   if (l.id) line.id = l.id
   return line
@@ -260,13 +267,14 @@ export function previewInput(values: DocValues, kind: SalesKind): PreviewTotalsI
   const lines = values.lines.filter(isPriceable).map((l) => ({
     key: l.key,
     item_id: l.itemId,
-    variant_id: null,
+    variant_id: orNull(l.variantId),
     quantity: l.quantity.trim(),
     unit_id: l.unitId,
     unit_price: isDecimal(l.unitPrice) ? l.unitPrice.trim() : null,
     discount_percent: isDecimal(l.discountPercent) ? l.discountPercent.trim() : '0',
     discount_amount: isDecimal(l.discountAmount) ? l.discountAmount.trim() : '0',
     tax_code_id: orNull(l.taxCodeId),
+    warehouse_id: orNull(l.warehouseId),
   }))
   if (lines.length === 0) return null
   return {

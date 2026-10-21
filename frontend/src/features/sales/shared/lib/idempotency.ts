@@ -40,3 +40,32 @@ export function usePayloadKeys(): PayloadKeys {
   const [keys] = useState(() => createPayloadKeys())
   return keys
 }
+
+/** Keys of submissions that must outlive the component that sent them. */
+export interface KeyStore {
+  keyFor: (payload: unknown) => string
+  /** After a success: the next identical submission is a new request. */
+  release: (payload: unknown) => void
+}
+
+/**
+ * Payload-bound keys kept at module level: a dialog closed after a lost response and opened
+ * again sends the same key for the same payload, so the API replays instead of creating twice.
+ */
+export function createKeyStore(newKey: () => string = createIdempotencyKey): KeyStore {
+  const keys = new Map<string, string>()
+  return {
+    keyFor: (payload) => {
+      const body = stableStringify(payload)
+      let key = keys.get(body)
+      if (!key) {
+        key = newKey()
+        keys.set(body, key)
+      }
+      return key
+    },
+    release: (payload) => {
+      keys.delete(stableStringify(payload))
+    },
+  }
+}

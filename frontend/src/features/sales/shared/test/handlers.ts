@@ -77,6 +77,8 @@ export interface SalesDb {
   idempotency: Map<string, { status: number; body: unknown }>
   /** Paths whose next POST fails with a network error (to test retries). */
   dropNext: string[]
+  /** Milliseconds a POST to these paths takes (to observe pending states). */
+  delay: Record<string, number>
   seq: number
 }
 
@@ -392,6 +394,7 @@ export function createSalesDb(overrides: Partial<SalesDb> = {}): SalesDb {
     calls: [],
     idempotency: new Map(),
     dropNext: [],
+    delay: {},
     seq: 0,
     ...overrides,
   }
@@ -592,7 +595,7 @@ export function salesHandlers(db: SalesDb) {
         item_code: it?.code ?? null,
         item_name: it?.name ?? null,
         item_type: it?.type ?? null,
-        variant_id: null,
+        variant_id: p.input.variant_id,
         description: p.input.description,
         quantity: qty6(dec(p.input.quantity)),
         unit_id: p.input.unit_id,
@@ -610,7 +613,7 @@ export function salesHandlers(db: SalesDb) {
         tax_rate: p.tax_rate,
         tax_amount: p.tax_amount,
         line_total: p.line_total,
-        warehouse_id: null,
+        warehouse_id: p.input.warehouse_id,
         source_line_id: null,
         delivered_quantity: '0.000000',
         invoiced_quantity: '0.000000',
@@ -679,6 +682,8 @@ export function salesHandlers(db: SalesDb) {
       const stored = db.idempotency.get(key)
       return HttpResponse.json(stored?.body as Record<string, unknown>, { status: stored?.status })
     }
+    const wait = db.delay[path]
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait))
     const res = await run()
     if (key && res.status < 500) {
       const body: unknown = await res
@@ -940,7 +945,7 @@ export function salesHandlers(db: SalesDb) {
     // ---- preview ------------------------------------------------------------------------
     http.post(`${API}/sales-documents/preview-totals`, async ({ request }) => {
       const body = (await request.json()) as PreviewTotalsInput
-      const lines = body.lines.map((l) => ({ ...l, description: null, warehouse_id: null }))
+      const lines = body.lines.map((l) => ({ ...l, description: null }))
       const result = price(lines)
       const fx = body.fx_rate
         ? dec(body.fx_rate)

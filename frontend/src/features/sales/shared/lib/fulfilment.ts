@@ -1,4 +1,5 @@
 import Decimal from 'decimal.js'
+import { createKeyStore } from './idempotency'
 import { CANONICAL, dec } from './lines'
 import type { SalesOrderLine } from '../types'
 
@@ -19,7 +20,10 @@ export function deliverableQuantity(line: SalesOrderLine, overPercent = '0'): De
  */
 export function invoiceableQuantity(line: SalesOrderLine, deliverOnInvoice = false): Decimal {
   const service = line.item_type === 'service'
-  const ceiling = service || deliverOnInvoice ? dec(line.quantity) : dec(line.delivered_quantity)
+  const delivered = dec(line.delivered_quantity)
+  // Deliver-on-invoice can reach the ordered quantity, or what was already delivered beyond it.
+  const ceiling =
+    service || deliverOnInvoice ? Decimal.max(dec(line.quantity), delivered) : delivered
   return max0(ceiling.minus(dec(line.invoiced_quantity))).toDecimalPlaces(6)
 }
 
@@ -63,3 +67,6 @@ export function fulfilmentLines(
     .filter(([, q]) => CANONICAL.test(q.trim()) && new Decimal(q.trim()).gt(0))
     .map(([id, q]) => ({ order_line_id: id, quantity: q.trim() }))
 }
+
+/** Keys of delivery/invoice creations (company + order + mode + body), outliving the wizard. */
+export const fulfilmentKeys = createKeyStore()
