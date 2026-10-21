@@ -16,7 +16,7 @@ import { formatDecimalDisplay } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
 import { useCompanyStore } from '@/stores/company'
 import { platform } from '@/platform'
-import { journalApi } from '../api/client'
+import { journalApi, knownRecordsOf } from '../api/client'
 import { journalKeys } from '../api/keys'
 import { balanceOf } from '../lib/balance'
 import { errorMessage, isVersionConflict } from '../lib/errors'
@@ -26,6 +26,7 @@ import {
   serverFieldMapper,
   toEntryInput,
   toEntryValues,
+  knownFromValues,
   type EntryValues,
 } from '../lib/lines'
 import { selectClass } from '../lib/ui'
@@ -112,8 +113,8 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
       setLastValues(values)
       const input = toEntryInput(values)
       return base
-        ? journalApi.update(base.id, { ...input, version: base.version })
-        : journalApi.create(input, keyFor(input))
+        ? journalApi.update(base.id, { ...input, version: base.version }, knownFromValues(values))
+        : journalApi.create(input, keyFor(input), knownFromValues(values))
     },
     onSuccess: (saved, { company: started }) => {
       queryClient.setQueryData(journalKeys.entry(saved.id, started ?? 'none'), saved)
@@ -133,6 +134,7 @@ export function JournalEntryEditor({ entry, onReload, onPosted }: JournalEntryEd
         target.id,
         target.version,
         keyFor({ post: target.id, version: target.version }),
+        knownRecordsOf(target),
       ),
     onSuccess: (posted, { company: started }) => {
       queryClient.setQueryData(journalKeys.entry(posted.id, started ?? 'none'), posted)

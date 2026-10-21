@@ -18,9 +18,10 @@ import { formatDecimalDisplay, INVALID_DECIMAL } from '@/lib/money'
 import { Can } from '@/lib/permissions'
 import { EntryStatusBadge } from '../components/EntryStatusBadge'
 import { ExportButtons } from '../components/ExportButtons'
-import { JournalAccountPicker, RefPicker } from '../components/pickers'
+import { AccountCombobox } from '@/features/accounting'
+import { RefPicker } from '../components/pickers'
 import { PresetsMenu } from '../components/PresetsMenu'
-import { useAccountRecord, useEntryList, usePartyRecord } from '../hooks/queries'
+import { useEntryList, usePartyRecord } from '../hooks/queries'
 import { ENTRY_STATUSES, ENTRY_TYPES, type JournalEntrySummary } from '../types'
 
 const VIEW_KEY = 'accounting.journal-entries'
@@ -84,7 +85,6 @@ export function JournalEntryListPage() {
   )
   const list = useEntryList(query)
   const f = (key: string) => query.filters[key] ?? ''
-  const account = useAccountRecord(f('account_id'))
   const party = usePartyRecord(f('party_id'))
   const change = (key: string, value: string) => setQuery(setFilter(query, key, value))
 
@@ -228,13 +228,10 @@ export function JournalEntryListPage() {
         </FieldShell>
         <FieldShell label={t('filters.account')} className="w-64">
           {(control) => (
-            <JournalAccountPicker
+            <AccountCombobox
               {...control}
-              postableOnly={false}
-              clearable
-              value={f('account_id')}
-              account={account.data ?? null}
-              onChange={(id) => change('account_id', id)}
+              value={f('account_id') || null}
+              onChange={(id) => change('account_id', id ?? '')}
             />
           )}
         </FieldShell>

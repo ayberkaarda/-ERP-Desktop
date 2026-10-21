@@ -27,17 +27,7 @@ export function useEntry(id: string | undefined) {
   })
 }
 
-/** Label source for an id that came from the URL or a preset (no search ran yet). */
-export function useAccountRecord(id: string) {
-  useCompany()
-  return useQuery({
-    queryKey: [...journalKeys.all(), 'account', id],
-    queryFn: ({ signal }) => lookupsApi.account(id, signal),
-    enabled: id !== '',
-    staleTime: 60_000,
-  })
-}
-
+/** Label source for a party id that came from the URL or a preset (no search ran yet). */
 export function usePartyRecord(id: string) {
   useCompany()
   return useQuery({

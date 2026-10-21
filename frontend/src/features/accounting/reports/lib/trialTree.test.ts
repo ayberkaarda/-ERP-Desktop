@@ -15,6 +15,8 @@ const row = (
   is_postable: true,
   opening_debit: '0',
   opening_credit: '0',
+  total_debit: '0',
+  total_credit: '0',
   debit: '0',
   credit: '0',
   balance_debit: '0',

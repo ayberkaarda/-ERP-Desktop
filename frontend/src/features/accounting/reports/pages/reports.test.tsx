@@ -103,6 +103,10 @@ describe('trial balance', () => {
       within(table).getByRole('button', { name: '102 alt hesaplarını aç' }),
     ).toBeInTheDocument()
 
+    // TDHP class subtotals from `groups` sit above the grand total.
+    expect(within(table).getByTestId('group-1')).toHaveTextContent('1 · Dönen Varlıklar')
+    expect(within(table).getByTestId('group-6')).toHaveTextContent('1.000,00')
+
     // Kasa: 1.200 debit - 500 credit; the code links to its ledger.
     const cashRow = within(table).getByText('Kasa').closest('tr')
     expect(cashRow).toHaveTextContent('1.200,00')

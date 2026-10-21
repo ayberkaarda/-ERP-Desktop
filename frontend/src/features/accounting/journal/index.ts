@@ -2,5 +2,4 @@
 export { journalRoutes } from './routes'
 export { journalCommands, registerJournalCommands } from './commands'
 export { journalKeys } from './api/keys'
-export { JournalAccountPicker } from './components/pickers'
 export type { JournalEntry, JournalEntrySummary, AccountRef } from './types'

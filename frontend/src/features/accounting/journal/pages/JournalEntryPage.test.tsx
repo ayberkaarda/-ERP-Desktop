@@ -171,6 +171,11 @@ describe('posted journal entry', () => {
       within(screen.getByRole('region', { name: 'Değişiklik geçmişi' })).getAllByRole('listitem')
         .length,
     ).toBeGreaterThan(0)
+    // The API names the causer by id only.
+    expect(
+      within(screen.getByRole('region', { name: 'Değişiklik geçmişi' })).getAllByText('Kullanıcı')
+        .length,
+    ).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Ters kayıt' }))
     const dialog = await screen.findByRole('dialog', { name: /2026\/000001 için ters kayıt/ })
@@ -181,7 +186,7 @@ describe('posted journal entry', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toMatch(/je-rev-/))
     const call = db.calls.find((c) => c.path === `/journal-entries/${ENTRY_POSTED}/reverse`)
-    expect(call?.body).toMatchObject({ reason: 'Hatalı tutar' })
+    expect(call?.body).toMatchObject({ reason: 'Hatalı tutar', version: 2 })
     expect(call?.headers.get('Idempotency-Key')).toBeTruthy()
     expect(await screen.findByText('Bu fiş şu fişin ters kaydıdır:')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '2026/000001' })).toHaveAttribute(

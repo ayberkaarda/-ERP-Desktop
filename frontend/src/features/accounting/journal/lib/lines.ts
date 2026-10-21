@@ -1,4 +1,5 @@
 import { toIsoDate } from '@/lib/datetime'
+import { refKey, type KnownRecords } from '../api/client'
 import type {
   AccountRef,
   EntryType,
@@ -170,4 +171,18 @@ export function serverFieldMapper(values: EntryValues) {
     }
     return parts.map(camel).join('.')
   }
+}
+
+/** Accounts and dimension records picked in the form, so a save needs no lookups for them. */
+export function knownFromValues(values: EntryValues): KnownRecords {
+  const accounts = new Map<string, AccountRef>()
+  const refs = new Map<string, NamedRef>()
+  for (const l of values.lines) {
+    if (l.accountId && l.account?.code) accounts.set(l.accountId, l.account)
+    if (l.partyId && l.party) refs.set(refKey('parties', l.partyId), l.party)
+    if (l.costCenterId && l.costCenter)
+      refs.set(refKey('cost-centers', l.costCenterId), l.costCenter)
+    if (l.projectId && l.project) refs.set(refKey('projects', l.projectId), l.project)
+  }
+  return { accounts, refs }
 }

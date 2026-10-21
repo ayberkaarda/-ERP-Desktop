@@ -17,16 +17,23 @@ import { ReverseDialog } from './ReverseDialog'
 
 const BASE = '/accounting/journal-entries'
 
-/** Audit info the API sends, or the entry's own create/post stamps when it sends none. */
-function auditEntries(entry: JournalEntry): AuditEntry[] {
-  if (entry.audit) return entry.audit
+/**
+ * The activity log the API sends (it names the causer by id only, shown as `userLabel`), or the
+ * entry's own create/post stamps when there is none.
+ */
+function auditEntries(entry: JournalEntry, userLabel: string): AuditEntry[] {
+  const named = (id: string | null | undefined) => (id ? { id, name: userLabel } : null)
+  if (entry.audit?.length)
+    return entry.audit.map((a) =>
+      a.causer && !a.causer.name ? { ...a, causer: { ...a.causer, name: userLabel } } : a,
+    )
   const out: AuditEntry[] = []
   if (entry.posted_at) {
     out.push({
       id: `${entry.id}-posted`,
       event: 'updated',
       description: 'posted',
-      causer: entry.posted_by_user ?? null,
+      causer: named(entry.posted_by),
       created_at: entry.posted_at,
       properties: {
         attributes: { status: 'posted', number: entry.number },
@@ -38,7 +45,7 @@ function auditEntries(entry: JournalEntry): AuditEntry[] {
     out.push({
       id: `${entry.id}-created`,
       event: 'created',
-      causer: entry.created_by_user ?? null,
+      causer: named(entry.created_by),
       created_at: entry.created_at,
       properties: null,
     })
@@ -99,10 +106,7 @@ export function JournalEntryView({ entry }: { entry: JournalEntry }) {
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">{t('view.postedAt')}</dt>
-              <dd>
-                {entry.posted_at ? formatDateTime(entry.posted_at, locale) : '—'}
-                {entry.posted_by_user ? ` · ${entry.posted_by_user.name}` : ''}
-              </dd>
+              <dd>{entry.posted_at ? formatDateTime(entry.posted_at, locale) : '—'}</dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">{t('fields.source')}</dt>
@@ -211,7 +215,7 @@ export function JournalEntryView({ entry }: { entry: JournalEntry }) {
         <aside className="space-y-2">
           <h2 className="text-sm font-semibold">{t('view.audit')}</h2>
           <AuditTrail
-            entries={auditEntries(entry)}
+            entries={auditEntries(entry, t('view.user'))}
             fieldLabels={{ status: t('fields.status'), number: t('fields.number') }}
             formatValue={(field, value) =>
               field === 'status' &&

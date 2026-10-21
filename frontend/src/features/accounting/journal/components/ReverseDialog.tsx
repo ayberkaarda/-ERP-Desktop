@@ -49,7 +49,7 @@ export function ReverseDialog({ entry, open, onOpenChange, onReversed }: Reverse
   })
   const mutation = useMutation({
     mutationFn: ({ v }: { v: ReverseValues; company: string }) => {
-      const body = { date: v.date, reason: v.reason.trim() }
+      const body = { date: v.date, reason: v.reason.trim(), version: entry.version }
       return journalApi.reverse(entry.id, body, keyFor({ id: entry.id, ...body }))
     },
     onSuccess: (reversal, { company }) => {

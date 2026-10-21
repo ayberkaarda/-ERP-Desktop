@@ -16,7 +16,8 @@ import { platform } from '@/platform'
 import { amountOf, balancingAmount, baseAmount, sameAmount } from '../lib/balance'
 import { emptyLine, lineColumns, type EntryValues, type LineValues } from '../lib/lines'
 import { MAX_LINES } from '../types'
-import { JournalAccountPicker, RefPicker } from './pickers'
+import { AccountCombobox } from '@/features/accounting'
+import { RefPicker } from './pickers'
 
 interface JournalLinesGridProps {
   disabled?: boolean
@@ -157,16 +158,15 @@ export function JournalLinesGrid({
       header: t('lines.account'),
       width: '17rem',
       render: (ctx) => (
-        <JournalAccountPicker
+        <AccountCombobox
           {...ctx.cell}
           ref={ctx.ref}
-          value={ctx.value}
-          account={ctx.line.account}
+          value={ctx.value || null}
           disabled={ctx.disabled}
           className="min-w-56"
           onBlur={ctx.onBlur}
           onChange={(id, account) => {
-            ctx.setValue(id)
+            ctx.setValue(id ?? '')
             set(`lines.${ctx.index}.account`, account)
           }}
         />

@@ -14,9 +14,9 @@ import { formatDecimalDisplay } from '@/lib/money'
 import { journalKeys } from '../../journal/api/keys'
 import { ExportButtons } from '../../journal/components/ExportButtons'
 import { LoadError } from '../../journal/components/LoadError'
-import { JournalAccountPicker } from '../../journal/components/pickers'
 import { PresetsMenu } from '../../journal/components/PresetsMenu'
-import { useAccountRecord, useCompany } from '../../journal/hooks/queries'
+import { AccountCombobox } from '@/features/accounting'
+import { useCompany } from '../../journal/hooks/queries'
 import { amountOf } from '../../journal/lib/balance'
 import { REPORT_PATHS, reportsApi } from '../api'
 import { RangeFields } from '../components/RangeFields'
@@ -50,7 +50,6 @@ export function GeneralLedgerPage() {
   useCompany()
   const { applied, apply, ready } = useReportParams(KEYS, DEFAULTS)
   const [draft, setDraft] = useState<ParamRecord>(applied)
-  const account = useAccountRecord(draft.account_id ?? '')
   const params = { account_id: applied.account_id ?? '', ...rangeParams(applied) }
   const valid = (p: ParamRecord) => Boolean(p.account_id) && hasRange(p)
   const enabled = ready && valid(applied)
@@ -115,6 +114,11 @@ export function GeneralLedgerPage() {
       </td>
       <td className="px-2 py-1">{t(`entryType.${row.entry_type}`)}</td>
       <td className="max-w-96 truncate px-2 py-1">
+        {meta && row.account_id !== meta.account.id && (
+          <span className="font-code text-muted-foreground" title={row.account_name}>
+            {row.account_code}{' '}
+          </span>
+        )}
         {row.description}
         {row.party && <span className="text-muted-foreground"> · {row.party.name}</span>}
       </td>
@@ -168,12 +172,13 @@ export function GeneralLedgerPage() {
       >
         <FieldShell label={t('ledger.account')} className="w-80" required>
           {(control) => (
-            <JournalAccountPicker
+            <AccountCombobox
               {...control}
               postableOnly={false}
-              value={draft.account_id ?? ''}
-              account={account.data ?? null}
-              onChange={(id) => setDraft((d) => ({ ...d, account_id: id }))}
+              value={
+                draft.account_id === undefined || draft.account_id === '' ? null : draft.account_id
+              }
+              onChange={(id) => setDraft((d) => ({ ...d, account_id: id ?? '' }))}
             />
           )}
         </FieldShell>
