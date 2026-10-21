@@ -26,6 +26,14 @@ export const partiesApi = {
   create: async (input: PartyInput, idempotencyKey: string) =>
     (await platform.http.post<{ data: Party }>(base, input, withIdempotency({}, idempotencyKey)))
       .data,
+  /** GET /parties/export: the filtered list as CSV or XLSX (the server caps the row count). */
+  export: (params: ListParams, format: 'csv' | 'xlsx') =>
+    platform.http.download(`${base}/export`, {
+      params: { ...params, format },
+      headers: {
+        Accept: `${format === 'csv' ? 'text/csv' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}, application/json`,
+      },
+    }),
   update: async (id: string, patch: PartyPatch) =>
     (await platform.http.patch<{ data: Party }>(one(id), patch)).data,
   /**

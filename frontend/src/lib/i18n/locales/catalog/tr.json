@@ -165,6 +165,7 @@
     "expandAll": "Tümünü aç",
     "collapseAll": "Tümünü kapat",
     "keyboardHint": "Ok tuşlarıyla gezinin; → açar, ← kapatır. Enter düzenler, Insert alt kategori ekler, M taşır, Delete siler.",
+    "keyboardHintReadOnly": "Ok tuşlarıyla gezinin; → açar, ← kapatır.",
     "dropRoot": "En üst düzeye taşımak için buraya bırakın",
     "addChild": "{{name}} altına kategori ekle",
     "edit": "{{name}} kategorisini düzenle",

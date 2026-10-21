@@ -33,7 +33,7 @@ describe('PeriodsBoardPage', () => {
   it('shows why closing is blocked when the period has draft entries', async () => {
     const db = setupAccounting()
     const feb = db.periods.find((p) => p.id === `${YEAR_2026}-p2`)
-    if (feb) feb.draft_entries_count = 3
+    if (feb) feb.draft_count = 3
     const user = userEvent.setup()
     renderAccounting(`/accounting/periods?year=${YEAR_2026}`)
     const card2 = await card(/^2 · Şubat 2026/)
@@ -50,7 +50,7 @@ describe('PeriodsBoardPage', () => {
     renderAccounting(`/accounting/periods?year=${YEAR_2026}`)
     const mar = await card(/^3 · Mart 2026/)
     const p = db.periods.find((x) => x.id === `${YEAR_2026}-p3`)
-    if (p) p.draft_entries_count = 2
+    if (p) p.draft_count = 2
     await user.click(within(mar).getByRole('button', { name: /dönemini kapat$/ }))
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Dönemi kapat' }))
@@ -71,7 +71,7 @@ describe('PeriodsBoardPage', () => {
     const dialog = await screen.findByRole('dialog')
     await user.click(within(dialog).getByRole('button', { name: 'Dönemi kapat' }))
     expect(
-      await within(dialog).findByText('Dönemde taslak fişler varken dönem kapatılamaz.'),
+      await within(dialog).findByText('Dönemde hâlâ 5 taslak yevmiye maddesi var.'),
     ).toBeInTheDocument()
     expect(within(dialog).getByText('Dönemdeki taslak fiş sayısı: 5.')).toBeInTheDocument()
     expect(db.periods.find((x) => x.id === `${YEAR_2026}-p4`)?.status).toBe('open')
@@ -80,7 +80,7 @@ describe('PeriodsBoardPage', () => {
   it('keeps the draft count live while the dialog is open', async () => {
     const db = setupAccounting()
     const feb = db.periods.find((p) => p.id === `${YEAR_2026}-p2`)
-    if (feb) feb.draft_entries_count = 3
+    if (feb) feb.draft_count = 3
     const user = userEvent.setup()
     const { queryClient } = renderAccounting(`/accounting/periods?year=${YEAR_2026}`)
     const card2 = await card(/^2 · Şubat 2026/)
@@ -89,7 +89,7 @@ describe('PeriodsBoardPage', () => {
     const confirm = within(dialog).getByRole('button', { name: 'Dönemi kapat' })
     expect(confirm).toBeDisabled()
     // The drafts get posted elsewhere; the next refresh unblocks the dialog.
-    if (feb) feb.draft_entries_count = 0
+    if (feb) feb.draft_count = 0
     await queryClient.invalidateQueries()
     await waitFor(() => expect(confirm).toBeEnabled())
     expect(within(dialog).queryByText('Dönem kapatılamıyor')).not.toBeInTheDocument()

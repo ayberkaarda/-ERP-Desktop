@@ -15,7 +15,7 @@ import { rulesApi } from '../../shared/api'
 import { AccountingShell, LoadError, NativeSelect } from '../../shared/components'
 import { errorMessage, isVersionConflict } from '../../shared/errors'
 import { useAccT } from '../../shared/i18n'
-import { accKeys } from '../../shared/keys'
+import { useAccKeys } from '../../shared/keys'
 import { useDeleteRule, useRules } from '../../shared/queries'
 import { SavedViewsMenu } from '../../shared/SavedViewsMenu'
 import {
@@ -58,6 +58,7 @@ function Conditions({ rule }: { rule: DeterminationRule }) {
 export function DeterminationPage() {
   const t = useAccT()
   const qc = useQueryClient()
+  const keys = useAccKeys()
   const [params, setParams] = useSearchParams()
   const rules = useRules()
   const remove = useDeleteRule()
@@ -124,7 +125,7 @@ export function DeterminationPage() {
       )
     } finally {
       // Always show the server's order: after a failure it is the truth to work from.
-      await qc.invalidateQueries({ queryKey: accKeys.rules() })
+      await qc.invalidateQueries({ queryKey: keys.rules() })
       setMoving(null)
     }
   }
@@ -406,7 +407,7 @@ export function DeterminationPage() {
           ))}
         </div>
         <div className="lg:sticky lg:top-4 lg:self-start">
-          <TestPanel events={events} onResult={setMatched} />
+          <TestPanel events={events} rules={rules.data ?? []} onResult={setMatched} />
         </div>
       </div>
       {editor && (

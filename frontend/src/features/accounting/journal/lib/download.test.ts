@@ -26,14 +26,14 @@ describe('downloadFile', () => {
     const db = setupAccounting2()
     const { saved, restore } = captureDownloads()
     await downloadFile(exportPath('/reports/trial-balance'), {
-      params: { format: 'csv', date_from: '2026-01-01' },
+      params: { format: 'csv', date_from: '2026-01-01', date_to: '2026-01-31' },
       mime: EXPORT_MIME.csv,
       filename: exportFilename('mizan', 'csv', '2026-01-31'),
     })
     const call = db.calls.find((c) => c.path === '/reports/trial-balance/export')
     expect(call?.url.searchParams.get('format')).toBe('csv')
     expect(call?.headers.get('X-Company-Id')).toBe(COMPANY_A)
-    expect(saved[0]?.name).toBe('trial-balance-sunucu.csv')
+    expect(saved[0]?.name).toBe('trial-balance-20260121-100000.csv')
     expect(await saved[0]?.blob.text()).toContain('/reports/trial-balance/export')
     restore()
   })
@@ -48,7 +48,7 @@ describe('downloadFile', () => {
     })
     const bytes = new Uint8Array(await (saved[0]?.blob ?? new Blob()).arrayBuffer())
     expect([...bytes]).toEqual(XLSX_BYTES)
-    expect(saved[0]?.name).toBe('yevmiye-fisleri-sunucu.xlsx')
+    expect(saved[0]?.name).toBe('journal-20260121-100000.xlsx')
     restore()
   })
 

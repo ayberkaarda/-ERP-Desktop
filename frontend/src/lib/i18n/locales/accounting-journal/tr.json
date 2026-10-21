@@ -75,12 +75,6 @@
     "xlsx": "Excel",
     "failed": "Dosya indirilemedi."
   },
-  "picker": {
-    "currency": "Döviz: {{code}}",
-    "requiresParty": "Cari zorunlu",
-    "requiresCostCenter": "Masraf merkezi zorunlu",
-    "requiresProject": "Proje zorunlu"
-  },
   "lines": {
     "title": "Fiş satırları",
     "account": "Hesap",
@@ -167,7 +161,8 @@
     "reversedBy": "Ters kaydı:",
     "openEntry": "fişi aç",
     "reason": "Gerekçe",
-    "audit": "İşlem geçmişi"
+    "audit": "İşlem geçmişi",
+    "user": "Kullanıcı"
   },
   "conflict": {
     "title": "Fiş başka biri tarafından değiştirildi",
@@ -215,7 +210,8 @@
     "expandAll": "Tümünü aç",
     "collapseAll": "Tümünü kapat",
     "expand": "{{code}} alt hesaplarını aç",
-    "collapse": "{{code}} alt hesaplarını kapat"
+    "collapse": "{{code}} alt hesaplarını kapat",
+    "group": "{{group}} · {{name}}"
   },
   "ledger": {
     "title": "Büyük defter",
@@ -246,7 +242,8 @@
     "carriedForward": "Nakledilen",
     "grandTotal": "Genel toplam",
     "empty": "Bu aralıkta kesinleşmiş fiş yok.",
-    "tooLarge": "Aralık ekranda gösterilemeyecek kadar büyük; aralığı daraltın ya da dışa aktarın."
+    "tooLarge": "Aralık ekranda gösterilemeyecek kadar büyük; aralığı daraltın ya da dışa aktarın.",
+    "changed": "Yevmiye defteri yüklenirken yeni kayıtlar işlendi; toplamlar tutmuyor. Yeniden yükleyin."
   },
   "changed": {
     "title": "Fiş başka bir yerde değişti",

@@ -7,6 +7,7 @@ import { DecimalInput } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIntlLocale } from '@/lib/datetime'
+import { usePermission } from '@/lib/permissions'
 import { formatDecimalDisplay, INVALID_DECIMAL } from '@/lib/money'
 import { isApiError, platform } from '@/platform'
 import { conversionsApi } from '../api/client'
@@ -21,6 +22,7 @@ import {
   type MatrixChange,
 } from '../lib/conversion'
 import { errorMessage, isVersionConflict } from '../lib/errors'
+import { CATALOG_ACCESS } from '../permissions'
 import { VersionConflictAlert } from './VersionConflictAlert'
 
 function changeKey(c: MatrixChange) {
@@ -40,6 +42,7 @@ export function ConversionMatrix() {
   const units = useUnits()
   const conversions = useConversions()
   const idem = useIdempotencyKey()
+  const canManage = usePermission(CATALOG_ACCESS.units.manage)
   const [edits, setEdits] = useState<Record<string, string>>({})
   const [cellErrors, setCellErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -217,7 +220,7 @@ export function ConversionMatrix() {
                         aria-invalid={error ? true : undefined}
                         aria-describedby={error ? errorId : undefined}
                         className="h-control-sm text-right"
-                        disabled={saving}
+                        disabled={saving || !canManage}
                       />
                       {error && (
                         <p id={errorId} className="mt-0.5 max-w-40 text-2xs text-danger">
@@ -232,32 +235,34 @@ export function ConversionMatrix() {
           </tbody>
         </table>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <span className="mr-auto text-xs text-muted-foreground" role="status">
-          {changes.length > 0
-            ? t('conversions.pending', { count: changes.length })
-            : t('conversions.noChanges')}
-        </span>
-        <Button
-          variant="secondary"
-          onClick={reset}
-          disabled={saving || Object.keys(edits).length === 0}
-        >
-          <RotateCcw aria-hidden="true" />
-          {t('actions.discard')}
-        </Button>
-        <Button
-          onClick={() => void save()}
-          disabled={saving || hasLocalErrors || changes.length === 0}
-        >
-          {saving ? (
-            <Loader2 className="animate-spin" aria-hidden="true" />
-          ) : (
-            <Save aria-hidden="true" />
-          )}
-          {t('conversions.save')}
-        </Button>
-      </div>
+      {canManage && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="mr-auto text-xs text-muted-foreground" role="status">
+            {changes.length > 0
+              ? t('conversions.pending', { count: changes.length })
+              : t('conversions.noChanges')}
+          </span>
+          <Button
+            variant="secondary"
+            onClick={reset}
+            disabled={saving || Object.keys(edits).length === 0}
+          >
+            <RotateCcw aria-hidden="true" />
+            {t('actions.discard')}
+          </Button>
+          <Button
+            onClick={() => void save()}
+            disabled={saving || hasLocalErrors || changes.length === 0}
+          >
+            {saving ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Save aria-hidden="true" />
+            )}
+            {t('conversions.save')}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }

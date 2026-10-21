@@ -75,12 +75,6 @@
     "xlsx": "Excel",
     "failed": "The file could not be downloaded."
   },
-  "picker": {
-    "currency": "Currency: {{code}}",
-    "requiresParty": "Party required",
-    "requiresCostCenter": "Cost center required",
-    "requiresProject": "Project required"
-  },
   "lines": {
     "title": "Entry lines",
     "account": "Account",
@@ -167,7 +161,8 @@
     "reversedBy": "Reversed by:",
     "openEntry": "open entry",
     "reason": "Reason",
-    "audit": "History"
+    "audit": "History",
+    "user": "User"
   },
   "conflict": {
     "title": "Someone else changed this entry",
@@ -215,7 +210,8 @@
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
     "expand": "Expand sub-accounts of {{code}}",
-    "collapse": "Collapse sub-accounts of {{code}}"
+    "collapse": "Collapse sub-accounts of {{code}}",
+    "group": "{{group}} · {{name}}"
   },
   "ledger": {
     "title": "General ledger",
@@ -246,7 +242,8 @@
     "carriedForward": "Carried forward",
     "grandTotal": "Grand total",
     "empty": "No posted entries in this range.",
-    "tooLarge": "The range is too large to show on screen; narrow it or export."
+    "tooLarge": "The range is too large to show on screen; narrow it or export.",
+    "changed": "New entries were booked while the journal book was loading, so the totals do not match. Reload it."
   },
   "changed": {
     "title": "The entry changed elsewhere",

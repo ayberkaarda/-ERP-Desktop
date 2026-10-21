@@ -54,6 +54,55 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Sistem durumu' })).toBeInTheDocument()
   })
 
+  it('shows the accounting section entries the company grants', () => {
+    signInWith(['accounting.entries.view', 'accounting.reports.view'])
+    renderSidebar()
+
+    const accounting = screen.getByRole('group', { name: 'Muhasebe' })
+    expect(within(accounting).getByRole('link', { name: 'Yevmiye fişleri' })).toHaveAttribute(
+      'href',
+      '/accounting/journal-entries',
+    )
+    for (const name of ['Mizan', 'Büyük defter', 'Yevmiye defteri']) {
+      expect(within(accounting).getByRole('link', { name })).toBeInTheDocument()
+    }
+    expect(within(accounting).queryByRole('link', { name: 'Hesap planı' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Hesap belirleme' })).not.toBeInTheDocument()
+  })
+
+  it('shows read-or-manage entries to holders of the manage permission alone', () => {
+    signInWith([
+      'units.manage',
+      'item_categories.manage',
+      'discount_rules.manage',
+      'accounting.accounts.manage',
+      'accounting.periods.close',
+    ])
+    renderSidebar()
+
+    const master = screen.getByRole('group', { name: 'Ana veriler' })
+    for (const name of ['Birimler', 'Kategoriler', 'İskonto kuralları']) {
+      expect(within(master).getByRole('link', { name })).toBeInTheDocument()
+    }
+    const accounting = screen.getByRole('group', { name: 'Muhasebe' })
+    expect(within(accounting).getByRole('link', { name: 'Hesap planı' })).toBeInTheDocument()
+    expect(within(accounting).getByRole('link', { name: 'Muhasebe dönemleri' })).toBeInTheDocument()
+    // Fiscal years accept periods.view or periods.manage, not periods.close.
+    expect(within(accounting).queryByRole('link', { name: 'Mali yıllar' })).not.toBeInTheDocument()
+  })
+
+  it('lists every accounting entry for a super admin', () => {
+    signInWith([], true)
+    renderSidebar()
+
+    const accounting = screen.getByRole('group', { name: 'Muhasebe' })
+    expect(within(accounting).getAllByRole('link')).toHaveLength(8)
+    expect(within(accounting).getByRole('link', { name: 'Hesap planı' })).toHaveAttribute(
+      'href',
+      '/accounting/accounts',
+    )
+  })
+
   it('lists every master data and reference entry for a super admin', () => {
     signInWith([], true)
     renderSidebar()

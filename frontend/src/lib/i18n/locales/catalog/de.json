@@ -165,6 +165,7 @@
     "expandAll": "Alle aufklappen",
     "collapseAll": "Alle zuklappen",
     "keyboardHint": "Mit den Pfeiltasten navigieren; → klappt auf, ← klappt zu. Enter bearbeitet, Einfg fügt eine Unterkategorie hinzu, M verschiebt, Entf löscht.",
+    "keyboardHintReadOnly": "Mit den Pfeiltasten navigieren; → klappt auf, ← klappt zu.",
     "dropRoot": "Hier ablegen, um auf die oberste Ebene zu verschieben",
     "addChild": "Kategorie unter {{name}} hinzufügen",
     "edit": "Kategorie {{name}} bearbeiten",

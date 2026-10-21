@@ -1,22 +1,20 @@
 import { FolderTree, Upload } from 'lucide-react'
 import { registerCommands, type Command } from '@/features/command-palette/registry'
 import { navCommand } from '../shared/commandUtils'
-import { ACC_PERMISSIONS } from '../shared/permissions'
+import { ACC_ACCESS, ACC_PERMISSIONS } from '../shared/permissions'
 
 export const accountsCommands: readonly Command[] = [
-  navCommand(
-    'accounts',
-    '/accounting/accounts',
-    'accounts',
-    ACC_PERMISSIONS.accounts.view,
-    FolderTree,
-    ['hesap planı', 'chart of accounts', 'tdhp', 'hesap'],
-  ),
+  navCommand('accounts', '/accounting/accounts', 'accounts', ACC_ACCESS.accounts, FolderTree, [
+    'hesap planı',
+    'chart of accounts',
+    'tdhp',
+    'hesap',
+  ]),
   navCommand(
     'accounts-flat',
     '/accounting/accounts?view=flat',
     'accountsFlat',
-    ACC_PERMISSIONS.accounts.view,
+    ACC_ACCESS.accounts,
     FolderTree,
     ['hesap listesi', 'account list'],
   ),

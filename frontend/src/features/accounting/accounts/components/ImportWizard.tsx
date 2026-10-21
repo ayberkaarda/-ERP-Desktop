@@ -18,7 +18,7 @@ import { accountsApi } from '../../shared/api'
 import { errorMessage, fieldMessages, isUncertain } from '../../shared/errors'
 import { usePayloadKeys } from '../../shared/idempotency'
 import { useAccT } from '../../shared/i18n'
-import { accKeys } from '../../shared/keys'
+import { useAccKeys } from '../../shared/keys'
 import type { ImportResult, ImportRowResult, ImportRowStatus } from '../../shared/types'
 import {
   errorReportCsv,
@@ -157,6 +157,7 @@ export function ImportWizard({ onClose }: { onClose: () => void }) {
   const t = useAccT()
   const { t: tc } = useTranslation('common')
   const qc = useQueryClient()
+  const keys = useAccKeys()
   const inputId = useId()
   const [step, setStep] = useState<Step>('file')
   const [picked, setPicked] = useState<Picked | null>(null)
@@ -222,7 +223,7 @@ export function ImportWizard({ onClose }: { onClose: () => void }) {
         setStep('review')
         return
       }
-      void qc.invalidateQueries({ queryKey: accKeys.accounts() })
+      void qc.invalidateQueries({ queryKey: keys.accounts() })
       setResult(res)
       setOnlyErrors(res.failed > 0)
       setStep('done')

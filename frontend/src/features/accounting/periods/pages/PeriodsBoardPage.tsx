@@ -189,7 +189,7 @@ export function PeriodsBoardPage() {
         >
           {sorted.map((p) => {
             const isCurrent = p.start_date <= today && today <= p.end_date
-            const drafts = p.draft_entries_count ?? 0
+            const drafts = p.draft_count ?? 0
             const actions = year?.status === 'closed' ? [] : allowedActions(p).filter(canDo)
             return (
               <li

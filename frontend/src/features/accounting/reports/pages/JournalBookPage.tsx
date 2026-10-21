@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
-import { isApiError } from '@/platform'
+import { ApiError, isApiError } from '@/platform'
 import { journalKeys } from '../../journal/api/keys'
 import { ExportButtons } from '../../journal/components/ExportButtons'
 import { LoadError } from '../../journal/components/LoadError'
@@ -18,7 +18,7 @@ import { PresetsMenu } from '../../journal/components/PresetsMenu'
 import { useCompany } from '../../journal/hooks/queries'
 import { amountOf } from '../../journal/lib/balance'
 import { selectClass } from '../../journal/lib/ui'
-import { BOOK_TOO_LARGE, REPORT_PATHS, reportsApi } from '../api'
+import { BOOK_CHANGED, BOOK_TOO_LARGE, REPORT_PATHS, reportsApi } from '../api'
 import { RangeFields } from '../components/RangeFields'
 import {
   BOOK_PAGE_SIZES,
@@ -169,7 +169,14 @@ export function JournalBookPage() {
             {t('book.tooLarge')}
           </p>
         ) : (
-          <LoadError error={book.error} onRetry={() => void book.refetch()} />
+          <LoadError
+            error={
+              isApiError(book.error) && book.error.code === BOOK_CHANGED
+                ? new ApiError(0, BOOK_CHANGED, t('book.changed'))
+                : book.error
+            }
+            onRetry={() => void book.refetch()}
+          />
         )
       ) : book.data.entries.length === 0 ? (
         <EmptyState description={t('book.empty')} />
@@ -184,8 +191,8 @@ export function JournalBookPage() {
               <div className="mb-2 flex items-baseline justify-between text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{t('book.title')}</span>
                 <span>
-                  {formatDate(book.data.entries[0]?.entry_date ?? '', locale)} –{' '}
-                  {formatDate(book.data.entries.at(-1)?.entry_date ?? '', locale)}
+                  {formatDate(book.data.range.date_from, locale)} –{' '}
+                  {formatDate(book.data.range.date_to, locale)}
                 </span>
                 <span>{t('book.page', { number: page.number, total: pages.length })}</span>
               </div>

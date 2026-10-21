@@ -75,12 +75,6 @@
     "xlsx": "Excel",
     "failed": "Die Datei konnte nicht heruntergeladen werden."
   },
-  "picker": {
-    "currency": "Währung: {{code}}",
-    "requiresParty": "Geschäftspartner erforderlich",
-    "requiresCostCenter": "Kostenstelle erforderlich",
-    "requiresProject": "Projekt erforderlich"
-  },
   "lines": {
     "title": "Buchungszeilen",
     "account": "Konto",
@@ -167,7 +161,8 @@
     "reversedBy": "Storniert durch:",
     "openEntry": "Buchung öffnen",
     "reason": "Begründung",
-    "audit": "Verlauf"
+    "audit": "Verlauf",
+    "user": "Benutzer"
   },
   "conflict": {
     "title": "Die Buchung wurde von jemand anderem geändert",
@@ -215,7 +210,8 @@
     "expandAll": "Alle aufklappen",
     "collapseAll": "Alle zuklappen",
     "expand": "Unterkonten von {{code}} aufklappen",
-    "collapse": "Unterkonten von {{code}} zuklappen"
+    "collapse": "Unterkonten von {{code}} zuklappen",
+    "group": "{{group}} · {{name}}"
   },
   "ledger": {
     "title": "Hauptbuch",
@@ -246,7 +242,8 @@
     "carriedForward": "Vortrag",
     "grandTotal": "Gesamtsumme",
     "empty": "Keine gebuchten Buchungen in diesem Zeitraum.",
-    "tooLarge": "Der Zeitraum ist zu groß für die Anzeige; grenzen Sie ihn ein oder exportieren Sie."
+    "tooLarge": "Der Zeitraum ist zu groß für die Anzeige; grenzen Sie ihn ein oder exportieren Sie.",
+    "changed": "Während das Journal geladen wurde, wurden neue Buchungen erfasst; die Summen stimmen nicht. Bitte neu laden."
   },
   "changed": {
     "title": "Die Buchung wurde an anderer Stelle geändert",

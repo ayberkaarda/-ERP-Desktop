@@ -10,8 +10,8 @@ use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
 /**
- * Referential checks behind the Phase 2 integration foreign keys (company_id and cross-module
- * references of Reference, Parties and Catalog). Works on table and column names only (no other
+ * Referential checks behind the integration foreign keys (company_id and cross-module references
+ * of Reference, Parties and Catalog from Phase 2, and of Accounting from Phase 3). Works on table and column names only (no other
  * module's models), so it can run in migrations, commands and on installs missing a module.
  *
  * - orphans(): rows whose reference points at no row at all (what a foreign key would reject).
@@ -55,6 +55,30 @@ final class MasterDataIntegrity
         ['price_lists', 'currency_code', 'currencies', 'code', false],
     ];
 
+    /** company_id -> companies.id for the Accounting tables. */
+    public const array ACCOUNTING_COMPANY_TABLES = [
+        'fiscal_years', 'accounting_periods', 'accounts', 'journal_entries', 'journal_lines',
+        'account_balances', 'account_determination_rules',
+    ];
+
+    /**
+     * Accounting references to other modules: table, column, referenced table, referenced column.
+     * None is repairable: ledger rows are evidence and posted ones cannot change at all.
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public const array ACCOUNTING_CROSS_MODULE = [
+        ['accounts', 'currency_code', 'currencies', 'code'],
+        ['journal_lines', 'currency_code', 'currencies', 'code'],
+        ['journal_lines', 'party_id', 'parties', 'id'],
+        ['journal_lines', 'cost_center_id', 'cost_centers', 'id'],
+        ['journal_lines', 'project_id', 'projects', 'id'],
+        ['fiscal_years', 'closed_by', 'users', 'id'],
+        ['accounting_periods', 'closed_by', 'users', 'id'],
+        ['journal_entries', 'posted_by', 'users', 'id'],
+        ['journal_entries', 'created_by', 'users', 'id'],
+    ];
+
     /**
      * References between company scoped records (table, column, referenced table) checked for
      * crossing companies. Global rows (company_id NULL, e.g. seeded tax codes) are allowed.
@@ -70,6 +94,9 @@ final class MasterDataIntegrity
         ['projects', 'cost_center_id', 'cost_centers'],
         ['warehouses', 'branch_id', 'branches'],
         ['discount_rules', 'party_id', 'parties'],
+        ['journal_lines', 'party_id', 'parties'],
+        ['journal_lines', 'cost_center_id', 'cost_centers'],
+        ['journal_lines', 'project_id', 'projects'],
     ];
 
     public function __construct(private readonly Connection $db) {}
@@ -90,6 +117,20 @@ final class MasterDataIntegrity
     public static function crossModuleKeys(): array
     {
         return array_values(array_map(static fn (array $key): array => [$key[0], $key[1], $key[2], $key[3]], self::CROSS_MODULE));
+    }
+
+    /**
+     * Keys of the Accounting integration migration: company_id of every Accounting table, then the
+     * cross-module references.
+     *
+     * @return list<array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function accountingKeys(): array
+    {
+        return [
+            ...array_map(static fn (string $table): array => [$table, 'company_id', 'companies', 'id'], self::ACCOUNTING_COMPANY_TABLES),
+            ...self::ACCOUNTING_CROSS_MODULE,
+        ];
     }
 
     /**
@@ -119,7 +160,7 @@ final class MasterDataIntegrity
      *
      * @param  list<array{0: string, 1: string, 2: string, 3: string}>  $keys
      */
-    public function assertNoOrphans(array $keys): void
+    public function assertNoOrphans(array $keys, ?string $hint = null): void
     {
         $orphans = $this->orphans($keys);
         if ($orphans === []) {
@@ -128,9 +169,9 @@ final class MasterDataIntegrity
         $lines = array_map(static fn (string $ref, int $count): string => "  {$ref}: {$count}", array_keys($orphans), $orphans);
 
         throw new RuntimeException(
-            "Cannot add master data foreign keys: rows reference missing records.\n".implode("\n", $lines)."\n"
-            .'Review them with `php artisan master-data:repair-orphans --dry-run`; the command clears the references '
-            .'that may become empty, the others need a manual fix. Then run the migration again.',
+            "Cannot add foreign keys: rows reference missing records.\n".implode("\n", $lines)."\n"
+            .($hint ?? 'Review them with `php artisan master-data:repair-orphans --dry-run`; the command clears the references '
+            .'that may become empty, the others need a manual fix. Then run the migration again.'),
         );
     }
 
@@ -201,10 +242,10 @@ final class MasterDataIntegrity
      *
      * @param  list<array{0: string, 1: string, 2: string, 3: string}>  $keys
      */
-    public function addKeys(array $keys): void
+    public function addKeys(array $keys, ?string $hint = null): void
     {
         $keys = array_values(array_filter($keys, fn (array $key): bool => $this->present($key[0], $key[2])));
-        $this->assertNoOrphans($keys);
+        $this->assertNoOrphans($keys, $hint);
         foreach ($keys as [$table, $column, $references, $key]) {
             if (! $this->constraintExists($table, self::constraintName($table, $column))) {
                 $this->db->statement(sprintf(

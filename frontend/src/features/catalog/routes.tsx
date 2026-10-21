@@ -1,20 +1,23 @@
 import type { RouteObject } from 'react-router'
 import { RequireAuth } from '@/app/guards'
+import type { PermissionRequirement } from '@/lib/permissions'
+import { CATALOG_OPEN } from './permissions'
 
 /** Wraps lazy pages in a permission guard (forbidden state when the company lacks it). */
-function guarded(permission: string | string[], children: RouteObject[]): RouteObject {
+function guarded(permission: PermissionRequirement, children: RouteObject[]): RouteObject {
   return { element: <RequireAuth permission={permission} />, children }
 }
 
 // Mounted under the authenticated shell; paths are relative to "/".
 export const catalogRoutes: RouteObject[] = [
-  guarded('units.manage', [
+  // Read or manage opens these pages; the pages gate their write actions on manage.
+  guarded(CATALOG_OPEN.units, [
     {
       path: 'catalog/units',
       lazy: async () => ({ Component: (await import('./pages/UnitsPage')).UnitsPage }),
     },
   ]),
-  guarded('item_categories.manage', [
+  guarded(CATALOG_OPEN.categories, [
     {
       path: 'catalog/categories',
       lazy: async () => ({ Component: (await import('./pages/CategoriesPage')).CategoriesPage }),
@@ -64,7 +67,7 @@ export const catalogRoutes: RouteObject[] = [
       },
     ],
   ),
-  guarded('discount_rules.manage', [
+  guarded(CATALOG_OPEN.discountRules, [
     {
       path: 'catalog/discount-rules',
       lazy: async () => ({

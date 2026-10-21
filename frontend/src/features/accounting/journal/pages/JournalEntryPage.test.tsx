@@ -151,6 +151,22 @@ describe('journal entry editor', () => {
     expect(screen.queryByRole('button', { name: 'Kesinleştir' })).not.toBeInTheDocument()
   })
 
+  it('posts an unchanged stored draft with the post permission alone', async () => {
+    const db = setupAccounting2({
+      permissions: ['accounting.entries.view', 'accounting.entries.post'],
+    })
+    const user = userEvent.setup()
+    renderAccounting2(`/accounting/journal-entries/${ENTRY_DRAFT}`)
+    await user.click(await screen.findByRole('button', { name: 'Kesinleştir' }))
+    expect(screen.queryByRole('button', { name: 'Taslağı kaydet' })).not.toBeInTheDocument()
+    const confirm = await screen.findByRole('alertdialog')
+    await user.click(within(confirm).getByRole('button', { name: 'Kesinleştir' }))
+    expect(await screen.findByRole('dialog', { name: /Fiş kesinleşti/ })).toBeInTheDocument()
+    expect(db.calls.some((c) => c.path === `/journal-entries/${ENTRY_DRAFT}/post`)).toBe(true)
+    // Nothing is saved first: the draft was not changed.
+    expect(db.calls.some((c) => c.method === 'PATCH')).toBe(false)
+  })
+
   it('guards the routes by permission', async () => {
     setupAccounting2({ permissions: ['accounting.entries.view'] })
     renderAccounting2('/accounting/journal-entries/new')
@@ -171,6 +187,11 @@ describe('posted journal entry', () => {
       within(screen.getByRole('region', { name: 'Değişiklik geçmişi' })).getAllByRole('listitem')
         .length,
     ).toBeGreaterThan(0)
+    // The API names the causer by id only.
+    expect(
+      within(screen.getByRole('region', { name: 'Değişiklik geçmişi' })).getAllByText('Kullanıcı')
+        .length,
+    ).toBeGreaterThan(0)
 
     await user.click(screen.getByRole('button', { name: 'Ters kayıt' }))
     const dialog = await screen.findByRole('dialog', { name: /2026\/000001 için ters kayıt/ })
@@ -181,7 +202,7 @@ describe('posted journal entry', () => {
 
     await waitFor(() => expect(router.state.location.pathname).toMatch(/je-rev-/))
     const call = db.calls.find((c) => c.path === `/journal-entries/${ENTRY_POSTED}/reverse`)
-    expect(call?.body).toMatchObject({ reason: 'Hatalı tutar' })
+    expect(call?.body).toMatchObject({ reason: 'Hatalı tutar', version: 2 })
     expect(call?.headers.get('Idempotency-Key')).toBeTruthy()
     expect(await screen.findByText('Bu fiş şu fişin ters kaydıdır:')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '2026/000001' })).toHaveAttribute(

@@ -402,9 +402,13 @@
     },
     "conditionKeys": {
       "party_group": "Groupe de tiers",
+      "party_id": "Tiers",
       "item_category": "Catégorie d’article",
+      "item_id": "Article",
       "currency": "Devise",
-      "tax_code": "Code de taxe"
+      "tax_code": "Code de taxe",
+      "warehouse_id": "Entrepôt",
+      "branch_id": "Établissement"
     },
     "groups": {
       "sales": "Ventes",

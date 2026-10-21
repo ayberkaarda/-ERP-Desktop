@@ -62,6 +62,11 @@ describe('DeterminationPage', () => {
       .find((r) => r.dataset.matched)
     expect(matched && within(matched).getByText('Para birimi: EUR | GBP')).toBeTruthy()
 
+    // Without context the rule without conditions answers: the fallback (default) rule.
+    await user.clear(within(panel).getByLabelText('Para birimi'))
+    await user.click(within(panel).getByRole('button', { name: 'Test et' }))
+    expect(await within(panel).findByText('Varsayılan kural')).toBeInTheDocument()
+
     await user.selectOptions(within(panel).getByLabelText(/^Olay/), 'fx.gain')
     await user.click(within(panel).getByRole('button', { name: 'Test et' }))
     expect(await within(panel).findByText('fx.gain için hesap belirlenemedi.')).toBeInTheDocument()

@@ -1,5 +1,6 @@
 import { Boxes, Calculator, FolderTree, Percent, Plus, Ruler, Tags } from 'lucide-react'
 import { registerCommands, type Command } from '@/features/command-palette/registry'
+import { CATALOG_OPEN } from './permissions'
 
 /** Palette entries for the catalog; each is hidden unless its permission is granted. */
 export function catalogCommands(): Command[] {
@@ -33,7 +34,8 @@ export function catalogCommands(): Command[] {
       id: 'catalog.units',
       group: 'navigation',
       icon: Ruler,
-      permission: 'units.manage',
+      // Readers of these records see the entries; the pages gate their write actions.
+      permission: CATALOG_OPEN.units,
       title: (t) => t('nav.units', { ns: 'catalog' }),
       keywords: () => ['unit', 'birim', 'dönüşüm', 'conversion'],
       run: ({ navigate }) => navigate('/catalog/units'),
@@ -42,7 +44,7 @@ export function catalogCommands(): Command[] {
       id: 'catalog.categories',
       group: 'navigation',
       icon: FolderTree,
-      permission: 'item_categories.manage',
+      permission: CATALOG_OPEN.categories,
       title: (t) => t('nav.categories', { ns: 'catalog' }),
       keywords: () => ['category', 'kategori', 'grup'],
       run: ({ navigate }) => navigate('/catalog/categories'),
@@ -69,7 +71,7 @@ export function catalogCommands(): Command[] {
       id: 'catalog.discountRules',
       group: 'navigation',
       icon: Percent,
-      permission: 'discount_rules.manage',
+      permission: CATALOG_OPEN.discountRules,
       title: (t) => t('nav.discountRules', { ns: 'catalog' }),
       keywords: () => ['discount', 'indirim', 'iskonto'],
       run: ({ navigate }) => navigate('/catalog/discount-rules'),

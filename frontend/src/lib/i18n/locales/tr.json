@@ -43,7 +43,15 @@
     "warehouses": "Depolar",
     "costCenters": "Masraf merkezleri",
     "projects": "Projeler",
-    "referenceSettings": "Referans ayarları"
+    "referenceSettings": "Referans ayarları",
+    "journalEntries": "Yevmiye fişleri",
+    "chartOfAccounts": "Hesap planı",
+    "trialBalance": "Mizan",
+    "generalLedger": "Büyük defter",
+    "journalBook": "Yevmiye defteri",
+    "fiscalYears": "Mali yıllar",
+    "accountingPeriods": "Muhasebe dönemleri",
+    "accountDetermination": "Hesap belirleme"
   },
   "topbar": {
     "company": "Şirket",

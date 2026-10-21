@@ -324,7 +324,29 @@ export function TrialBalancePage() {
                 })}
               </tbody>
               <tfoot className="border-t-2 border-border-strong bg-surface-sunken">
-                <tr>
+                {report.data.groups.map((g) => (
+                  <tr
+                    key={`group-${g.tdhp_group}`}
+                    className="border-t border-border text-muted-foreground"
+                    data-testid={`group-${g.tdhp_group}`}
+                  >
+                    <th scope="row" className="px-2 py-1 text-left font-normal">
+                      {t('trialBalance.group', { group: g.tdhp_group, name: g.name })}
+                    </th>
+                    {amountCells(g)}
+                    {compare && (
+                      <>
+                        <td className="px-2 py-1 text-right tabular-nums">
+                          {money(g.previous?.balance_debit)}
+                        </td>
+                        <td className="px-2 py-1 text-right tabular-nums">
+                          {money(g.previous?.balance_credit)}
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+                <tr className="border-t border-border-strong">
                   <th scope="row" className="px-2 py-2 text-left">
                     {t('trialBalance.totals')}
                   </th>

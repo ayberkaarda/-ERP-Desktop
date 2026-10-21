@@ -74,7 +74,10 @@ export interface TotalsCheck {
 }
 
 /** The mizan's control: total debit = total credit for movements and for balances. */
-export function checkTotals(totals: TrialBalanceAmounts): TotalsCheck {
+export function checkTotals(
+  totals: Partial<TrialBalanceAmounts> &
+    Pick<TrialBalanceAmounts, 'debit' | 'credit' | 'balance_debit' | 'balance_credit'>,
+): TotalsCheck {
   const movement = amountOf(totals.debit).minus(amountOf(totals.credit))
   const balance = amountOf(totals.balance_debit).minus(amountOf(totals.balance_credit))
   return {

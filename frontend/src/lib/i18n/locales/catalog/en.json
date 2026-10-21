@@ -165,6 +165,7 @@
     "expandAll": "Expand all",
     "collapseAll": "Collapse all",
     "keyboardHint": "Use the arrow keys; → expands, ← collapses. Enter edits, Insert adds a subcategory, M moves, Delete deletes.",
+    "keyboardHintReadOnly": "Use the arrow keys; → expands, ← collapses.",
     "dropRoot": "Drop here to move to the top level",
     "addChild": "Add category under {{name}}",
     "edit": "Edit category {{name}}",

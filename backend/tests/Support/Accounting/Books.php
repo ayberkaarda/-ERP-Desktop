@@ -16,10 +16,12 @@ use App\Modules\Accounting\Models\AccountingPeriod;
 use App\Modules\Accounting\Models\FiscalYear;
 use App\Modules\Accounting\Services\BalanceBook;
 use App\Modules\Accounting\Services\FiscalCalendar;
+use App\Modules\Organization\Models\Company;
 use App\Modules\Parties\Contracts\PartyLookup;
 use App\Modules\Parties\Data\PartyData;
 use App\Modules\Reference\Contracts\CurrencyLookup;
 use App\Modules\Reference\Contracts\DimensionLookup;
+use App\Modules\Reference\Services\CurrencyCatalog;
 use Closure;
 use DateTimeImmutable;
 use Illuminate\Support\Carbon;
@@ -61,9 +63,11 @@ final class Books
     }
 
     /**
-     * Fixed clock, fixture chart, fake party/dimension/currency lookups.
+     * Fixed clock, fixture chart, fake party/dimension/currency lookups. The faked ids and codes
+     * exist as rows too (owned by a separate company), because journal lines have foreign keys to
+     * parties, cost centers, projects and currencies.
      */
-    public static function boot(): void
+    public static function boot(bool $referenceRows = true): void
     {
         Carbon::setTestNow(self::TODAY);
         config(['accounting.chart_path' => self::fixtureChart()]);
@@ -71,6 +75,27 @@ final class Books
         self::$costCenters = [(string) Str::uuid7()];
         self::$projects = [(string) Str::uuid7()];
         self::fakeReferences();
+        if ($referenceRows) {
+            self::referenceRows();
+        }
+    }
+
+    /** Rows behind the faked lookups (a party lookup still decides what the company may use). */
+    public static function referenceRows(): void
+    {
+        CurrencyCatalog::ensure(['TRY', 'USD', 'EUR']);
+        $owner = Company::factory()->create()->id;
+        $stamp = ['company_id' => $owner, 'version' => 1, 'created_at' => now(), 'updated_at' => now()];
+        foreach (self::$parties as $i => $id) {
+            DB::table('parties')->insert(['id' => $id, 'code' => 'BK'.($i + 1), 'name' => 'Ledger party '.($i + 1), 'type' => 'company',
+                'roles' => '["customer"]', 'tags' => '[]', 'country' => 'TR', 'is_active' => true, ...$stamp]);
+        }
+        foreach (self::$costCenters as $i => $id) {
+            DB::table('cost_centers')->insert(['id' => $id, 'code' => 'BK'.($i + 1), 'name' => 'Ledger cost center', 'is_active' => true, ...$stamp]);
+        }
+        foreach (self::$projects as $i => $id) {
+            DB::table('projects')->insert(['id' => $id, 'code' => 'BK'.($i + 1), 'name' => 'Ledger project', ...$stamp]);
+        }
     }
 
     /** A company bootstrapped like a real one: fixture chart, default rules, fiscal year 2027. */

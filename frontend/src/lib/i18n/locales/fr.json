@@ -43,7 +43,15 @@
     "warehouses": "Entrepôts",
     "costCenters": "Centres de coûts",
     "projects": "Projets",
-    "referenceSettings": "Paramètres du référentiel"
+    "referenceSettings": "Paramètres du référentiel",
+    "journalEntries": "Écritures comptables",
+    "chartOfAccounts": "Plan comptable",
+    "trialBalance": "Balance générale",
+    "generalLedger": "Grand livre",
+    "journalBook": "Livre-journal",
+    "fiscalYears": "Exercices",
+    "accountingPeriods": "Périodes comptables",
+    "accountDetermination": "Détermination des comptes"
   },
   "topbar": {
     "company": "Société",

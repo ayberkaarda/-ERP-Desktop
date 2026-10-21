@@ -3,14 +3,21 @@ import { useRegisteredCommands } from '@/features/command-palette/registry'
 import { registerFeatureCommands } from './featureCommands'
 
 describe('registerFeatureCommands', () => {
-  it('adds the parties, catalog and reference palette entries once', () => {
+  it('adds the parties, catalog, reference and accounting palette entries once', () => {
     const off = registerFeatureCommands()
     expect(registerFeatureCommands()).toBe(off)
 
     const { result } = renderHook(() => useRegisteredCommands())
     const ids = result.current.map((c) => c.id)
     expect(ids).toEqual(
-      expect.arrayContaining(['catalog.pricing', 'reference.currencies', 'reference.rate-entry']),
+      expect.arrayContaining([
+        'catalog.pricing',
+        'reference.currencies',
+        'reference.rate-entry',
+        'accounting.accounts',
+        'accounting.journalEntries',
+        'accounting.reports.trialBalance',
+      ]),
     )
     expect(ids.some((id) => id.startsWith('parties.'))).toBe(true)
 

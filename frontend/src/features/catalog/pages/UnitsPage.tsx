@@ -10,6 +10,7 @@ import { DataTable, useUrlListQuery } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { usePermission } from '@/lib/permissions'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { platform } from '@/platform'
 import { unitsApi } from '../api/client'
@@ -18,6 +19,7 @@ import { ConversionMatrix } from '../components/ConversionMatrix'
 import { CheckboxField, TextField } from '../components/fields'
 import { RecordDialog } from '../components/RecordDialog'
 import { useIdempotencyKey, useInvalidate, useUnitList } from '../hooks/queries'
+import { CATALOG_ACCESS } from '../permissions'
 import { isVersionConflict } from '../lib/errors'
 import { unitSchema, type UnitValues } from '../schemas'
 import type { Unit } from '../types'
@@ -71,6 +73,7 @@ function UnitsTable() {
     { viewKey: VIEW_KEY },
   )
   const list = useUnitList(query)
+  const canManage = usePermission(CATALOG_ACCESS.units.manage)
   const [editing, setEditing] = useState<Unit | 'new' | null>(null)
 
   const columns = useMemo(() => {
@@ -109,33 +112,39 @@ function UnitsTable() {
         cell: (c) => <StatusBadge status={c.getValue() ? 'active' : 'inactive'} />,
         size: 120,
       }),
-      col.display({
-        id: 'actions',
-        header: () => <span className="sr-only">{t('common.actions')}</span>,
-        enableHiding: false,
-        size: 60,
-        cell: (c) => (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t('units.edit', { code: c.row.original.code })}
-            onClick={() => setEditing(c.row.original)}
-          >
-            <Pencil aria-hidden="true" />
-          </Button>
-        ),
-      }),
+      ...(canManage
+        ? [
+            col.display({
+              id: 'actions',
+              header: () => <span className="sr-only">{t('common.actions')}</span>,
+              enableHiding: false,
+              size: 60,
+              cell: (c) => (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('units.edit', { code: c.row.original.code })}
+                  onClick={() => setEditing(c.row.original)}
+                >
+                  <Pencil aria-hidden="true" />
+                </Button>
+              ),
+            }),
+          ]
+        : []),
     ]
-  }, [t])
+  }, [t, canManage])
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <Button onClick={() => setEditing('new')}>
-          <Plus aria-hidden="true" />
-          {t('units.new')}
-        </Button>
-      </div>
+      {canManage && (
+        <div className="flex justify-end">
+          <Button onClick={() => setEditing('new')}>
+            <Plus aria-hidden="true" />
+            {t('units.new')}
+          </Button>
+        </div>
+      )}
       <DataTable<Unit>
         label={t('units.tabUnits')}
         columns={columns}
@@ -148,7 +157,7 @@ function UnitsTable() {
         onQueryChange={setQuery}
         getRowId={(r) => r.id}
         viewKey={VIEW_KEY}
-        onRowActivate={(r) => setEditing(r)}
+        onRowActivate={canManage ? (r) => setEditing(r) : undefined}
       />
       {editing !== null && (
         <UnitDialog

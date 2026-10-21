@@ -58,8 +58,18 @@ describe('period transitions', () => {
       details: ['4 taslak fiş var.'],
     })
     expect(
-      readBlockedReason(new ApiError(422, 'VALIDATION_FAILED', 'x', { reason: ['y'] })),
+      readBlockedReason(new ApiError(422, 'VALIDATION_ERROR', 'x', { reason: ['y'] })),
     ).toBeNull()
+  })
+
+  it('recognizes the API refusal on status and ignores other status refusals', () => {
+    const message = 'Dönemde hâlâ 2 taslak yevmiye maddesi var.'
+    const e = new ApiError(422, 'VALIDATION_ERROR', message, { status: [message] })
+    expect(readBlockedReason(e)?.draftCount).toBe(2)
+    const closedYear = new ApiError(422, 'VALIDATION_ERROR', 'x', {
+      status: ['The fiscal year 2026 is closed (period 3).'],
+    })
+    expect(readBlockedReason(closedYear)).toBeNull()
   })
 
   it('picks the remembered, then the current, then the latest year', () => {

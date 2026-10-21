@@ -103,6 +103,10 @@ describe('trial balance', () => {
       within(table).getByRole('button', { name: '102 alt hesaplarını aç' }),
     ).toBeInTheDocument()
 
+    // TDHP class subtotals from `groups` sit above the grand total.
+    expect(within(table).getByTestId('group-1')).toHaveTextContent('1 · Dönen Varlıklar')
+    expect(within(table).getByTestId('group-6')).toHaveTextContent('1.000,00')
+
     // Kasa: 1.200 debit - 500 credit; the code links to its ledger.
     const cashRow = within(table).getByText('Kasa').closest('tr')
     expect(cashRow).toHaveTextContent('1.200,00')
@@ -193,6 +197,8 @@ describe('journal book', () => {
       '/accounting/reports/journal-book?mode=range&date_from=2026-01-01&date_to=2026-01-31&page_size=20',
     )
     const page1 = await screen.findByRole('region', { name: 'Sayfa 1 / 1' })
+    // The header shows the requested range, not the first and last entry dates.
+    expect(within(page1).getByText('01.01.2026 – 31.01.2026')).toBeInTheDocument()
     expect(within(page1).getByTestId('brought-1')).toHaveTextContent('100,00')
     expect(within(page1).getByTestId('page-total-1')).toHaveTextContent('1.700,00')
     expect(within(page1).getByTestId('carried-1')).toHaveTextContent('Genel toplam')

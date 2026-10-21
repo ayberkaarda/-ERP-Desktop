@@ -43,7 +43,15 @@
     "warehouses": "Lager",
     "costCenters": "Kostenstellen",
     "projects": "Projekte",
-    "referenceSettings": "Referenzeinstellungen"
+    "referenceSettings": "Referenzeinstellungen",
+    "journalEntries": "Buchungssätze",
+    "chartOfAccounts": "Kontenplan",
+    "trialBalance": "Summen- und Saldenliste",
+    "generalLedger": "Hauptbuch",
+    "journalBook": "Journal",
+    "fiscalYears": "Geschäftsjahre",
+    "accountingPeriods": "Buchungsperioden",
+    "accountDetermination": "Kontenfindung"
   },
   "topbar": {
     "company": "Unternehmen",

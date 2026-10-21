@@ -1,5 +1,11 @@
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
+import { accountsRoutes } from '@/features/accounting/accounts/routes'
+import { determinationRoutes } from '@/features/accounting/determination/routes'
+import { fiscalRoutes } from '@/features/accounting/fiscal/routes'
+import { journalRoutes } from '@/features/accounting/journal/routes'
+import { periodsRoutes } from '@/features/accounting/periods/routes'
+import { reportsRoutes } from '@/features/accounting/reports/routes'
 import { bindAuthFailures } from '@/features/auth/session'
 import { catalogRoutes } from '@/features/catalog/routes'
 import { partyRoutes } from '@/features/parties/routes'
@@ -76,6 +82,12 @@ export const routes: RouteObject[] = [
           ...partyRoutes,
           ...catalogRoutes,
           ...referenceRoutes,
+          ...accountsRoutes,
+          ...fiscalRoutes,
+          ...periodsRoutes,
+          ...determinationRoutes,
+          ...journalRoutes,
+          ...reportsRoutes,
           ...devRoutes,
           {
             path: '*',

@@ -5,11 +5,18 @@ import type {
   ClosingPreview,
   DeterminationRule,
   FiscalYear,
-  ImportRowResult,
 } from '@/features/accounting/shared/types'
 
 // In-memory stand-in for the Accounting API used by the accounts, fiscal year, period and
-// account determination screens (PHASE3 "HTTP API").
+// account determination screens. Shapes, filters, sorts and refusals mirror
+// backend/app/Modules/Accounting (controllers, requests, resources, services).
+
+/** One failed import row as AccountImporter reports it (row = sheet row, header is row 1). */
+export interface ImportErrorRow {
+  row: number
+  field: string
+  message: string
+}
 
 export interface AccountingDb {
   accounts: Account[]
@@ -20,14 +27,16 @@ export interface AccountingDb {
   years: FiscalYear[]
   periods: AccountingPeriod[]
   rules: DeterminationRule[]
-  /** null: the API has no closing preview (404). */
+  /** null: an API without the closing preview (404); the screens tolerate it. */
   preview: ClosingPreview | null
   /** Drafts the server knows about but the period list does not report (race with the board). */
   hiddenDrafts: Record<string, number>
   /** Rule ids whose PATCH fails with 500 (to exercise rollback). */
   failRulePatch: Set<string>
-  /** Extra failed rows a real (non dry-run) import reports. */
-  commitFailures: ImportRowResult[]
+  /** Rows the database refuses during a real (non dry-run) import (e.g. a concurrent change). */
+  commitFailures: ImportErrorRow[]
+  /** Years with posted entries: their dates cannot change. */
+  postedYears: Set<string>
   /** Replayed responses per Idempotency-Key. */
   replays: Map<string, { status: number; body: unknown }>
   calls: { method: string; path: string; body: unknown; headers: Headers; url: URL }[]
@@ -41,7 +50,26 @@ function error(status: number, code: string, message: string, fields?: Record<st
   return HttpResponse.json({ errors: { message, code, ...(fields ? { fields } : {}) } }, { status })
 }
 const validation = (fields: Record<string, string[]>) =>
-  error(422, 'VALIDATION_FAILED', 'Gönderilen bilgiler geçersiz.', fields)
+  error(422, 'VALIDATION_ERROR', Object.values(fields)[0]?.[0] ?? 'Geçersiz bilgi.', fields)
+
+/** Core ListQuery: unknown filters or sort fields are a 422 on filter.<name> / sort. */
+function listGuard(url: URL, filters: readonly string[], sorts: readonly string[]) {
+  for (const [key] of url.searchParams) {
+    const m = /^filter\[(.+)\]$/.exec(key)
+    if (m && !filters.includes(m[1] ?? ''))
+      return validation({ [`filter.${m[1]}`]: ['Seçili değer geçersiz.'] })
+  }
+  const sort = url.searchParams.get('sort')
+  if (sort) {
+    for (const part of sort.split(',').filter(Boolean)) {
+      if (!sorts.includes(part.replace(/^-/, '')))
+        return validation({ sort: ['Geçersiz sıralama.'] })
+    }
+  }
+  if (Number(url.searchParams.get('per_page') ?? 25) > 100)
+    return validation({ per_page: ['En çok 100 olabilir.'] })
+  return null
+}
 const notFound = () => error(404, 'NOT_FOUND', 'Kayıt bulunamadı.')
 const conflict = () =>
   error(409, 'VERSION_CONFLICT', 'Kayıt siz düzenlerken başka biri tarafından değiştirildi.')
@@ -91,7 +119,7 @@ export function periodsFor(year: FiscalYear, with13 = false): AccountingPeriod[]
     end_date: `${y}-${pad(i + 1)}-${pad(lastDay(y, i + 1))}`,
     status: 'open',
     version: 1,
-    draft_entries_count: 0,
+    draft_count: 0,
   }))
   if (with13) {
     out.push({
@@ -102,7 +130,7 @@ export function periodsFor(year: FiscalYear, with13 = false): AccountingPeriod[]
       end_date: year.end_date,
       status: 'open',
       version: 1,
-      draft_entries_count: 0,
+      draft_count: 0,
     })
   }
   return out
@@ -119,7 +147,6 @@ function year(id: string, code: string, status: 'open' | 'closed' = 'open'): Fis
     closed_at: status === 'closed' ? `${Number(code) + 1}-01-15T09:00:00Z` : null,
     closed_by: null,
     version: 1,
-    has_posted_entries: true,
   }
 }
 
@@ -213,6 +240,7 @@ export function createAccountingDb(overrides: Partial<AccountingDb> = {}): Accou
     hiddenDrafts: {},
     failRulePatch: new Set(),
     commitFailures: [],
+    postedYears: new Set([YEAR_2025, YEAR_2026]),
     replays: new Map(),
     calls: [],
     seq: 1,
@@ -239,10 +267,38 @@ function page(rows: unknown[], url: URL) {
 
 const childrenOf = (db: AccountingDb, id: string) => db.accounts.filter((a) => a.parent_id === id)
 
-function withCounts(db: AccountingDb, a: Account): Account {
-  const n = childrenOf(db, a.id).length
-  return { ...a, children_count: n, has_children: n > 0 }
+/** AccountResource: has_postings and child counts stay server side. */
+function withCounts(_db: AccountingDb, a: Account): Account {
+  const out = { ...a }
+  delete out.has_postings
+  delete out.has_children
+  delete out.children_count
+  return out
 }
+
+/** DeterminationRuleResource: account_code / account_name only when the account is loaded. */
+function ruleResource(db: AccountingDb, r: DeterminationRule, withAccount: boolean): Row {
+  const out: Row = { ...r, is_active: r.is_active ?? true }
+  delete out.account
+  if (withAccount) {
+    const a = db.accounts.find((x) => x.id === r.account_id)
+    out.account_code = a?.code
+    out.account_name = a?.name
+  }
+  return out
+}
+
+/** Keys RuleDeterminer accepts in conditions. */
+const CONDITION_KEYS = [
+  'party_group',
+  'party_id',
+  'item_category',
+  'item_id',
+  'currency',
+  'tax_code',
+  'warehouse_id',
+  'branch_id',
+]
 
 function nest(db: AccountingDb, parent: string | null): Row[] {
   return db.accounts
@@ -270,6 +326,8 @@ function validateAccount(db: AccountingDb, body: Row, current: Account | null) {
     fields.is_postable = ['Alt hesabı olan hesap hareket göremez.']
   if (current?.has_postings && body.is_postable === false)
     fields.is_postable = ['Hareket görmüş hesap toplama hesabı yapılamaz.']
+  if (!current && body.version !== undefined) fields.version = ['version gönderilemez.']
+  if (current && body.parent_code !== undefined) fields.parent_code = ['parent_code gönderilemez.']
   return Object.keys(fields).length ? fields : null
 }
 
@@ -348,15 +406,38 @@ export function accountingHandlers(db: AccountingDb) {
     }),
     http.get(`${API}/accounts`, async ({ request }) => {
       const url = await log(request)
-      let rows = [...db.accounts]
-      for (const f of ['type', 'is_postable', 'is_active']) {
-        const v = url.searchParams.get(`filter[${f}]`)
-        if (v) rows = rows.filter((a) => String((a as unknown as Row)[f]) === v)
+      const FILTERS: Record<string, keyof Account> = {
+        type: 'type',
+        postable: 'is_postable',
+        is_postable: 'is_postable',
+        active: 'is_active',
+        is_active: 'is_active',
+        tdhp_group: 'tdhp_group',
+        level: 'level',
+        currency_code: 'currency_code',
       }
+      const bad = listGuard(
+        url,
+        [...Object.keys(FILTERS), 'parent_id'],
+        ['code', 'name', 'level', 'created_at'],
+      )
+      if (bad) return bad
+      let rows = [...db.accounts]
+      // Postgres reads true/false/1/0 for boolean columns.
+      const norm = (v: string) => (v === '1' ? 'true' : v === '0' ? 'false' : v)
+      for (const [f, column] of Object.entries(FILTERS)) {
+        const v = url.searchParams.get(`filter[${f}]`)
+        if (v) rows = rows.filter((a) => v.split(',').map(norm).includes(String(a[column])))
+      }
+      const parent = url.searchParams.get('filter[parent_id]')
+      if (parent) rows = rows.filter((a) => a.parent_id === (parent === 'root' ? null : parent))
+      // ilike on code and name.
       const q = (url.searchParams.get('q') ?? '').trim().toLocaleLowerCase('tr')
       if (q)
         rows = rows.filter(
-          (a) => a.code.startsWith(q) || a.name.toLocaleLowerCase('tr').includes(q),
+          (a) =>
+            a.code.toLocaleLowerCase('tr').includes(q) ||
+            a.name.toLocaleLowerCase('tr').includes(q),
         )
       const sort = url.searchParams.get('sort') ?? 'code'
       const desc = sort.startsWith('-')
@@ -375,14 +456,26 @@ export function accountingHandlers(db: AccountingDb) {
       const url = await log(request)
       const a = db.accounts.find((x) => x.id === params.id)
       if (!a) return notFound()
-      const asOf = url.searchParams.get('as_of') ?? ''
+      const asOf = url.searchParams.get('as_of') ?? null
       const b = db.balances[a.id] ?? {
         debit: '0.0000',
         credit: '0.0000',
         balance: '0.0000',
         side: null,
       }
-      return HttpResponse.json({ data: { account_id: a.id, as_of: asOf, ...b } })
+      // The API sends the signed balance (debit - credit) with balance_side.
+      return HttpResponse.json({
+        data: {
+          account_id: a.id,
+          as_of: asOf,
+          debit: b.debit,
+          credit: b.credit,
+          balance: b.side === 'credit' ? `-${b.balance}` : b.balance,
+          balance_side: b.side,
+          currency_code: a.currency_code,
+          fx_balance: a.currency_code ? '0.0000' : null,
+        },
+      })
     }),
     http.get(`${API}/accounts/:id`, async ({ request, params }) => {
       await log(request)
@@ -401,50 +494,46 @@ export function accountingHandlers(db: AccountingDb) {
         return validation({ file: ['Dosya zorunludur.'] })
       const [header, ...lines] = parseCsv(await file.text())
       const col = (name: string) => header?.indexOf(name) ?? -1
-      const rows: ImportRowResult[] = lines.map((cells, i) => {
+      const TYPES = ['asset', 'liability', 'equity', 'revenue', 'expense', 'cost', 'memo']
+      const errors: ImportErrorRow[] = []
+      const fresh: { code: string; name: string }[] = []
+      lines.forEach((cells, i) => {
+        const row = i + 2
         const code = cells[col('code')] ?? ''
         const name = cells[col('name')] ?? ''
         const type = cells[col('type')] ?? ''
-        const errors: string[] = []
-        if (!code) errors.push('Hesap kodu zorunludur.')
-        if (!name) errors.push('Hesap adı zorunludur.')
-        if (
-          type &&
-          !['asset', 'liability', 'equity', 'revenue', 'expense', 'cost', 'memo'].includes(type)
-        )
-          errors.push(`Geçersiz hesap türü: ${type}`)
-        const exists = db.accounts.some((a) => a.code === code)
-        return {
-          row: i + 1,
-          code: code || null,
-          name: name || null,
-          status: errors.length ? 'error' : exists ? 'update' : 'create',
-          errors,
-        }
+        const before = errors.length
+        if (!code) errors.push({ row, field: 'code', message: 'Hesap kodu zorunludur.' })
+        if (!name) errors.push({ row, field: 'name', message: 'Hesap adı zorunludur.' })
+        if (type && !TYPES.includes(type))
+          errors.push({ row, field: 'type', message: `Geçersiz hesap türü: ${type}` })
+        // Existing codes are reported, never overwritten.
+        if (code && db.accounts.some((a) => a.code === code))
+          errors.push({ row, field: 'code', message: 'Bu hesap kodu zaten kullanılıyor.' })
+        if (errors.length === before) fresh.push({ code, name })
       })
-      const count = (s: string) => rows.filter((r) => r.status === s).length
-      const result = {
-        dry_run: dryRun,
-        total: rows.length,
-        created: count('create'),
-        updated: count('update'),
-        skipped: count('skip'),
-        failed: count('error'),
-        rows,
+      if (!dryRun) errors.push(...db.commitFailures)
+      // A real import with any error rolls back and answers 422 rows.<row>.<field>.
+      if (!dryRun && errors.length > 0) {
+        const fields: Record<string, string[]> = {}
+        for (const e of errors) (fields[`rows.${e.row}.${e.field}`] ??= []).push(e.message)
+        const body = {
+          errors: {
+            message: `${errors.length} satırda hata var.`,
+            code: 'VALIDATION_ERROR',
+            fields,
+          },
+        }
+        return remember(db, key, 422, body)
       }
       if (!dryRun) {
-        if (result.failed > 0) return validation({ file: ['Dosyada hatalı satırlar var.'] })
-        for (const r of rows.filter((x) => x.status === 'create')) {
-          db.accounts.push(
-            account({ id: `acc-imp-${db.seq++}`, code: r.code ?? '', name: r.name ?? '' }),
-          )
-        }
-        // Rows the database refused while committing (e.g. a concurrent change).
-        if (db.commitFailures.length > 0) {
-          result.rows.push(...db.commitFailures)
-          result.failed += db.commitFailures.length
-          result.total += db.commitFailures.length
-        }
+        for (const r of fresh) db.accounts.push(account({ id: `acc-imp-${db.seq++}`, ...r }))
+      }
+      const result = {
+        dry_run: dryRun,
+        total: lines.length,
+        created: dryRun ? 0 : fresh.length,
+        errors,
       }
       return remember(db, key, 200, { data: result })
     }),
@@ -484,8 +573,10 @@ export function accountingHandlers(db: AccountingDb) {
       const a = db.accounts.find((x) => x.id === params.id)
       if (!a) return notFound()
       if (Number(url.searchParams.get('version')) !== a.version) return conflict()
-      if (a.has_postings || childrenOf(db, a.id).length > 0)
-        return error(422, 'ACCOUNT_IN_USE', 'Hareket görmüş ya da alt hesabı olan hesap silinemez.')
+      if (a.is_system) return validation({ account: ['Sistem hesabı silinemez.'] })
+      if (childrenOf(db, a.id).length > 0)
+        return validation({ account: ['Alt hesabı olan hesap silinemez.'] })
+      if (a.has_postings) return validation({ account: ['Hareket görmüş hesap silinemez.'] })
       db.accounts = db.accounts.filter((x) => x.id !== a.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -493,7 +584,13 @@ export function accountingHandlers(db: AccountingDb) {
     // --- fiscal years ---
     http.get(`${API}/fiscal-years`, async ({ request }) => {
       const url = await log(request)
-      const rows = [...db.years].sort((a, b) => b.start_date.localeCompare(a.start_date))
+      const bad = listGuard(url, ['status', 'code'], ['code', 'start_date', 'created_at'])
+      if (bad) return bad
+      const status = url.searchParams.get('filter[status]')
+      const rows = [...db.years]
+        .filter((y) => !status || y.status === status)
+        .sort((a, b) => b.start_date.localeCompare(a.start_date))
+        .map((y) => ({ ...y, periods: db.periods.filter((p) => p.fiscal_year_id === y.id) }))
       return page(rows, url)
     }),
     http.post(`${API}/fiscal-years`, async ({ request }) => {
@@ -503,6 +600,8 @@ export function accountingHandlers(db: AccountingDb) {
       const body = (await request.json()) as Row
       const start = str(body.start_date)
       const end = str(body.end_date)
+      if (body.version !== undefined) return validation({ version: ['version gönderilemez.'] })
+      if (!str(body.code)) return validation({ code: ['Yıl kodu zorunludur.'] })
       if (db.years.some((y) => y.code === body.code))
         return validation({ code: ['Bu yıl kodu zaten var.'] })
       if (db.years.some((y) => start <= y.end_date && y.start_date <= end))
@@ -510,16 +609,15 @@ export function accountingHandlers(db: AccountingDb) {
       const y: FiscalYear = {
         id: `fy-new-${db.seq++}`,
         code: str(body.code),
-        name: str(body.name),
+        name: str(body.name) || str(body.code),
         start_date: start,
         end_date: end,
         status: 'open',
         closed_at: null,
         closed_by: null,
         version: 1,
-        has_posted_entries: false,
       }
-      const periods = periodsFor(y, body.with_adjustment_period === true)
+      const periods = periodsFor(y, body.adjustment_period === true)
       db.years.push(y)
       db.periods.push(...periods)
       return remember(db, key, 201, { data: { ...y, periods } })
@@ -529,8 +627,12 @@ export function accountingHandlers(db: AccountingDb) {
       const y = db.years.find((x) => x.id === params.id)
       if (!y) return notFound()
       const body = (await request.json()) as Row
+      if (typeof body.version !== 'number') return validation({ version: ['version zorunludur.'] })
       if (body.version !== y.version) return conflict()
-      if (y.has_posted_entries && (body.start_date || body.end_date))
+      if (body.code !== undefined) return validation({ code: ['Bu alan değiştirilemez.'] })
+      if (body.adjustment_period !== undefined)
+        return validation({ adjustment_period: ['Bu alan değiştirilemez.'] })
+      if (db.postedYears.has(y.id) && (body.start_date || body.end_date))
         return validation({ start_date: ['Kesinleşmiş fiş varken tarihler değiştirilemez.'] })
       const rest = { ...body }
       delete rest.version
@@ -549,14 +651,14 @@ export function accountingHandlers(db: AccountingDb) {
       const { key, hit } = replay(db, request)
       if (hit) return hit
       const body = (await request.json()) as Row
-      if (body.version !== y.version) return conflict()
+      if (body.version !== undefined && body.version !== y.version) return conflict()
       if (params.action === 'close') {
-        if (y.status !== 'open') return error(422, 'INVALID_STATE_TRANSITION', 'Yıl zaten kapalı.')
+        if (y.status !== 'open') return validation({ status: ['Mali yıl zaten kapalı.'] })
         y.status = 'closed'
         y.closed_at = '2027-01-10T10:00:00Z'
       } else if (params.action === 'reopen') {
-        if (str(body.reason).trim().length < 5)
-          return validation({ reason: ['Gerekçe zorunludur.'] })
+        if (!str(body.reason).trim()) return validation({ reason: ['Gerekçe zorunludur.'] })
+        if (y.status === 'open') return validation({ status: ['Mali yıl kapalı değil.'] })
         y.status = 'open'
         y.closed_at = null
       } else return notFound()
@@ -567,6 +669,8 @@ export function accountingHandlers(db: AccountingDb) {
     // --- periods ---
     http.get(`${API}/accounting-periods`, async ({ request }) => {
       const url = await log(request)
+      const bad = listGuard(url, ['fiscal_year_id', 'status', 'number'], ['start_date', 'number'])
+      if (bad) return bad
       const yearId = url.searchParams.get('filter[fiscal_year_id]')
       const rows = db.periods
         .filter((p) => !yearId || p.fiscal_year_id === yearId)
@@ -578,18 +682,19 @@ export function accountingHandlers(db: AccountingDb) {
       const p = db.periods.find((x) => x.id === params.id)
       if (!p) return notFound()
       const body = (await request.json()) as Row
-      if (body.version !== p.version) return conflict()
+      if (body.version !== undefined && body.version !== p.version) return conflict()
       const action = String(params.action)
-      const drafts = (p.draft_entries_count ?? 0) + (db.hiddenDrafts[p.id] ?? 0)
+      const from: Record<string, string[]> = {
+        'soft-close': ['open'],
+        close: ['open', 'soft_closed'],
+        reopen: ['soft_closed', 'closed'],
+      }
+      if (from[action] && !from[action].includes(p.status))
+        return validation({ status: [`Dönem ${p.status} durumundan geçemez.`] })
+      const drafts = (p.draft_count ?? 0) + (db.hiddenDrafts[p.id] ?? 0)
       if (action === 'close' && drafts > 0) {
-        return error(
-          422,
-          'PERIOD_HAS_DRAFT_ENTRIES',
-          'Dönemde taslak fişler varken dönem kapatılamaz.',
-          {
-            draft_entries: [`${drafts} taslak fiş var.`],
-          },
-        )
+        // PeriodStatusService: Messages::fail('status', 'period_has_drafts').
+        return validation({ status: [`Dönemde hâlâ ${drafts} taslak yevmiye maddesi var.`] })
       }
       const next =
         action === 'soft-close'
@@ -600,7 +705,7 @@ export function accountingHandlers(db: AccountingDb) {
               ? 'open'
               : null
       if (!next) return notFound()
-      if (action === 'reopen' && str(body.reason).trim().length < 5)
+      if (action === 'reopen' && !str(body.reason).trim())
         return validation({ reason: ['Gerekçe zorunludur.'] })
       p.status = next
       p.version += 1
@@ -610,8 +715,14 @@ export function accountingHandlers(db: AccountingDb) {
     // --- account determination ---
     http.get(`${API}/account-determination-rules`, async ({ request }) => {
       const url = await log(request)
+      const bad = listGuard(
+        url,
+        ['event_key', 'is_active', 'is_system', 'account_id'],
+        ['event_key', 'priority', 'created_at'],
+      )
+      if (bad) return bad
       return page(
-        [...db.rules].sort((a, b) => b.priority - a.priority),
+        [...db.rules].sort((a, b) => b.priority - a.priority).map((r) => ruleResource(db, r, true)),
         url,
       )
     }),
@@ -623,41 +734,46 @@ export function accountingHandlers(db: AccountingDb) {
       const a = db.accounts.find((x) => x.id === body.account_id)
       if (!a) return validation({ account_id: ['Hesap bulunamadı.'] })
       if (!a.is_postable) return validation({ account_id: ['Hesap hareket görebilir olmalıdır.'] })
+      const unknown = Object.keys((body.conditions as Row | undefined) ?? {}).filter(
+        (k) => !CONDITION_KEYS.includes(k),
+      )
+      if (unknown.length)
+        return validation({ conditions: [`Bilinmeyen koşul: ${unknown.join(', ')}`] })
       const created: DeterminationRule = {
         id: `rule-new-${db.seq++}`,
         event_key: str(body.event_key),
         priority: Number(body.priority),
         conditions: (body.conditions as DeterminationRule['conditions']) ?? {},
         account_id: a.id,
-        account: { id: a.id, code: a.code, name: a.name },
         side: (body.side as DeterminationRule['side']) ?? null,
         description: (body.description as string | null) ?? null,
         is_system: false,
+        is_active: true,
         version: 1,
       }
       db.rules.push(created)
-      return remember(db, key, 201, { data: created })
+      // The created rule has no account loaded: no account_code / account_name.
+      return remember(db, key, 201, { data: ruleResource(db, created, false) })
     }),
     http.patch(`${API}/account-determination-rules/:id`, async ({ request, params }) => {
       await log(request)
       const r = db.rules.find((x) => x.id === params.id)
       if (!r) return notFound()
       const body = (await request.json()) as Row
+      if (typeof body.version !== 'number') return validation({ version: ['version zorunludur.'] })
       if (body.version !== r.version) return conflict()
       if (db.failRulePatch.has(r.id)) return error(500, 'SERVER_ERROR', 'Sunucu hatası.')
       const rest = { ...body }
       delete rest.version
       Object.assign(r, rest, { version: r.version + 1 })
-      const a = db.accounts.find((x) => x.id === r.account_id)
-      r.account = a ? { id: a.id, code: a.code, name: a.name } : null
-      return HttpResponse.json({ data: r })
+      return HttpResponse.json({ data: ruleResource(db, r, false) })
     }),
     http.delete(`${API}/account-determination-rules/:id`, async ({ request, params }) => {
       const url = await log(request)
       const r = db.rules.find((x) => x.id === params.id)
       if (!r) return notFound()
       if (Number(url.searchParams.get('version')) !== r.version) return conflict()
-      if (r.is_system) return error(422, 'SYSTEM_RULE', 'Sistem kuralı silinemez.')
+      if (r.is_system) return validation({ rule: ['Sistem kuralı silinemez.'] })
       db.rules = db.rules.filter((x) => x.id !== r.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -665,15 +781,14 @@ export function accountingHandlers(db: AccountingDb) {
       await log(request)
       const body = (await request.json()) as { event_key: string; context: Record<string, string> }
       const hit = resolve(db, body.event_key, body.context)
-      if (!hit)
-        return error(422, 'ACCOUNT_NOT_DETERMINED', `${body.event_key} için hesap belirlenemedi.`)
+      if (!hit) return validation({ event_key: [`${body.event_key} için hesap belirlenemedi.`] })
+      const a = db.accounts.find((x) => x.id === hit.rule.account_id)
       return HttpResponse.json({
         data: {
-          account_id: hit.rule.account_id,
-          account: hit.rule.account,
-          rule_id: hit.rule.id,
+          event_key: body.event_key,
+          account: { id: hit.rule.account_id, code: a?.code ?? '', name: a?.name ?? '' },
           side: hit.rule.side,
-          source: hit.source,
+          rule_id: hit.rule.id,
         },
       })
     }),

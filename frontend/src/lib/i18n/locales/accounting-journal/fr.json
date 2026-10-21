@@ -75,12 +75,6 @@
     "xlsx": "Excel",
     "failed": "Le fichier n'a pas pu être téléchargé."
   },
-  "picker": {
-    "currency": "Devise : {{code}}",
-    "requiresParty": "Tiers obligatoire",
-    "requiresCostCenter": "Centre de coûts obligatoire",
-    "requiresProject": "Projet obligatoire"
-  },
   "lines": {
     "title": "Lignes d'écriture",
     "account": "Compte",
@@ -167,7 +161,8 @@
     "reversedBy": "Contrepassée par :",
     "openEntry": "ouvrir l'écriture",
     "reason": "Motif",
-    "audit": "Historique"
+    "audit": "Historique",
+    "user": "Utilisateur"
   },
   "conflict": {
     "title": "Quelqu'un d'autre a modifié cette écriture",
@@ -215,7 +210,8 @@
     "expandAll": "Tout déplier",
     "collapseAll": "Tout replier",
     "expand": "Déplier les sous-comptes de {{code}}",
-    "collapse": "Replier les sous-comptes de {{code}}"
+    "collapse": "Replier les sous-comptes de {{code}}",
+    "group": "{{group}} · {{name}}"
   },
   "ledger": {
     "title": "Grand livre",
@@ -246,7 +242,8 @@
     "carriedForward": "À reporter",
     "grandTotal": "Total général",
     "empty": "Aucune écriture validée sur cette période.",
-    "tooLarge": "La période est trop longue pour l'affichage ; réduisez-la ou exportez."
+    "tooLarge": "La période est trop longue pour l'affichage ; réduisez-la ou exportez.",
+    "changed": "De nouvelles écritures ont été passées pendant le chargement du livre-journal ; les totaux ne concordent pas. Rechargez-le."
   },
   "changed": {
     "title": "L'écriture a été modifiée ailleurs",

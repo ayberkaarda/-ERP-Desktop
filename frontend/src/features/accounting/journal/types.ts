@@ -1,5 +1,6 @@
-// HTTP shapes of the journal entry endpoints (PHASE3 "HTTP API" /journal-entries). Money and
-// rates are decimal strings; calendar dates are "YYYY-MM-DD".
+// Shapes of the journal entry endpoints (backend JournalEntryResource / JournalLineResource).
+// Money and rates are decimal strings; calendar dates are "YYYY-MM-DD". The API sends ids for
+// accounts and dimensions; the client adds the records (`account`, `party`, ...) after loading.
 import type { AuditEntry } from '@/components/shared/AuditTrail'
 
 export interface Pagination {
@@ -31,7 +32,7 @@ export const ENTRY_TYPES = [
 ] as const
 export type EntryType = (typeof ENTRY_TYPES)[number]
 
-/** Types a user may pick for a manual entry; the rest are produced by the system. */
+/** Types a user may pick for a manual entry (EntryType::manual()); the rest come from the system. */
 export const MANUAL_ENTRY_TYPES = [
   'general',
   'receipt',
@@ -64,36 +65,38 @@ export interface NamedRef {
   name: string
 }
 
-export interface UserRef {
-  id: string
-  name: string
-}
-
 export interface EntryLink {
   id: string
   number: string | null
   entry_date?: string
 }
 
-export interface JournalLine {
+/** A line as the journal entry endpoints send it. */
+export interface ApiJournalLine {
   id: string
   line_no: number
   account_id: string
-  account?: AccountRef | null
+  account_code?: string
+  account_name?: string
   debit: string
   credit: string
   currency_code: string | null
   fx_amount: string | null
   fx_rate: string | null
   party_id: string | null
-  party?: NamedRef | null
   cost_center_id: string | null
-  cost_center?: NamedRef | null
   project_id: string | null
-  project?: NamedRef | null
   description: string | null
   due_date: string | null
   document_ref: string | null
+}
+
+/** A line with the records behind its ids (filled by the client; null when unavailable). */
+export interface JournalLine extends ApiJournalLine {
+  account?: AccountRef | null
+  party?: NamedRef | null
+  cost_center?: NamedRef | null
+  project?: NamedRef | null
 }
 
 export interface JournalEntrySummary {
@@ -103,14 +106,20 @@ export interface JournalEntrySummary {
   entry_type: EntryType
   entry_date: string
   period_id: string | null
+  fiscal_year_id?: string | null
   description: string | null
   status: EntryStatus
   source_type: string | null
   source_id: string | null
   reverses_id: string | null
   reversed_by_id: string | null
+  reversal_reason?: string | null
   total_debit: string
   total_credit: string
+  difference?: string
+  /** User ids. */
+  created_by?: string | null
+  posted_by?: string | null
   posted_at: string | null
   created_at?: string
   updated_at?: string
@@ -118,14 +127,25 @@ export interface JournalEntrySummary {
   version: number
 }
 
+/** Activity row of GET /journal-entries/{id} (newest first, at most 100). */
+export interface ApiAuditRow {
+  event: string | null
+  description: string | null
+  causer_id: string | null
+  created_at: string | null
+}
+
+export interface ApiJournalEntry extends JournalEntrySummary {
+  lines: ApiJournalLine[]
+  /** Only on GET /journal-entries/{id}. */
+  audit?: ApiAuditRow[]
+}
+
 export interface JournalEntry extends JournalEntrySummary {
   lines: JournalLine[]
-  created_by_user?: UserRef | null
-  posted_by_user?: UserRef | null
+  /** The linked entries with their numbers (looked up by the client). */
   reverses?: EntryLink | null
   reversed_by?: EntryLink | null
-  reversal_reason?: string | null
-  /** Activity log of the entry, newest first. */
   audit?: AuditEntry[]
 }
 
@@ -158,8 +178,10 @@ export interface ReverseInput {
 export interface AccountingPeriod {
   id: string
   fiscal_year_id: string
-  fiscal_year?: { id: string; code: string } | null
+  /** Code of the fiscal year, joined by the client from GET /fiscal-years when it can read it. */
+  fiscal_year_code?: string | null
   number: number
+  is_adjustment?: boolean
   start_date: string
   end_date: string
   status: 'open' | 'soft_closed' | 'closed'

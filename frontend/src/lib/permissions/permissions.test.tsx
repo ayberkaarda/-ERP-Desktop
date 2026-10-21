@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import { useAuthStore, type SessionUser } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 import { Can } from './Can'
-import { checkPermission, hasPermission } from './permissions'
+import { anyOf, checkPermission, hasPermission } from './permissions'
 
 const user: SessionUser = {
   id: 'u',
@@ -35,6 +35,9 @@ describe('permissions', () => {
     expect(hasPermission(ctx, 'a.view')).toBe(true)
     expect(hasPermission(ctx, ['a.view', 'a.delete'])).toBe(false)
     expect(hasPermission(ctx, ['a.view', 'a.delete'], 'any')).toBe(true)
+    expect(hasPermission(ctx, anyOf('a.delete', 'a.create'))).toBe(true)
+    expect(hasPermission(ctx, anyOf('a.delete', 'a.manage'))).toBe(false)
+    expect(hasPermission({ ...ctx, stale: true }, anyOf('a.view'))).toBe(false)
     expect(hasPermission(ctx, undefined)).toBe(true)
     expect(hasPermission({ user: null, granted: ['a.view'] }, 'a.view')).toBe(false)
     expect(hasPermission({ user: { ...user, isSuperAdmin: true }, granted: [] }, 'x.y')).toBe(true)

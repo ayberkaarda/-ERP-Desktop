@@ -165,6 +165,7 @@
     "expandAll": "Tout déplier",
     "collapseAll": "Tout replier",
     "keyboardHint": "Utilisez les flèches ; → déplie, ← replie. Entrée modifie, Inser ajoute une sous-catégorie, M déplace, Suppr supprime.",
+    "keyboardHintReadOnly": "Utilisez les flèches ; → déplie, ← replie.",
     "dropRoot": "Déposez ici pour placer au premier niveau",
     "addChild": "Ajouter une catégorie sous {{name}}",
     "edit": "Modifier la catégorie {{name}}",

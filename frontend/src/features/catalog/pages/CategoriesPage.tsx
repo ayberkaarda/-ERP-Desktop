@@ -20,6 +20,7 @@ import { FormField } from '@/components/shared/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { usePermission } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { platform } from '@/platform'
 import { categoriesApi } from '../api/client'
@@ -27,6 +28,7 @@ import { catalogKeys } from '../api/keys'
 import { TextField } from '../components/fields'
 import { CategorySelect } from '../components/pickers'
 import { RecordDialog } from '../components/RecordDialog'
+import { CATALOG_ACCESS } from '../permissions'
 import { useCategories, useIdempotencyKey, useInvalidate } from '../hooks/queries'
 import { errorMessage, isVersionConflict } from '../lib/errors'
 import {
@@ -54,6 +56,7 @@ export function CategoriesPage() {
   const tree = useMemo(() => buildTree(data), [data])
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
   const [focusId, setFocusId] = useState<string | null>(null)
+  const canManage = usePermission(CATALOG_ACCESS.categories.manage)
   const [dialog, setDialog] = useState<DialogState>(null)
   const [deleting, setDeleting] = useState<ItemCategory | null>(null)
   const [message, setMessage] = useState<{ tone: 'error' | 'ok'; text: string } | null>(null)
@@ -162,17 +165,20 @@ export function CategoriesPage() {
           focusRow(node.category.parent_id)
         break
       case 'Enter':
+        if (!canManage) return
         setDialog({ kind: 'edit', category: node.category })
         break
       case 'Delete':
+        if (!canManage) return
         setDeleting(node.category)
         break
       case 'Insert':
+        if (!canManage) return
         setDialog({ kind: 'create', parentId: id })
         break
       case 'm':
       case 'M':
-        if (e.ctrlKey || e.metaKey || e.altKey) return
+        if (e.ctrlKey || e.metaKey || e.altKey || !canManage) return
         setDialog({ kind: 'move', category: node.category })
         break
       default:
@@ -208,10 +214,12 @@ export function CategoriesPage() {
         description={t('categories.description')}
         breadcrumbs={[{ label: t('nav.catalog') }, { label: t('categories.title') }]}
         actions={
-          <Button onClick={() => setDialog({ kind: 'create', parentId: null })}>
-            <Plus aria-hidden="true" />
-            {t('categories.new')}
-          </Button>
+          canManage ? (
+            <Button onClick={() => setDialog({ kind: 'create', parentId: null })}>
+              <Plus aria-hidden="true" />
+              {t('categories.new')}
+            </Button>
+          ) : undefined
         }
       />
       <div aria-live="polite" className="min-h-0">
@@ -254,7 +262,7 @@ export function CategoriesPage() {
               {t('categories.collapseAll')}
             </Button>
             <p id="cat-tree-hint" className="ml-auto text-xs text-muted-foreground">
-              {t('categories.keyboardHint')}
+              {canManage ? t('categories.keyboardHint') : t('categories.keyboardHintReadOnly')}
             </p>
           </div>
           <div
@@ -292,12 +300,13 @@ export function CategoriesPage() {
                   aria-selected={current === c.id}
                   aria-label={`${c.code} ${c.name}`}
                   tabIndex={current === c.id ? 0 : -1}
-                  draggable
+                  draggable={canManage}
                   onFocus={(e) => {
                     if (e.target === e.currentTarget) setFocusId(c.id)
                   }}
                   onKeyDown={(e) => onKeyDown(e, node)}
                   onDragStart={(e) => {
+                    if (!canManage) return
                     e.dataTransfer.effectAllowed = 'move'
                     e.dataTransfer.setData('text/plain', c.id)
                     setDragId(c.id)
@@ -339,44 +348,46 @@ export function CategoriesPage() {
                   )}
                   <span className="font-code text-xs text-muted-foreground">{c.code}</span>
                   <span className="min-w-0 truncate text-sm">{c.name}</span>
-                  <span className="ml-auto flex items-center gap-0.5 opacity-60 group-focus-within:opacity-100 group-hover:opacity-100">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      tabIndex={-1}
-                      aria-label={t('categories.addChild', { name: c.name })}
-                      onClick={() => setDialog({ kind: 'create', parentId: c.id })}
-                    >
-                      <Plus aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      tabIndex={-1}
-                      aria-label={t('categories.edit', { name: c.name })}
-                      onClick={() => setDialog({ kind: 'edit', category: c })}
-                    >
-                      <Pencil aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      tabIndex={-1}
-                      aria-label={t('categories.move', { name: c.name })}
-                      onClick={() => setDialog({ kind: 'move', category: c })}
-                    >
-                      <FolderInput aria-hidden="true" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      tabIndex={-1}
-                      aria-label={t('categories.delete', { name: c.name })}
-                      onClick={() => setDeleting(c)}
-                    >
-                      <Trash2 aria-hidden="true" />
-                    </Button>
-                  </span>
+                  {canManage && (
+                    <span className="ml-auto flex items-center gap-0.5 opacity-60 group-focus-within:opacity-100 group-hover:opacity-100">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        tabIndex={-1}
+                        aria-label={t('categories.addChild', { name: c.name })}
+                        onClick={() => setDialog({ kind: 'create', parentId: c.id })}
+                      >
+                        <Plus aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        tabIndex={-1}
+                        aria-label={t('categories.edit', { name: c.name })}
+                        onClick={() => setDialog({ kind: 'edit', category: c })}
+                      >
+                        <Pencil aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        tabIndex={-1}
+                        aria-label={t('categories.move', { name: c.name })}
+                        onClick={() => setDialog({ kind: 'move', category: c })}
+                      >
+                        <FolderInput aria-hidden="true" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        tabIndex={-1}
+                        aria-label={t('categories.delete', { name: c.name })}
+                        onClick={() => setDeleting(c)}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </span>
+                  )}
                 </li>
               )
             })}

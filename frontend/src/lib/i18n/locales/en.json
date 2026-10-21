@@ -43,7 +43,15 @@
     "warehouses": "Warehouses",
     "costCenters": "Cost centers",
     "projects": "Projects",
-    "referenceSettings": "Reference settings"
+    "referenceSettings": "Reference settings",
+    "journalEntries": "Journal entries",
+    "chartOfAccounts": "Chart of accounts",
+    "trialBalance": "Trial balance",
+    "generalLedger": "General ledger",
+    "journalBook": "Journal book",
+    "fiscalYears": "Fiscal years",
+    "accountingPeriods": "Accounting periods",
+    "accountDetermination": "Account determination"
   },
   "topbar": {
     "company": "Company",

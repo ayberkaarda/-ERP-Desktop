@@ -32,7 +32,7 @@ describe('FiscalYearsPage', () => {
       code: '2027',
       start_date: '2027-01-01',
       end_date: '2027-12-31',
-      with_adjustment_period: true,
+      adjustment_period: true,
     })
   })
 
@@ -120,6 +120,7 @@ describe('FiscalYearsPage', () => {
               total_credit: '900000.0000',
             },
           ],
+          warnings: ['2025 mali yılı hâlâ açık.'],
         },
       },
     })
@@ -132,6 +133,7 @@ describe('FiscalYearsPage', () => {
       await within(dialog).findByText('Dönem sonucu: 125.000,00 (Alacak) → 590'),
     ).toBeInTheDocument()
     expect(within(dialog).getByText('900.000,00')).toBeInTheDocument()
+    expect(within(dialog).getByText('2025 mali yılı hâlâ açık.')).toBeInTheDocument()
   })
 
   it('reopens a closed year only with a reason', async () => {

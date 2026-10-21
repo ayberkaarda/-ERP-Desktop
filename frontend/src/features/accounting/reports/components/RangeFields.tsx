@@ -70,7 +70,7 @@ export function RangeFields({ value, onChange, allowPeriod = true }: RangeFields
               {(periods.data ?? []).map((p) => (
                 <option key={p.id} value={p.id}>
                   {t('reports.periodOption', {
-                    year: p.fiscal_year?.code ?? p.start_date.slice(0, 4),
+                    year: p.fiscal_year_code ?? p.start_date.slice(0, 4),
                     number: String(p.number).padStart(2, '0'),
                     from: formatDate(p.start_date, locale),
                     to: formatDate(p.end_date, locale),
