@@ -1073,11 +1073,18 @@ export function salesHandlers(db: SalesDb) {
         },
       }),
     ),
-    http.get(`${API}/customers/:id/exposure`, ({ params, request }) =>
-      HttpResponse.json({
-        data: exposureOf(String(params.id), new URL(request.url).searchParams.get('document_id')),
-      }),
-    ),
+    http.get(`${API}/customers/:id/exposure`, ({ params, request }) => {
+      const documentId = new URL(request.url).searchParams.get('document_id')
+      // Like the API: only an order (or sale invoice) of this customer may be asked about.
+      if (
+        documentId &&
+        !db.orders.some((o) => o.id === documentId && o.party_id === String(params.id))
+      )
+        return invalid({
+          document_id: ['Bu müşteriye ait bu kimlikte bir sipariş veya satış faturası bulunamadı.'],
+        })
+      return HttpResponse.json({ data: exposureOf(String(params.id), documentId) })
+    }),
     http.get(`${API}/settings`, ({ request }) => {
       if (!db.settingsReadable) return forbidden()
       const group = new URL(request.url).searchParams.get('group')

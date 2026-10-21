@@ -432,7 +432,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
                 partyId={partyId}
                 documentTotal={totals?.total_local ?? null}
                 documentCurrency={localCurrency}
-                documentId={pristine && !revising ? base.id : null}
+                documentId={kind === 'order' && pristine && !revising ? base.id : null}
                 counted={revising && base?.party_id === partyId ? base.total_local : null}
               />
             )}

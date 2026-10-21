@@ -174,6 +174,15 @@ describe('quote editor', () => {
     const table = await screen.findByRole('table', { name: 'Satırlar' })
     expect(within(table).getByTestId('line-total-0')).toHaveTextContent('120,00')
     expect(screen.getByTestId('totals')).toHaveTextContent('120,00')
+    // Quotes are not in the exposure: the badge asks without document_id and loads.
+    await waitFor(() =>
+      expect(screen.queryByText(/Risk bilgisi (yükleniyor|alınamadı)/)).not.toBeInTheDocument(),
+    )
+    expect(
+      db.calls.some(
+        (c) => c.path.startsWith('/customers/') && c.url.searchParams.has('document_id'),
+      ),
+    ).toBe(false)
     await new Promise((r) => setTimeout(r, 600))
     expect(db.calls.some((c) => c.path === '/sales-documents/preview-totals')).toBe(false)
     expect(screen.getByTestId('totals')).not.toHaveTextContent('144,00')
