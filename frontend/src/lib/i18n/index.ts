@@ -1,5 +1,9 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
+import catalogDe from './locales/catalog/de.json'
+import catalogEn from './locales/catalog/en.json'
+import catalogFr from './locales/catalog/fr.json'
+import catalogTr from './locales/catalog/tr.json'
 import commonDe from './locales/common/de.json'
 import commonEn from './locales/common/en.json'
 import commonFr from './locales/common/fr.json'
@@ -29,12 +33,12 @@ function storedLanguage(): Language {
 
 void i18n.use(initReactI18next).init({
   resources: {
-    tr: { translation: tr, common: commonTr, parties: partiesTr },
-    en: { translation: en, common: commonEn, parties: partiesEn },
-    de: { translation: de, common: commonDe, parties: partiesDe },
-    fr: { translation: fr, common: commonFr, parties: partiesFr },
+    tr: { translation: tr, common: commonTr, catalog: catalogTr, parties: partiesTr },
+    en: { translation: en, common: commonEn, catalog: catalogEn, parties: partiesEn },
+    de: { translation: de, common: commonDe, catalog: catalogDe, parties: partiesDe },
+    fr: { translation: fr, common: commonFr, catalog: catalogFr, parties: partiesFr },
   },
-  ns: ['translation', 'common', 'parties'],
+  ns: ['translation', 'common', 'catalog', 'parties'],
   lng: storedLanguage(),
   fallbackLng: 'tr',
   supportedLngs: SUPPORTED_LANGUAGES,
