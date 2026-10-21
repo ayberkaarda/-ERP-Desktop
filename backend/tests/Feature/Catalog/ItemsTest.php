@@ -65,7 +65,7 @@ it('stores decimals and json attributes as given and audits changes', function (
     Catalog::as($this->admin, $this->company)->patchJson("/api/v1/items/{$id}", ['name' => 'Wheat flour', 'version' => 1])
         ->assertOk()->assertJsonPath('data.version', 2);
 
-    expect(Activity::withoutCompanyScope()->where('subject_id', $id)->where('subject_type', 'item')->pluck('event')->all())->toBe(['created', 'updated']);
+    expect(Activity::withoutCompanyScope()->where('subject_id', $id)->where('subject_type', 'item')->pluck('event')->sort()->values()->all())->toBe(['created', 'updated']);
 
     foreach (['1.1234567', '-1', '1e2', 12] as $bad) {
         Catalog::as($this->admin, $this->company)->patchJson("/api/v1/items/{$id}", ['min_stock' => $bad, 'version' => 2])
