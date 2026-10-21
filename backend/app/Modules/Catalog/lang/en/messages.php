@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'conversion_missing' => 'There is no conversion between these units.',
+    'factor_positive' => 'The factor must be greater than zero.',
+    'conversion_cycle' => 'These units are already convertible; another conversion would create a cycle.',
+    'conversion_inconsistent' => 'The factor contradicts the unit conversions of the company (expected :factor).',
+    'conversion_conflicts_item' => 'The conversion contradicts the alternate unit factor of item :item.',
+    'unit_in_use' => 'The unit is in use; deactivate it instead.',
+    'category_depth' => 'Categories can be nested at most :max levels deep.',
+    'category_cycle' => 'A category cannot be moved under itself or one of its descendants.',
+    'category_parent_missing' => 'The parent category does not exist.',
+    'category_has_children' => 'The category has subcategories.',
+    'category_in_use' => 'The category is in use; deactivate it instead.',
+    'item_in_use' => 'The item is in use; deactivate it instead.',
+    'base_unit_locked' => 'The base unit cannot change once the item has alternate units, barcodes, prices or transactions.',
+    'item_unit_is_base' => 'The base unit cannot be an alternate unit.',
+    'service_tracking' => 'Service items cannot be lot or serial tracked or have an expiry date.',
+    'barcode_check_digit' => 'The barcode is not a valid :type code (check digit or length).',
+    'barcode_unit' => 'The unit must be the base unit or an alternate unit of the item.',
+    'variant_mismatch' => 'The variant does not belong to the item.',
+    'variant_in_use' => 'The variant is used in price lists; deactivate it instead.',
+    'tax_code_missing' => 'The tax code does not exist.',
+    'currency_missing' => 'The currency does not exist.',
+    'party_missing' => 'The party does not exist.',
+    'party_required' => 'A party is required for party discounts.',
+    'scope_ref_missing' => 'The item or category of the discount does not exist.',
+    'scope_ref_prohibited' => 'This scope does not take a reference.',
+    'discount_range' => 'The discount must be greater than 0 and at most 100 percent.',
+    'invalid_validity' => 'The end date must be on or after the start date.',
+    'item_missing' => 'The item does not exist.',
+    'line_duplicate' => 'This line repeats line :line.',
+    'line_not_found' => 'No existing line matches; omit the version to create it.',
+    'line_version' => 'The line was changed by someone else (current version :version).',
+    'qty_positive' => 'The quantity must be greater than zero.',
+];

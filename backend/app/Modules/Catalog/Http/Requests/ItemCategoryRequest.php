@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Modules\Catalog\Http\Requests;
+
+final class ItemCategoryRequest extends CatalogRequest
+{
+    /** @return array<string, mixed> */
+    public function rules(): array
+    {
+        return [
+            'code' => [$this->required(), 'string', 'max:32', 'regex:/^\S+$/', $this->unique('item_categories', 'code', $this->routeId('id'))],
+            'name' => [$this->required(), 'string', 'max:200'],
+            'parent_id' => ['sometimes', 'nullable', 'uuid'],
+            'is_active' => ['sometimes', 'boolean'],
+            'version' => $this->versionRule(),
+        ];
+    }
+}
