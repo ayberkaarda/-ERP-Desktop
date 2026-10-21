@@ -58,7 +58,7 @@ final class DeliveryController extends SalesDocumentController
     /** Draft: cancel (update). Posted: reverse the stock (reverse; body reason required, date optional). */
     public function cancel(ActionRequest $request, string $id): JsonResponse
     {
-        $delivery = $this->delivery($id, 'view');
+        $delivery = $this->delivery($id, 'cancel');
         Gate::authorize($delivery->status === DeliveryStatus::Posted ? 'reverse' : 'update', $delivery);
 
         return $this->respond($this->deliveries->cancel($delivery, $request->optionalVersion(), $request->text('reason'), $request->text('date'), $this->actor($request)));

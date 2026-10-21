@@ -64,8 +64,9 @@ final class InvoiceController extends SalesDocumentController
     /** Body: date (Y-m-d, default today), reason (required), reverse_stock (bool), version?. */
     public function reverse(ActionRequest $request, string $id): JsonResponse
     {
+        $invoice = $this->invoice($id, 'reverse');
         $reason = $request->text('reason') ?? Messages::fail('reason', 'reason_required');
-        [$invoice, $replayed] = $this->invoices->reverse($this->invoice($id, 'reverse'), $request->optionalVersion(),
+        [$invoice, $replayed] = $this->invoices->reverse($invoice, $request->optionalVersion(),
             $request->text('date') ?? now()->toDateString(), $reason, $request->boolean('reverse_stock'), $this->actor($request));
 
         return $this->respond($invoice, replayed: $replayed);

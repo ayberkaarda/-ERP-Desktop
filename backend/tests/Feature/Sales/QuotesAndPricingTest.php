@@ -18,13 +18,13 @@ beforeEach(function (): void {
     Catalog::line($this->w->company, $this->list, $this->w->item, $this->w->unit, '120');
 });
 
-function quotePayload(object $w, array $line = [], array $header = []): array
+function salesQuotePayload(object $w, array $line = [], array $header = []): array
 {
     return ['party_id' => $w->party->id, 'document_date' => '2027-06-10', ...$header, 'lines' => [['item_id' => $w->item->id, 'quantity' => '2', ...$line]]];
 }
 
 it('prices lines through the resolver and records the source', function (): void {
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w))
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w))
         ->assertCreated()
         ->assertJsonPath('data.lines.0.unit_price', '120.000000')
         ->assertJsonPath('data.lines.0.price_source', 'default_price_list')
@@ -34,14 +34,14 @@ it('prices lines through the resolver and records the source', function (): void
 });
 
 it('refuses a price override without sales.price_override and audits an allowed one', function (): void {
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['unit_price' => '99']))
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['unit_price' => '99']))
         ->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['lines.0.unit_price']));
 
     // The same price as the resolver's is not an override.
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['unit_price' => '120.00']))->assertCreated();
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['unit_price' => '120.00']))->assertCreated();
 
     $boss = SalesKit::user(['sales.price_override']);
-    $quote = SalesKit::post($boss, $this->w->company, 'sales-quotes', quotePayload($this->w, ['unit_price' => '99']))
+    $quote = SalesKit::post($boss, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['unit_price' => '99']))
         ->assertCreated()->assertJsonPath('data.lines.0.price_source', 'manual')->json('data');
     expect(DB::table('activity_log')->where('subject_id', $quote['id'])->where('event', 'price_override')->exists())->toBeTrue();
 });
@@ -58,7 +58,7 @@ it('accepts manual prices when no price list applies and requires one otherwise'
 
 it('snapshots the tax rate valid on the document date', function (): void {
     $old = SalesKit::taxCode($this->w->company, '18.0000', '2023-01-01', '2027-06-30');
-    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['tax_code_id' => $old->id]))
+    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['tax_code_id' => $old->id]))
         ->assertCreated()->assertJsonPath('data.lines.0.tax_rate', '18.0000')->assertJsonPath('data.tax_total', '43.2000')->json('data');
 
     // A later change of the code does not touch the stored document.
@@ -66,23 +66,23 @@ it('snapshots the tax rate valid on the document date', function (): void {
     SalesKit::get($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}")->assertJsonPath('data.lines.0.tax_rate', '18.0000');
 
     // After its validity the code cannot be used.
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['tax_code_id' => $old->id], ['document_date' => '2027-07-05']))
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['tax_code_id' => $old->id], ['document_date' => '2027-07-05']))
         ->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['lines.0.tax_code_id']));
 
     // An explicit null leaves the line untaxed.
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['tax_code_id' => null]))
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['tax_code_id' => null]))
         ->assertCreated()->assertJsonPath('data.tax_total', '0.0000');
 });
 
 it('converts units to the base quantity', function (): void {
     $box = SalesKit::unit($this->w->company, 'BOX');
     Catalog::itemUnit($this->w->company, $this->w->item, $box, '12');
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['unit_id' => $box->id, 'unit_price' => '1440']))
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['unit_id' => $box->id, 'unit_price' => '1440']))
         ->assertCreated()->assertJsonPath('data.lines.0.base_quantity', '24.000000')->assertJsonPath('data.lines.0.quantity', '2.000000');
 });
 
 it('walks the quote lifecycle and refuses illegal transitions', function (): void {
-    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w))->json('data');
+    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w))->json('data');
 
     SalesKit::patch($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}", ['version' => 1, 'notes' => 'Edited'])
         ->assertOk()->assertJsonPath('data.notes', 'Edited')->assertJsonPath('data.version', 2);
@@ -118,14 +118,14 @@ it('walks the quote lifecycle and refuses illegal transitions', function (): voi
 });
 
 it('converting needs sales.orders.create as well', function (): void {
-    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w))->json('data');
+    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w))->json('data');
     $quoter = Actors::user(['sales.quotes.view', 'sales.quotes.update']);
     SalesKit::post($quoter, $this->w->company, "sales-quotes/{$quote['id']}/convert")->assertForbidden();
     expect(DB::table('sales_quotes')->where('id', $quote['id'])->value('status'))->toBe('draft');
 });
 
 it('expires quotes past their validity and refuses to convert them', function (): void {
-    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, [], ['valid_until' => '2027-06-14']))
+    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, [], ['valid_until' => '2027-06-14']))
         ->assertJsonPath('data.valid_until', '2027-06-14')->json('data');
     SalesKit::post($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}/convert")
         ->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['valid_until']));
@@ -158,7 +158,7 @@ it('validates parties: unknown, inactive or not a customer', function (): void {
     $inactive = SalesKit::party($this->w->company, ['is_active' => false]);
 
     foreach ([(string) Str::uuid7(), $supplier->id, $inactive->id] as $party) {
-        SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', [...quotePayload($this->w), 'party_id' => $party])
+        SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', [...salesQuotePayload($this->w), 'party_id' => $party])
             ->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['party_id']));
     }
 });
@@ -166,7 +166,7 @@ it('validates parties: unknown, inactive or not a customer', function (): void {
 it('rejects more than 500 lines and non-positive quantities', function (): void {
     $lines = array_fill(0, 501, ['item_id' => $this->w->item->id, 'quantity' => '1']);
     SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', ['party_id' => $this->w->party->id, 'lines' => $lines])->assertStatus(422);
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['quantity' => '0']))
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['quantity' => '0']))
         ->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['lines.0.quantity']));
-    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', quotePayload($this->w, ['quantity' => '-1']))->assertStatus(422);
+    SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', salesQuotePayload($this->w, ['quantity' => '-1']))->assertStatus(422);
 });

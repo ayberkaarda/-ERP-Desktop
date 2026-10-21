@@ -317,7 +317,7 @@ final class InvoiceService extends DocumentService
                 }
             }
 
-            $invoice->balance_due = '0';
+            $invoice->setAttribute('balance_due', '0');
             $invoice->reversed_at = now();
             $invoice->reversed_by = self::actorId($actor);
             $invoice->reversal_date = Carbon::parse($date);
@@ -403,8 +403,8 @@ final class InvoiceService extends DocumentService
         }
 
         $invoice->journal_entry_id = $entry->id;
-        $invoice->paid_amount = '0';
-        $invoice->balance_due = (string) $invoice->total;
+        $invoice->setAttribute('paid_amount', '0');
+        $invoice->setAttribute('balance_due', (string) $invoice->total);
         $invoice->issued_at = now();
         $invoice->issued_by = self::actorId($actor);
         $this->machine->transition($invoice, InvoiceStatus::Issued, $actor);

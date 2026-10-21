@@ -17,6 +17,7 @@ use App\Modules\Sales\Support\Sales;
 use BackedEnum;
 use Brick\Math\RoundingMode;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Shared steps of the document services: row locks, status guards, draft edits and line inputs.
@@ -176,9 +177,9 @@ abstract class DocumentService
     }
 
     /** The acting user as activity causer (a model), or nobody. */
-    protected static function causer(?Authenticatable $actor): ?\Illuminate\Database\Eloquent\Model
+    protected static function causer(?Authenticatable $actor): ?Model
     {
-        return $actor instanceof \Illuminate\Database\Eloquent\Model ? $actor : null;
+        return $actor instanceof Model ? $actor : null;
     }
 
     protected static function actorId(?Authenticatable $actor): ?string

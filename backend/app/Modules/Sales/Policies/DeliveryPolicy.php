@@ -15,6 +15,12 @@ final class DeliveryPolicy extends SalesPolicy
         return $this->allowed($user, $doc, 'post');
     }
 
+    /** Draft cancel (update) or reversal of a posted delivery (reverse); the controller picks by status. */
+    public function cancel(User $user, ?Model $doc = null): bool
+    {
+        return $this->allowed($user, $doc, 'update') || $this->allowed($user, $doc, 'reverse');
+    }
+
     public function reverse(User $user, ?Model $doc = null): bool
     {
         return $this->allowed($user, $doc, 'reverse');

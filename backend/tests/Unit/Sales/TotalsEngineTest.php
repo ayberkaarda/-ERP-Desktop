@@ -5,15 +5,17 @@ declare(strict_types=1);
 use App\Modules\Sales\Enums\RoundingScope;
 use App\Modules\Sales\Services\Totals\LineInput;
 use App\Modules\Sales\Services\Totals\TotalsEngine;
+use App\Modules\Sales\Services\Totals\TotalsResult;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 
-function totals(array $lines, RoundingScope $scope = RoundingScope::PerLine, string $fx = '1'): \App\Modules\Sales\Services\Totals\TotalsResult
+function salesTotals(array $lines, RoundingScope $scope = RoundingScope::PerLine, string $fx = '1'): TotalsResult
 {
     return (new TotalsEngine)->compute($lines, $scope, $fx);
 }
 
 it('computes net, discounts, tax and totals per line', function (): void {
-    $r = totals([
+    $r = salesTotals([
         new LineInput('5', '100', '10', '0', '20'),
         new LineInput('1', '200', '0', '15', '10'),
     ]);
@@ -28,7 +30,7 @@ it('computes net, discounts, tax and totals per line', function (): void {
 
 it('rounds half up per line and keeps total = subtotal - discount + tax', function (): void {
     // 3 x 0.335 = 1.005 -> 1.01 net; tax 18% of 1.01 = 0.1818 -> 0.18.
-    $r = totals([new LineInput('3', '0.335', '0', '0', '18'), new LineInput('1', '0.005', '0', '0', '18')]);
+    $r = salesTotals([new LineInput('3', '0.335', '0', '0', '18'), new LineInput('1', '0.005', '0', '0', '18')]);
 
     expect($r->lines[0]->net)->toBe('1.01')->and($r->lines[0]->tax)->toBe('0.18')
         ->and($r->lines[1]->net)->toBe('0.01')->and($r->lines[1]->tax)->toBe('0.00')
@@ -42,8 +44,8 @@ it('per_total rounding computes tax once per tax code and allocates it back to t
         $lines[] = new LineInput('1', '0.10', '0', '0', '18', false, 'vat18');
     }
 
-    $perLine = totals($lines);
-    $perTotal = totals($lines, RoundingScope::PerTotal);
+    $perLine = salesTotals($lines);
+    $perTotal = salesTotals($lines, RoundingScope::PerTotal);
 
     // Per line: 3 x round(0.018) = 0.06; per total: round(0.30 x 18%) = 0.05, spread 0.02 + 0.02 + 0.01.
     expect($perLine->taxTotal)->toBe('0.06')
@@ -55,7 +57,7 @@ it('per_total rounding computes tax once per tax code and allocates it back to t
 });
 
 it('derives net from tax-inclusive prices and keeps the gross amount the customer sees', function (): void {
-    $r = totals([new LineInput('1', '118', '0', '0', '18', true), new LineInput('3', '9.99', '0', '0', '20', true)]);
+    $r = salesTotals([new LineInput('1', '118', '0', '0', '18', true), new LineInput('3', '9.99', '0', '0', '20', true)]);
 
     expect($r->lines[0]->net)->toBe('100.00')->and($r->lines[0]->tax)->toBe('18.00')->and($r->lines[0]->lineTotal)->toBe('118.00')
         ->and($r->lines[1]->lineTotal)->toBe('29.97')->and($r->lines[1]->net)->toBe('24.98')->and($r->lines[1]->tax)->toBe('4.99')
@@ -63,7 +65,7 @@ it('derives net from tax-inclusive prices and keeps the gross amount the custome
 });
 
 it('keeps company currency totals consistent: tax per code converted, net as the difference', function (): void {
-    $r = totals([
+    $r = salesTotals([
         new LineInput('1', '33.33', '0', '0', '20', false, 'a'),
         new LineInput('1', '66.67', '0', '0', '10', false, 'b'),
     ], RoundingScope::PerLine, '34.567891');
@@ -72,16 +74,16 @@ it('keeps company currency totals consistent: tax per code converted, net as the
 
     foreach ($r->taxes as $tax) {
         $taxLocal = $taxLocal->plus($tax->taxLocal);
-        expect($tax->taxLocal)->toBe((string) BigDecimal::of($tax->tax)->multipliedBy('34.567891')->toScale(2, \Brick\Math\RoundingMode::HalfUp));
+        expect($tax->taxLocal)->toBe((string) BigDecimal::of($tax->tax)->multipliedBy('34.567891')->toScale(2, RoundingMode::HalfUp));
     }
 
-    expect($r->totalLocal)->toBe((string) BigDecimal::of($r->total)->multipliedBy('34.567891')->toScale(2, \Brick\Math\RoundingMode::HalfUp))
+    expect($r->totalLocal)->toBe((string) BigDecimal::of($r->total)->multipliedBy('34.567891')->toScale(2, RoundingMode::HalfUp))
         ->and($r->taxTotalLocal)->toBe((string) $taxLocal->toScale(2))
         ->and(BigDecimal::of($r->subtotalLocal)->minus($r->discountTotalLocal)->plus($r->taxTotalLocal)->isEqualTo($r->totalLocal))->toBeTrue();
 });
 
 it('groups tax by code and rate and handles untaxed lines', function (): void {
-    $r = totals([
+    $r = salesTotals([
         new LineInput('2', '10', '0', '0', '20', false, 'x'),
         new LineInput('1', '5', '0', '0', '0', false, null),
         new LineInput('1', '10', '0', '0', '20', false, 'x'),
@@ -94,7 +96,7 @@ it('groups tax by code and rate and handles untaxed lines', function (): void {
 });
 
 it('handles quantities and prices with six decimals without floats', function (): void {
-    $r = totals([new LineInput('0.333333', '3.000003', '12.5', '0.01', '1')]);
+    $r = salesTotals([new LineInput('0.333333', '3.000003', '12.5', '0.01', '1')]);
 
     // 0.333333 x 3.000003 = 0.999999999999; x 0.875 = 0.874999...; - 0.01 = 0.864999... -> 0.86
     expect($r->lines[0]->net)->toBe('0.86')->and($r->lines[0]->gross)->toBe('1.00')->and($r->lines[0]->lineDiscount)->toBe('0.14');

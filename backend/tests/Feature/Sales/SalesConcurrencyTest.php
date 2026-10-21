@@ -102,7 +102,7 @@ function onSecondSales(Closure $fn): mixed
     }
 }
 
-function isLockTimeout(Throwable $e): bool
+function salesLockTimeout(Throwable $e): bool
 {
     return $e instanceof QueryException && ($e->errorInfo[0] ?? null) === '55P03';
 }
@@ -118,7 +118,7 @@ it('serializes two deliveries of one order line: the second never exceeds the or
     } catch (Throwable $e) {
         $blocked = $e;
     }
-    expect($blocked)->not->toBeNull()->and(isLockTimeout($blocked))->toBeTrue();
+    expect($blocked)->not->toBeNull()->and(salesLockTimeout($blocked))->toBeTrue();
 
     $this->a->commit();
     $refused = null;
@@ -148,7 +148,7 @@ it('serializes two invoices of one delivery: the delivered quantity is invoiced 
     } catch (Throwable $e) {
         $blocked = $e;
     }
-    expect(isLockTimeout($blocked))->toBeTrue();
+    expect(salesLockTimeout($blocked))->toBeTrue();
     $this->a->commit();
 
     $refused = null;
@@ -176,7 +176,7 @@ it('serializes credit checks of one customer: the second confirmation sees the f
     } catch (Throwable $e) {
         $blocked = $e;
     }
-    expect(isLockTimeout($blocked))->toBeTrue();
+    expect(salesLockTimeout($blocked))->toBeTrue();
     $this->a->commit();
 
     $refused = null;
@@ -207,7 +207,7 @@ it('serializes two returns of one invoice line', function (): void {
     } catch (Throwable $e) {
         $blocked = $e;
     }
-    expect(isLockTimeout($blocked))->toBeTrue();
+    expect(salesLockTimeout($blocked))->toBeTrue();
     $this->a->commit();
 
     $refused = null;
@@ -218,4 +218,3 @@ it('serializes two returns of one invoice line', function (): void {
     }
     expect($refused)->not->toBeNull();
 });
-

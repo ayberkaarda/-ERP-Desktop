@@ -85,13 +85,16 @@ final class Settlement implements ReceivableSettlement
 
     private function rebalance(SalesInvoice $invoice, BigDecimal $paid): void
     {
-        $invoice->paid_amount = (string) $paid;
-        $invoice->balance_due = (string) $invoice->total->minus($paid);
+        $balance = $invoice->total->minus($paid);
         $target = match (true) {
-            $invoice->balance_due->isZero() => InvoiceStatus::Paid,
+            $balance->isZero() => InvoiceStatus::Paid,
             $paid->isZero() => InvoiceStatus::Issued,
             default => InvoiceStatus::PartiallyPaid,
         };
+        // Strings, and no reads of these casts before saving: a cached cast object would be
+        // merged into the original values by the state machine's reload and the change lost.
+        $invoice->setAttribute('paid_amount', (string) $paid);
+        $invoice->setAttribute('balance_due', (string) $balance);
 
         if ($target === $invoice->status) {
             $invoice->save();

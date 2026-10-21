@@ -341,8 +341,8 @@ final class DeliveryService extends DocumentService
         foreach ($lines as $line) {
             $cost = $costs[$line->line_no] ?? ['cost' => '0', 'lots' => null];
             $lineCost = Sales::dec($cost['cost'])->toScale(4, RoundingMode::HalfUp);
-            $line->cost_total = (string) $lineCost;
-            $line->unit_cost = (string) $lineCost->dividedBy($line->base_quantity, 6, RoundingMode::HalfUp);
+            $line->setAttribute('cost_total', (string) $lineCost);
+            $line->setAttribute('unit_cost', (string) $lineCost->dividedBy($line->base_quantity, 6, RoundingMode::HalfUp));
 
             if ($line->lot_no === null && $cost['lots'] !== null && ! str_contains($cost['lots'], ',')) {
                 $line->lot_no = $cost['lots'];
@@ -363,7 +363,7 @@ final class DeliveryService extends DocumentService
 
         $delivery->stock_document_id = $posted->documentId;
         $delivery->journal_entry_id = $posted->journalEntryId;
-        $delivery->cost_total = (string) $total;
+        $delivery->setAttribute('cost_total', (string) $total);
         $delivery->posted_at = now();
         $delivery->posted_by = self::actorId($actor);
         $this->machine->transition($delivery, DeliveryStatus::Posted, $actor);

@@ -79,7 +79,7 @@ final class SalesServiceProvider extends ModuleServiceProvider
         Event::listen(ApprovalRejected::class, [OrderApprovalListener::class, 'rejected']);
 
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule): void {
-            $schedule->command('sales:expire-quotes')->dailyAt('00:30')->timezone('Europe/Istanbul')->withoutOverlapping()->onOneServer();
+            $schedule->command('sales:expire-quotes')->dailyAt('01:00')->timezone('Europe/Istanbul')->withoutOverlapping()->onOneServer();
         });
 
         if ($this->app->runningInConsole()) {

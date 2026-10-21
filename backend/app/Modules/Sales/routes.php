@@ -66,7 +66,7 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
     $action('sales-orders/{id}/invoices', OrderController::class, 'invoices', 'create', SalesInvoice::class, 'invoice_from_order');
 
     $action('sales-deliveries/{id}/post', DeliveryController::class, 'post', 'post', SalesDelivery::class);
-    $action('sales-deliveries/{id}/cancel', DeliveryController::class, 'cancel', 'view', SalesDelivery::class);
+    $action('sales-deliveries/{id}/cancel', DeliveryController::class, 'cancel', 'cancel', SalesDelivery::class);
     $action('sales-deliveries/{id}/invoice', DeliveryController::class, 'invoice', 'create', SalesInvoice::class, 'invoice_from_delivery');
 
     $action('sales-invoices/{id}/issue', InvoiceController::class, 'issue', 'issue', SalesInvoice::class);

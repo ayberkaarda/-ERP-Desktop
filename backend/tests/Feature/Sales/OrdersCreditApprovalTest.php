@@ -16,7 +16,7 @@ beforeEach(function (): void {
     $this->w = SalesKit::world();
 });
 
-function draftOrder(object $w, string $qty = '1', string $price = '100', array $header = []): array
+function salesDraftOrder(object $w, string $qty = '1', string $price = '100', array $header = []): array
 {
     return SalesKit::post($w->user, $w->company, 'sales-orders', [
         'party_id' => $w->party->id, 'document_date' => '2027-06-10', ...$header,
@@ -26,7 +26,7 @@ function draftOrder(object $w, string $qty = '1', string $price = '100', array $
 
 it('warns over the credit limit in warn mode and confirms', function (): void {
     DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '100', 'risk_currency_code' => 'TRY']);
-    $order = draftOrder($this->w);
+    $order = salesDraftOrder($this->w);
 
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertOk()
         ->assertJsonPath('data.status', 'confirmed')
@@ -39,9 +39,9 @@ it('warns over the credit limit in warn mode and confirms', function (): void {
 it('blocks over the limit in block mode, with an audited override for sales.credit_override', function (): void {
     SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'block');
     DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '200', 'risk_currency_code' => 'TRY']);
-    $first = draftOrder($this->w);
+    $first = salesDraftOrder($this->w);
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$first['id']}/confirm")->assertOk();
-    $order = draftOrder($this->w);
+    $order = salesDraftOrder($this->w);
 
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertStatus(422)
         ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded')
@@ -68,12 +68,12 @@ it('blocks over the limit in block mode, with an audited override for sales.cred
 });
 
 it('skips the check in off mode and treats parties without a limit as unlimited', function (): void {
-    $order = draftOrder($this->w, '5', '100000');
+    $order = salesDraftOrder($this->w, '5', '100000');
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertOk()->assertJsonMissingPath('meta.warnings');
 
     SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'off');
     DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '1']);
-    $order = draftOrder($this->w);
+    $order = salesDraftOrder($this->w);
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertOk()->assertJsonMissingPath('meta.warnings');
 });
 
@@ -106,10 +106,10 @@ it('sends large orders to approval and confirms them when approved', function ()
         'steps' => [['position' => 1, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => $approver->id]],
     ])->assertCreated();
 
-    $small = draftOrder($this->w, '1', '100');
+    $small = salesDraftOrder($this->w, '1', '100');
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$small['id']}/confirm")->assertJsonPath('data.status', 'confirmed');
 
-    $order = draftOrder($this->w, '9', '100');
+    $order = salesDraftOrder($this->w, '9', '100');
     $pending = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertOk()
         ->assertJsonPath('data.status', 'pending_approval')->json('data');
     expect($pending['approval_request_id'])->not->toBeNull()
@@ -129,7 +129,7 @@ it('returns a rejected order to draft and notifies the creator', function (): vo
         'name' => 'Sales orders', 'document_type' => 'sales_order',
         'steps' => [['position' => 1, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => $approver->id]],
     ])->assertCreated();
-    $order = draftOrder($this->w);
+    $order = salesDraftOrder($this->w);
     $pending = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->json('data');
 
     $request = SalesKit::get($approver, $this->w->company, "approvals/{$pending['approval_request_id']}")->assertOk()->json('data');
@@ -141,7 +141,7 @@ it('returns a rejected order to draft and notifies the creator', function (): vo
 
 it('confirms at once through the approval engine when no flow is configured', function (): void {
     SalesKit::setting($this->w->company, 'sales.require_approval_over', '50');
-    $order = draftOrder($this->w);
+    $order = salesDraftOrder($this->w);
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertOk();
     SalesKit::get($this->w->user, $this->w->company, "sales-orders/{$order['id']}")->assertJsonPath('data.status', 'confirmed');
 });
@@ -174,7 +174,7 @@ it('releases reservations on cancel and refuses cancel after a delivery', functi
 
 it('refuses a hard reservation beyond stock and keeps the order a draft; soft ones warn', function (): void {
     Inv::policy($this->w->company, $this->w->wh->id, 'hard');
-    $order = draftOrder($this->w, '11');
+    $order = salesDraftOrder($this->w, '11');
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertStatus(422);
     expect(DB::table('sales_orders')->where('id', $order['id'])->value('status'))->toBe('draft');
 
