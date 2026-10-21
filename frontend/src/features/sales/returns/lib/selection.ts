@@ -9,6 +9,8 @@ export interface ReturnLineValues {
   itemLabel: string
   unitCode: string
   unitPrice: string
+  /** Discounted net amount of the invoice line (before tax). */
+  netAmount: string
   invoiced: string
   /** Invoiced minus already returned (never negative). */
   returnable: string
@@ -50,6 +52,7 @@ export function valuesFromInvoice(
         itemLabel: label(l.item_code, l.item_name, l.description),
         unitCode: l.unit_code ?? '',
         unitPrice: l.unit_price,
+        netAmount: l.net_amount,
         invoiced: l.quantity,
         returnable,
         quantity: returnable,
@@ -95,12 +98,18 @@ export function toReturnInput(values: ReturnValues): ReturnInput {
   }
 }
 
-/** Value of the selected lines at the invoice price (net, before tax), for the summary. */
+/**
+ * Value of the selected lines before tax: the invoice line's discounted net amount, taken in
+ * proportion to the returned quantity (so line discounts are honoured).
+ */
 export function selectionValue(values: ReturnValues): string {
   return values.lines
     .filter((l) => l.selected && isDecimal(l.quantity))
     .reduce(
-      (acc, l) => acc.plus(dec(l.quantity).mul(dec(l.unitPrice)).toDecimalPlaces(2)),
+      (acc, l) =>
+        dec(l.invoiced).isZero()
+          ? acc
+          : acc.plus(dec(l.netAmount).mul(dec(l.quantity)).div(dec(l.invoiced)).toDecimalPlaces(2)),
       dec('0'),
     )
     .toFixed(2)

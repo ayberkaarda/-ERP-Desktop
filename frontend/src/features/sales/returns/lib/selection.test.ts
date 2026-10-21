@@ -32,6 +32,16 @@ const invLine = (id: string, quantity: string, returned: string, price = '10'): 
 })
 
 describe('return selection', () => {
+  it('values returned quantities at the discounted net amount of the invoice line', () => {
+    // 1 unit at 100 with 20% discount: net 80, so returning it is worth 80, not 100.
+    const line = { ...invLine('a', '1', '0', '100'), discount_percent: '20', net_amount: '80.0000' }
+    const v = valuesFromInvoice([line, { ...invLine('b', '3', '0', '10'), net_amount: '25.0000' }], 'wh')
+    v.lines = v.lines.map((l) => ({ ...l, selected: true, quantity: l.invoiceLineId === 'a' ? '1' : '1' }))
+    // 80 + 25 / 3 = 80 + 8.33
+    expect(selectionValue(v)).toBe('88.33')
+  })
+
+
   it('offers invoiced minus already returned, never negative', () => {
     expect(returnableOf(invLine('a', '10', '3'))).toBe('7')
     expect(returnableOf(invLine('a', '1', '2'))).toBe('0')
@@ -50,8 +60,11 @@ describe('return selection', () => {
     ])
   })
 
-  it('sends the selected lines with their reasons and values them at the invoice price', () => {
-    const v = valuesFromInvoice([invLine('a', '10', '3', '12.345'), invLine('b', '5', '0')], 'wh')
+  it('sends the selected lines with their reasons and values them at the invoice net', () => {
+    const v = valuesFromInvoice(
+      [{ ...invLine('a', '10', '3', '12.345'), net_amount: '123.4500' }, invLine('b', '5', '0')],
+      'wh',
+    )
     v.lines = v.lines.map((l, i) =>
       i === 0 ? { ...l, selected: true, quantity: '2', reason: ' kırık ' } : l,
     )
