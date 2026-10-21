@@ -1,6 +1,13 @@
 import { formatDecimalDisplay } from '@/lib/money'
 import type { StockDocumentLine } from '../../documents/types'
-import { changedCounts, countSummary, filterLines, initialCounts, lineVariance } from './variance'
+import {
+  changedCounts,
+  countSummary,
+  filterLines,
+  initialCounts,
+  lineVariance,
+  varianceValue,
+} from './variance'
 
 const line = (id: string, over: Partial<StockDocumentLine> = {}): StockDocumentLine => ({
   id,
@@ -68,5 +75,11 @@ describe('count variance', () => {
     expect(ids({ q: 'l-1', onlyVariance: false, onlyUncounted: false })).toEqual(['b'])
     expect(ids({ q: '', onlyVariance: true, onlyUncounted: false })).toEqual(['b'])
     expect(ids({ q: '', onlyVariance: false, onlyUncounted: true })).toEqual(['a'])
+  })
+
+  it('values the variance of snapshot lines at the current average cost the server sends', () => {
+    const snapshot = line('s', { unit_cost: null, avg_cost: '12.500000' })
+    expect(varianceValue(snapshot, '9')?.toFixed()).toBe('-12.5')
+    expect(varianceValue(line('n', { unit_cost: null }), '9')?.toFixed()).toBe('0')
   })
 })

@@ -34,6 +34,8 @@ final class StockDocumentLineResource extends JsonResource
             'direction' => $this->direction,
             'system_quantity' => $this->system_quantity?->__toString(),
             'counted_quantity' => $this->counted_quantity?->__toString(),
+            // Count documents only: the current moving average of the item in the warehouse.
+            'avg_cost' => $this->when($this->resource->getAttribute('avg_cost') !== null, fn (): string => (string) $this->resource->getAttribute('avg_cost')),
             'difference' => $this->counted_quantity === null ? null : (string) $this->counted_quantity->minus($this->system_quantity ?? '0'),
             'reservation_id' => $this->reservation_id,
             'notes' => $this->notes,

@@ -114,6 +114,8 @@ export interface StockDocumentLine {
   /** quantity × unit factor, computed by the server. */
   base_quantity: string
   unit_cost: string | null
+  /** Counts: current moving average of the item in the warehouse (values the variance). */
+  avg_cost?: string
   lot_no: string | null
   expiry_date: string | null
   serial_numbers: string[]

@@ -8,7 +8,7 @@ import { formatDecimalDisplay } from '@/lib/money'
 import { cn } from '@/lib/utils'
 import { trimDecimal } from '../../documents/lib/quantity'
 import type { StockDocumentLine } from '../../documents/types'
-import { lineVariance, varianceValue, type Counts } from '../lib/variance'
+import { countCost, lineVariance, varianceValue, type Counts } from '../lib/variance'
 
 export const COUNT_PAGE_SIZE = 100
 
@@ -182,7 +182,7 @@ export function CountGrid({
                     {variance ? qty(variance.toString()) : ''}
                   </td>
                   <td className={cn(td, 'text-right tabular-nums')}>
-                    {l.unit_cost ? money(l.unit_cost) : ''}
+                    {countCost(l) ? money(countCost(l) ?? '0') : ''}
                   </td>
                   <td className={cn(td, 'text-right tabular-nums', tone)}>
                     {value ? money(value.toFixed()) : ''}

@@ -142,3 +142,19 @@ it('imports counted quantities from CSV with a dry run first', function (): void
 
     expect(DB::table('stock_document_lines')->where('document_id', $count['id'])->value('counted_quantity'))->toBe('2.000000');
 });
+
+it('sends the current moving average on count lines so the variance can be valued before posting', function (): void {
+    Inv::receive($this->company, $this->wh, $this->item, '10', '5');
+    Inv::receive($this->company, $this->wh, $this->item, '10', '7');
+    $user = Actors::user(['inventory.documents.create', 'inventory.documents.view']);
+
+    $count = Inv::postJson($user, $this->company, 'stock-documents', ['doc_type' => 'count', 'document_date' => '2027-06-11', 'warehouse_id' => $this->wh])
+        ->assertCreated()->json('data');
+    expect($count['lines'][0]['avg_cost'])->toBe('6.000000')
+        ->and($count['lines'][0]['unit_cost'])->toBeNull();
+
+    // Other document types do not carry it.
+    $receipt = Inv::postJson($user, $this->company, 'stock-documents', ['doc_type' => 'receipt', 'document_date' => '2027-06-11', 'warehouse_id' => $this->wh,
+        'lines' => [['item_id' => $this->item, 'quantity' => '1', 'unit_cost' => '1']]])->assertCreated()->json('data');
+    expect(array_key_exists('avg_cost', $receipt['lines'][0]))->toBeFalse();
+});
