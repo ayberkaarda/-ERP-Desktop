@@ -35,6 +35,8 @@ export interface JournalBookResult {
   carriedForward: DebitCredit
   /** "Nakledilen" after the last entry, as the server computed it. */
   closing: DebitCredit
+  /** The range the server resolved (dates of the period when a period was asked for). */
+  range: { date_from: string; date_to: string }
 }
 
 export const reportsApi = {
@@ -61,6 +63,7 @@ export const reportsApi = {
     const entries: JournalBookEntry[] = []
     let opening: DebitCredit = { debit: '0', credit: '0' }
     let carried: DebitCredit = opening
+    let range = { date_from: '', date_to: '' }
     for (let page = 1; ; page++) {
       const res = await http().get<JournalBookPage>(REPORT_PATHS.journalBook, {
         params: { ...params, page, per_page: REPORT_MAX_PER_PAGE },
@@ -74,7 +77,10 @@ export const reportsApi = {
           `More than ${maxPages * REPORT_MAX_PER_PAGE} entries.`,
         )
       }
-      if (page === 1) opening = res.meta.page_brought_forward
+      if (page === 1) {
+        opening = res.meta.page_brought_forward
+        range = { date_from: res.meta.date_from, date_to: res.meta.date_to }
+      }
       else if (!same(carried, res.meta.page_brought_forward)) {
         throw new ApiError(0, BOOK_CHANGED, 'The journal book changed while it was loaded.')
       }
@@ -82,6 +88,6 @@ export const reportsApi = {
       entries.push(...res.data)
       if (page >= pagination.last_page || res.data.length === 0) break
     }
-    return { entries, carriedForward: opening, closing: carried }
+    return { entries, carriedForward: opening, closing: carried, range }
   },
 }

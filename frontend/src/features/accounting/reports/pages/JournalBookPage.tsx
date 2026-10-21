@@ -191,8 +191,8 @@ export function JournalBookPage() {
               <div className="mb-2 flex items-baseline justify-between text-xs text-muted-foreground">
                 <span className="font-semibold text-foreground">{t('book.title')}</span>
                 <span>
-                  {formatDate(book.data.entries[0]?.entry_date ?? '', locale)} –{' '}
-                  {formatDate(book.data.entries.at(-1)?.entry_date ?? '', locale)}
+                  {formatDate(book.data.range.date_from, locale)} –{' '}
+                  {formatDate(book.data.range.date_to, locale)}
                 </span>
                 <span>{t('book.page', { number: page.number, total: pages.length })}</span>
               </div>

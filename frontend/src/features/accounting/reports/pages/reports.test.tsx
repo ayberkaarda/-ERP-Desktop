@@ -197,6 +197,8 @@ describe('journal book', () => {
       '/accounting/reports/journal-book?mode=range&date_from=2026-01-01&date_to=2026-01-31&page_size=20',
     )
     const page1 = await screen.findByRole('region', { name: 'Sayfa 1 / 1' })
+    // The header shows the requested range, not the first and last entry dates.
+    expect(within(page1).getByText('01.01.2026 – 31.01.2026')).toBeInTheDocument()
     expect(within(page1).getByTestId('brought-1')).toHaveTextContent('100,00')
     expect(within(page1).getByTestId('page-total-1')).toHaveTextContent('1.700,00')
     expect(within(page1).getByTestId('carried-1')).toHaveTextContent('Genel toplam')
