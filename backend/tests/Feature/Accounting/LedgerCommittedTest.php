@@ -35,7 +35,8 @@ beforeEach(function (): void {
         Artisan::call('migrate', ['--force' => true]);
     }
 
-    Books::boot();
+    // Committed data: no reference rows (nothing here uses parties or foreign currencies).
+    Books::boot(referenceRows: false);
     config(['database.connections.pgsql_second' => config('database.connections.pgsql')]);
     $this->a = DB::connection('pgsql');
     $this->b = DB::connection('pgsql_second');
