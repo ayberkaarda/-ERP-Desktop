@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Http\ApiException;
 use App\Modules\Catalog\Contracts\PriceResolver;
 use App\Modules\Catalog\Models\DiscountRule;
+use App\Modules\Parties\Models\Party;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -26,7 +27,8 @@ beforeEach(function (): void {
     $this->item = Catalog::item($this->company, $pcs, ['category_id' => $this->categories['child']->id]);
     Catalog::itemUnit($this->company, $this->item, $box, '12');
     $this->variant = Catalog::variant($this->company, $this->item, 'V-RED');
-    $this->party = (string) Str::uuid7();
+    // A real party: discount_rules.party_id references parties.
+    $this->party = Catalog::in($this->company, fn () => Party::factory()->create())->id;
 });
 
 /**

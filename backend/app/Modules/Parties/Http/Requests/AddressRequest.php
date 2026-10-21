@@ -7,6 +7,9 @@ namespace App\Modules\Parties\Http\Requests;
 use App\Modules\Parties\Enums\AddressType;
 use Illuminate\Validation\Rule;
 
+/**
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
+ */
 final class AddressRequest extends ChildRequest
 {
     /** @return array<string, list<mixed>> */

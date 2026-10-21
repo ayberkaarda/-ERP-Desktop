@@ -81,9 +81,13 @@ abstract class CatalogRequest extends FormRequest
         return $this->creating() ? ['prohibited'] : ['required', 'integer', 'min:1'];
     }
 
+    /**
+     * The active company. Requests always have one (company middleware); the rules are also read
+     * without one when the API document is generated, then the nil uuid matches no row.
+     */
     protected function company(): string
     {
-        return app(CompanyContext::class)->id();
+        return app(CompanyContext::class)->idOrNull() ?? '00000000-0000-0000-0000-000000000000';
     }
 
     /** Unique among live rows of the active company (soft-deleted rows free their code). */

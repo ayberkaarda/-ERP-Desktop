@@ -11,6 +11,8 @@ use Illuminate\Validation\Validator;
 
 /**
  * 1 from_unit = factor to_unit. The units of an existing conversion are immutable.
+ *
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
  */
 final class UnitConversionRequest extends CatalogRequest
 {

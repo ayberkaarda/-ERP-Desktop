@@ -9,6 +9,9 @@ use App\Modules\Reference\Services\ReferenceSchema;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Gate;
 
+/**
+ * @ignoreSchema POST and PATCH validate differently; the API document keeps one request body per operation.
+ */
 final class ReferenceRequest extends FormRequest
 {
     /** Rules whose parameter names another field; on PATCH they run on the merged record in the writer. */
@@ -34,19 +37,33 @@ final class ReferenceRequest extends FormRequest
     /** @return array<string, list<string>> */
     public function rules(): array
     {
-        if ($this->isMethod('DELETE')) {
+        $resource = $this->route('resource');
+
+        return self::rulesFor(is_string($resource) ? $resource : '', $this->getMethod());
+    }
+
+    /**
+     * Rules of one resource for one HTTP method: POST creates (no version), PATCH/PUT updates
+     * partially (version required), DELETE carries only the version. Also used for the API document,
+     * where the resource comes from the route default instead of a live request.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function rulesFor(string $resource, string $method): array
+    {
+        $method = strtoupper($method);
+        if ($method === 'DELETE') {
             return ['version' => ['required', 'integer', 'min:1']];
         }
-        $resource = $this->route('resource');
-        $rules = ReferenceSchema::rules(is_string($resource) ? $resource : '');
-        if ($this->isMethod('PATCH') || $this->isMethod('PUT')) {
+        $rules = ReferenceSchema::rules($resource);
+        if ($method === 'PATCH' || $method === 'PUT') {
             foreach ($rules as $key => $value) {
-                $value = array_values(array_filter($value, fn (string $rule): bool => $rule !== 'required' && ! $this->crossField($rule)));
+                $value = array_values(array_filter($value, fn (string $rule): bool => $rule !== 'required' && ! self::crossField($rule)));
                 array_unshift($value, 'sometimes');
                 $rules[$key] = $value;
             }
         }
-        if (! $this->isMethod('POST')) {
+        if ($method !== 'POST') {
             $rules['version'] = ['required', 'integer', 'min:1'];
         }
 
@@ -62,7 +79,7 @@ final class ReferenceRequest extends FormRequest
         return new RecordData($data, $version);
     }
 
-    private function crossField(string $rule): bool
+    private static function crossField(string $rule): bool
     {
         [$name, $parameter] = array_pad(explode(':', $rule, 2), 2, '');
 

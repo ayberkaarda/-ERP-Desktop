@@ -6,6 +6,7 @@ use App\Modules\Catalog\Models\PriceList;
 use App\Modules\Catalog\Models\PriceListLine;
 use App\Modules\Reference\Contracts\CurrencyLookup;
 use App\Modules\Reference\Database\seeders\ReferenceSeeder;
+use App\Modules\Reference\Models\Currency;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
@@ -47,7 +48,9 @@ it('manages price lists and keeps one default per currency', function (): void {
     Catalog::as($this->manager, $this->company)->patchJson("/api/v1/price-lists/{$first}", ['is_default' => true, 'version' => 2])->assertOk();
     expect(Catalog::in($this->company, fn () => PriceList::query()->where('is_default', true)->orderBy('code')->pluck('id')->all()))->toBe([$first, $usd]);
 
-    // Currencies are checked through the Reference module; without it any ISO-shaped code is kept.
+    // Currencies are checked through the Reference module (active currencies only); without it any
+    // ISO-shaped code is kept (price_lists.currency_code references currencies, so XYZ exists, inactive).
+    Currency::factory()->create(['code' => 'XYZ', 'is_active' => false]);
     Catalog::post($this->manager, $this->company, 'price-lists', ['code' => 'XYZ-1', 'name' => 'x', 'currency_code' => 'XYZ'])
         ->assertStatus(422)->assertJsonValidationErrors(['currency_code'], 'errors.fields');
     $lookup = app(CurrencyLookup::class);
