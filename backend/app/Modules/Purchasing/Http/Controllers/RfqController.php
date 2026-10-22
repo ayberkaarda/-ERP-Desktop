@@ -133,7 +133,7 @@ final class RfqController extends PurchasingController
     {
         $rfq = $this->rfq($id, 'award');
         Gate::authorize('create', PurchaseOrder::class);
-        $orders = app(RfqService::class)->award($rfq, $request->headerData(), $request->optionalVersion(), $this->actor($request));
+        $orders = app(RfqService::class)->award($rfq, [...$request->headerData(), 'lines' => $request->lineData()], $request->optionalVersion(), $this->actor($request));
         $rfq->refresh()->load($this->with());
 
         return ApiResponse::success([
