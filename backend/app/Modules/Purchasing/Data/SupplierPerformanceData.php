@@ -8,11 +8,14 @@ namespace App\Modules\Purchasing\Data;
  * Supplier performance over a period (supplier risk score input). Rates are fractions 0..1 as
  * decimal strings (scale 4, null without data); amounts in company currency (scale 2).
  *   orders                 approved (or later) orders dated in the period
- *   on_time_rate           posted receipt lines on or before the expected date of their order (line)
+ *   on_time_rate           receipt lines on or before the expected date of their order (line); receipts
+ *                          count on their date and, once cancelled, negatively on their reversal date
  *   fill_rate              received / ordered quantity of those orders
  *   avg_lead_days          days from order date to first posted receipt, averaged over received orders
- *   price_variance_total   price variance booked by the supplier's invoices in the period
- *   return_rate            returned (shipped) / received quantity in the period
+ *   price_variance_total   price variance moved in the period: invoice line variances on the invoice
+ *                          date (reversals negated on their reversal date, debit notes negative) plus
+ *                          return cost corrections on the return date (as the price-variance report)
+ *   return_rate            returned (shipped) / received quantity in the period (receipts as above)
  *   overdue_payable        open payables due before today
  */
 final readonly class SupplierPerformanceData
