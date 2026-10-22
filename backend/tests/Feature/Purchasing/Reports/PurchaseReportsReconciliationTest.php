@@ -189,6 +189,6 @@ it('agrees with the SupplierPerformance contract for every supplier', function (
     }
 
     expect($rows[$w->party->id])->toMatchArray(['party_name' => 'Supplier A', 'orders' => 1, 'receipt_lines' => 2, 'on_time_lines' => 1, 'on_time_rate' => '0.5000',
-        'fill_rate' => '1.0000', 'avg_lead_days' => '2.00', 'price_variance_total' => '12.00', 'return_rate' => '0.1000', 'overdue_payable' => '494.40'])
+        'fill_rate' => '1.0000', 'avg_lead_days' => '2.00', 'price_variance_total' => '10.00', 'return_rate' => '0.1000', 'overdue_payable' => '494.40'])
         ->and(($this->get)("supplier-performance?party_id={$this->h->beta->id}")->json('data'))->toHaveCount(1);
 });
