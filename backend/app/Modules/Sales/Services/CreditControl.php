@@ -29,11 +29,11 @@ final class CreditControl
     /**
      * @param  string  $documentLocal  this document's total in company currency
      * @param  string  $coveredLocal  part of the document already counted as open order value
-     * @param  string|null  $priorOverride  override reason recorded on the orders the document only replaces
+     * @param  array{exposure: string, currency: string}|null  $priorOverride  what an override recorded on the replaced orders authorised
      *
      * @throws CreditLimitExceeded in block mode without an authorized override
      */
-    public function check(string $companyId, PartyData $party, string $documentLocal, ?string $excludeOrderId = null, string $coveredLocal = '0', ?string $overrideReason = null, bool $canOverride = false, bool $preview = false, ?string $priorOverride = null): ?CreditCheck
+    public function check(string $companyId, PartyData $party, string $documentLocal, ?string $excludeOrderId = null, string $coveredLocal = '0', ?string $overrideReason = null, bool $canOverride = false, bool $preview = false, ?array $priorOverride = null): ?CreditCheck
     {
         $mode = $this->settings->creditCheckMode();
 
@@ -56,7 +56,8 @@ final class CreditControl
         $exceeded = $total->isGreaterThan($exposure->limit);
         $reason = $overrideReason === null ? null : trim($overrideReason);
         // A document that adds nothing to orders confirmed over the limit with an override keeps that override.
-        $inherited = $exceeded && $priorOverride !== null && ! $document->isPositive();
+        $inherited = $exceeded && $priorOverride !== null && ! $document->isPositive()
+            && $priorOverride['currency'] === $exposure->currency && ! $total->isGreaterThan($priorOverride['exposure']);
         $overridden = $exceeded && ($inherited || ($canOverride && $reason !== null && $reason !== ''));
         $check = new CreditCheck($mode->value, $exposure->limit, $exposure->currency, $exposure->total, (string) $document, (string) $total,
             (string) BigDecimal::of($exposure->limit)->minus($total), $exceeded, $overridden);

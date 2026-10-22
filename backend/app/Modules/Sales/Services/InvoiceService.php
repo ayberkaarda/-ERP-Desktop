@@ -470,7 +470,8 @@ final class InvoiceService extends DocumentService
         if (! $invoice->isCreditNote()) {
             $this->recheckBounds($invoice, $lines);
             $prior = $this->priorOverride($lines, $orders);
-            $check = $this->credit->check($invoice->company_id, $party, (string) $invoice->total_local, null, $this->coveredByOrders($lines, $orders), $overrideReason, $canOverride, priorOverride: $prior?->credit_override_reason);
+            $prior = $prior?->party_id === $invoice->party_id ? $prior : null;
+            $check = $this->credit->check($invoice->company_id, $party, (string) $invoice->total_local, null, $this->coveredByOrders($lines, $orders), $overrideReason, $canOverride, priorOverride: $prior === null ? null : ['exposure' => (string) $prior->credit_override_exposure, 'currency' => (string) $prior->credit_override_currency]);
 
             if ($check !== null && $check->overridden) {
                 $own = $overrideReason !== null && trim($overrideReason) !== '' && $canOverride;
@@ -578,7 +579,7 @@ final class InvoiceService extends DocumentService
         foreach ($lines as $line) {
             $order = $orders[$orderOfLine[$line->id] ?? ''] ?? null;
 
-            if ($order === null || $order->credit_override_reason === null || $order->credit_override_reason === '') {
+            if ($order === null || ! self::overrideHolds($order)) {
                 return null;
             }
 
@@ -586,6 +587,16 @@ final class InvoiceService extends DocumentService
         }
 
         return $found;
+    }
+
+    /** An order override binds its customer, revision and amount; it lapses when any of them changed. */
+    private static function overrideHolds(SalesOrder $order): bool
+    {
+        return $order->credit_override_reason !== null && $order->credit_override_reason !== ''
+            && $order->credit_override_party_id === $order->party_id
+            && $order->credit_override_revision === $order->revision
+            && $order->credit_override_amount !== null && $order->credit_override_exposure !== null && $order->credit_override_currency !== null
+            && ! $order->total_local->isGreaterThan($order->credit_override_amount);
     }
 
     /**

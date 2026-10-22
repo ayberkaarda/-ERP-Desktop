@@ -228,6 +228,9 @@ final class OrderService extends DocumentService
 
         $party = $this->composer->party($order->party_id);
         $check = $this->credit->check($order->company_id, $party, (string) $order->total_local, $order->id, '0', $overrideReason, $canOverride);
+        // An override of an earlier submission (another customer, revision or amount) never carries over.
+        $order->forceFill(['credit_override_reason' => null, 'credit_override_by' => null, 'credit_override_party_id' => null, 'credit_override_revision' => null,
+            'credit_override_amount' => null, 'credit_override_exposure' => null, 'credit_override_currency' => null]);
         $this->recordOverride($order, $check, $overrideReason, $actor);
         $warning = CreditControl::warning($check);
         $warnings = $warning === null ? [] : [$warning];
@@ -237,6 +240,8 @@ final class OrderService extends DocumentService
         if ($threshold !== null && $order->total_local->isGreaterThanOrEqualTo($threshold)) {
             if ($order->status !== OrderStatus::PendingApproval) {
                 $this->machine->transition($order, OrderStatus::PendingApproval, $actor);
+            } elseif ($order->isDirty()) {
+                $order->save();
             }
 
             // A revision of a pending order replaces its request (Workflow cancels the old one).
@@ -293,6 +298,12 @@ final class OrderService extends DocumentService
 
         $order->credit_override_reason = $reason;
         $order->credit_override_by = self::actorId($actor);
+        // What the override authorised; invoices of the order inherit it only while this still holds.
+        $order->credit_override_party_id = $order->party_id;
+        $order->credit_override_revision = $order->revision;
+        $order->credit_override_amount = (string) $order->total_local;
+        $order->credit_override_exposure = $check->total;
+        $order->credit_override_currency = $check->currency;
         activity()->performedOn($order)->causedBy(self::causer($actor))->withProperties(['reason' => $reason, 'check' => $check->toArray()])
             ->event('credit_override')->log('credit_override');
     }

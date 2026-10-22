@@ -232,3 +232,80 @@ it('lists the shipped serials a return can still take on the invoice detail', fu
     SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/cancel")->assertOk();
     SalesKit::get($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}")->assertJsonPath('data.lines.0.returnable_serials', ['S1', 'S2']);
 });
+
+it('does not let an invoice inherit an override recorded for another customer before a revision', function (): void {
+    SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'block');
+    DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '100']);
+    $b = SalesKit::party($this->w->company, ['name' => 'Beta']);
+    DB::table('parties')->where('id', $b->id)->update(['risk_limit' => '2000', 'risk_currency_code' => 'TRY']);
+    $admin = SalesKit::user(['sales.credit_override']);
+    $order = SalesKit::post($admin, $this->w->company, 'sales-orders', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-10',
+        'lines' => [['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '1000']],
+    ])->assertCreated()->json('data');
+    $order = SalesKit::post($admin, $this->w->company, "sales-orders/{$order['id']}/confirm", ['credit_override_reason' => 'Guarantee for Acme'])
+        ->assertOk()->json('data');
+
+    // An approver without the override permission moves the order to Beta, who still has room.
+    $approver = SalesKit::user();
+    $revised = SalesKit::post($approver, $this->w->company, "sales-orders/{$order['id']}/revise", [
+        'party_id' => $b->id, 'version' => $order['version'],
+    ])->assertOk()->json('data');
+    expect($revised['party_id'])->toBe($b->id)->and($revised['credit_override_reason'])->toBeNull();
+
+    DB::table('parties')->where('id', $b->id)->update(['risk_limit' => '500']);
+    $invoice = SalesKit::post($approver, $this->w->company, "sales-orders/{$order['id']}/invoices", ['document_date' => '2027-06-12'])
+        ->assertCreated()->json('data');
+    SalesKit::post($approver, $this->w->company, "sales-invoices/{$invoice['id']}/issue")->assertStatus(422)
+        ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded');
+});
+
+it('does not let an invoice inherit an override once the exposure grew beyond what it authorised', function (): void {
+    SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'block');
+    DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '100']);
+    $admin = SalesKit::user(['sales.credit_override']);
+    $order = SalesKit::post($admin, $this->w->company, 'sales-orders', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-10',
+        'lines' => [['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '1000']],
+    ])->assertCreated()->json('data');
+    SalesKit::post($admin, $this->w->company, "sales-orders/{$order['id']}/confirm", ['credit_override_reason' => 'Guarantee for 1200'])->assertOk();
+
+    // Another document raises the exposure later (its own override).
+    $direct = SalesKit::post($admin, $this->w->company, 'sales-invoices', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-11',
+        'lines' => [['item_id' => $this->w->service->id, 'quantity' => '1', 'unit_price' => '500']],
+    ])->assertCreated()->json('data');
+    SalesKit::post($admin, $this->w->company, "sales-invoices/{$direct['id']}/issue", ['credit_override_reason' => 'Separate approval'])->assertOk();
+
+    $plain = SalesKit::user();
+    $invoice = SalesKit::post($plain, $this->w->company, "sales-orders/{$order['id']}/invoices", ['document_date' => '2027-06-12'])
+        ->assertCreated()->json('data');
+    SalesKit::post($plain, $this->w->company, "sales-invoices/{$invoice['id']}/issue")->assertStatus(422)
+        ->assertJsonPath('errors.code', 'sales.credit_limit_exceeded');
+});
+
+it('binds an override of a converted order to that order and lets its partial invoices inherit it', function (): void {
+    SalesKit::setting($this->w->company, 'sales.credit_check_mode', 'block');
+    DB::table('parties')->where('id', $this->w->party->id)->update(['risk_limit' => '100']);
+    $admin = SalesKit::user(['sales.credit_override']);
+    $quote = SalesKit::post($admin, $this->w->company, 'sales-quotes', [
+        'party_id' => $this->w->party->id, 'document_date' => '2027-06-10',
+        'lines' => [['item_id' => $this->w->service->id, 'quantity' => '2', 'unit_price' => '500']],
+    ])->assertCreated()->json('data');
+    $order = SalesKit::post($admin, $this->w->company, "sales-quotes/{$quote['id']}/convert")->assertCreated()->json('data');
+    expect($order['credit_override_reason'])->toBeNull();
+    SalesKit::post($admin, $this->w->company, "sales-orders/{$order['id']}/confirm")->assertStatus(422);
+    $order = SalesKit::post($admin, $this->w->company, "sales-orders/{$order['id']}/confirm", ['credit_override_reason' => 'Guarantee letter'])
+        ->assertOk()->json('data');
+    expect(DB::table('sales_orders')->where('id', $order['id'])->first(['credit_override_party_id', 'credit_override_revision', 'credit_override_amount', 'credit_override_exposure']))
+        ->toEqual((object) ['credit_override_party_id' => $this->w->party->id, 'credit_override_revision' => 1, 'credit_override_amount' => '1200.0000', 'credit_override_exposure' => '1200.0000']);
+
+    $plain = SalesKit::user();
+    foreach ([1, 2] as $n) {
+        $invoice = SalesKit::post($plain, $this->w->company, "sales-orders/{$order['id']}/invoices", [
+            'document_date' => '2027-06-12', 'lines' => [['order_line_id' => $order['lines'][0]['id'], 'quantity' => '1']],
+        ])->assertCreated()->json('data');
+        SalesKit::post($plain, $this->w->company, "sales-invoices/{$invoice['id']}/issue")->assertOk()
+            ->assertJsonPath('data.credit_override_reason', 'Guarantee letter');
+    }
+});

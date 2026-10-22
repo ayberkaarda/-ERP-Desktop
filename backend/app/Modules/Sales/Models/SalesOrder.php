@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Models;
 
+use App\Core\Money\MoneyCast;
 use App\Modules\Sales\Enums\DocumentKind;
 use App\Modules\Sales\Enums\OrderStatus;
+use Brick\Math\BigDecimal;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
@@ -17,6 +19,11 @@ use Illuminate\Support\Carbon;
  * @property int $revision
  * @property string|null $credit_override_reason
  * @property string|null $credit_override_by
+ * @property string|null $credit_override_party_id
+ * @property int|null $credit_override_revision
+ * @property BigDecimal|null $credit_override_amount
+ * @property BigDecimal|null $credit_override_exposure
+ * @property string|null $credit_override_currency
  * @property string|null $approval_request_id
  * @property string|null $approval_comment
  * @property Carbon|null $confirmed_at
@@ -51,7 +58,8 @@ class SalesOrder extends SalesDocument
     protected function extraCasts(): array
     {
         return [
-            'status' => OrderStatus::class, 'requested_delivery_date' => 'date', 'revision' => 'integer',
+            'status' => OrderStatus::class, 'requested_delivery_date' => 'date', 'revision' => 'integer', 'credit_override_revision' => 'integer',
+            'credit_override_amount' => MoneyCast::class, 'credit_override_exposure' => MoneyCast::class,
             'confirmed_at' => 'datetime', 'cancelled_at' => 'datetime', 'closed_at' => 'datetime',
         ];
     }
