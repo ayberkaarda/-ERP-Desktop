@@ -27,6 +27,8 @@ it('stays query-bounded and fast on a few thousand invoice lines and agrees with
     }
 
     // Volume straight into the tables (drafts, then issued as the guards require): 1500 invoices of 3 lines (net 10 x line number, VAT 20%).
+    // Issued invoices reference a journal entry (foreign key): reuse the stock receipt entry of the world.
+    $entry = DB::table('journal_entries')->where('company_id', $w->company)->value('id');
     $headers = [];
     $lines = [];
 
@@ -38,7 +40,7 @@ it('stays query-bounded and fast on a few thousand invoice lines and agrees with
             'party_id' => $parties[$n % 30], 'party_name' => 'Customer '.($n % 30), 'currency_code' => 'TRY', 'fx_rate' => '1', 'due_date' => $date,
             'subtotal' => '60', 'discount_total' => '0', 'tax_total' => '12', 'total' => '72',
             'subtotal_local' => '60', 'discount_total_local' => '0', 'tax_total_local' => '12', 'total_local' => '72',
-            'invoice_type' => 'sale', 'journal_entry_id' => (string) Str::uuid7(), 'paid_amount' => '0', 'balance_due' => '0',
+            'invoice_type' => 'sale', 'journal_entry_id' => $entry, 'paid_amount' => '0', 'balance_due' => '0',
             'created_at' => now(), 'updated_at' => now(),
         ];
 
@@ -102,6 +104,8 @@ it('reads item details in bulk for 500 distinct items, including category groupi
         $items[] = SalesKit::item($w->company, ['code' => sprintf('HC-%03d', $i), 'category_id' => $categories[$i % 2]], $w->unit)->id;
     }
 
+    // Issued invoices reference a journal entry (foreign key): reuse the stock receipt entry of the world.
+    $entry = DB::table('journal_entries')->where('company_id', $w->company)->value('id');
     $headers = [];
     $lines = [];
 
@@ -111,7 +115,7 @@ it('reads item details in bulk for 500 distinct items, including category groupi
             'id' => $id, 'company_id' => $w->company, 'number' => sprintf('HC%09d', $n), 'status' => 'draft', 'document_date' => '2027-03-01',
             'party_id' => $w->party->id, 'party_name' => 'Acme', 'currency_code' => 'TRY', 'fx_rate' => '1', 'due_date' => '2027-03-01',
             'subtotal' => '10', 'discount_total' => '0', 'tax_total' => '0', 'total' => '10', 'subtotal_local' => '10', 'discount_total_local' => '0',
-            'tax_total_local' => '0', 'total_local' => '10', 'invoice_type' => 'sale', 'journal_entry_id' => (string) Str::uuid7(), 'paid_amount' => '0',
+            'tax_total_local' => '0', 'total_local' => '10', 'invoice_type' => 'sale', 'journal_entry_id' => $entry, 'paid_amount' => '0',
             'balance_due' => '0', 'created_at' => now(), 'updated_at' => now(),
         ];
         $lines[] = [
