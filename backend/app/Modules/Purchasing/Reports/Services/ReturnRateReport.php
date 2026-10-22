@@ -4,22 +4,25 @@ declare(strict_types=1);
 
 namespace App\Modules\Purchasing\Reports\Services;
 
-use App\Modules\Purchasing\Enums\ReceiptStatus;
 use App\Modules\Purchasing\Enums\ReturnStatus;
 use App\Modules\Purchasing\Reports\Data\ReportFilters;
 use App\Modules\Purchasing\Reports\Data\ReportTable;
 use App\Modules\Purchasing\Reports\Support\Num;
+use App\Modules\Purchasing\Services\SupplierMovements;
+use App\Modules\Purchasing\Support\Export;
 use Brick\Math\BigDecimal;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Goods sent back to suppliers against goods received in the range (the physical view the
- * SupplierPerformance return_rate uses): received = lines of receipts posted (not cancelled) dated
- * in the range, at base quantity and recorded cost; returned = lines of returns shipped dated in the
- * range, at base quantity and the receipt value they carried. quantity_rate_percent = returned /
- * received base quantity, value_rate_percent = returned / received value (null when nothing was
- * received). A return counts in its own range, which may differ from the range of its receipt.
+ * SupplierPerformance return_rate uses): received = receipt lines as dated movements, at base
+ * quantity and recorded cost: + on the receipt date, - on the reversal date of a cancelled receipt
+ * (a later cancellation never changes an earlier range; receipt_count counts receipts received in
+ * the range); returned = lines of returns shipped dated in the range, at base quantity and the
+ * receipt value they carried. quantity_rate_percent = returned / received base quantity,
+ * value_rate_percent = returned / received value (null when nothing was received). A return counts
+ * in its own range, which may differ from the range of its receipt.
  * Groups: supplier (default), item, category; most returned value first.
  */
 final class ReturnRateReport
@@ -41,7 +44,8 @@ final class ReturnRateReport
         };
     }
 
-    public function build(ReportFilters $f, string $by): ReportTable
+    /** $cap: an export refused (422) as soon as it has more groups. */
+    public function build(ReportFilters $f, string $by, ?int $cap = null): ReportTable
     {
         $preload = $f->categoryId !== null || $by === 'category';
         /** @var array<string, array{party_name: string, date: string, docs: array<string, array<string, true>>, sums: array<string, BigDecimal>}> $groups */
@@ -52,7 +56,8 @@ final class ReturnRateReport
             foreach ($this->items->stream($query->lazyById(1000, 'l.id', 'id'), $preload) as $row) {
                 $category = $preload ? $this->items->categoryOf((string) $row->item_id) : null;
 
-                if ($f->categoryId !== null && $category !== $f->categoryId) {
+                // A receipt both received and cancelled inside the range moves nothing.
+                if (($f->categoryId !== null && $category !== $f->categoryId) || (int) $row->factor === 0) {
                     continue;
                 }
 
@@ -61,13 +66,19 @@ final class ReturnRateReport
                     'item' => (string) $row->item_id,
                     default => $category ?? '',
                 };
+                if ($cap !== null && ! isset($groups[$key]) && count($groups) >= $cap) {
+                    Export::assertWithinCap($cap + 1);
+                }
+
                 $g = $groups[$key] ?? ['party_name' => '', 'date' => '', 'docs' => ['receipt' => [], 'return' => []],
                     'sums' => ['received_quantity' => BigDecimal::zero(), 'returned_quantity' => BigDecimal::zero(), 'received_value' => BigDecimal::zero(), 'returned_value' => BigDecimal::zero()]];
                 $qty = $kind === 'receipt' ? 'received_quantity' : 'returned_quantity';
                 $value = $kind === 'receipt' ? 'received_value' : 'returned_value';
                 $g['sums'][$qty] = $g['sums'][$qty]->plus(Num::dec($row->base_quantity));
                 $g['sums'][$value] = $g['sums'][$value]->plus(Num::dec($row->value));
-                $g['docs'][$kind][(string) $row->document_id] = true;
+                if ((int) $row->factor > 0) {
+                    $g['docs'][$kind][(string) $row->document_id] = true;
+                }
                 $totals[$qty] = $totals[$qty]->plus(Num::dec($row->base_quantity));
                 $totals[$value] = $totals[$value]->plus(Num::dec($row->value));
 
@@ -110,26 +121,31 @@ final class ReturnRateReport
         ]);
     }
 
+    /** Receipt lines moving in the range, signed: +1 received in it, -1 cancelled in it (SupplierMovements). */
     private function receipts(ReportFilters $f): Builder
     {
-        return $this->filtered(DB::table('purchase_receipt_lines as l')->join('purchase_receipts as r', 'r.id', '=', 'l.document_id')
-            ->where('r.status', ReceiptStatus::Posted->value), $f)
-            ->select(['l.id', 'l.document_id', 'l.item_id', 'l.base_quantity', DB::raw('coalesce(l.cost_total, 0) AS value'),
-                'r.document_date', 'r.party_id', 'r.party_name']);
+        [$factor, $bindings] = SupplierMovements::receiptFactor((string) $f->dateFrom, (string) $f->dateTo);
+
+        return $this->filtered(SupplierMovements::receiptsMoving(DB::table('purchase_receipt_lines as l')->join('purchase_receipts as r', 'r.id', '=', 'l.document_id'),
+            (string) $f->dateFrom, (string) $f->dateTo), $f)
+            ->select(['l.id', 'l.document_id', 'l.item_id', 'r.document_date', 'r.party_id', 'r.party_name'])
+            ->selectRaw("{$factor} AS factor", $bindings)
+            ->selectRaw("l.base_quantity * {$factor} AS base_quantity", $bindings)
+            ->selectRaw("coalesce(l.cost_total, 0) * {$factor} AS value", $bindings);
     }
 
     private function returns(ReportFilters $f): Builder
     {
         return $this->filtered(DB::table('purchase_return_lines as l')->join('purchase_returns as r', 'r.id', '=', 'l.document_id')
-            ->whereIn('r.status', [ReturnStatus::Shipped->value, ReturnStatus::Debited->value]), $f)
+            ->whereIn('r.status', [ReturnStatus::Shipped->value, ReturnStatus::Debited->value])
+            ->whereBetween('r.document_date', [(string) $f->dateFrom, (string) $f->dateTo]), $f)
             ->select(['l.id', 'l.document_id', 'l.item_id', 'l.base_quantity', DB::raw('coalesce(l.receipt_cost, 0) AS value'),
-                'r.document_date', 'r.party_id', 'r.party_name']);
+                'r.document_date', 'r.party_id', 'r.party_name', DB::raw('1 AS factor')]);
     }
 
     private function filtered(Builder $query, ReportFilters $f): Builder
     {
         return $query->where('r.company_id', $f->companyId)->where('l.company_id', $f->companyId)
-            ->whereBetween('r.document_date', [(string) $f->dateFrom, (string) $f->dateTo])
             ->when($f->partyId !== null, fn (Builder $q) => $q->where('r.party_id', $f->partyId))
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('r.currency_code', $f->currencyCode))
             ->when($f->itemId !== null, fn (Builder $q) => $q->where('l.item_id', $f->itemId))

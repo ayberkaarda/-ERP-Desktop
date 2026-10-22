@@ -6,7 +6,9 @@ namespace App\Modules\Purchasing\Reports\Services;
 
 use App\Modules\Catalog\Contracts\ItemLookup;
 use App\Modules\Parties\Contracts\PartyLookup;
+use App\Modules\Purchasing\Reports\Support\Sql;
 use Generator;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\LazyCollection;
 use stdClass;
 
@@ -89,6 +91,27 @@ final class ItemDirectory
         }
 
         return $this->items[$itemId] ?? null;
+    }
+
+    /**
+     * The items among a query's item_id column whose own category is $categoryId, as a Postgres
+     * uuid[] literal, so a category filter runs in SQL (reads distinct ids and their items, in batches).
+     */
+    public function inCategory(Builder $itemIds, string $categoryId): string
+    {
+        $match = [];
+
+        foreach ($itemIds->distinct()->orderBy('item_id')->pluck('item_id')->chunk(1000) as $chunk) {
+            $this->preload($chunk);
+
+            foreach ($chunk as $id) {
+                if (is_string($id) && $this->categoryOf($id) === $categoryId) {
+                    $match[] = $id;
+                }
+            }
+        }
+
+        return Sql::uuids($match);
     }
 
     public function categoryOf(string $itemId): ?string

@@ -18,6 +18,7 @@ use App\Modules\Purchasing\Reports\Services\RfqSavingsReport;
 use App\Modules\Purchasing\Reports\Services\SupplierAgeingReport;
 use App\Modules\Purchasing\Reports\Services\SupplierPerformanceReport;
 use App\Modules\Purchasing\Reports\Support\ReadSnapshot;
+use App\Modules\Purchasing\Reports\Support\Window;
 use App\Modules\Purchasing\Support\Export;
 use App\Modules\Purchasing\Support\PurchasingSettings;
 use Illuminate\Contracts\Container\Container;
@@ -41,13 +42,14 @@ final class PurchaseReportController
     {
         $app->forgetInstance(ItemDirectory::class);
         $report = $request->report();
-        [$table, $rows] = ReadSnapshot::run(function () use ($request, $app, $report): array {
-            $table = $this->table($request, $app);
-            $page = array_slice($table->rows, ($request->page() - 1) * $request->perPage(), $request->perPage());
+        $window = Window::page($request->page(), $request->perPage());
+        [$table, $rows, $total] = ReadSnapshot::run(function () use ($request, $app, $report, $window): array {
+            $table = $this->table($request, $app, $window);
+            // SQL reports return the page itself; the others return their (aggregated) rows.
+            [$page, $total] = $table->total === null ? [$window->slice($table->rows), count($table->rows)] : [$table->rows, $table->total];
 
-            return [$table, $this->decorate($app, $report, $page)];
+            return [$table, $this->decorate($app, $report, $page), $total];
         });
-        $total = count($table->rows);
 
         return ReportRowResource::collection($rows)->additional(['meta' => [
             'report' => $report,
@@ -67,9 +69,11 @@ final class PurchaseReportController
     {
         $app->forgetInstance(ItemDirectory::class);
         $report = $request->report();
-        $table = ReadSnapshot::run(function () use ($request, $app, $report): ReportTable {
-            $table = $this->table($request, $app);
-            Export::assertWithinCap(count($table->rows));
+        // SQL reports refuse an export above the cap before reading rows; the others while building.
+        $window = Window::export(Export::maxRows());
+        $table = ReadSnapshot::run(function () use ($request, $app, $report, $window): ReportTable {
+            $table = $this->table($request, $app, $window);
+            $window->check(count($table->rows));
 
             return new ReportTable($this->decorate($app, $report, $table->rows), $table->columns, $table->meta);
         });
@@ -78,23 +82,23 @@ final class PurchaseReportController
         return Export::download('purchasing-'.$report, $request->exportFormat(), $table->columns, $rows);
     }
 
-    private function table(PurchaseReportRequest $request, Container $app): ReportTable
+    private function table(PurchaseReportRequest $request, Container $app, Window $window): ReportTable
     {
         $f = $request->filters();
         $by = $request->groupBy();
 
         return match ($request->report()) {
             'purchases-by-period' => $app->make(PurchasesByPeriodReport::class)->build($f, $request->period()),
-            'by-supplier' => $app->make(PurchaseGroupReport::class)->build($f, 'supplier'),
-            'by-item' => $app->make(PurchaseGroupReport::class)->build($f, 'item'),
+            'by-supplier' => $app->make(PurchaseGroupReport::class)->build($f, 'supplier', $window->cap),
+            'by-item' => $app->make(PurchaseGroupReport::class)->build($f, 'item', $window->cap),
             'top-suppliers' => $app->make(PurchaseGroupReport::class)->top($f, $request->limit()),
-            'open-orders' => $app->make(OpenOrdersReport::class)->build($f, $by, $request->today()),
-            'receipt-vs-invoice' => $app->make(ReceiptInvoiceReport::class)->build($f, $by),
-            'supplier-ageing' => $app->make(SupplierAgeingReport::class)->build($f, $by),
-            'price-variance' => $app->make(PriceVarianceReport::class)->build($f, $by),
+            'open-orders' => $app->make(OpenOrdersReport::class)->build($f, $by, $request->today(), $window),
+            'receipt-vs-invoice' => $app->make(ReceiptInvoiceReport::class)->build($f, $by, $window),
+            'supplier-ageing' => $app->make(SupplierAgeingReport::class)->build($f, $by, $window),
+            'price-variance' => $app->make(PriceVarianceReport::class)->build($f, $by, $window),
             'supplier-performance' => $app->make(SupplierPerformanceReport::class)->build($f, $request->today()),
-            'return-rate' => $app->make(ReturnRateReport::class)->build($f, $by),
-            default => $app->make(RfqSavingsReport::class)->build($f, $by),
+            'return-rate' => $app->make(ReturnRateReport::class)->build($f, $by, $window->cap),
+            default => $app->make(RfqSavingsReport::class)->build($f, $by, $window),
         };
     }
 

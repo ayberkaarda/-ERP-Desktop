@@ -9,8 +9,8 @@ use App\Modules\Purchasing\Enums\InvoiceType;
 use App\Modules\Purchasing\Reports\Data\ReportFilters;
 use App\Modules\Purchasing\Reports\Data\ReportTable;
 use App\Modules\Purchasing\Reports\Support\Num;
-use Brick\Math\BigDecimal;
-use DateTimeImmutable;
+use App\Modules\Purchasing\Reports\Support\Sql;
+use App\Modules\Purchasing\Reports\Support\Window;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -26,13 +26,17 @@ use Illuminate\Support\Facades\DB;
  * the booked payable (total_local - withholding_total_local) while nothing is settled, otherwise
  * balance x fx_rate in cents. Groups: supplier (default, company currency), supplier_currency (the
  * original currency view: buckets in the invoice currency next to the local balance) or invoice;
- * largest balance first.
+ * largest balance first. Computed in SQL: only the requested page of rows (or groups) is read.
  */
 final class SupplierAgeingReport
 {
     public const array GROUPS = ['supplier', 'supplier_currency', 'invoice'];
 
     public const array BUCKETS = ['not_due', 'days_0_30', 'days_31_60', 'days_61_90', 'days_over_90'];
+
+    private const array MONEY = ['payable', 'settled_amount', 'balance', 'balance_local', ...self::BUCKETS, 'overdue'];
+
+    private const array INTEGERS = ['days_overdue', 'invoice_count'];
 
     /** @return list<string> */
     public static function columns(string $by): array
@@ -46,54 +50,57 @@ final class SupplierAgeingReport
         };
     }
 
-    public function build(ReportFilters $f, string $by): ReportTable
+    public function build(ReportFilters $f, string $by, Window $window): ReportTable
     {
         $asOf = (string) $f->asOf;
-        $invoices = [];
-        $totals = array_fill_keys(self::BUCKETS, BigDecimal::zero());
-        $totalLocal = BigDecimal::zero();
+        $lines = DB::query()->fromSub($this->invoices($f, $asOf), 't')->where('t.balance', '<>', 0);
+        $totals = (clone $lines)->selectRaw('count(*) AS invoice_count, '.self::buckets('balance_local'))->first();
+        $columns = self::columns($by);
 
-        foreach ($this->query($f, $asOf)->lazyById(1000, 'i.id', 'id') as $row) {
-            $payable = Num::dec($row->total)->minus(Num::dec($row->withholding_total));
-            $settled = Num::dec($row->settled);
-            $balance = $payable->minus($settled);
-
-            if ($balance->isZero()) {
-                continue;
-            }
-
-            $sign = $row->invoice_type === InvoiceType::Return->value ? -1 : 1;
-            $local = $settled->isZero()
-                ? Num::dec($row->total_local)->minus(Num::dec($row->withholding_total_local))
-                : Num::cents($balance->multipliedBy(Num::dec($row->fx_rate)));
-            $due = is_string($row->due_date) ? $row->due_date : (string) $row->document_date;
-            $days = self::days($due, $asOf);
-            $bucket = self::bucket($days);
-            $invoices[] = [
-                'invoice_id' => (string) $row->id, 'number' => $row->number, 'supplier_invoice_no' => $row->supplier_invoice_no,
-                'invoice_type' => (string) $row->invoice_type, 'document_date' => (string) $row->document_date, 'due_date' => $due,
-                'days_overdue' => $days, 'bucket' => $bucket, 'party_id' => (string) $row->party_id, 'party_code' => null,
-                'party_name' => (string) $row->party_name, 'currency_code' => (string) $row->currency_code, 'fx_rate' => Num::qty(Num::dec($row->fx_rate)),
-                'payable' => Num::money($payable->multipliedBy($sign)), 'settled_amount' => Num::money($settled->multipliedBy($sign)),
-                'balance' => Num::money($balance->multipliedBy($sign)), 'balance_local' => Num::money($local->multipliedBy($sign)),
-            ];
-            $totals[$bucket] = $totals[$bucket]->plus($local->multipliedBy($sign));
-            $totalLocal = $totalLocal->plus($local->multipliedBy($sign));
+        if ($by === 'invoice') {
+            $ordered = $lines->select('t.*')->orderByDesc('t.balance_local')->orderBy('t.invoice_id');
+            $total = (int) ($totals->invoice_count ?? 0);
+        } else {
+            $currency = $by === 'supplier_currency';
+            $groups = $lines->groupBy(...($currency ? ['t.party_id', 't.currency_code'] : ['t.party_id']))
+                ->selectRaw(($currency ? "t.party_id || '|' || t.currency_code AS group_key, t.currency_code, coalesce(sum(t.balance), 0) AS balance, " : 't.party_id AS group_key, ')
+                    .'t.party_id, (array_agg(t.party_name ORDER BY t.document_date DESC, t.invoice_id DESC))[1] AS party_name, count(*) AS invoice_count,
+                    coalesce(sum(t.balance_local), 0) AS balance_local, min(t.due_date) AS oldest_due_date, '.self::buckets($currency ? 'balance' : 'balance_local', false));
+            $total = Sql::count($groups);
+            $ordered = DB::query()->fromSub($groups, 'g')->orderByDesc('g.balance_local')->orderBy('g.group_key');
         }
 
-        $rows = $by === 'invoice'
-            ? PurchaseGroupReport::sortBy($invoices, 'balance_local')
-            : self::group($invoices, $by === 'supplier_currency');
-
-        return new ReportTable($rows, self::columns($by), [
+        return new ReportTable(Sql::window($ordered, $window, $total, $columns, self::MONEY, ['fx_rate'], self::INTEGERS), $columns, [
             'as_of' => $asOf,
             'group_by' => $by,
-            'totals' => ['invoice_count' => count($invoices), 'balance_local' => Num::money($totalLocal),
-                ...array_map(Num::money(...), $totals), 'overdue' => Num::money($totalLocal->minus($totals['not_due']))],
-        ]);
+            'totals' => [
+                'invoice_count' => (int) ($totals->invoice_count ?? 0),
+                ...array_combine(['balance_local', ...self::BUCKETS, 'overdue'], array_map(
+                    static fn (string $c): string => Num::money(Num::dec($totals->{$c} ?? '0')), ['balance_local', ...self::BUCKETS, 'overdue'],
+                )),
+            ],
+        ], $total);
     }
 
-    private function query(ReportFilters $f, string $asOf): Builder
+    /**
+     * Bucket sums of an amount column (and the overall local balance when $withTotal).
+     *
+     * @param  literal-string  $amount
+     * @return literal-string
+     */
+    private static function buckets(string $amount, bool $withTotal = true): string
+    {
+        $sql = $withTotal ? 'coalesce(sum(t.balance_local), 0) AS balance_local, ' : '';
+
+        foreach (self::BUCKETS as $bucket) {
+            $sql .= "coalesce(sum(t.{$amount}) FILTER (WHERE t.bucket = '{$bucket}'), 0) AS {$bucket}, ";
+        }
+
+        return $sql."coalesce(sum(t.{$amount}) FILTER (WHERE t.bucket <> 'not_due'), 0) AS overdue";
+    }
+
+    /** One row per booked invoice or debit note open as of the date, signed (debit notes negative). */
+    private function invoices(ReportFilters $f, string $asOf): Builder
     {
         $tz = (string) config('app.timezone', 'UTC');
         $endOfDay = Carbon::parse($asOf, $tz)->addDay()->startOfDay();
@@ -103,80 +110,29 @@ final class SupplierAgeingReport
             ->where('a.applied_at', '<', $endOfDay)
             ->where(fn (Builder $q) => $q->whereNull('a.unapplied_at')->orWhere('a.unapplied_at', '>=', $endOfDay))
             ->selectRaw('coalesce(sum(a.amount), 0)');
-
-        return DB::table('purchase_invoices as i')
+        $base = DB::table('purchase_invoices as i')
             ->where('i.company_id', $f->companyId)
             ->whereIn('i.status', [...InvoiceStatus::booked(), InvoiceStatus::Reversed->value])
             ->where('i.document_date', '<=', $asOf)
             ->where(fn (Builder $q) => $q->where('i.status', '<>', InvoiceStatus::Reversed->value)->orWhere('i.reversal_date', '>', $asOf))
             ->when($f->partyId !== null, fn (Builder $q) => $q->where('i.party_id', $f->partyId))
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('i.currency_code', $f->currencyCode))
-            ->select(['i.id', 'i.number', 'i.supplier_invoice_no', 'i.invoice_type', 'i.document_date', 'i.due_date', 'i.party_id', 'i.party_name',
-                'i.currency_code', 'i.fx_rate', 'i.total', 'i.withholding_total', 'i.total_local', 'i.withholding_total_local'])
+            ->select(['i.id', 'i.number', 'i.supplier_invoice_no', 'i.invoice_type', 'i.document_date', 'i.party_id', 'i.party_name', 'i.currency_code',
+                'i.fx_rate', 'i.total', 'i.withholding_total', 'i.total_local', 'i.withholding_total_local'])
+            ->selectRaw('coalesce(i.due_date, i.document_date) AS due_date')
+            ->selectRaw('CASE WHEN i.invoice_type = ? THEN -1 ELSE 1 END AS sign', [InvoiceType::Return->value])
             ->selectSub($settled, 'settled');
-    }
+        $days = '(?::date - b.due_date)';
 
-    private static function days(string $due, string $asOf): int
-    {
-        $diff = (new DateTimeImmutable($due))->diff(new DateTimeImmutable($asOf));
-
-        return $diff->invert === 1 ? -(int) $diff->days : (int) $diff->days;
-    }
-
-    private static function bucket(int $days): string
-    {
-        return match (true) {
-            $days < 0 => 'not_due',
-            $days <= 30 => 'days_0_30',
-            $days <= 60 => 'days_31_60',
-            $days <= 90 => 'days_61_90',
-            default => 'days_over_90',
-        };
-    }
-
-    /**
-     * @param  list<array<string, string|int|null>>  $invoices
-     * @return list<array<string, string|int|null>>
-     */
-    private static function group(array $invoices, bool $perCurrency): array
-    {
-        $groups = [];
-
-        foreach ($invoices as $inv) {
-            $key = (string) $inv['party_id'].($perCurrency ? '|'.$inv['currency_code'] : '');
-            $amountKey = $perCurrency ? 'balance' : 'balance_local';
-            $g = $groups[$key] ?? [
-                'party_id' => $inv['party_id'], 'party_code' => null, 'party_name' => $inv['party_name'],
-                ...($perCurrency ? ['currency_code' => $inv['currency_code'], 'balance' => '0.0000'] : []),
-                'invoice_count' => 0, 'balance_local' => '0.0000', ...array_fill_keys(self::BUCKETS, '0.0000'), 'overdue' => '0.0000', 'oldest_due_date' => null,
-            ];
-            $amount = Num::dec($inv[$amountKey]);
-            $g['invoice_count'] = (int) $g['invoice_count'] + 1;
-            $g['balance_local'] = Num::money(Num::dec($g['balance_local'])->plus(Num::dec($inv['balance_local'])));
-
-            if ($perCurrency) {
-                $g['balance'] = Num::money(Num::dec($g['balance'])->plus($amount));
-            }
-
-            $bucket = (string) $inv['bucket'];
-            $g[$bucket] = Num::money(Num::dec($g[$bucket])->plus($amount));
-
-            if ($bucket !== 'not_due') {
-                $g['overdue'] = Num::money(Num::dec($g['overdue'])->plus($amount));
-            }
-
-            if ($g['oldest_due_date'] === null || (string) $inv['due_date'] < (string) $g['oldest_due_date']) {
-                $g['oldest_due_date'] = $inv['due_date'];
-            }
-
-            $groups[$key] = $g;
-        }
-
-        $columns = self::columns($perCurrency ? 'supplier_currency' : 'supplier');
-
-        return PurchaseGroupReport::sortBy(array_values(array_map(
-            static fn (array $g): array => array_merge(array_fill_keys($columns, null), array_intersect_key($g, array_flip($columns))),
-            $groups,
-        )), 'balance_local');
+        return DB::query()->fromSub($base, 'b')
+            ->select(['b.id as invoice_id', 'b.number', 'b.supplier_invoice_no', 'b.invoice_type', 'b.document_date', 'b.due_date', 'b.party_id',
+                'b.party_name', 'b.currency_code', 'b.fx_rate'])
+            ->selectRaw("{$days} AS days_overdue", [$asOf])
+            ->selectRaw("CASE WHEN {$days} < 0 THEN 'not_due' WHEN {$days} <= 30 THEN 'days_0_30' WHEN {$days} <= 60 THEN 'days_31_60'
+                WHEN {$days} <= 90 THEN 'days_61_90' ELSE 'days_over_90' END AS bucket", [$asOf, $asOf, $asOf, $asOf])
+            ->selectRaw('(b.total - b.withholding_total) * b.sign AS payable, b.settled * b.sign AS settled_amount')
+            ->selectRaw('(b.total - b.withholding_total - b.settled) * b.sign AS balance')
+            ->selectRaw('(CASE WHEN b.settled = 0 THEN b.total_local - b.withholding_total_local
+                ELSE round((b.total - b.withholding_total - b.settled) * b.fx_rate, 2) END) * b.sign AS balance_local');
     }
 }

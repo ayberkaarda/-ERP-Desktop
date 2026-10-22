@@ -8,6 +8,7 @@ use App\Modules\Purchasing\Reports\Data\PurchaseFact;
 use App\Modules\Purchasing\Reports\Data\ReportFilters;
 use App\Modules\Purchasing\Reports\Data\ReportTable;
 use App\Modules\Purchasing\Reports\Support\Num;
+use App\Modules\Purchasing\Support\Export;
 use Brick\Math\BigDecimal;
 
 /**
@@ -31,9 +32,10 @@ final class PurchaseGroupReport
         private readonly ItemDirectory $items,
     ) {}
 
-    public function build(ReportFilters $f, string $by): ReportTable
+    /** $cap: an export refused (422) as soon as it has more groups. */
+    public function build(ReportFilters $f, string $by, ?int $cap = null): ReportTable
     {
-        [$rows, $totals] = $this->grouped($f, $by);
+        [$rows, $totals] = $this->grouped($f, $by, $cap);
 
         return new ReportTable($rows, $by === 'supplier' ? self::SUPPLIER_COLUMNS : self::ITEM_COLUMNS, $totals->meta());
     }
@@ -75,15 +77,20 @@ final class PurchaseGroupReport
     /**
      * @return array{0: list<array<string, string|int|null>>, 1: PurchaseTotals}
      */
-    private function grouped(ReportFilters $f, string $by): array
+    private function grouped(ReportFilters $f, string $by, ?int $cap = null): array
     {
         /** @var array<string, PurchaseBucket> $buckets */
         $buckets = [];
         $types = [];
         $totals = new PurchaseTotals;
 
-        $this->facts->each($f, function (PurchaseFact $fact) use (&$buckets, &$types, $totals, $by): void {
+        $this->facts->each($f, function (PurchaseFact $fact) use (&$buckets, &$types, $totals, $by, $cap): void {
             $key = $by === 'supplier' ? $fact->partyId : $fact->itemId;
+
+            if ($cap !== null && ! isset($buckets[$key]) && count($buckets) >= $cap) {
+                Export::assertWithinCap($cap + 1);
+            }
+
             ($buckets[$key] ??= new PurchaseBucket)->add($fact);
             $types[$key] ??= $fact->itemType;
             $totals->add($fact);
