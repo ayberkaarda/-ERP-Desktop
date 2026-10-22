@@ -8,19 +8,21 @@ import type {
   ApiSalesOrder,
   ApiSalesQuote,
   CustomerExposure,
-  PreviewTotalsInput,
   SalesDocumentLink,
   SalesLine,
   SalesLineInput,
   SalesOrderLine,
-  SalesWarning,
   TaxBreakdownRow,
+  WireLink,
+  WireWarning,
 } from '../types'
 
-// In-memory stand-in for the sales quote/order API as assumed in .orchestra/fe-sales1.md (PHASE5
-// "HTTP API"), plus the lookups the screens read: parties, Catalog items/units, Reference tax
-// codes / currencies / payment terms / warehouses, item stock, customer exposure, approvals and
-// attachments. Errors use the envelope {errors: {message, code, fields?}}.
+// In-memory stand-in for the Sales quote/order API (backend Modules/Sales: DocumentResource,
+// LineResource, links/warnings/audit on the detail, preview-totals, exposure, credit block
+// details), plus the lookups the screens read: parties, Catalog items/units, Reference tax codes /
+// currencies / payment terms / warehouses, item stock, settings, approvals and attachments.
+// Documents are kept in the screen shape and sent in the API's shape (wireDocument).
+// Errors use the envelope {errors: {message, code, fields?, details?}}.
 
 const API = '*/api/v1'
 
@@ -72,6 +74,8 @@ export interface SalesDb {
   /** sales.require_approval_over; null = never. */
   approvalOver: string | null
   overDeliveryPercent: string
+  /** GET /settings answers (the API needs settings.view). */
+  settingsReadable: boolean
   calls: SalesCall[]
   /** Idempotency-Key -> stored response body and status (replayed on reuse). */
   idempotency: Map<string, { status: number; body: unknown }>
@@ -163,7 +167,7 @@ function line(docId: string, no: number, over: Partial<SalesOrderLine>): SalesOr
     base_unit_id: UNIT_PCS,
     base_unit_code: 'ADET',
     unit_price: '10.0000',
-    price_source: 'price_list',
+    price_source: 'default_price_list',
     discount_percent: '0.0000',
     discount_amount: '0.0000',
     net_amount: '100.0000',
@@ -391,6 +395,7 @@ export function createSalesDb(overrides: Partial<SalesDb> = {}): SalesDb {
     creditMode: 'block',
     approvalOver: null,
     overDeliveryPercent: '0',
+    settingsReadable: false,
     calls: [],
     idempotency: new Map(),
     dropNext: [],
@@ -411,8 +416,116 @@ function toQuoteLine(l: SalesOrderLine): SalesLine {
   return out as SalesLine
 }
 
-function error(status: number, code: string, message: string, fields?: Record<string, string[]>) {
-  return HttpResponse.json({ errors: { message, code, ...(fields ? { fields } : {}) } }, { status })
+function error(
+  status: number,
+  code: string,
+  message: string,
+  fields?: Record<string, string[]>,
+  details?: Record<string, unknown>,
+) {
+  return HttpResponse.json(
+    { errors: { message, code, ...(fields ? { fields } : {}), ...(details ? { details } : {}) } },
+    { status },
+  )
+}
+
+const LINK_RELATION: Record<string, { name: string; many: boolean }> = {
+  sales_quote: { name: 'quote', many: false },
+  sales_order: { name: 'order', many: false },
+  sales_delivery: { name: 'deliveries', many: true },
+  sales_invoice: { name: 'invoices', many: true },
+  sales_return: { name: 'returns', many: true },
+  sales_credit_note: { name: 'credit_notes', many: true },
+}
+
+/** The links list as the API's object (relation name -> one document or a list). */
+function wireLinks(kind: 'quote' | 'order', links: SalesDocumentLink[] = []) {
+  const out: Record<string, WireLink | WireLink[] | null> =
+    kind === 'quote'
+      ? { previous_revision: null, next_revisions: [], order: null }
+      : { quote: null, deliveries: [], invoices: [] }
+  for (const l of links) {
+    const rel =
+      kind === 'quote' && l.type === 'sales_quote'
+        ? l.direction === 'upstream'
+          ? { name: 'previous_revision', many: false }
+          : { name: 'next_revisions', many: true }
+        : (LINK_RELATION[l.type] ?? { name: l.type, many: true })
+    const wire: WireLink = {
+      id: l.id,
+      document_type: l.type,
+      number: l.number,
+      status: l.status,
+      document_date: l.document_date,
+      total: l.total ?? '0.0000',
+      currency_code: l.currency_code ?? 'TRY',
+    }
+    if (rel.many) out[rel.name] = [...((out[rel.name] as WireLink[] | undefined) ?? []), wire]
+    else out[rel.name] = wire
+  }
+  return out
+}
+
+/** LineResource: ids only, no labels (the screens read them from Catalog). */
+/** A copy of `o` without the named keys. */
+function omit(o: object, keys: readonly string[]): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)))
+}
+
+function wireLine(l: SalesLine | SalesOrderLine) {
+  const rest = omit(l, [
+    'item_code',
+    'item_name',
+    'unit_code',
+    'base_unit_id',
+    'base_unit_code',
+    'tax_code',
+  ])
+  const gross = dec(l.quantity).mul(dec(l.unit_price)).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+  return {
+    ...rest,
+    tax_inclusive: false,
+    gross_amount: gross.toFixed(4),
+    line_discount: gross.minus(dec(l.net_amount)).toFixed(4),
+  }
+}
+
+/** DocumentResource (+ links, warnings and audit on the detail). */
+function wireDocument(
+  kind: 'quote' | 'order',
+  doc: ApiSalesQuote | ApiSalesOrder,
+  opts: { detail?: boolean; lines?: boolean } = {},
+) {
+  const { party, links, warnings, audit: rows, lines } = doc
+  const rest = omit(doc, [
+    'party',
+    'local_currency_code',
+    'tax_breakdown',
+    'links',
+    'warnings',
+    'audit',
+    'lines',
+    'over_delivery_percent',
+  ])
+  const out: Record<string, unknown> = {
+    ...rest,
+    document_type: kind === 'quote' ? 'sales_quote' : 'sales_order',
+    party_name: party.name,
+    party_tax_office: party.tax_office,
+    party_tax_number: party.tax_number,
+    billing_address: party.billing_address ?? null,
+    subtotal_local: doc.subtotal,
+    discount_total_local: doc.discount_total,
+    tax_total_local: doc.tax_total,
+    line_count: lines.length,
+  }
+  if (opts.lines !== false) out.lines = lines.map(wireLine)
+  if (opts.detail) {
+    out.links = wireLinks(kind, links)
+    out.warnings = (warnings ?? []).map((w) => ({ code: w.code, message: w.message }))
+    out.audit = rows ?? []
+  }
+  return out
 }
 
 const dec = (v: unknown) =>
@@ -438,10 +551,10 @@ function paginate<T>(rows: T[], url: URL) {
 }
 
 interface PricedLine {
-  key: string
   input: SalesLineInput
   unit_price: string
   price_source: string | null
+  resolved: string | null
   base_quantity: string
   net_amount: string
   tax_code_id: string | null
@@ -451,17 +564,25 @@ interface PricedLine {
   line_total: string
 }
 
-function toPreviewLine(p: PricedLine) {
+/** A preview-totals line: the composed row plus the price list answer. */
+function toPreviewLine(p: PricedLine, i: number) {
   return {
-    key: p.key,
+    line_no: i + 1,
+    item_id: p.input.item_id,
+    variant_id: p.input.variant_id ?? null,
+    quantity: qty6(dec(p.input.quantity)),
+    unit_id: p.input.unit_id,
     unit_price: p.unit_price,
     price_source: p.price_source,
     base_quantity: p.base_quantity,
+    discount_percent: dec(p.input.discount_percent).toFixed(4),
+    discount_amount: dec(p.input.discount_amount).toFixed(4),
     net_amount: p.net_amount,
     tax_code_id: p.tax_code_id,
     tax_rate: p.tax_rate,
     tax_amount: p.tax_amount,
     line_total: p.line_total,
+    pricing: { unit_price: p.resolved },
   }
 }
 
@@ -496,8 +617,8 @@ export function salesHandlers(db: SalesDb) {
   }
 
   /** Server-side pricing and totals of request lines (the resolver fills missing prices). */
-  function price(lines: (SalesLineInput & { key?: string })[]) {
-    const warnings: SalesWarning[] = []
+  function price(lines: SalesLineInput[], strict = true) {
+    const warnings: WireWarning[] = []
     const fields: Record<string, string[]> = {}
     const priced: PricedLine[] = lines.map((l, i) => {
       const it = itemOf(l.item_id)
@@ -506,23 +627,30 @@ export function salesHandlers(db: SalesDb) {
       if (!factor) fields[`lines.${i}.unit_id`] = ['Birim bu stok kartında tanımlı değil.']
       if (!dec(l.quantity).gt(0)) fields[`lines.${i}.quantity`] = ['Miktar sıfırdan büyük olmalı.']
       const f = factor ?? new Decimal(1)
+      const list = db.prices[l.item_id] ? dec(db.prices[l.item_id]).mul(f) : null
       let unitPrice: Decimal
-      let source: string | null
+      let source: string
       if (l.unit_price !== null) {
         unitPrice = dec(l.unit_price)
-        source = 'manual'
-      } else if (db.prices[l.item_id]) {
-        unitPrice = dec(db.prices[l.item_id]).mul(f)
-        source = 'price_list'
+        source = list?.eq(unitPrice) ? 'default_price_list' : 'manual'
+        // An explicit price other than the list price is an override (strict: refused).
+        const fixed = (l as { _fixed?: boolean })._fixed === true
+        if (!fixed && list && !list.eq(unitPrice) && !can('sales.price_override')) {
+          if (strict) fields[`lines.${i}.unit_price`] = ['Fiyatı değiştirme yetkiniz yok.']
+          else
+            warnings.push({
+              code: 'sales.price_override_forbidden',
+              message: 'Fiyatı değiştirme yetkiniz yok.',
+              line: i,
+            })
+        }
+      } else if (list) {
+        unitPrice = list
+        source = 'default_price_list'
       } else {
         unitPrice = new Decimal(0)
-        source = null
-        warnings.push({
-          code: 'sales.price_not_found',
-          message: 'Fiyat bulunamadı.',
-          line_key: l.key ?? null,
-          line_no: i + 1,
-        })
+        source = 'none'
+        fields[`lines.${i}.unit_price`] = ['Fiyat bulunamadı.']
       }
       const q = dec(l.quantity)
       const gross = q.mul(unitPrice)
@@ -534,10 +662,10 @@ export function salesHandlers(db: SalesDb) {
       const netR = net.toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
       const taxAmount = netR.mul(rate).div(100).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
       return {
-        key: l.key ?? String(i),
         input: l,
-        unit_price: unitPrice.toFixed(4),
+        unit_price: unitPrice.toFixed(6),
         price_source: source,
+        resolved: list ? list.toFixed(6) : null,
         base_quantity: qty6(q.mul(f)),
         net_amount: money(netR),
         tax_code_id: taxCode?.id ?? null,
@@ -589,7 +717,7 @@ export function salesHandlers(db: SalesDb) {
       const unit = unitOf(p.input.unit_id)
       const base = it ? unitOf(it.base_unit_id) : undefined
       return {
-        id: p.input.id ?? `${docId}-n${++db.seq}`,
+        id: `${docId}-n${++db.seq}`,
         line_no: i + 1,
         item_id: p.input.item_id,
         item_code: it?.code ?? null,
@@ -622,6 +750,21 @@ export function salesHandlers(db: SalesDb) {
     })
   }
 
+  /** A stored line as input with its price kept (the API keeps omitted lines as stored). */
+  const storedInput = (l: SalesLine): SalesLineInput & { _fixed: true } => ({
+    item_id: l.item_id,
+    variant_id: l.variant_id,
+    description: l.description,
+    quantity: l.quantity,
+    unit_id: l.unit_id,
+    unit_price: l.unit_price,
+    discount_percent: l.discount_percent,
+    discount_amount: l.discount_amount,
+    tax_code_id: l.tax_code_id,
+    warehouse_id: l.warehouse_id,
+    _fixed: true,
+  })
+
   type Body = Record<string, unknown>
 
   /** Header + lines of a create/PATCH/revise body; returns field errors or the document parts. */
@@ -634,10 +777,6 @@ export function salesHandlers(db: SalesDb) {
     const lines = Array.isArray(body.lines) ? (body.lines as SalesLineInput[]) : []
     if (lines.length === 0) fields.lines = ['En az bir satır girin.']
     if (lines.length > 500) fields.lines = ['En çok 500 satır olabilir.']
-    lines.forEach((l, i) => {
-      if (l.unit_price !== null && !can('sales.price_override'))
-        fields[`lines.${i}.unit_price`] = ['Fiyatı değiştirme yetkiniz yok.']
-    })
     const result = price(lines)
     Object.assign(fields, result.fields)
     const fx = body.fx_rate
@@ -664,7 +803,7 @@ export function salesHandlers(db: SalesDb) {
         internal_notes: (body.internal_notes as string | null) ?? null,
         ...result.totals,
         total_local: money(dec(result.totals.total).mul(fx)),
-        warnings: result.warnings.map((w) => ({ ...w, line_key: null })),
+        warnings: [],
       },
       lines: linesOf(docId, result.priced),
     }
@@ -700,7 +839,7 @@ export function salesHandlers(db: SalesDb) {
     return res
   }
 
-  const exposureOf = (partyId: string): CustomerExposure => {
+  const exposureOf = (partyId: string, documentId: string | null = null): CustomerExposure => {
     const p = db.parties.find((x) => x.id === partyId)
     const orders = db.orders
       .filter(
@@ -722,37 +861,56 @@ export function salesHandlers(db: SalesDb) {
       open_orders: money(orders),
       total: money(total),
       available: limit ? money(dec(limit).minus(total)) : null,
+      document_amount: documentId
+        ? (db.orders.find((o) => o.id === documentId)?.total_local ?? null)
+        : null,
     }
   }
 
-  /** Credit check at confirm / revise: null = allowed; else the 422 response. */
+  /**
+   * Credit check at confirm / revise (CreditControl): null = allowed; else the 422 response with
+   * the breakdown in errors.details. Warn mode and overrides add a meta warning; a reason without
+   * sales.credit_override does not pass in block mode.
+   */
   function credit(
     order: ApiSalesOrder,
     reason: unknown,
-    warnings: SalesWarning[],
+    warnings: WireWarning[],
     counted: boolean,
   ) {
     const e = exposureOf(order.party_id)
     if (db.creditMode === 'off' || e.limit === null) return null
     const exposure = counted ? dec(e.total).minus(dec(order.total_local)) : dec(e.total)
-    if (exposure.plus(dec(order.total_local)).lte(dec(e.limit))) return null
-    if (db.creditMode === 'warn') {
+    const total = exposure.plus(dec(order.total_local))
+    if (total.lte(dec(e.limit))) return null
+    const overridden =
+      typeof reason === 'string' && reason.trim() !== '' && can('sales.credit_override')
+    const details = {
+      mode: db.creditMode,
+      limit: dec(e.limit).toFixed(2),
+      currency: e.currency,
+      exposure: exposure.toFixed(2),
+      document: dec(order.total_local).toFixed(2),
+      total: total.toFixed(2),
+      available: dec(e.limit).minus(total).toFixed(2),
+      exceeded: true,
+      overridden,
+    }
+    if (db.creditMode === 'warn' || overridden) {
       warnings.push({
-        code: 'sales.credit_limit_warning',
+        code: 'sales.credit_limit_exceeded',
         message: 'Müşterinin kredi limiti aşılıyor.',
+        details,
       })
       return null
     }
-    if (typeof reason === 'string' && reason.trim() !== '') {
-      if (!can('sales.credit_override')) return error(403, 'FORBIDDEN', 'Limit aşımı yetkiniz yok.')
-      return null
-    }
-    return error(422, 'sales.credit_limit_exceeded', 'Müşterinin kredi limiti aşılıyor.', {
-      limit: [e.limit],
-      exposure: [money(exposure)],
-      document: [order.total_local],
-      currency: [e.currency],
-    })
+    return error(
+      422,
+      'sales.credit_limit_exceeded',
+      'Müşterinin kredi limiti aşılıyor.',
+      { party_id: ['Müşterinin kredi limiti aşılıyor.'] },
+      details,
+    )
   }
 
   const listOf = <
@@ -791,36 +949,6 @@ export function salesHandlers(db: SalesDb) {
     return paginate(out, url)
   }
 
-  const quoteSummary = (q: ApiSalesQuote) => ({
-    id: q.id,
-    number: q.number,
-    status: q.status,
-    document_date: q.document_date,
-    valid_until: q.valid_until,
-    party_id: q.party_id,
-    party_name: q.party.name,
-    currency_code: q.currency_code,
-    total: q.total,
-    total_local: q.total_local,
-    revision: q.revision,
-    version: q.version,
-    lines: q.lines,
-  })
-  const orderSummary = (o: ApiSalesOrder) => ({
-    id: o.id,
-    number: o.number,
-    status: o.status,
-    document_date: o.document_date,
-    requested_delivery_date: o.requested_delivery_date,
-    party_id: o.party_id,
-    party_name: o.party.name,
-    currency_code: o.currency_code,
-    total: o.total,
-    total_local: o.total_local,
-    version: o.version,
-    lines: o.lines,
-  })
-
   const stripQuoteLines = (lines: SalesOrderLine[]): SalesLine[] => lines.map(toQuoteLine)
 
   const nextNumber = (prefix: string, rows: { number: string | null }[]) =>
@@ -833,7 +961,13 @@ export function salesHandlers(db: SalesDb) {
   const versionMismatch = (doc: { version: number }, body: Body) =>
     typeof body.version === 'number' && body.version !== doc.version
   const conflict = () => error(409, 'VERSION_CONFLICT', 'Belge başka biri tarafından değiştirildi.')
-  const illegal = () => error(409, 'INVALID_TRANSITION', 'Bu işlem belgenin durumunda yapılamaz.')
+  const illegal = () =>
+    error(422, 'INVALID_STATE_TRANSITION', 'Bu işlem belgenin durumunda yapılamaz.')
+  const invalid = (fields: Record<string, string[]>) =>
+    error(422, 'VALIDATION_ERROR', 'Belge doğrulanamadı.', fields)
+  const forbidden = () => error(403, 'FORBIDDEN', 'Yetkiniz yok.')
+  const wq = (q: ApiSalesQuote, detail = false) => wireDocument('quote', q, { detail })
+  const wo = (o: ApiSalesOrder, detail = false) => wireDocument('order', o, { detail })
   const json = async (request: Request) => ((await request.json().catch(() => ({}))) ?? {}) as Body
   const touch = (doc: { version: number; audit?: ApiAuditRow[] }, event: string) => {
     doc.version += 1
@@ -939,51 +1073,105 @@ export function salesHandlers(db: SalesDb) {
         },
       }),
     ),
-    http.get(`${API}/customers/:id/exposure`, ({ params }) =>
-      HttpResponse.json({ data: exposureOf(String(params.id)) }),
-    ),
+    http.get(`${API}/customers/:id/exposure`, ({ params, request }) => {
+      const documentId = new URL(request.url).searchParams.get('document_id')
+      // Like the API: only an order (or sale invoice) of this customer may be asked about.
+      if (
+        documentId &&
+        !db.orders.some((o) => o.id === documentId && o.party_id === String(params.id))
+      )
+        return invalid({
+          document_id: ['Bu müşteriye ait bu kimlikte bir sipariş veya satış faturası bulunamadı.'],
+        })
+      return HttpResponse.json({ data: exposureOf(String(params.id), documentId) })
+    }),
+    http.get(`${API}/settings`, ({ request }) => {
+      if (!db.settingsReadable) return forbidden()
+      const group = new URL(request.url).searchParams.get('group')
+      const rows = [
+        {
+          key: 'sales.allow_over_delivery_percent',
+          group: 'sales',
+          label: 'Fazla sevk toleransı',
+          type: 'int',
+          options: null,
+          default: 0,
+          value: Number(db.overDeliveryPercent),
+          is_default: false,
+        },
+      ]
+      return HttpResponse.json({ data: rows.filter((r) => !group || r.group === group) })
+    }),
     // ---- preview ------------------------------------------------------------------------
     http.post(`${API}/sales-documents/preview-totals`, async ({ request }) => {
-      const body = (await request.json()) as PreviewTotalsInput
-      const lines = body.lines.map((l) => ({ ...l, description: null }))
-      const result = price(lines)
+      const body = await json(request)
+      const lines = (Array.isArray(body.lines) ? (body.lines as SalesLineInput[]) : []).map(
+        (l) => ({ ...l, description: null }),
+      )
+      if (lines.length === 0) return invalid({ lines: ['En az bir satır girin.'] })
+      const result = price(lines, false)
+      if (Object.keys(result.fields).length > 0) return invalid(result.fields)
       const fx = body.fx_rate
         ? dec(body.fx_rate)
-        : body.currency_code === COMPANY_CURRENCY
+        : body.currency_code === COMPANY_CURRENCY || !body.currency_code
           ? new Decimal(1)
           : new Decimal('35.5')
+      const local = (v: string) => money(dec(v).mul(fx))
       return HttpResponse.json({
         data: {
+          header: {
+            party_id: body.party_id ?? null,
+            currency_code: str(body.currency_code, COMPANY_CURRENCY),
+            fx_rate: qty6(fx),
+          },
           lines: result.priced.map(toPreviewLine),
-          ...result.totals,
-          total_local: money(dec(result.totals.total).mul(fx)),
-          fx_rate: qty6(fx),
-          local_currency_code: COMPANY_CURRENCY,
-          warnings: result.warnings,
+          taxes: result.totals.tax_breakdown.map((t) => ({
+            tax_code_id: t.tax_code_id,
+            rate: t.rate,
+            base: dec(t.base).toFixed(2),
+            tax: dec(t.amount).toFixed(2),
+            base_local: local(t.base),
+            tax_local: local(t.amount),
+          })),
+          totals: {
+            subtotal: dec(result.totals.subtotal).toFixed(2),
+            discount_total: dec(result.totals.discount_total).toFixed(2),
+            tax_total: dec(result.totals.tax_total).toFixed(2),
+            total: dec(result.totals.total).toFixed(2),
+            subtotal_local: local(result.totals.subtotal),
+            discount_total_local: local(result.totals.discount_total),
+            tax_total_local: local(result.totals.tax_total),
+            total_local: local(result.totals.total),
+          },
+          price_overrides: [],
         },
+        ...(result.warnings.length > 0 ? { meta: { warnings: result.warnings } } : {}),
       })
     }),
     // ---- quotes -------------------------------------------------------------------------
     http.get(`${API}/sales-quotes/export`, () => downloadCsv('teklifler')),
-    http.get(`${API}/sales-quotes`, ({ request }) =>
-      HttpResponse.json(listOf(db.quotes.map(quoteSummary), new URL(request.url))),
-    ),
+    http.get(`${API}/sales-quotes`, ({ request }) => {
+      const page = listOf(db.quotes, new URL(request.url))
+      return HttpResponse.json({
+        ...page,
+        data: page.data.map((q) => wireDocument('quote', q, { lines: false })),
+      })
+    }),
     http.post(`${API}/sales-quotes`, ({ request }) =>
       idempotent(request, '/sales-quotes', async () => {
-        if (!can('sales.quotes.create')) return error(403, 'FORBIDDEN', 'Yetkiniz yok.')
+        if (!can('sales.quotes.create')) return forbidden()
         const body = await json(request)
         const id = `q-new-${++db.seq}`
         const built = build(id, body)
-        if (Object.keys(built.fields).length > 0)
-          return error(422, 'VALIDATION_FAILED', 'Belge doğrulanamadı.', built.fields)
+        if (Object.keys(built.fields).length > 0) return invalid(built.fields)
         const quote: ApiSalesQuote = {
           ...header,
           ...built.parts,
           id,
-          number: nextNumber('TKL', db.quotes),
+          number: null,
           status: 'draft',
           valid_until: (body.valid_until as string | null) ?? null,
-          revision: 0,
+          revision: 1,
           previous_revision_id: null,
           links: [],
           version: 1,
@@ -991,28 +1179,29 @@ export function salesHandlers(db: SalesDb) {
           audit: [audit('created')],
         }
         db.quotes.push(quote)
-        return HttpResponse.json({ data: quote, meta: { warnings: [] } }, { status: 201 })
+        return HttpResponse.json({ data: wq(quote) }, { status: 201 })
       }),
     ),
     http.get(`${API}/sales-quotes/:id`, ({ params }) => {
       const q = findQuote(params.id)
-      return q ? HttpResponse.json({ data: q }) : error(404, 'NOT_FOUND', 'Teklif bulunamadı.')
+      return q ? HttpResponse.json({ data: wq(q, true) }) : error(404, 'NOT_FOUND', 'Bulunamadı.')
     }),
     http.patch(`${API}/sales-quotes/:id`, async ({ request, params }) => {
       const q = findQuote(params.id)
       if (!q) return error(404, 'NOT_FOUND', 'Teklif bulunamadı.')
       const body = await json(request)
+      if (typeof body.version !== 'number') return invalid({ version: ['Sürüm zorunlu.'] })
       if (versionMismatch(q, body)) return conflict()
       if (q.status !== 'draft') return illegal()
-      const built = build(q.id, body)
-      if (Object.keys(built.fields).length > 0)
-        return error(422, 'VALIDATION_FAILED', 'Belge doğrulanamadı.', built.fields)
+      // Lines left out of the body stay as stored.
+      const built = build(q.id, { ...body, lines: body.lines ?? q.lines.map(storedInput) })
+      if (Object.keys(built.fields).length > 0) return invalid(built.fields)
       Object.assign(q, built.parts, {
         valid_until: (body.valid_until as string | null) ?? null,
-        lines: stripQuoteLines(built.lines),
+        lines: body.lines === undefined ? q.lines : stripQuoteLines(built.lines),
       })
       touch(q, 'updated')
-      return HttpResponse.json({ data: q, meta: { warnings: [] } })
+      return HttpResponse.json({ data: wq(q) })
     }),
     http.delete(`${API}/sales-quotes/:id`, ({ params }) => {
       const i = db.quotes.findIndex((q) => q.id === params.id)
@@ -1025,40 +1214,58 @@ export function salesHandlers(db: SalesDb) {
       return idempotent(request, `/sales-quotes/${action}`, async () => {
         const q = findQuote(params.id)
         if (!q) return error(404, 'NOT_FOUND', 'Teklif bulunamadı.')
+        if (!can('sales.quotes.update')) return forbidden()
+        if (action === 'convert' && !can('sales.orders.create')) return forbidden()
         const body = await json(request)
         if (versionMismatch(q, body)) return conflict()
+        // QuoteService: the statuses each action starts from.
         const allowed: Record<string, string[]> = {
           send: ['draft'],
-          accept: ['sent'],
+          accept: ['draft', 'sent'],
           reject: ['sent'],
-          convert: ['sent', 'accepted'],
-          revise: ['sent', 'rejected', 'expired'],
+          cancel: ['draft', 'sent', 'accepted', 'rejected', 'expired'],
+          convert: ['draft', 'sent', 'accepted'],
+          revise: ['draft', 'sent', 'rejected', 'expired'],
         }
         if (!allowed[action]?.includes(q.status)) return illegal()
-        if (action === 'reject' && !(typeof body.reason === 'string' && body.reason.trim()))
-          return error(422, 'VALIDATION_FAILED', 'Gerekçe zorunlu.', {
-            reason: ['Gerekçe zorunlu.'],
-          })
+        const numbered = () => {
+          q.number ??= nextNumber('QUO', db.quotes)
+        }
         if (action === 'revise') {
           const id = `q-rev-${++db.seq}`
           const copy: ApiSalesQuote = {
             ...structuredClone(q),
             id,
+            number: null,
             status: 'draft',
             revision: q.revision + 1,
             previous_revision_id: q.id,
+            links: [
+              {
+                type: 'sales_quote',
+                id: q.id,
+                number: q.number,
+                status: 'cancelled',
+                document_date: q.document_date,
+                direction: 'upstream',
+              },
+            ],
             version: 1,
             audit: [audit('created')],
           }
           db.quotes.push(copy)
-          return HttpResponse.json({ data: copy, meta: { warnings: [] } }, { status: 201 })
+          // The revised quote is cancelled.
+          q.status = 'cancelled'
+          touch(q, 'revised')
+          return HttpResponse.json({ data: wq(copy) }, { status: 201 })
         }
         if (action === 'convert') {
+          numbered()
           const id = `o-new-${++db.seq}`
           const order: ApiSalesOrder = {
             ...structuredClone(q),
             id,
-            number: nextNumber('SIP', db.orders),
+            number: null,
             status: 'draft',
             requested_delivery_date: null,
             approval_request_id: null,
@@ -1069,6 +1276,7 @@ export function salesHandlers(db: SalesDb) {
               ...l,
               id: `${id}-${l.id}`,
               source_line_id: l.id,
+              price_source: 'source',
               delivered_quantity: '0.000000',
               invoiced_quantity: '0.000000',
               reservation_id: null,
@@ -1098,36 +1306,46 @@ export function salesHandlers(db: SalesDb) {
             },
           ]
           touch(q, 'converted')
-          return HttpResponse.json({ data: order, meta: { warnings: [] } }, { status: 201 })
+          return HttpResponse.json(
+            { data: wo(order), meta: { quote: { id: q.id, status: 'converted' } } },
+            { status: 201 },
+          )
         }
-        q.status = action === 'send' ? 'sent' : action === 'accept' ? 'accepted' : 'rejected'
+        if (action === 'send' || action === 'accept') numbered()
+        q.status =
+          action === 'send'
+            ? 'sent'
+            : action === 'accept'
+              ? 'accepted'
+              : action === 'cancel'
+                ? 'cancelled'
+                : 'rejected'
+        if (action === 'reject') q.rejection_reason = str(body.reason) || null
         touch(q, action)
-        return HttpResponse.json({ data: q, meta: { warnings: [] } })
+        return HttpResponse.json({ data: wq(q) })
       })
     }),
     // ---- orders -------------------------------------------------------------------------
     http.get(`${API}/sales-orders/export`, () => downloadCsv('siparisler')),
-    http.get(`${API}/sales-orders`, ({ request }) =>
-      HttpResponse.json(
-        listOf(
-          db.orders.map((o) => ({ ...orderSummary(o) })),
-          new URL(request.url),
-        ),
-      ),
-    ),
+    http.get(`${API}/sales-orders`, ({ request }) => {
+      const page = listOf(db.orders, new URL(request.url))
+      return HttpResponse.json({
+        ...page,
+        data: page.data.map((o) => wireDocument('order', o, { lines: false })),
+      })
+    }),
     http.post(`${API}/sales-orders`, ({ request }) =>
       idempotent(request, '/sales-orders', async () => {
-        if (!can('sales.orders.create')) return error(403, 'FORBIDDEN', 'Yetkiniz yok.')
+        if (!can('sales.orders.create')) return forbidden()
         const body = await json(request)
         const id = `o-new-${++db.seq}`
         const built = build(id, body)
-        if (Object.keys(built.fields).length > 0)
-          return error(422, 'VALIDATION_FAILED', 'Belge doğrulanamadı.', built.fields)
+        if (Object.keys(built.fields).length > 0) return invalid(built.fields)
         const order: ApiSalesOrder = {
           ...header,
           ...built.parts,
           id,
-          number: nextNumber('SIP', db.orders),
+          number: null,
           status: 'draft',
           requested_delivery_date: (body.requested_delivery_date as string | null) ?? null,
           approval_request_id: null,
@@ -1137,28 +1355,35 @@ export function salesHandlers(db: SalesDb) {
           audit: [audit('created')],
         }
         db.orders.push(order)
-        return HttpResponse.json({ data: order, meta: { warnings: [] } }, { status: 201 })
+        return HttpResponse.json({ data: wo(order) }, { status: 201 })
       }),
     ),
     http.get(`${API}/sales-orders/:id`, ({ params }) => {
       const o = findOrder(params.id)
-      return o ? HttpResponse.json({ data: o }) : error(404, 'NOT_FOUND', 'Sipariş bulunamadı.')
+      if (!o) return error(404, 'NOT_FOUND', 'Sipariş bulunamadı.')
+      // Draft orders carry the credit preview as warnings.
+      const warnings: WireWarning[] = []
+      if (o.status === 'draft') credit(o, null, warnings, false)
+      const data = wo({ ...o, warnings: [] }, true)
+      return HttpResponse.json({
+        data: { ...data, warnings: warnings.length > 0 ? warnings : (data.warnings ?? []) },
+      })
     }),
     http.patch(`${API}/sales-orders/:id`, async ({ request, params }) => {
       const o = findOrder(params.id)
       if (!o) return error(404, 'NOT_FOUND', 'Sipariş bulunamadı.')
       const body = await json(request)
+      if (typeof body.version !== 'number') return invalid({ version: ['Sürüm zorunlu.'] })
       if (versionMismatch(o, body)) return conflict()
       if (o.status !== 'draft') return illegal()
-      const built = build(o.id, body)
-      if (Object.keys(built.fields).length > 0)
-        return error(422, 'VALIDATION_FAILED', 'Belge doğrulanamadı.', built.fields)
+      const built = build(o.id, { ...body, lines: body.lines ?? o.lines.map(storedInput) })
+      if (Object.keys(built.fields).length > 0) return invalid(built.fields)
       Object.assign(o, built.parts, {
         requested_delivery_date: (body.requested_delivery_date as string | null) ?? null,
-        lines: built.lines,
+        lines: body.lines === undefined ? o.lines : built.lines,
       })
       touch(o, 'updated')
-      return HttpResponse.json({ data: o, meta: { warnings: [] } })
+      return HttpResponse.json({ data: wo(o) })
     }),
     http.delete(`${API}/sales-orders/:id`, ({ params }) => {
       const i = db.orders.findIndex((o) => o.id === params.id)
@@ -1173,13 +1398,27 @@ export function salesHandlers(db: SalesDb) {
         if (!o) return error(404, 'NOT_FOUND', 'Sipariş bulunamadı.')
         const body = await json(request)
         if (versionMismatch(o, body)) return conflict()
-        const warnings: SalesWarning[] = []
+        // OrderPolicy: confirm, revise and close need approve; cancel is an edit.
+        const ability: Record<string, string> = {
+          confirm: 'sales.orders.approve',
+          revise: 'sales.orders.approve',
+          close: 'sales.orders.approve',
+          cancel: 'sales.orders.update',
+          deliveries: 'sales.deliveries.create',
+          invoices: 'sales.invoices.create',
+        }
+        const needed = ability[action]
+        if (needed && !can(needed)) return forbidden()
+        const warnings: WireWarning[] = []
+        const answer = () =>
+          HttpResponse.json({ data: wo(o), ...(warnings.length > 0 ? { meta: { warnings } } : {}) })
         if (action === 'confirm') {
           if (o.status !== 'draft') return illegal()
           const blocked = credit(o, body.credit_override_reason, warnings, false)
           if (blocked) return blocked
-          if (typeof body.credit_override_reason === 'string')
+          if (typeof body.credit_override_reason === 'string' && warnings.length > 0)
             o.credit_override_reason = body.credit_override_reason
+          o.number ??= nextNumber('ORD', db.orders)
           if (db.approvalOver !== null && dec(o.total_local).gte(dec(db.approvalOver))) {
             o.status = 'pending_approval'
             o.approval_request_id = APPROVAL_ID
@@ -1187,29 +1426,34 @@ export function salesHandlers(db: SalesDb) {
             o.status = 'confirmed'
           }
           touch(o, 'confirmed')
-          return HttpResponse.json({ data: o, meta: { warnings } })
+          return answer()
         }
         if (action === 'revise') {
           if (o.status !== 'confirmed' || o.lines.some((l) => dec(l.delivered_quantity).gt(0)))
             return illegal()
-          const built = build(o.id, body)
-          if (Object.keys(built.fields).length > 0)
-            return error(422, 'VALIDATION_FAILED', 'Belge doğrulanamadı.', built.fields)
-          const next = { ...o, ...built.parts, lines: built.lines }
+          if (typeof body.version !== 'number') return invalid({ version: ['Sürüm zorunlu.'] })
+          const built = build(o.id, { ...body, lines: body.lines ?? o.lines.map(storedInput) })
+          if (Object.keys(built.fields).length > 0) return invalid(built.fields)
+          const lines = body.lines === undefined ? o.lines : built.lines
+          const next = { ...o, ...built.parts, lines }
           const blocked = credit(next, body.credit_override_reason, warnings, true)
           if (blocked) return blocked
-          Object.assign(o, built.parts, { lines: built.lines })
+          Object.assign(o, built.parts, { lines })
           touch(o, 'revised')
-          return HttpResponse.json({ data: o, meta: { warnings } })
+          return answer()
         }
         if (action === 'cancel') {
-          if (!(typeof body.reason === 'string' && body.reason.trim()))
-            return error(422, 'VALIDATION_FAILED', 'Gerekçe zorunlu.', {
-              reason: ['Gerekçe zorunlu.'],
-            })
+          if (!['draft', 'pending_approval', 'confirmed'].includes(o.status)) return illegal()
           o.status = 'cancelled'
           touch(o, 'cancelled')
-          return HttpResponse.json({ data: o, meta: { warnings } })
+          return answer()
+        }
+        if (action === 'close') {
+          const open = ['confirmed', 'partially_delivered', 'delivered', 'partially_invoiced']
+          if (![...open, 'invoiced'].includes(o.status)) return illegal()
+          o.status = 'closed'
+          touch(o, 'closed')
+          return answer()
         }
         if (action === 'deliveries' || action === 'invoices') {
           const lines = Array.isArray(body.lines)
@@ -1220,6 +1464,10 @@ export function salesHandlers(db: SalesDb) {
             const ol = o.lines.find((x) => x.id === l.order_line_id)
             if (!ol) {
               fields[`lines.${i}.order_line_id`] = ['Sipariş satırı bulunamadı.']
+              return
+            }
+            if (action === 'deliveries' && ol.item_type === 'service') {
+              fields[`lines.${i}.order_line_id`] = ['Hizmet satırı sevk edilemez.']
               return
             }
             const ordered = dec(ol.quantity)
@@ -1236,8 +1484,7 @@ export function salesHandlers(db: SalesDb) {
               fields[`lines.${i}.quantity`] = [`Kalan miktar ${bound.toString()}.`]
           })
           if (lines.length === 0) fields.lines = ['En az bir satır.']
-          if (Object.keys(fields).length > 0)
-            return error(422, 'VALIDATION_FAILED', 'Miktarlar kalanı aşıyor.', fields)
+          if (Object.keys(fields).length > 0) return invalid(fields)
           const delivery = action === 'deliveries'
           const id = `${delivery ? 'd' : 'i'}-new-${++db.seq}`
           const link: SalesDocumentLink = {
@@ -1249,7 +1496,18 @@ export function salesHandlers(db: SalesDb) {
             direction: 'downstream',
           }
           o.links = [...(o.links ?? []), link]
-          return HttpResponse.json({ data: { id, number: null, status: 'draft' } }, { status: 201 })
+          return HttpResponse.json(
+            {
+              data: {
+                id,
+                document_type: link.type,
+                number: null,
+                status: 'draft',
+                document_date: link.document_date,
+              },
+            },
+            { status: 201 },
+          )
         }
         return illegal()
       })

@@ -13,11 +13,13 @@
     "confirm": "Confirm",
     "revise": "Revise",
     "cancel": "Cancel order",
+    "close": "Close order",
     "createDelivery": "Create delivery note",
     "createInvoice": "Create invoice",
     "confirmed": "Order confirmed.",
     "sentForApproval": "Order sent for approval.",
     "cancelled": "Order cancelled.",
+    "closed": "Order closed.",
     "failed": "The action could not be completed."
   },
   "confirm": {
@@ -26,8 +28,11 @@
   },
   "cancel": {
     "title": "Cancel the order?",
-    "body": "Reservations are released. Cancelling cannot be undone.",
-    "reason": "Cancellation reason"
+    "body": "Reservations are released. Cancelling cannot be undone."
+  },
+  "closeOrder": {
+    "title": "Close the order?",
+    "body": "Open quantities will not be delivered or invoiced; open reservations are released."
   },
   "approval": {
     "tab": "Approval",

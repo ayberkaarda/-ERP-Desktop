@@ -16,7 +16,7 @@ describe('invoice list', () => {
     const user = userEvent.setup()
     renderSales('/sales/invoices')
     const grid = await screen.findByRole('grid', { name: 'Satış faturaları' })
-    const row = (await within(grid).findByText('SF2026000007')).closest('tr')
+    const row = (await within(grid).findByText('INV2026000000007')).closest('tr')
     if (!row) throw new Error('row')
     expect(within(row).getAllByText('1.200,00 TRY')).toHaveLength(2)
     expect(within(row).getByText('Kesildi')).toBeInTheDocument()
@@ -39,7 +39,7 @@ describe('issued invoice', () => {
     const db = setupSales()
     const user = userEvent.setup()
     renderSales(`/sales/invoices/${INVOICE_ISSUED}`)
-    await screen.findByRole('heading', { name: 'Satış faturası SF2026000007' })
+    await screen.findByRole('heading', { name: 'Satış faturası INV2026000000007' })
     expect(screen.getByTestId('balance-due')).toHaveTextContent('1.200,00 TRY')
     expect(screen.getByText('Açık')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Kaydı aç' })).toHaveAttribute(
@@ -68,7 +68,7 @@ describe('issued invoice', () => {
   it('hides reverse and return without permissions', async () => {
     setupSales({ permissions: ['sales.invoices.view'] })
     renderSales(`/sales/invoices/${INVOICE_ISSUED}`)
-    await screen.findByRole('heading', { name: 'Satış faturası SF2026000007' })
+    await screen.findByRole('heading', { name: 'Satış faturası INV2026000000007' })
     expect(screen.queryByRole('button', { name: 'Ters kayıt' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /İade başlat/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Kaydı aç' })).not.toBeInTheDocument()
@@ -119,13 +119,13 @@ describe('invoice editor', () => {
     // 500 available − 1 200 this invoice.
     expect(exposure).toHaveTextContent('-700,00 TRY')
     await user.click(within(dialog).getByRole('button', { name: 'Faturayı kes' }))
-    expect(await screen.findByTestId('assigned-number')).toHaveTextContent('SF2026000001')
+    expect(await screen.findByTestId('assigned-number')).toHaveTextContent('INV2026000000001')
     expect(await screen.findByText('Risk limiti aşıldı (uyarı).')).toBeInTheDocument()
     const issue = db.calls.find((c) => c.path === `/sales-invoices/${INVOICE_DRAFT}/issue`)
     expect(issue?.body).toEqual({ version: 3 })
   })
 
-  it('does not subtract a TRY invoice from a EUR risk limit', async () => {
+  it('compares the server amount in the risk currency with a EUR risk limit', async () => {
     setupSales({
       db: {
         exposure: {
@@ -146,9 +146,10 @@ describe('invoice editor', () => {
     await user.click(screen.getByRole('button', { name: 'Faturayı kes' }))
     const exposure = await within(await screen.findByRole('dialog')).findByTestId('exposure')
     expect(exposure).toHaveTextContent('100,00 EUR')
-    // The invoice is shown in its own currency; no EUR availability is derived from TRY.
-    expect(exposure).toHaveTextContent('1.200,00 TRY')
-    expect(exposure).not.toHaveTextContent('Kesildikten sonra kalan')
+    // document_amount: 1 200 TRY converted by the server to EUR (35), then 80 − 34,29.
+    expect(exposure).toHaveTextContent('34,29 EUR')
+    expect(exposure).toHaveTextContent('45,71 EUR')
+    expect(exposure).not.toHaveTextContent('1.200,00 TRY')
   })
 
   it('stops at the credit limit in block mode without the override permission', async () => {
@@ -161,6 +162,10 @@ describe('invoice editor', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Faturayı kes' }))
     expect(await within(dialog).findByText('Müşterinin risk limiti aşılıyor.')).toBeInTheDocument()
     expect(within(dialog).getByText(/Limiti aşma yetkiniz yok/)).toBeInTheDocument()
+    // The breakdown comes from errors.details of the 422.
+    const breakdown = within(dialog).getByTestId('credit-breakdown')
+    expect(breakdown).toHaveTextContent('1.500,00 TRY')
+    expect(breakdown).toHaveTextContent('2.700,00 TRY')
     expect(within(dialog).getByRole('button', { name: 'Faturayı kes' })).toBeDisabled()
   })
 
@@ -177,7 +182,7 @@ describe('invoice editor', () => {
     expect(override).toBeDisabled()
     await user.type(within(dialog).getByLabelText('Limit aşımı gerekçesi'), 'Yönetim onayı')
     await user.click(override)
-    expect(await screen.findByTestId('assigned-number')).toHaveTextContent('SF2026000001')
+    expect(await screen.findByTestId('assigned-number')).toHaveTextContent('INV2026000000001')
     const issues = db.calls.filter((c) => c.path === `/sales-invoices/${INVOICE_DRAFT}/issue`)
     expect(issues.map((c) => c.body)).toEqual([
       { version: 3 },
@@ -198,9 +203,10 @@ describe('print view', () => {
     renderSales(`/sales/invoices/${INVOICE_ISSUED}/print`)
     const sheet = await screen.findByTestId('print-sheet')
     expect(within(sheet).getByRole('heading', { name: 'Satış Faturası' })).toBeInTheDocument()
-    expect(sheet).toHaveTextContent('SF2026000007')
+    expect(sheet).toHaveTextContent('INV2026000000007')
     expect(sheet).toHaveTextContent('Kadıköy V.D. · 1234567890')
-    expect(sheet).toHaveTextContent('Yalnız bin iki yüz Türk lirası')
+    // Tax summary per rate from the print model.
+    expect(sheet).toHaveTextContent('%20')
     expect(sheet).toHaveTextContent('1.200,00 TRY')
     await user.click(screen.getByRole('button', { name: 'Yazdır' }))
     expect(print).toHaveBeenCalledOnce()

@@ -151,7 +151,8 @@
     "sales_invoice": "Facture",
     "sales_return": "Retour",
     "stock_document": "Document de stock",
-    "journal_entry": "Écriture"
+    "journal_entry": "Écriture",
+    "sales_credit_note": "Avoir"
   },
   "print": {
     "open": "Imprimer",
@@ -161,7 +162,15 @@
     "seller": "Vendeur",
     "buyer": "Acheteur",
     "draft": "BROUILLON",
-    "deliveryAddress": "Adresse de livraison"
+    "deliveryAddress": "Adresse de livraison",
+    "titles": {
+      "sales_quote": "Devis",
+      "sales_order": "Commande client",
+      "sales_delivery": "Bon de livraison",
+      "sales_invoice": "Facture de vente",
+      "sales_credit_note": "Avoir",
+      "sales_return": "Retour client"
+    }
   },
   "totals": {
     "title": "Totaux",
@@ -220,7 +229,8 @@
     "discount": "La remise doit être comprise entre 0 et 100.",
     "taxCode": "Choisissez un code taxe.",
     "selectLines": "Sélectionnez au moins une ligne à retourner.",
-    "overReturnable": "Dépasse la quantité retournable."
+    "overReturnable": "Dépasse la quantité retournable.",
+    "pickSerials": "Choisissez les numéros de série à retourner."
   },
   "fefo": {
     "suggest": "Proposer les lots à péremption la plus proche pour la ligne {{index}}",
@@ -305,7 +315,9 @@
     "thisDocument": "Cette facture",
     "availableAfter": "Disponible après émission",
     "available": "Disponible {{amount}} / {{limit}}",
-    "over": "Limite dépassée de {{amount}}"
+    "over": "Limite dépassée de {{amount}}",
+    "current": "Encours actuel",
+    "totalAfter": "Encours avec ce document"
   },
   "reverse": {
     "title": "Extourner la facture {{number}}",
@@ -337,7 +349,9 @@
     "invoice": "Facture",
     "creditNote": "Avoir",
     "steps": "Étapes du retour",
-    "lines": "Lignes de retour"
+    "lines": "Lignes de retour",
+    "serialsFor": "Numéros de série à retourner pour {{item}}",
+    "pickSerial": "Retourner le numéro de série {{serial}}"
   },
   "returnAction": {
     "approve": {
@@ -357,7 +371,7 @@
     "credit": {
       "button": "Émettre l'avoir",
       "title": "Émettre l'avoir ?",
-      "body": "Un avoir est créé ; la créance et le coût des ventes sont extournés.",
+      "body": "Un avoir est émis et la créance est extournée ; le coût des ventes a déjà été extourné à la réception.",
       "confirm": "Émettre l'avoir",
       "done": "Avoir émis."
     },

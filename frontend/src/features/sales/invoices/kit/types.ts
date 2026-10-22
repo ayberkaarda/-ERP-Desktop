@@ -20,7 +20,9 @@ export interface Envelope<T, M = Record<string, unknown>> {
   meta?: M
 }
 
+/** Party billing address snapshot (Parties PartyAddressLookup). */
 export interface Address {
+  label?: string | null
   line1?: string | null
   line2?: string | null
   district?: string | null
@@ -41,6 +43,8 @@ export interface PartySnapshot {
 export interface DocWarning {
   code: string
   message: string
+  details?: Record<string, unknown> | null
+  line?: number | null
 }
 
 export const LINK_TYPES = [
@@ -61,6 +65,10 @@ export interface DocLink {
   number: string | null
   status?: string | null
   document_date?: string | null
+  total?: string | null
+  currency_code?: string | null
+  /** A return invoice (credit note); `type` stays sales_invoice for its route. */
+  credit?: boolean
   relation: 'source' | 'target'
 }
 
@@ -69,34 +77,117 @@ export interface ApiAuditRow {
   description: string | null
   causer_id: string | null
   causer_name?: string | null
+  properties?: Record<string, unknown> | null
   created_at: string | null
 }
 
-/** Header fields every sales document carries. */
-export interface SalesHeader {
+// ---- Wire shapes (Sales DocumentResource, LineResource, DocumentLinks) ----
+
+export type ApiDocumentType =
+  'sales_quote' | 'sales_order' | 'sales_delivery' | 'sales_invoice' | 'sales_return'
+
+/** One chain entry as DocumentLinks::link sends it. */
+export interface ApiLink {
   id: string
-  /** Gapless per type and fiscal year, assigned at post / issue; null on drafts. */
+  document_type: ApiDocumentType | 'sales_credit_note'
+  number: string | null
+  status: string
+  document_date: string
+  total: string
+  currency_code: string
+}
+
+/** `links` of a detail: named relations (one document or a list) per document type. */
+export type ApiLinks = Record<string, ApiLink | ApiLink[] | null>
+
+/** Header columns every document carries (flat party snapshot, totals in both currencies). */
+export interface ApiHeader {
+  id: string
+  document_type: ApiDocumentType
+  /** Gapless per type and year, assigned at post / issue / approve; null on drafts. */
   number: string | null
   status: string
   document_date: string
   party_id: string
-  /** List rows carry the snapshot name for display. */
-  party_name?: string | null
-  party_snapshot?: PartySnapshot | null
+  party_name: string | null
+  party_tax_office: string | null
+  party_tax_number: string | null
+  billing_address: Address | null
   currency_code: string
   fx_rate: string
+  payment_term_id: string | null
+  due_date: string | null
+  price_list_id: string | null
   warehouse_id: string | null
+  cost_center_id: string | null
+  project_id: string | null
   notes: string | null
-  internal_notes?: string | null
+  internal_notes: string | null
   source_type: string | null
   source_id: string | null
+  subtotal: string
+  discount_total: string
+  tax_total: string
+  total: string
+  subtotal_local: string
+  discount_total_local: string
+  tax_total_local: string
+  total_local: string
   version: number
-  created_by?: string | null
-  created_at?: string | null
-  updated_at?: string | null
+  created_by: string | null
+  created_at: string | null
+  updated_at: string | null
+  /** Lists only. */
+  line_count?: number
 }
 
-/** Money totals of invoices (and of returns once credited); *_local in company currency. */
+/** Line columns every document line carries (ids only, no labels). */
+export interface ApiLine {
+  id: string
+  line_no: number
+  item_id: string
+  variant_id: string | null
+  item_type: 'stock' | 'service' | null
+  description: string | null
+  quantity: string
+  unit_id: string
+  base_quantity: string
+  unit_price: string
+  tax_inclusive: boolean
+  discount_percent: string
+  discount_amount: string
+  gross_amount: string
+  line_discount: string
+  net_amount: string
+  tax_code_id: string | null
+  tax_rate: string
+  tax_amount: string
+  line_total: string
+  warehouse_id: string | null
+  source_line_id: string | null
+  price_source: string | null
+}
+
+/** What GET /{resource}/{id} adds to the document. */
+export interface ApiDetailExtras {
+  links?: ApiLinks
+  warnings?: DocWarning[]
+  audit?: ApiAuditRow[]
+}
+
+/** Labels the UI adds to a line from Catalog (the API sends ids only). */
+export interface LineLabels {
+  item_code?: string | null
+  item_name?: string | null
+  unit_code?: string | null
+}
+
+/** Header of a document as the screens use it: the wire header plus the party snapshot. */
+export interface SalesHeader extends ApiHeader {
+  party_snapshot?: PartySnapshot | null
+}
+
+/** Money totals; *_local in company currency. */
 export interface SalesTotals {
   subtotal: string
   discount_total: string
@@ -108,60 +199,48 @@ export interface SalesTotals {
   total_local?: string
 }
 
-export interface PrintParty {
-  name: string
-  tax_office: string | null
-  tax_number: string | null
-  address: string | null
-  phone?: string | null
-  email?: string | null
-}
-
 export interface PrintLine {
   line_no: number
   item_code: string | null
-  description: string
+  item_name: string | null
+  description: string | null
   quantity: string
   unit_code: string | null
-  unit_price?: string | null
-  discount_percent?: string | null
-  net_amount?: string | null
-  tax_rate?: string | null
-  tax_amount?: string | null
-  line_total?: string | null
-  lot_no?: string | null
-  serial_numbers?: string[]
+  unit_name: string | null
+  unit_price: string
+  discount_percent: string
+  discount_amount: string
+  net_amount: string
+  tax_rate: string
+  tax_amount: string
+  line_total: string
+  lot_no: string | null
+  serial_numbers: string[] | null
 }
 
 /**
  * GET /sales-<resource>/{id}/print-model: structured JSON the browser prints with CSS
- * (no PDF engine yet). Money fields are absent on dispatch notes.
+ * (no PDF engine yet). `document` is the header as the detail sends it.
  */
 export interface PrintModel {
-  document_type: 'sales_delivery' | 'sales_invoice' | 'sales_return'
-  /** Server-chosen title ("Satış Faturası", "İade Faturası", "Sevk İrsaliyesi"). */
-  title: string
-  number: string | null
-  status: string
-  document_date: string
-  due_date?: string | null
-  issued_at?: string | null
-  currency_code?: string | null
-  fx_rate?: string | null
-  company: PrintParty
-  party: PrintParty
-  delivery_address?: string | null
-  references?: { label: string; value: string }[]
+  document_type: ApiDocumentType | 'sales_credit_note'
+  company: { id: string; name: string | null; [key: string]: unknown }
+  document: ApiHeader & Record<string, unknown>
+  party: {
+    id: string
+    name: string | null
+    tax_office: string | null
+    tax_number: string | null
+    billing_address: Address | null
+  }
   lines: PrintLine[]
-  tax_summary?: { tax_code: string; rate: string; base: string; amount: string }[]
-  totals?: SalesTotals | null
-  amount_in_words?: string | null
-  notes?: string | null
-  footer?: string | null
+  taxes: { rate: string; base: string; tax: string }[]
+  totals: SalesTotals
 }
 
-/** GET /customers/{id}/exposure (company currency unless risk currency differs). */
+/** GET /customers/{id}/exposure, in the party's risk currency (scale 2). */
 export interface CustomerExposure {
+  party_id?: string
   limit: string | null
   currency: string
   open_invoices: string

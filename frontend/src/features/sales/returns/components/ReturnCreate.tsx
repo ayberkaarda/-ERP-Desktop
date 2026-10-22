@@ -21,7 +21,7 @@ import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { WarehouseSelect } from '@/features/reference'
 import type { Invoice } from '../../invoices/api'
-import { usePayloadKeys } from '../../invoices/kit/idempotency'
+import { usePayloadKeys } from '../../shared/lib/idempotency'
 import { salesDocsKeys } from '../../invoices/kit/keys'
 import { INVOICES_BASE, RETURNS_BASE } from '../../invoices/kit/links'
 import { dec, money, qty } from '../../invoices/kit/money'
@@ -36,7 +36,14 @@ import {
 } from '../lib/selection'
 
 /** Step one of a return: pick invoice lines and quantities, then create the draft. */
-export function ReturnCreate({ invoice }: { invoice: Invoice }) {
+export function ReturnCreate({
+  invoice,
+  returned,
+}: {
+  invoice: Invoice
+  /** Quantity per invoice line on the invoice's other returns. */
+  returned: Readonly<Record<string, string>>
+}) {
   const { t } = useTranslation('sales-docs')
   const locale = useIntlLocale()
   const navigate = useNavigate()
@@ -49,8 +56,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
   const resolver: Resolver<ReturnValues> = useMemo(
     () => (values) => {
       const errors: Record<string, unknown> = {}
-      if (!values.warehouseId)
-        errors.warehouseId = { type: 'required', message: t('validation.warehouse') }
       if (!values.documentDate)
         errors.documentDate = { type: 'required', message: t('validation.date') }
       if (!values.lines.some((l) => l.selected))
@@ -65,7 +70,9 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
               message:
                 p.message === 'quantity'
                   ? t('validation.quantityPositive')
-                  : t('validation.overReturnable'),
+                  : p.message === 'serials'
+                    ? t('validation.pickSerials')
+                    : t('validation.overReturnable'),
             },
           }
         }
@@ -77,7 +84,7 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
   )
   const form = useForm<ReturnValues>({
     resolver,
-    defaultValues: valuesFromInvoice(invoice.lines, invoice.warehouse_id ?? ''),
+    defaultValues: valuesFromInvoice(invoice.lines, invoice.warehouse_id ?? '', returned),
   })
   const values = useWatch({ control: form.control }) as ReturnValues
   const selected = values.lines.filter((l) => l.selected).length
@@ -96,6 +103,10 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
       const c = started ?? 'none'
       queryClient.setQueryData(salesDocsKeys.detail('returns', ret.id, c), ret)
       void queryClient.invalidateQueries({ queryKey: salesDocsKeys.branch('returns', c) })
+      // The source invoice's links bound the next return.
+      void queryClient.invalidateQueries({
+        queryKey: salesDocsKeys.detail('invoices', invoice.id, c),
+      })
       keyFor.reset()
       if (useCompanyStore.getState().activeCompanyId !== started) return
       platform.notify.success(t('return.created'))
@@ -110,9 +121,7 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
     const m = /^lines\.(\d+)\.([a-z_]+)/.exec(path)
     if (m) {
       const index = sent[Number(m[1])]
-      return index === undefined
-        ? 'lines'
-        : `lines.${index}.${m[2] === 'reason' ? 'reason' : 'quantity'}`
+      return index === undefined ? 'lines' : `lines.${index}.quantity`
     }
     return (
       ({ document_date: 'documentDate', warehouse_id: 'warehouseId' } as Record<string, string>)[
@@ -175,7 +184,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
           <FormField<ReturnValues, 'warehouseId'>
             name="warehouseId"
             label={t('fields.returnWarehouse')}
-            required
             render={({ field, control }) => (
               <WarehouseSelect
                 {...control}
@@ -206,7 +214,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
                 <th className={thr}>{t('fields.invoicedQuantity')}</th>
                 <th className={thr}>{t('fields.returnable')}</th>
                 <th className={thr}>{t('fields.returnQuantity')}</th>
-                <th className={th}>{t('fields.lineReason')}</th>
                 <th className={thr}>{t('fields.unitPrice')}</th>
               </tr>
             </thead>
@@ -227,7 +234,39 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
                         }
                       />
                     </td>
-                    <td className={td}>{l.itemLabel}</td>
+                    <td className={td}>
+                      {l.itemLabel}
+                      {l.serials.length > 0 && (
+                        <fieldset
+                          className="mt-1 flex flex-wrap gap-x-3 gap-y-1"
+                          disabled={!l.selected}
+                        >
+                          <legend className="sr-only">
+                            {t('return.serialsFor', { item: l.itemLabel })}
+                          </legend>
+                          {l.serials.map((serial) => (
+                            <label key={serial} className="flex items-center gap-1 text-xs">
+                              <Checkbox
+                                aria-label={t('return.pickSerial', { serial })}
+                                checked={l.pickedSerials.includes(serial)}
+                                onChange={(e) => {
+                                  const picked = e.target.checked
+                                    ? [...l.pickedSerials, serial]
+                                    : l.pickedSerials.filter((x) => x !== serial)
+                                  form.setValue(`lines.${i}.pickedSerials`, picked, {
+                                    shouldDirty: true,
+                                  })
+                                  form.setValue(`lines.${i}.quantity`, String(picked.length), {
+                                    shouldDirty: true,
+                                  })
+                                }}
+                              />
+                              <span className="font-mono">{serial}</span>
+                            </label>
+                          ))}
+                        </fieldset>
+                      )}
+                    </td>
                     <td className={tdr}>
                       {qty(l.invoiced, locale)} {l.unitCode}
                     </td>
@@ -245,7 +284,7 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
                               scale={6}
                               displayMinFraction={0}
                               value={field.value}
-                              disabled={!l.selected}
+                              disabled={!l.selected || l.serials.length > 0}
                               className="h-control-sm"
                               onChange={field.onChange}
                               onBlur={field.onBlur}
@@ -256,21 +295,6 @@ export function ReturnCreate({ invoice }: { invoice: Invoice }) {
                               </p>
                             )}
                           </>
-                        )}
-                      />
-                    </td>
-                    <td className={`${td} w-56`}>
-                      <Controller
-                        control={form.control}
-                        name={`lines.${i}.reason`}
-                        render={({ field }) => (
-                          <Input
-                            {...field}
-                            aria-label={t('return.reasonFor', { item: l.itemLabel })}
-                            maxLength={500}
-                            disabled={!l.selected}
-                            className="h-control-sm"
-                          />
                         )}
                       />
                     </td>

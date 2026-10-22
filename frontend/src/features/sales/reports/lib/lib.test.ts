@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js'
-import { REPORTS, reportBySlug, type ColDef } from '../definitions'
+import { REPORTS, reportBySlug, viewFor, type ColDef } from '../definitions'
 import { chartBars, niceScale, stackedSegments } from './chart'
 import { apiParams, initialParams, missingRequired, rangeInvalid, totalsRow } from './params'
 
@@ -24,10 +24,10 @@ describe('sales report parameters', () => {
     expect(new Set(REPORTS.map((r) => r.slug)).size).toBe(REPORTS.length)
   })
 
-  it('fills initial values, requires the range and sends only set keys', () => {
+  it('fills initial values, requires nothing (the API defaults) and sends only set keys', () => {
     const init = initialParams(def)
     expect(init.period).toBe('month')
-    expect(missingRequired(def, {})).toEqual(['date_from', 'date_to'])
+    expect(missingRequired(def, {})).toEqual([])
     expect(
       apiParams(def, { date_from: '2026-01-01', date_to: '2026-02-01', party_id: '' }),
     ).toEqual({
@@ -38,21 +38,44 @@ describe('sales report parameters', () => {
     expect(rangeInvalid({ date_from: '2026-03-01', date_to: '2026-02-01' })).toBe(true)
   })
 
-  it('prefers API totals and otherwise sums money columns of the page', () => {
+  it('takes totals from meta.totals only', () => {
     const cols: ColDef[] = [
-      { key: 'name', label: 'name', kind: 'text' },
+      { key: 'party_name', label: 'partyName', kind: 'text' },
       { key: 'net', label: 'netAmount', kind: 'money', total: true },
       { key: 'rate', label: 'share', kind: 'percent', total: true },
     ]
-    const rows = [
-      { name: 'a', net: '0.10', rate: '10' },
-      { name: 'b', net: '0.20', rate: '20' },
-    ]
-    expect(totalsRow(cols, rows, { totals: { net: '9.99', rate: '15' } })).toEqual({
+    expect(totalsRow(cols, { totals: { net: '9.99', rate: '15' } })).toEqual({
       net: '9.99',
       rate: '15',
     })
-    expect(totalsRow(cols, rows, {})).toEqual({ net: '0.3' })
+    expect(totalsRow(cols, {})).toBeNull()
+  })
+
+  it('switches columns and chart with group_by and sends group_by only where the API takes it', () => {
+    const margin = reportBySlug('margin')
+    if (!margin) throw new Error('missing margin')
+    expect(viewFor(margin, 'item').columns.map((c) => c.key)).toContain('invoiced_quantity')
+    expect(viewFor(margin, 'warehouse').columns.map((c) => c.key)).toEqual([
+      'warehouse_label',
+      'revenue',
+      'cogs',
+      'gross_margin',
+      'margin_percent',
+    ])
+    expect(viewFor(margin, 'month').chart).toMatchObject({ kind: 'column', label: 'period' })
+    for (const r of REPORTS) {
+      const grouped = r.params.some((x) => x.key === 'group_by')
+      expect(grouped).toBe(
+        [
+          'margin',
+          'return-rate',
+          'quote-conversion',
+          'open-orders',
+          'delivery-vs-invoice',
+          'customer-ageing',
+        ].includes(r.slug),
+      )
+    }
   })
 })
 

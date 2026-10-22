@@ -54,6 +54,45 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: 'Sistem durumu' })).toBeInTheDocument()
   })
 
+  it('shows the sales section entries the company grants', () => {
+    signInWith(['sales.quotes.view', 'sales.invoices.view'])
+    renderSidebar('/sales/invoices')
+
+    const sales = screen.getByRole('group', { name: 'Satış' })
+    expect(within(sales).getByRole('link', { name: 'Teklifler' })).toHaveAttribute(
+      'href',
+      '/sales/quotes',
+    )
+    expect(within(sales).getByRole('link', { name: 'Faturalar' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    for (const name of ['Siparişler', 'İrsaliyeler', 'İadeler', 'Satış raporları']) {
+      expect(within(sales).queryByRole('link', { name })).not.toBeInTheDocument()
+    }
+  })
+
+  it('shows sales reports, deliveries and returns to their own permissions only', () => {
+    signInWith(['sales.deliveries.view', 'sales.returns.view', 'sales.reports.view'])
+    renderSidebar()
+
+    const sales = screen.getByRole('group', { name: 'Satış' })
+    expect(within(sales).getByRole('link', { name: 'İrsaliyeler' })).toHaveAttribute(
+      'href',
+      '/sales/deliveries',
+    )
+    expect(within(sales).getByRole('link', { name: 'İadeler' })).toBeInTheDocument()
+    expect(within(sales).getByRole('link', { name: 'Satış raporları' })).toBeInTheDocument()
+    expect(within(sales).queryByRole('link', { name: 'Teklifler' })).not.toBeInTheDocument()
+  })
+
+  it('hides the sales section without any sales permission', () => {
+    signInWith(['parties.view'])
+    renderSidebar()
+
+    expect(screen.queryByRole('group', { name: 'Satış' })).not.toBeInTheDocument()
+  })
+
   it('shows the inventory section entries the company grants', () => {
     signInWith(['inventory.stock.view'])
     renderSidebar()

@@ -10,7 +10,7 @@ import { http, seg } from '../http'
 import { salesDocsKeys, type DocBranch } from '../keys'
 import { LINK_PATHS } from '../links'
 import { money, percent, qty } from '../money'
-import type { Envelope, PrintModel, PrintParty } from '../types'
+import type { Address, Envelope, PrintModel } from '../types'
 import { LoadError } from './LoadError'
 
 const RESOURCE: Record<DocBranch, string> = {
@@ -73,36 +73,52 @@ export function PrintDocumentPage({ branch }: { branch: DocBranch }) {
   )
 }
 
-function PartyBlock({ title, party }: { title: string; party: PrintParty }) {
+/** Billing address snapshot on separate lines. */
+function addressLines(a: Address | null | undefined): string {
+  if (!a) return ''
+  const city = [a.postal_code, a.district, a.city].filter(Boolean).join(' ')
+  return [a.line1, a.line2, city, a.country].filter(Boolean).join('\n')
+}
+
+interface PartyBlockProps {
+  title: string
+  name: string | null
+  address?: string
+  taxOffice?: string | null
+  taxNumber?: string | null
+}
+
+function PartyBlock({ title, name, address, taxOffice, taxNumber }: PartyBlockProps) {
   const { t } = useTranslation('sales-docs')
   return (
     <div className="space-y-0.5 text-sm">
       <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
         {title}
       </p>
-      <p className="font-semibold">{party.name}</p>
-      {party.address && <p className="whitespace-pre-line">{party.address}</p>}
-      {(party.tax_office ?? party.tax_number) && (
-        <p>
-          {t('print.taxInfo', { office: party.tax_office ?? '', number: party.tax_number ?? '' })}
-        </p>
+      <p className="font-semibold">{name ?? ''}</p>
+      {address && <p className="whitespace-pre-line">{address}</p>}
+      {(taxOffice ?? taxNumber) && (
+        <p>{t('print.taxInfo', { office: taxOffice ?? '', number: taxNumber ?? '' })}</p>
       )}
-      {party.phone && <p>{party.phone}</p>}
-      {party.email && <p>{party.email}</p>}
     </div>
   )
 }
 
-/** The sheet itself: parties, references, lines, tax summary and totals. */
+const text = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null)
+
+/** The sheet itself: parties, lines, tax summary per rate and totals. */
 export function PrintSheet({ model }: { model: PrintModel }) {
   const { t } = useTranslation('sales-docs')
   const locale = useIntlLocale()
+  const doc = model.document
   const priced = model.document_type !== 'sales_delivery'
-  const cur = model.currency_code ?? undefined
+  const cur = doc.currency_code
+  const title = t(`print.titles.${model.document_type}`)
+  const company = model.company
   const hasLot = model.lines.some(
     (l) => (l.lot_no ?? '') !== '' || (l.serial_numbers?.length ?? 0) > 0,
   )
-  const hasDiscount = model.lines.some((l) => l.discount_percent && l.discount_percent !== '0')
+  const hasDiscount = model.lines.some((l) => Number(l.discount_percent) !== 0)
   const th = 'border-b border-foreground/40 px-1.5 py-1 text-left font-semibold'
   const thr = `${th} text-right`
   const td = 'border-b border-border px-1.5 py-1 align-top'
@@ -111,52 +127,47 @@ export function PrintSheet({ model }: { model: PrintModel }) {
   return (
     <article
       className="sales-print-sheet space-y-5 rounded-lg border border-border bg-white p-8 text-[12px] text-black shadow-sm"
-      aria-label={model.title}
+      aria-label={title}
       data-testid="print-sheet"
     >
       <header className="flex items-start justify-between gap-6">
-        <PartyBlock title={t('print.seller')} party={model.company} />
+        <PartyBlock
+          title={t('print.seller')}
+          name={company.name}
+          taxOffice={text(company.tax_office)}
+          taxNumber={text(company.tax_number)}
+        />
         <div className="text-right">
-          <h1 className="text-xl font-semibold">{model.title}</h1>
+          <h1 className="text-xl font-semibold">{title}</h1>
           <dl className="mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 gap-y-0.5">
             <dt className="text-muted-foreground">{t('fields.number')}</dt>
-            <dd className="font-code">{model.number ?? t('print.draft')}</dd>
+            <dd className="font-code">{doc.number ?? t('print.draft')}</dd>
             <dt className="text-muted-foreground">{t('fields.documentDate')}</dt>
-            <dd>{formatDate(model.document_date, locale)}</dd>
-            {model.due_date && (
+            <dd>{formatDate(doc.document_date, locale)}</dd>
+            {priced && doc.due_date && (
               <>
                 <dt className="text-muted-foreground">{t('fields.dueDate')}</dt>
-                <dd>{formatDate(model.due_date, locale)}</dd>
+                <dd>{formatDate(doc.due_date, locale)}</dd>
               </>
             )}
-            {model.currency_code && model.fx_rate && model.fx_rate !== '1' && (
+            {priced && doc.fx_rate && Number(doc.fx_rate) !== 1 && (
               <>
                 <dt className="text-muted-foreground">{t('fields.fxRate')}</dt>
                 <dd className="tabular-nums">
-                  {model.currency_code} {qty(model.fx_rate, locale)}
+                  {cur} {qty(doc.fx_rate, locale)}
                 </dd>
               </>
             )}
-            {model.references?.map((r) => (
-              <div key={r.label} className="contents">
-                <dt className="text-muted-foreground">{r.label}</dt>
-                <dd className="font-code">{r.value}</dd>
-              </div>
-            ))}
           </dl>
         </div>
       </header>
-      <div className="grid grid-cols-2 gap-6">
-        <PartyBlock title={t('print.buyer')} party={model.party} />
-        {model.delivery_address && (
-          <div className="text-sm">
-            <p className="text-2xs font-semibold tracking-wide text-muted-foreground uppercase">
-              {t('print.deliveryAddress')}
-            </p>
-            <p className="whitespace-pre-line">{model.delivery_address}</p>
-          </div>
-        )}
-      </div>
+      <PartyBlock
+        title={t('print.buyer')}
+        name={model.party.name}
+        address={addressLines(model.party.billing_address)}
+        taxOffice={model.party.tax_office}
+        taxNumber={model.party.tax_number}
+      />
       <table className="w-full border-collapse">
         <thead>
           <tr>
@@ -176,7 +187,7 @@ export function PrintSheet({ model }: { model: PrintModel }) {
               <td className={td}>{l.line_no}</td>
               <td className={td}>
                 {l.item_code && <span className="font-code">{l.item_code} </span>}
-                {l.description}
+                {l.description ?? l.item_name}
               </td>
               <td className={tdr}>
                 {qty(l.quantity, locale)} {l.unit_code ?? ''}
@@ -196,32 +207,29 @@ export function PrintSheet({ model }: { model: PrintModel }) {
           ))}
         </tbody>
       </table>
-      {priced && model.totals && (
+      {priced && (
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="min-w-0 flex-1 space-y-2">
-            {model.tax_summary && model.tax_summary.length > 0 && (
+            {model.taxes.length > 0 && (
               <table className="border-collapse text-[11px]">
                 <thead>
                   <tr>
-                    <th className={th}>{t('fields.taxCode')}</th>
+                    <th className={th}>{t('fields.taxRate')}</th>
                     <th className={thr}>{t('fields.taxBase')}</th>
                     <th className={thr}>{t('fields.taxAmount')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {model.tax_summary.map((s) => (
-                    <tr key={s.tax_code}>
-                      <td className={td}>
-                        {s.tax_code} ({percent(s.rate, locale)})
-                      </td>
+                  {model.taxes.map((s) => (
+                    <tr key={s.rate}>
+                      <td className={td}>{percent(s.rate, locale)}</td>
                       <td className={tdr}>{money(s.base, locale)}</td>
-                      <td className={tdr}>{money(s.amount, locale)}</td>
+                      <td className={tdr}>{money(s.tax, locale)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
-            {model.amount_in_words && <p className="italic">{model.amount_in_words}</p>}
           </div>
           <dl className="grid min-w-64 grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-sm">
             <dt>{t('totals.subtotal')}</dt>
@@ -243,13 +251,12 @@ export function PrintSheet({ model }: { model: PrintModel }) {
           </dl>
         </div>
       )}
-      {model.notes && (
+      {doc.notes && (
         <p className="whitespace-pre-line">
           <span className="font-semibold">{t('fields.notes')}: </span>
-          {model.notes}
+          {doc.notes}
         </p>
       )}
-      {model.footer && <footer className="text-2xs text-muted-foreground">{model.footer}</footer>}
     </article>
   )
 }

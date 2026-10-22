@@ -67,7 +67,6 @@ export function OrderListPage() {
       }),
       col.accessor('requested_delivery_date', {
         header: ts('fields.requestedDeliveryDate'),
-        enableSorting: true,
         meta: { label: ts('fields.requestedDeliveryDate') },
         size: 120,
         cell: (c) => {

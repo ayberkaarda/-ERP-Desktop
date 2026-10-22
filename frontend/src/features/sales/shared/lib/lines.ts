@@ -31,6 +31,16 @@ export function trimDecimal(value: string): string {
 /** Price source the server records for a typed price (sales.price_override). */
 export const MANUAL_PRICE = 'manual'
 
+export type PriceSourceGroup = 'manual' | 'list' | 'source' | 'none'
+
+/** Label group of a price source: typed, a price list, copied from the source document, none. */
+export function priceSourceGroup(source: string | null | undefined): PriceSourceGroup {
+  if (source === MANUAL_PRICE) return 'manual'
+  if (source === 'source') return 'source'
+  if (source === 'party_price_list' || source === 'default_price_list') return 'list'
+  return 'none'
+}
+
 /** The item a line refers to, as much as the editor needs of it. */
 export interface LineItem {
   id: string
@@ -219,7 +229,9 @@ const orNull = (v: string) => (v.trim() === '' ? null : v.trim())
 const orZero = (v: string) => (v.trim() === '' ? '0' : v.trim())
 
 export function lineToInput(l: LineValues): SalesLineInput {
-  const line: SalesLineInput = {
+  return {
+    // A stored line is sent with its id so the server keeps its row, provenance and copied price.
+    ...(l.id ? { id: l.id } : {}),
     item_id: l.itemId,
     variant_id: orNull(l.variantId),
     description: orNull(l.description),
@@ -231,8 +243,17 @@ export function lineToInput(l: LineValues): SalesLineInput {
     tax_code_id: orNull(l.taxCodeId),
     warehouse_id: orNull(l.warehouseId),
   }
-  if (l.id) line.id = l.id
-  return line
+}
+
+/**
+ * Whether the form lines would send exactly what the stored document holds. A PATCH or revise
+ * then leaves the lines out, so the server keeps them as stored (prices copied from a quote stay
+ * as they are instead of being resolved again).
+ */
+export function linesUnchanged(values: DocValues, stored: SalesQuote | SalesOrder): boolean {
+  const now = values.lines.filter((l) => !isBlankLine(l)).map(lineToInput)
+  const before = stored.lines.map((l) => lineToInput(lineToValues(l)))
+  return JSON.stringify(now) === JSON.stringify(before)
 }
 
 /** Create / PATCH / revise body: blank lines are dropped, header fields by document kind. */

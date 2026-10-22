@@ -69,7 +69,8 @@ export function toApiError(error: unknown): ApiError {
     const errors = isRecord(body) ? body.errors : undefined
     if (isRecord(errors) && typeof errors.message === 'string') {
       const code = typeof errors.code === 'string' ? errors.code : 'HTTP_ERROR'
-      return new ApiError(status, code, errors.message, readFields(errors.fields))
+      const details = isRecord(errors.details) ? errors.details : {}
+      return new ApiError(status, code, errors.message, readFields(errors.fields), details)
     }
     return new ApiError(status, status === 0 ? 'NETWORK_ERROR' : 'HTTP_ERROR', error.message)
   }

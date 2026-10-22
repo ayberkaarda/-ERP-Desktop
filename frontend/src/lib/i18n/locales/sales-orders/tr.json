@@ -13,11 +13,13 @@
     "confirm": "Onayla",
     "revise": "Revize et",
     "cancel": "Siparişi iptal et",
+    "close": "Siparişi kapat",
     "createDelivery": "İrsaliye oluştur",
     "createInvoice": "Fatura oluştur",
     "confirmed": "Sipariş onaylandı.",
     "sentForApproval": "Sipariş onaya gönderildi.",
     "cancelled": "Sipariş iptal edildi.",
+    "closed": "Sipariş kapatıldı.",
     "failed": "İşlem tamamlanamadı."
   },
   "confirm": {
@@ -26,8 +28,11 @@
   },
   "cancel": {
     "title": "Sipariş iptal edilsin mi?",
-    "body": "Rezervasyonlar serbest bırakılır. İptal geri alınamaz.",
-    "reason": "İptal gerekçesi"
+    "body": "Rezervasyonlar serbest bırakılır. İptal geri alınamaz."
+  },
+  "closeOrder": {
+    "title": "Sipariş kapatılsın mı?",
+    "body": "Kalan miktarlar sevk ve fatura edilmez; açık rezervasyonlar serbest bırakılır."
   },
   "approval": {
     "tab": "Onay süreci",

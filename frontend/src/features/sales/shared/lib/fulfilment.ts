@@ -7,8 +7,12 @@ export type FulfilmentMode = 'delivery' | 'invoice'
 
 const max0 = (d: Decimal) => (d.isNegative() ? new Decimal(0) : d)
 
-/** Left to deliver, plus the over-delivery tolerance (percent of the ordered quantity). */
+/**
+ * Left to deliver, plus the over-delivery tolerance (percent of the ordered quantity). Service
+ * lines are never delivered (the API refuses them on deliveries).
+ */
 export function deliverableQuantity(line: SalesOrderLine, overPercent = '0'): Decimal {
+  if (line.item_type === 'service') return new Decimal(0)
   const ordered = dec(line.quantity)
   const tolerance = ordered.mul(dec(overPercent)).div(100)
   return max0(ordered.plus(tolerance).minus(dec(line.delivered_quantity))).toDecimalPlaces(6)
@@ -37,14 +41,20 @@ export function needsDeliverOnInvoice(lines: readonly SalesOrderLine[]): boolean
   )
 }
 
+/**
+ * Bound of a wizard line. An unknown tolerance (null: settings not readable) leaves stock lines
+ * of a delivery unbounded here; the server checks the tolerance and answers per line.
+ */
 export function remainingFor(
   mode: FulfilmentMode,
   line: SalesOrderLine,
-  options: { overPercent?: string; deliverOnInvoice?: boolean } = {},
+  options: { overPercent?: string | null; deliverOnInvoice?: boolean } = {},
 ): Decimal {
-  return mode === 'delivery'
-    ? deliverableQuantity(line, options.overPercent)
-    : invoiceableQuantity(line, options.deliverOnInvoice)
+  if (mode === 'delivery') {
+    if (options.overPercent === null && line.item_type !== 'service') return new Decimal(Infinity)
+    return deliverableQuantity(line, options.overPercent ?? undefined)
+  }
+  return invoiceableQuantity(line, options.deliverOnInvoice)
 }
 
 export type QuantityProblem = 'invalid' | 'scale' | 'exceeds' | null

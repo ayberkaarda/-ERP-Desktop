@@ -144,6 +144,7 @@
     "priceSource": {
       "manual": "Entered price",
       "list": "From price list",
+      "source": "From the previous document",
       "none": "No price found"
     },
     "netTax": "Net {{net}} · VAT {{rate}}%",
@@ -198,7 +199,8 @@
       "sales_order": "Order",
       "sales_delivery": "Delivery note",
       "sales_invoice": "Invoice",
-      "sales_return": "Return"
+      "sales_return": "Return",
+      "sales_credit_note": "Credit note"
     },
     "status": {
       "draft": "Draft",
@@ -215,7 +217,7 @@
       "partially_invoiced": "Partially invoiced",
       "invoiced": "Invoiced",
       "closed": "Closed",
-      "posted": "Posted",
+      "posted": "Dispatched",
       "issued": "Issued",
       "partially_paid": "Partially paid",
       "paid": "Paid",

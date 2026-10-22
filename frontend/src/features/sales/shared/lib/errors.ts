@@ -16,22 +16,27 @@ export function isCreditLimitExceeded(error: unknown): boolean {
 const DECIMAL = /^-?\d+(?:\.\d+)?$/
 
 /**
- * The breakdown of a credit block. The platform error keeps only `errors.fields` (string lists),
- * so the API is asked to put limit / exposure / document / currency there; anything missing is
- * null and the dialog falls back to GET /customers/{id}/exposure.
+ * The breakdown of a credit block from `errors.details` (mode, limit, currency, exposure,
+ * document, total, available; amounts in the risk currency). Anything missing is null and the
+ * dialog falls back to GET /customers/{id}/exposure.
  */
 export function readCreditBreakdown(error: unknown): CreditBreakdown {
-  const fields = isApiError(error) ? error.fields : {}
+  const details = isApiError(error) ? error.details : {}
   const num = (key: string) => {
-    const v = fields[key]?.[0]
-    return v !== undefined && DECIMAL.test(v) ? v : null
+    const v = details[key]
+    const text = typeof v === 'number' ? String(v) : v
+    return typeof text === 'string' && DECIMAL.test(text) ? text : null
   }
-  const currency = fields.currency?.[0]
+  const currency = details.currency
+  const mode = details.mode
   return {
+    mode: typeof mode === 'string' ? mode : null,
     limit: num('limit'),
     exposure: num('exposure'),
     document: num('document'),
-    currency: currency && /^[A-Z]{3}$/.test(currency) ? currency : null,
+    total: num('total'),
+    available: num('available'),
+    currency: typeof currency === 'string' && /^[A-Z]{3}$/.test(currency) ? currency : null,
   }
 }
 

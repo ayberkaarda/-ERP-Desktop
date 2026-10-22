@@ -4,12 +4,13 @@ import { AttachmentPanel, createFilesApi } from '@/components/shared/attachments
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useWarehouses } from '@/features/reference'
+import { useTaxCodes, useWarehouses } from '@/features/reference'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay, formatMoney } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
 import type { SalesOrder, SalesQuote } from '../api'
+import { useCompanyCurrency } from '../hooks/queries'
 import { dec, trimDecimal } from '../lib/lines'
 import { SALES_PATHS } from '../lib/insights'
 import { SALES_PERMS } from '../permissions'
@@ -49,6 +50,10 @@ export function SalesDocumentView({
     kind === 'quote' ? SALES_PERMS.quotes.update : SALES_PERMS.orders.update,
   )
   const warehouses = useWarehouses()
+  const taxCodes = useTaxCodes({ includeInactive: true })
+  const companyCurrency = useCompanyCurrency()
+  const taxCodeOf = (l: SalesLine) =>
+    l.tax_code ?? taxCodes.data?.find((c) => c.id === l.tax_code_id)?.code ?? ''
   const files = useMemo(
     () =>
       createFilesApi(platform.http, {
@@ -84,7 +89,7 @@ export function SalesDocumentView({
       : `${doc.currency_code} · ${trimDecimal(doc.fx_rate)}`,
   ])
   if (warehouse) facts.push([t('fields.warehouse'), `${warehouse.code} · ${warehouse.name}`])
-  if ('revision' in doc && doc.revision > 0)
+  if ('revision' in doc && (doc.revision ?? 0) > 0)
     facts.push([t('fields.revision'), String(doc.revision)])
   if (doc.notes) facts.push([t('fields.notes'), doc.notes])
   if (doc.internal_notes) facts.push([t('fields.internalNotes'), doc.internal_notes])
@@ -221,7 +226,7 @@ export function SalesDocumentView({
                     <td className={tdr}>
                       {money(l.tax_amount)}
                       <span className="block text-2xs text-muted-foreground">
-                        {l.tax_code ?? ''} %{trimDecimal(l.tax_rate)}
+                        {taxCodeOf(l)} %{trimDecimal(l.tax_rate)}
                       </span>
                     </td>
                     <td className={tdr}>{money(l.line_total)}</td>
@@ -239,7 +244,7 @@ export function SalesDocumentView({
               className="lg:col-start-2"
               totals={doc}
               currency={doc.currency_code}
-              localCurrency={doc.local_currency_code}
+              localCurrency={doc.local_currency_code ?? companyCurrency}
             />
           </div>
         </TabsContent>

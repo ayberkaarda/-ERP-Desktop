@@ -23,7 +23,7 @@ import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { ordersApi, quotesApi, type ActionResult, type SalesOrder, type SalesQuote } from '../api'
-import { usePreviewTotals } from '../hooks/queries'
+import { useCompanyCurrency, usePreviewTotals } from '../hooks/queries'
 import { errorMessage, isCreditLimitExceeded, isVersionConflict } from '../lib/errors'
 import { usePayloadKeys } from '../lib/idempotency'
 import { notifyWarnings } from '../lib/notify'
@@ -32,6 +32,7 @@ import { invalidateSales, salesKeys } from '../lib/keys'
 import {
   docSchema,
   emptyValues,
+  linesUnchanged,
   previewInput,
   serverFieldMapper,
   toInput,
@@ -92,8 +93,10 @@ export function SalesDocumentEditor<T extends SalesDoc>({
   const canCreate = usePermission(perms.create)
   const canUpdate = usePermission(perms.update)
   const canDelete = usePermission(perms.delete)
-  const canEdit = document ? canUpdate : canCreate
+  // The revise endpoint is authorised by approve (OrderPolicy), not by update.
+  const canApprove = usePermission(SALES_PERMS.orders.approve)
   const revising = mode === 'revise'
+  const canEdit = revising ? canApprove : document ? canUpdate : canCreate
   const [base, setBase] = useState<T | null>(document)
   const [conflict, setConflict] = useState(false)
   const [creditError, setCreditError] = useState<unknown>(null)
@@ -154,6 +157,12 @@ export function SalesDocumentEditor<T extends SalesDoc>({
   )
   const partyId = values.partyId
   const currency = values.currencyCode
+  const companyCurrency = useCompanyCurrency()
+  // Rate 1 means the document is in company currency; otherwise the company's currency.
+  const localCurrency =
+    preview.data?.local_currency_code ??
+    (base && currency === base.currency_code ? base.local_currency_code : null) ??
+    companyCurrency
 
   const changedElsewhere =
     document !== null &&
@@ -174,6 +183,8 @@ export function SalesDocumentEditor<T extends SalesDoc>({
     }): Promise<ActionResult<T>> => {
       setLastValues(v)
       const input = toInput(v, kind)
+      // Untouched lines stay as stored (copied prices are not resolved again).
+      if (base && linesUnchanged(v, base)) delete input.lines
       if (revising && base) {
         const body = {
           ...input,
@@ -422,9 +433,8 @@ export function SalesDocumentEditor<T extends SalesDoc>({
               <ExposureBadge
                 partyId={partyId}
                 documentTotal={totals?.total_local ?? null}
-                documentCurrency={
-                  preview.data?.local_currency_code ?? base?.local_currency_code ?? currency
-                }
+                documentCurrency={localCurrency}
+                documentId={kind === 'order' && pristine && !revising ? base.id : null}
                 counted={revising && base?.party_id === partyId ? base.total_local : null}
               />
             )}
@@ -561,7 +571,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
           <TotalsPanel
             totals={totals}
             currency={currency}
-            localCurrency={preview.data?.local_currency_code ?? base?.local_currency_code}
+            localCurrency={localCurrency}
             pending={preview.stale}
             error={preview.isError}
             onRetry={() => void preview.refetch()}
@@ -574,6 +584,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
           error={creditError}
           onClose={() => setCreditError(null)}
           partyId={base.party_id}
+          documentId={base.id}
           documentTotal={totals?.total ?? base.total}
           documentCurrency={currency}
           onOverride={async (reason) => {

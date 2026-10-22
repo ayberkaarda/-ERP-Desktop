@@ -144,6 +144,7 @@
     "priceSource": {
       "manual": "Elle girilen fiyat",
       "list": "Fiyat listesinden",
+      "source": "Önceki belgeden",
       "none": "Fiyat bulunamadı"
     },
     "netTax": "Net {{net}} · KDV %{{rate}}",
@@ -198,7 +199,8 @@
       "sales_order": "Sipariş",
       "sales_delivery": "İrsaliye",
       "sales_invoice": "Fatura",
-      "sales_return": "İade"
+      "sales_return": "İade",
+      "sales_credit_note": "Alacak dekontu"
     },
     "status": {
       "draft": "Taslak",
@@ -215,7 +217,7 @@
       "partially_invoiced": "Kısmen faturalandı",
       "invoiced": "Faturalandı",
       "closed": "Kapandı",
-      "posted": "Kesinleşti",
+      "posted": "Sevk edildi",
       "issued": "Kesildi",
       "partially_paid": "Kısmen ödendi",
       "paid": "Ödendi",

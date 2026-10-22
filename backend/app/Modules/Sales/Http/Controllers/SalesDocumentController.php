@@ -15,6 +15,7 @@ use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Policies\SalesPolicy;
 use App\Modules\Sales\Services\CreditControl;
 use App\Modules\Sales\Services\DocumentLinks;
+use App\Modules\Sales\Services\InvoiceService;
 use App\Modules\Sales\Services\PrintModel;
 use App\Modules\Sales\Support\Export;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -226,7 +227,8 @@ abstract class SalesDocumentController
             return [];
         }
 
-        $check = $credit->check($doc->company_id, $party, (string) $doc->total_local, $doc instanceof SalesOrder ? $doc->id : null, preview: true);
+        $covered = $doc instanceof SalesInvoice ? app(InvoiceService::class)->coveredLocal($doc) : '0';
+        $check = $credit->check($doc->company_id, $party, (string) $doc->total_local, $doc instanceof SalesOrder ? $doc->id : null, $covered, preview: true);
         $warning = CreditControl::warning($check);
 
         return $warning === null ? [] : [$warning];

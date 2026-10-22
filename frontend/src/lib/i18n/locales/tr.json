@@ -60,7 +60,13 @@
     "stockLots": "Lotlar",
     "stockSerials": "Seri numaraları",
     "stockWarehouses": "Depo stok ayarları",
-    "inventoryReports": "Stok raporları"
+    "inventoryReports": "Stok raporları",
+    "salesQuotes": "Teklifler",
+    "salesOrders": "Siparişler",
+    "salesDeliveries": "İrsaliyeler",
+    "salesInvoices": "Faturalar",
+    "salesReturns": "İadeler",
+    "salesReports": "Satış raporları"
   },
   "topbar": {
     "company": "Şirket",

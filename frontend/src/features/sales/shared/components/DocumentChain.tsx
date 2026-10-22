@@ -13,6 +13,7 @@ const ICONS: Record<SalesDocumentType, typeof FileText> = {
   sales_delivery: PackageCheck,
   sales_invoice: ReceiptText,
   sales_return: Undo2,
+  sales_credit_note: ReceiptText,
 }
 
 interface DocumentChainProps {

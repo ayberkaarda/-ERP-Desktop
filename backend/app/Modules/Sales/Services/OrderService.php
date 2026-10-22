@@ -17,6 +17,7 @@ use App\Modules\Sales\Support\Messages;
 use App\Modules\Sales\Support\Sales;
 use App\Modules\Sales\Support\SalesSettings;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
+use Brick\Math\BigDecimal;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -69,9 +70,10 @@ final class OrderService extends DocumentService
         return Sales::transaction(function () use ($order, $data, $lines, $version, $actor, $canOverridePrice): SalesOrder {
             $order = $this->lock($order, $version);
             $this->assertDraft($order);
-            $composed = $this->compose($this->mergedHeader($order, $data), $lines ?? $this->storedLines($order->lines), $canOverridePrice);
+            [$inputs, $kept] = $this->editedLines($order->lines, $lines);
+            $composed = $this->compose($this->mergedHeader($order, $data), $inputs, $canOverridePrice);
             $extra = array_key_exists('requested_delivery_date', $data) ? ['requested_delivery_date' => $data['requested_delivery_date']] : [];
-            $this->store->replace($order, $composed, $extra);
+            $this->store->replace($order, $composed, $extra, $kept);
             $this->logOverrides($order, $composed, $actor);
 
             return $order;
@@ -118,14 +120,15 @@ final class OrderService extends DocumentService
             $this->assertStatus($order, [OrderStatus::Confirmed, OrderStatus::PendingApproval], 'revised');
             $this->assertNoDocuments($order);
             $this->reservations->release($order);
-            $composed = $this->compose($this->mergedHeader($order, $data), $lines ?? $this->storedLines($order->lines), $canOverridePrice);
+            [$inputs, $kept] = $this->editedLines($order->lines, $lines);
+            $composed = $this->compose($this->mergedHeader($order, $data), $inputs, $canOverridePrice);
             $extra = ['revision' => $order->revision + 1];
 
             if (array_key_exists('requested_delivery_date', $data)) {
                 $extra['requested_delivery_date'] = $data['requested_delivery_date'];
             }
 
-            $this->store->replace($order, $composed, $extra);
+            $this->store->replace($order, $composed, $extra, $kept);
             $this->logOverrides($order, $composed, $actor);
 
             return $this->submit($order, $overrideReason, $canOverride, $actor);
@@ -226,6 +229,9 @@ final class OrderService extends DocumentService
 
         $party = $this->composer->party($order->party_id);
         $check = $this->credit->check($order->company_id, $party, (string) $order->total_local, $order->id, '0', $overrideReason, $canOverride);
+        // An override of an earlier submission (another customer, revision or amount) never carries over.
+        $order->forceFill(['credit_override_reason' => null, 'credit_override_by' => null, 'credit_override_party_id' => null, 'credit_override_revision' => null,
+            'credit_override_amount' => null, 'credit_override_exposure' => null, 'credit_override_currency' => null]);
         $this->recordOverride($order, $check, $overrideReason, $actor);
         $warning = CreditControl::warning($check);
         $warnings = $warning === null ? [] : [$warning];
@@ -235,6 +241,8 @@ final class OrderService extends DocumentService
         if ($threshold !== null && $order->total_local->isGreaterThanOrEqualTo($threshold)) {
             if ($order->status !== OrderStatus::PendingApproval) {
                 $this->machine->transition($order, OrderStatus::PendingApproval, $actor);
+            } elseif ($order->isDirty()) {
+                $order->save();
             }
 
             // A revision of a pending order replaces its request (Workflow cancels the old one).
@@ -291,6 +299,12 @@ final class OrderService extends DocumentService
 
         $order->credit_override_reason = $reason;
         $order->credit_override_by = self::actorId($actor);
+        // What the override authorised; invoices of the order inherit it only while this still holds.
+        $order->credit_override_party_id = $order->party_id;
+        $order->credit_override_revision = $order->revision;
+        $order->credit_override_amount = $order->total_local;
+        $order->credit_override_exposure = BigDecimal::of($check->total);
+        $order->credit_override_currency = $check->currency;
         activity()->performedOn($order)->causedBy(self::causer($actor))->withProperties(['reason' => $reason, 'check' => $check->toArray()])
             ->event('credit_override')->log('credit_override');
     }

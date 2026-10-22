@@ -1,6 +1,7 @@
 import { AlertTriangle, Info, Loader2, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
+import { useTaxCodes } from '@/features/reference'
 import { useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay, formatMoney } from '@/lib/money'
 import { cn } from '@/lib/utils'
@@ -42,6 +43,10 @@ export function TotalsPanel({
   const locale = useIntlLocale()
   const money = (v: string, c = currency) => formatMoney(v, c, locale)
   const foreign = Boolean(localCurrency && localCurrency !== currency)
+  // The API sends tax code ids only; codes come from Reference when readable.
+  const taxCodes = useTaxCodes({ includeInactive: true })
+  const codeOf = (row: TaxBreakdownRow) =>
+    row.tax_code ?? taxCodes.data?.find((c) => c.id === row.tax_code_id)?.code ?? null
 
   return (
     <section
@@ -84,7 +89,11 @@ export function TotalsPanel({
             </>
           )}
           {(totals.tax_breakdown ?? []).map((row) => (
-            <TaxRow key={`${row.tax_code_id ?? 'none'}-${row.rate}`} row={row} money={money} />
+            <TaxRow
+              key={`${row.tax_code_id ?? 'none'}-${row.rate}`}
+              row={{ ...row, tax_code: codeOf(row) }}
+              money={money}
+            />
           ))}
           <dt className="text-muted-foreground">{t('totals.tax')}</dt>
           <dd className="text-right tabular-nums">{money(totals.tax_total)}</dd>

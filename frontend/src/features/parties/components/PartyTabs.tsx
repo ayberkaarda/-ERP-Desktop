@@ -1,17 +1,25 @@
-import { useMemo, type ReactNode } from 'react'
+import { lazy, Suspense, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSearchParams } from 'react-router'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { AttachmentPanel } from '@/components/shared/attachments'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CUSTOMER_SALES_VIEW } from '@/features/sales/reports/lib/customer'
 import { usePermission } from '@/lib/permissions'
 import { partyFilesApi } from '../api/parties'
 import { usePartyAudit } from '../hooks/useParties'
 import type { Party } from '../types'
 import { AddressesEditor, BankAccountsEditor, ContactsEditor } from './PartySubresources'
 
-type Tab = 'addresses' | 'contacts' | 'bankAccounts' | 'attachments' | 'history'
+type Tab = 'addresses' | 'contacts' | 'bankAccounts' | 'sales' | 'attachments' | 'history'
 const BASE_TABS: Tab[] = ['addresses', 'contacts', 'bankAccounts']
+
+// Sales code loads only when the tab is opened.
+const CustomerSalesSummary = lazy(async () => ({
+  default: (await import('@/features/sales/reports/components/CustomerSalesSummary'))
+    .CustomerSalesSummary,
+}))
 
 interface PartyTabsProps {
   party: Party
@@ -26,8 +34,11 @@ export function PartyTabs({ party, canEdit, withRecordTabs = false }: PartyTabsP
   const [params, setParams] = useSearchParams()
   // The audit log is its own permission (GET /logs/audit needs audit.view).
   const canAudit = usePermission('audit.view')
+  // Same gate as GET /customers/{id}/sales-summary (any sales document read permission).
+  const canSales = usePermission(CUSTOMER_SALES_VIEW)
+  const salesTabs: Tab[] = canSales && party.roles.includes('customer') ? ['sales'] : []
   const recordTabs: Tab[] = canAudit ? ['attachments', 'history'] : ['attachments']
-  const tabs: Tab[] = withRecordTabs ? [...BASE_TABS, ...recordTabs] : BASE_TABS
+  const tabs: Tab[] = withRecordTabs ? [...BASE_TABS, ...salesTabs, ...recordTabs] : BASE_TABS
   const requested = params.get('tab') as Tab | null
   const current: Tab = requested && tabs.includes(requested) ? requested : 'addresses'
 
@@ -37,6 +48,11 @@ export function PartyTabs({ party, canEdit, withRecordTabs = false }: PartyTabsP
     ),
     contacts: () => <ContactsEditor partyId={party.id} canEdit={canEdit} />,
     bankAccounts: () => <BankAccountsEditor partyId={party.id} canEdit={canEdit} />,
+    sales: () => (
+      <Suspense fallback={<Skeleton className="h-48 w-full" />}>
+        <CustomerSalesSummary partyId={party.id} />
+      </Suspense>
+    ),
     attachments: () => <PartyAttachments partyId={party.id} readOnly={!canEdit} />,
     history: () => <PartyHistory partyId={party.id} />,
   }

@@ -196,7 +196,11 @@ describe('order fulfilment', () => {
   })
 
   it('creates a partial delivery bounded by the remaining quantity', async () => {
-    const db = setupSales()
+    // The tolerance setting is readable (settings.view): the wizard bounds by it.
+    const db = setupSales({
+      permissions: [...ALL_SALES_PERMISSIONS, 'settings.view'],
+      db: { settingsReadable: true },
+    })
     const user = userEvent.setup()
     const { router } = renderSales(`/sales/orders/${ORDER_CONFIRMED}`)
     await screen.findByRole('heading', { name: 'Sipariş SIP2026000002' })
@@ -224,9 +228,10 @@ describe('order fulfilment', () => {
 
     await user.click(bolt)
     await user.keyboard('{Control>}a{/Control}3')
+    // Service lines are not delivered: no default, input disabled.
     const service = within(dialog).getByLabelText('Miktar: MNT-01 · Montaj hizmeti')
-    await user.click(service)
-    await user.keyboard('{Control>}a{/Control}{Backspace}')
+    expect(service).toHaveValue('')
+    expect(service).toBeDisabled()
     await user.click(within(dialog).getByRole('button', { name: 'İleri' }))
     expect(await within(dialog).findByText('Adım 2/2 · Tarih ve özet')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Taslak irsaliye oluştur' }))
@@ -271,7 +276,7 @@ describe('order fulfilment', () => {
     })
   })
 
-  it('revises a confirmed order before deliveries and cancels with a reason', async () => {
+  it('revises a confirmed order before deliveries and cancels it', async () => {
     const db = setupSales({ db: { creditMode: 'off' } })
     const order = db.orders.find((o) => o.id === ORDER_DRAFT)
     if (order) order.status = 'confirmed'
@@ -297,15 +302,90 @@ describe('order fulfilment', () => {
     })
 
     await user.click(screen.getByRole('button', { name: 'Siparişi iptal et' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Sipariş iptal edilsin mi?' })
-    await user.type(within(dialog).getByLabelText(/İptal gerekçesi/), 'Müşteri vazgeçti')
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sipariş iptal edilsin mi?' })
     await user.click(within(dialog).getByRole('button', { name: 'Siparişi iptal et' }))
     expect(
       await screen.findByText('İptal edildi', { selector: '[data-status]' }),
     ).toBeInTheDocument()
+    // The API takes no cancellation reason.
     expect(db.calls.find((c) => c.path === `/sales-orders/${ORDER_DRAFT}/cancel`)?.body).toEqual({
       version: 2,
-      reason: 'Müşteri vazgeçti',
     })
+  })
+
+  it('lets an approver without the update permission revise', async () => {
+    const db = setupSales({
+      db: { creditMode: 'off' },
+      permissions: without('sales.orders.update'),
+    })
+    const order = db.orders.find((o) => o.id === ORDER_DRAFT)
+    if (order) order.status = 'confirmed'
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_DRAFT}`)
+    await screen.findByRole('heading', { name: 'Sipariş SIP2026000001' })
+    await user.click(screen.getByRole('button', { name: 'Revize et' }))
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    const qty = within(table).getByLabelText('Miktar, 1. satır')
+    expect(qty).toBeEnabled()
+    await user.click(qty)
+    await user.keyboard('{Control>}a{/Control}8')
+    await user.click(screen.getByRole('button', { name: 'Revizyonu kaydet' }))
+    expect(
+      await screen.findByRole('heading', { name: 'Sipariş SIP2026000001' }),
+    ).toBeInTheDocument()
+    expect(db.calls.some((c) => c.path === `/sales-orders/${ORDER_DRAFT}/revise`)).toBe(true)
+  })
+
+  it('closes an order in progress with the version only', async () => {
+    const db = setupSales()
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_CONFIRMED}`)
+    await screen.findByRole('heading', { name: 'Sipariş SIP2026000002' })
+    await user.click(screen.getByRole('button', { name: 'Siparişi kapat' }))
+    const dialog = await screen.findByRole('alertdialog', { name: 'Sipariş kapatılsın mı?' })
+    await user.click(within(dialog).getByRole('button', { name: 'Siparişi kapat' }))
+    expect(await screen.findByText('Kapandı', { selector: '[data-status]' })).toBeInTheDocument()
+    const close = db.calls.find((c) => c.path === `/sales-orders/${ORDER_CONFIRMED}/close`)
+    expect(close?.body).toEqual({ version: 1 })
+    expect(close?.headers.get('Idempotency-Key')).toBeTruthy()
+  })
+
+  it('needs sales.orders.approve to confirm, revise or close', async () => {
+    setupSales({ permissions: ALL_SALES_PERMISSIONS.filter((p) => p !== 'sales.orders.approve') })
+    renderSales(`/sales/orders/${ORDER_CONFIRMED}`)
+    await screen.findByRole('heading', { name: 'Sipariş SIP2026000002' })
+    expect(screen.getByRole('button', { name: 'İrsaliye oluştur' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Siparişi kapat' })).not.toBeInTheDocument()
+  })
+
+  it('leaves the stored lines out of a header-only save', async () => {
+    const db = setupSales({ db: { creditMode: 'off' } })
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_DRAFT}`)
+    await screen.findByRole('table', { name: 'Satırlar' })
+    const [notes] = screen.getAllByLabelText(/^Notlar/)
+    if (!notes) throw new Error('notes field missing')
+    await user.type(notes, 'Kapıda teslim')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() => expect(db.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = db.calls.find((c) => c.method === 'PATCH')?.body as Record<string, unknown>
+    expect(patch).toMatchObject({ notes: 'Kapıda teslim', version: 1 })
+    expect(patch).not.toHaveProperty('lines')
+  })
+  it('sends edited stored lines with their ids so the server keeps their provenance', async () => {
+    const db = setupSales({ db: { creditMode: 'off' } })
+    const stored = db.orders.find((o) => o.id === ORDER_DRAFT)?.lines[0]?.id
+    const user = userEvent.setup()
+    renderSales(`/sales/orders/${ORDER_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}20')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() => expect(db.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    const patch = db.calls.find((c) => c.method === 'PATCH')?.body as {
+      lines?: { id?: string; quantity: string }[]
+    }
+    expect(stored).toBeTruthy()
+    expect(patch.lines?.[0]).toMatchObject({ id: stored, quantity: '20.000000' })
   })
 })

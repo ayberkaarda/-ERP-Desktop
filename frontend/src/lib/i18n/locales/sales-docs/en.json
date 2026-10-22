@@ -151,7 +151,8 @@
     "sales_invoice": "Invoice",
     "sales_return": "Return",
     "stock_document": "Stock document",
-    "journal_entry": "Journal entry"
+    "journal_entry": "Journal entry",
+    "sales_credit_note": "Credit note"
   },
   "print": {
     "open": "Print",
@@ -161,7 +162,15 @@
     "seller": "Seller",
     "buyer": "Buyer",
     "draft": "DRAFT",
-    "deliveryAddress": "Delivery address"
+    "deliveryAddress": "Delivery address",
+    "titles": {
+      "sales_quote": "Quotation",
+      "sales_order": "Sales Order",
+      "sales_delivery": "Delivery Note",
+      "sales_invoice": "Sales Invoice",
+      "sales_credit_note": "Credit Note",
+      "sales_return": "Sales Return"
+    }
   },
   "totals": {
     "title": "Totals",
@@ -220,7 +229,8 @@
     "discount": "Discount must be between 0 and 100.",
     "taxCode": "Choose a tax code.",
     "selectLines": "Select at least one line to return.",
-    "overReturnable": "Exceeds the returnable quantity."
+    "overReturnable": "Exceeds the returnable quantity.",
+    "pickSerials": "Pick the serial numbers to return."
   },
   "fefo": {
     "suggest": "Suggest first-expiring lots for line {{index}}",
@@ -305,7 +315,9 @@
     "thisDocument": "This invoice",
     "availableAfter": "Left after issuing",
     "available": "Available {{amount}} / {{limit}}",
-    "over": "Limit exceeded by {{amount}}"
+    "over": "Limit exceeded by {{amount}}",
+    "current": "Current exposure",
+    "totalAfter": "Exposure with this document"
   },
   "reverse": {
     "title": "Reverse invoice {{number}}",
@@ -337,7 +349,9 @@
     "invoice": "Invoice",
     "creditNote": "Credit note",
     "steps": "Return steps",
-    "lines": "Return lines"
+    "lines": "Return lines",
+    "serialsFor": "Serial numbers to return for {{item}}",
+    "pickSerial": "Return serial number {{serial}}"
   },
   "returnAction": {
     "approve": {
@@ -357,7 +371,7 @@
     "credit": {
       "button": "Issue credit note",
       "title": "Issue the credit note?",
-      "body": "A credit note is created; the receivable and the cost of goods sold are reversed.",
+      "body": "A credit note is issued and the receivable is reversed; the cost of goods sold was already reversed at receipt.",
       "confirm": "Issue credit note",
       "done": "Credit note issued."
     },

@@ -42,7 +42,7 @@ describe('review fixes', () => {
       partyId: 'p',
       lines: [lineToValues(stored)],
     }
-    expect(toInput(values, 'order').lines[0]).toMatchObject({
+    expect(toInput(values, 'order').lines?.[0]).toMatchObject({
       variant_id: 'v-red',
       warehouse_id: 'wh-2',
     })
@@ -66,7 +66,7 @@ describe('review fixes', () => {
       status: 'invoiced' as const,
       lines: [{ ...stored, delivered_quantity: '11.000000', invoiced_quantity: '10.000000' }],
     }
-    expect(orderActions(overDelivered)).toEqual(['createInvoice'])
+    expect(orderActions(overDelivered)).toEqual(['createInvoice', 'close'])
     expect(orderActions({ ...overDelivered, status: 'partially_invoiced' as const })).toContain(
       'createInvoice',
     )

@@ -67,7 +67,6 @@ export function QuoteListPage() {
       }),
       col.accessor('valid_until', {
         header: ts('fields.validUntil'),
-        enableSorting: true,
         meta: { label: ts('fields.validUntil') },
         size: 110,
         cell: (c) => {

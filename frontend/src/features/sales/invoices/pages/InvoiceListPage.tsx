@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { formatDate, toIsoDate, useIntlLocale } from '@/lib/datetime'
 import { Can } from '@/lib/permissions'
 import { invoicesApi } from '../api'
-import { ExportButtons } from '../kit/components/ExportButtons'
+import { ExportButtons } from '../../shared/components/ExportButtons'
 import { ListFilters } from '../kit/components/ListFilters'
 import { InvoiceStatusBadge } from '../kit/components/StatusBadges'
 import { exportParams } from '../kit/http'
@@ -111,7 +111,8 @@ export function InvoiceListPage() {
       }),
       col.accessor('balance_due', {
         header: t('fields.balanceDue'),
-        enableSorting: true,
+        // Not a server sort (document_date, number, party_name, total, status, due_date, ...).
+        enableSorting: false,
         meta: { label: t('fields.balanceDue'), align: 'right' },
         size: 140,
         cell: (c) =>

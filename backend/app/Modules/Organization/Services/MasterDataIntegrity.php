@@ -129,6 +129,108 @@ final class MasterDataIntegrity
         ['stock_reservations', 'created_by', 'users', 'id'],
     ];
 
+    /** company_id -> companies.id for the Sales tables. */
+    public const array SALES_COMPANY_TABLES = [
+        'sales_quotes', 'sales_quote_lines', 'sales_orders', 'sales_order_lines', 'sales_deliveries', 'sales_delivery_lines', 'sales_invoices', 'sales_invoice_lines', 'sales_returns', 'sales_return_lines', 'sales_receivable_applications',
+    ];
+
+    /**
+     * Sales references to other modules: parties, currencies, Reference payment terms, warehouses,
+     * cost centers, projects and tax codes, Catalog price lists, items, variants and units,
+     * Inventory stock documents and reservations, Accounting journal entries, Workflow approval
+     * requests and users. source_id / source_line_id point at documents of any type (typed by
+     * source_type) and are not constrained; links inside the module are keys of the Sales migration.
+     *
+     * @var list<array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public const array SALES_CROSS_MODULE = [
+        ['sales_quotes', 'party_id', 'parties', 'id'],
+        ['sales_quotes', 'currency_code', 'currencies', 'code'],
+        ['sales_quotes', 'payment_term_id', 'payment_terms', 'id'],
+        ['sales_quotes', 'price_list_id', 'price_lists', 'id'],
+        ['sales_quotes', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_quotes', 'cost_center_id', 'cost_centers', 'id'],
+        ['sales_quotes', 'project_id', 'projects', 'id'],
+        ['sales_quotes', 'created_by', 'users', 'id'],
+        ['sales_orders', 'party_id', 'parties', 'id'],
+        ['sales_orders', 'currency_code', 'currencies', 'code'],
+        ['sales_orders', 'payment_term_id', 'payment_terms', 'id'],
+        ['sales_orders', 'price_list_id', 'price_lists', 'id'],
+        ['sales_orders', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_orders', 'cost_center_id', 'cost_centers', 'id'],
+        ['sales_orders', 'project_id', 'projects', 'id'],
+        ['sales_orders', 'created_by', 'users', 'id'],
+        ['sales_deliveries', 'party_id', 'parties', 'id'],
+        ['sales_deliveries', 'currency_code', 'currencies', 'code'],
+        ['sales_deliveries', 'payment_term_id', 'payment_terms', 'id'],
+        ['sales_deliveries', 'price_list_id', 'price_lists', 'id'],
+        ['sales_deliveries', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_deliveries', 'cost_center_id', 'cost_centers', 'id'],
+        ['sales_deliveries', 'project_id', 'projects', 'id'],
+        ['sales_deliveries', 'created_by', 'users', 'id'],
+        ['sales_invoices', 'party_id', 'parties', 'id'],
+        ['sales_invoices', 'currency_code', 'currencies', 'code'],
+        ['sales_invoices', 'payment_term_id', 'payment_terms', 'id'],
+        ['sales_invoices', 'price_list_id', 'price_lists', 'id'],
+        ['sales_invoices', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_invoices', 'cost_center_id', 'cost_centers', 'id'],
+        ['sales_invoices', 'project_id', 'projects', 'id'],
+        ['sales_invoices', 'created_by', 'users', 'id'],
+        ['sales_returns', 'party_id', 'parties', 'id'],
+        ['sales_returns', 'currency_code', 'currencies', 'code'],
+        ['sales_returns', 'payment_term_id', 'payment_terms', 'id'],
+        ['sales_returns', 'price_list_id', 'price_lists', 'id'],
+        ['sales_returns', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_returns', 'cost_center_id', 'cost_centers', 'id'],
+        ['sales_returns', 'project_id', 'projects', 'id'],
+        ['sales_returns', 'created_by', 'users', 'id'],
+        ['sales_orders', 'credit_override_by', 'users', 'id'],
+        ['sales_orders', 'confirmed_by', 'users', 'id'],
+        ['sales_orders', 'approval_request_id', 'approval_requests', 'id'],
+        ['sales_deliveries', 'stock_document_id', 'stock_documents', 'id'],
+        ['sales_deliveries', 'reversal_stock_document_id', 'stock_documents', 'id'],
+        ['sales_deliveries', 'journal_entry_id', 'journal_entries', 'id'],
+        ['sales_deliveries', 'posted_by', 'users', 'id'],
+        ['sales_deliveries', 'cancelled_by', 'users', 'id'],
+        ['sales_invoices', 'journal_entry_id', 'journal_entries', 'id'],
+        ['sales_invoices', 'reversal_journal_entry_id', 'journal_entries', 'id'],
+        ['sales_invoices', 'issued_by', 'users', 'id'],
+        ['sales_invoices', 'reversed_by', 'users', 'id'],
+        ['sales_invoices', 'credit_override_by', 'users', 'id'],
+        ['sales_returns', 'stock_document_id', 'stock_documents', 'id'],
+        ['sales_returns', 'journal_entry_id', 'journal_entries', 'id'],
+        ['sales_returns', 'approved_by', 'users', 'id'],
+        ['sales_returns', 'received_by', 'users', 'id'],
+        ['sales_returns', 'credited_by', 'users', 'id'],
+        ['sales_quote_lines', 'item_id', 'items', 'id'],
+        ['sales_quote_lines', 'variant_id', 'item_variants', 'id'],
+        ['sales_quote_lines', 'unit_id', 'units', 'id'],
+        ['sales_quote_lines', 'tax_code_id', 'tax_codes', 'id'],
+        ['sales_quote_lines', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_order_lines', 'item_id', 'items', 'id'],
+        ['sales_order_lines', 'variant_id', 'item_variants', 'id'],
+        ['sales_order_lines', 'unit_id', 'units', 'id'],
+        ['sales_order_lines', 'tax_code_id', 'tax_codes', 'id'],
+        ['sales_order_lines', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_delivery_lines', 'item_id', 'items', 'id'],
+        ['sales_delivery_lines', 'variant_id', 'item_variants', 'id'],
+        ['sales_delivery_lines', 'unit_id', 'units', 'id'],
+        ['sales_delivery_lines', 'tax_code_id', 'tax_codes', 'id'],
+        ['sales_delivery_lines', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_invoice_lines', 'item_id', 'items', 'id'],
+        ['sales_invoice_lines', 'variant_id', 'item_variants', 'id'],
+        ['sales_invoice_lines', 'unit_id', 'units', 'id'],
+        ['sales_invoice_lines', 'tax_code_id', 'tax_codes', 'id'],
+        ['sales_invoice_lines', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_return_lines', 'item_id', 'items', 'id'],
+        ['sales_return_lines', 'variant_id', 'item_variants', 'id'],
+        ['sales_return_lines', 'unit_id', 'units', 'id'],
+        ['sales_return_lines', 'tax_code_id', 'tax_codes', 'id'],
+        ['sales_return_lines', 'warehouse_id', 'warehouses', 'id'],
+        ['sales_order_lines', 'reservation_id', 'stock_reservations', 'id'],
+        ['sales_receivable_applications', 'created_by', 'users', 'id'],
+    ];
+
     /**
      * References between company scoped records (table, column, referenced table) checked for
      * crossing companies. Global rows (company_id NULL, e.g. seeded tax codes) are allowed.
@@ -154,6 +256,56 @@ final class MasterDataIntegrity
         ['stock_movements', 'warehouse_id', 'warehouses'],
         ['stock_reservations', 'item_id', 'items'],
         ['stock_reservations', 'warehouse_id', 'warehouses'],
+        ['sales_quotes', 'party_id', 'parties'],
+        ['sales_quotes', 'payment_term_id', 'payment_terms'],
+        ['sales_quotes', 'price_list_id', 'price_lists'],
+        ['sales_quotes', 'warehouse_id', 'warehouses'],
+        ['sales_quotes', 'cost_center_id', 'cost_centers'],
+        ['sales_quotes', 'project_id', 'projects'],
+        ['sales_orders', 'party_id', 'parties'],
+        ['sales_orders', 'payment_term_id', 'payment_terms'],
+        ['sales_orders', 'price_list_id', 'price_lists'],
+        ['sales_orders', 'warehouse_id', 'warehouses'],
+        ['sales_orders', 'cost_center_id', 'cost_centers'],
+        ['sales_orders', 'project_id', 'projects'],
+        ['sales_deliveries', 'party_id', 'parties'],
+        ['sales_deliveries', 'payment_term_id', 'payment_terms'],
+        ['sales_deliveries', 'price_list_id', 'price_lists'],
+        ['sales_deliveries', 'warehouse_id', 'warehouses'],
+        ['sales_deliveries', 'cost_center_id', 'cost_centers'],
+        ['sales_deliveries', 'project_id', 'projects'],
+        ['sales_invoices', 'party_id', 'parties'],
+        ['sales_invoices', 'payment_term_id', 'payment_terms'],
+        ['sales_invoices', 'price_list_id', 'price_lists'],
+        ['sales_invoices', 'warehouse_id', 'warehouses'],
+        ['sales_invoices', 'cost_center_id', 'cost_centers'],
+        ['sales_invoices', 'project_id', 'projects'],
+        ['sales_returns', 'party_id', 'parties'],
+        ['sales_returns', 'payment_term_id', 'payment_terms'],
+        ['sales_returns', 'price_list_id', 'price_lists'],
+        ['sales_returns', 'warehouse_id', 'warehouses'],
+        ['sales_returns', 'cost_center_id', 'cost_centers'],
+        ['sales_returns', 'project_id', 'projects'],
+        ['sales_quote_lines', 'item_id', 'items'],
+        ['sales_quote_lines', 'unit_id', 'units'],
+        ['sales_quote_lines', 'tax_code_id', 'tax_codes'],
+        ['sales_quote_lines', 'warehouse_id', 'warehouses'],
+        ['sales_order_lines', 'item_id', 'items'],
+        ['sales_order_lines', 'unit_id', 'units'],
+        ['sales_order_lines', 'tax_code_id', 'tax_codes'],
+        ['sales_order_lines', 'warehouse_id', 'warehouses'],
+        ['sales_delivery_lines', 'item_id', 'items'],
+        ['sales_delivery_lines', 'unit_id', 'units'],
+        ['sales_delivery_lines', 'tax_code_id', 'tax_codes'],
+        ['sales_delivery_lines', 'warehouse_id', 'warehouses'],
+        ['sales_invoice_lines', 'item_id', 'items'],
+        ['sales_invoice_lines', 'unit_id', 'units'],
+        ['sales_invoice_lines', 'tax_code_id', 'tax_codes'],
+        ['sales_invoice_lines', 'warehouse_id', 'warehouses'],
+        ['sales_return_lines', 'item_id', 'items'],
+        ['sales_return_lines', 'unit_id', 'units'],
+        ['sales_return_lines', 'tax_code_id', 'tax_codes'],
+        ['sales_return_lines', 'warehouse_id', 'warehouses'],
     ];
 
     public function __construct(private readonly Connection $db) {}
@@ -201,6 +353,20 @@ final class MasterDataIntegrity
         return [
             ...array_map(static fn (string $table): array => [$table, 'company_id', 'companies', 'id'], self::INVENTORY_COMPANY_TABLES),
             ...self::INVENTORY_CROSS_MODULE,
+        ];
+    }
+
+    /**
+     * Keys of the Sales integration migration: company_id of every Sales table, then the
+     * cross-module references.
+     *
+     * @return list<array{0: string, 1: string, 2: string, 3: string}>
+     */
+    public static function salesKeys(): array
+    {
+        return [
+            ...array_map(static fn (string $table): array => [$table, 'company_id', 'companies', 'id'], self::SALES_COMPANY_TABLES),
+            ...self::SALES_CROSS_MODULE,
         ];
     }
 

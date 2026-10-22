@@ -158,3 +158,17 @@ it('casts money and decimals as BigDecimal strings, never floats', function (): 
     $this->doc->update(['total' => null]);
     expect($this->doc->fresh()?->total)->toBeNull();
 });
+
+it('saves a decimal edit that was read back before the transition', function (): void {
+    $copy = FixtureDocument::findOrFail($this->doc->id);
+    $copy->total = '12.5';
+    $copy->quantity = '3';
+    expect((string) $copy->total)->toBe('12.5000')
+        ->and((string) $copy->quantity)->toBe('3.000000');
+
+    $this->machine->transition($copy, 'submitted');
+
+    expect((string) $copy->total)->toBe('12.5000')
+        ->and(DB::table('fixture_documents')->where('id', $this->doc->id)->first(['total', 'quantity', 'status']))
+        ->toEqual((object) ['total' => '12.5000', 'quantity' => '3.000000', 'status' => 'submitted']);
+});

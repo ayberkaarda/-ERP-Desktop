@@ -1,7 +1,51 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
 import { makeParty } from '@/test/handlers/parties'
+import { server } from '@/test/msw/server'
 import { must, renderParties, setupParties } from '../testUtils'
+
+/** Real GET /customers/{id}/exposure and /sales-summary shapes; records which paths were asked. */
+function mockCustomerEndpoints(partyId: string) {
+  const calls: string[] = []
+  const exposure = {
+    party_id: partyId,
+    limit: '1000.00',
+    currency: 'TRY',
+    open_invoices: '900.00',
+    open_orders: '200.00',
+    total: '1100.00',
+    available: '-100.00',
+  }
+  server.use(
+    http.get('*/api/v1/customers/:id/exposure', ({ request }) => {
+      calls.push(new URL(request.url).pathname)
+      return HttpResponse.json({ data: exposure })
+    }),
+    http.get('*/api/v1/customers/:id/sales-summary', ({ request }) => {
+      calls.push(new URL(request.url).pathname)
+      return HttpResponse.json({
+        data: {
+          party_id: partyId,
+          currency: 'TRY',
+          exposure,
+          quotes: { open_count: 0, open_total: '0.00' },
+          orders: { open_count: 1, open_value: '200.00' },
+          invoices: {
+            count: 3,
+            invoiced_total: '4500.00',
+            credited_total: '0.00',
+            balance_due: '900.00',
+            last_invoice_date: '2026-10-01',
+          },
+          recent_orders: [],
+          recent_invoices: [],
+        },
+      })
+    }),
+  )
+  return calls
+}
 
 function address(partyId: string, overrides: Record<string, unknown>) {
   return {
@@ -182,6 +226,42 @@ describe('PartyDetailPage', () => {
     )
     await waitFor(() => expect(db.addresses).toHaveLength(0))
     expect(db.calls.find((c) => c.method === 'DELETE')?.search).toBe('?version=4')
+  })
+
+  it('shows the sales tab and the exposure badge of a customer to sales readers', async () => {
+    const party = makeParty({ name: 'Acme Ticaret', roles: ['customer'] })
+    setupParties({ parties: [party] }, ['parties.view', 'sales.orders.view'])
+    const calls = mockCustomerEndpoints(party.id)
+    const user = userEvent.setup()
+    renderParties(`/parties/${party.id}`)
+
+    expect(await screen.findByTestId('exposure-badge')).toHaveTextContent(
+      'Limit aşıldı: 1.100,00 TRY / 1.000,00 TRY',
+    )
+    await user.click(screen.getByRole('tab', { name: 'Satış' }))
+    expect(await screen.findByTestId('summary-invoiced')).toHaveTextContent('4.500,00 TRY')
+    expect(calls).toContain(`/api/v1/customers/${party.id}/sales-summary`)
+  })
+
+  it('has no sales tab or badge without a sales read permission or the customer role', async () => {
+    const supplier = makeParty({ name: 'Tedarik AŞ', roles: ['supplier'] })
+    const customer = makeParty({ name: 'Müşteri AŞ', roles: ['customer'] })
+    setupParties({ parties: [supplier, customer] }, ['parties.view', 'sales.reports.view'])
+    const calls = mockCustomerEndpoints(customer.id)
+    const { unmount } = renderParties(`/parties/${customer.id}?tab=sales`)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Müşteri AŞ' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Satış' })).not.toBeInTheDocument()
+    // An unknown or forbidden ?tab= falls back to addresses.
+    expect(await screen.findByRole('table', { name: 'Adresler' })).toBeInTheDocument()
+    unmount()
+
+    setupParties({ parties: [supplier] }, ['parties.view', 'sales.invoices.view'])
+    renderParties(`/parties/${supplier.id}`)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tedarik AŞ' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Satış' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('exposure-badge')).not.toBeInTheDocument()
+    expect(calls).toHaveLength(0)
   })
 
   it('shows a not-found state', async () => {

@@ -100,9 +100,9 @@ export function valuesFromInvoice(inv: Invoice): InvoiceValues {
     warehouseId: inv.warehouse_id ?? '',
     notes: inv.notes ?? '',
     internalNotes: inv.internal_notes ?? '',
-    deliverOnInvoice: inv.deliver_on_invoice ?? false,
+    deliverOnInvoice: inv.deliver_on_invoice,
     lines: inv.lines.map((l) => ({
-      itemId: l.item_id ?? '',
+      itemId: l.item_id,
       itemLabel: label(l.item_code, l.item_name),
       itemType: l.item_type ?? '',
       description: l.description ?? '',
@@ -114,7 +114,7 @@ export function valuesFromInvoice(inv: Invoice): InvoiceValues {
       taxCodeId: l.tax_code_id ?? '',
       taxRate: l.tax_rate,
       deliveryLineId: l.delivery_line_id ?? '',
-      sourceLineId: l.source_line_id ?? '',
+      sourceLineId: l.order_line_id ?? '',
     })),
   }
 }
@@ -139,14 +139,13 @@ export function toLineInput(l: InvoiceLineValues): InvoiceLineInput {
     discount_amount: isDecimal(l.discountAmount) ? l.discountAmount : '0',
     tax_code_id: l.taxCodeId || null,
     delivery_line_id: l.deliveryLineId || null,
-    source_line_id: l.sourceLineId || null,
+    order_line_id: l.sourceLineId || null,
   }
 }
 
 export function toInvoiceInput(values: InvoiceValues): InvoiceInput {
   return {
     party_id: values.partyId,
-    invoice_type: values.invoiceType,
     document_date: values.documentDate,
     due_date: values.dueDate || null,
     currency_code: values.currencyCode,
@@ -160,14 +159,13 @@ export function toInvoiceInput(values: InvoiceValues): InvoiceInput {
   }
 }
 
-/** Preview request of the current form, or null while it cannot be priced (no line yet). */
 /**
  * Form indexes of the rows sent to preview-totals, in order. The request and the mapping of the
  * answer back onto rows both use this one selection, so answer N always belongs to row [N].
  */
 export function previewRowIndexes(values: InvoiceValues): number[] {
   return sentInvoiceLines(values)
-    .filter(({ line }) => isDecimal(line.quantity) && line.unitId !== '')
+    .filter(({ line }) => line.itemId !== '' && isDecimal(line.quantity) && line.unitId !== '')
     .map(({ index }) => index)
 }
 
@@ -188,12 +186,24 @@ export function toPreviewInput(values: InvoiceValues): PreviewInput | null {
   })
   if (lines.length === 0 || !values.documentDate) return null
   return {
-    document_type: 'sales_invoice',
     party_id: values.partyId || null,
     document_date: values.documentDate,
     currency_code: values.currencyCode,
     fx_rate: fxRateOf(values),
-    lines: lines.map(toLineInput),
+    payment_term_id: values.paymentTermId || null,
+    warehouse_id: values.warehouseId || null,
+    lines: lines.map((l) => {
+      const input = toLineInput(l)
+      return {
+        item_id: l.itemId,
+        quantity: input.quantity,
+        unit_id: input.unit_id,
+        unit_price: input.unit_price,
+        discount_percent: input.discount_percent,
+        discount_amount: input.discount_amount,
+        tax_code_id: input.tax_code_id,
+      }
+    }),
   }
 }
 
@@ -225,7 +235,7 @@ export function invoiceFieldMapper(values: InvoiceValues) {
     discount_amount: 'discountAmount',
     tax_code_id: 'taxCodeId',
     delivery_line_id: 'quantity',
-    source_line_id: 'quantity',
+    order_line_id: 'quantity',
   }
   const HEADER: Record<string, string> = {
     party_id: 'partyId',
@@ -266,7 +276,8 @@ export function invoiceLineProblems(
 ): [keyof InvoiceLineValues, string][] {
   if (isBlankInvoiceLine(l)) return []
   const out: [keyof InvoiceLineValues, string][] = []
-  if (!l.itemId && l.description.trim() === '') out.push(['itemId', m.item])
+  // Direct lines need an item; lines copied from a delivery or order carry it from the source.
+  if (!l.itemId && !l.deliveryLineId && !l.sourceLineId) out.push(['itemId', m.item])
   if (!l.unitId) out.push(['unitId', m.unit])
   if (!isDecimal(l.quantity) || dec(l.quantity).lessThanOrEqualTo(0))
     out.push(['quantity', m.quantity])

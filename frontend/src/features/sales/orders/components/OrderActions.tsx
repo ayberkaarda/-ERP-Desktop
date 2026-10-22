@@ -1,5 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Ban, CheckCheck, FilePenLine, Loader2, PackageCheck, ReceiptText } from 'lucide-react'
+import {
+  Archive,
+  Ban,
+  CheckCheck,
+  FilePenLine,
+  Loader2,
+  PackageCheck,
+  ReceiptText,
+} from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -11,7 +19,7 @@ import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { ordersApi, type SalesOrder } from '../../shared/api'
 import { CreditOverrideDialog } from '../../shared/components/CreditOverrideDialog'
-import { ReasonDialog } from '../../shared/components/ReasonDialog'
+import { useOverDeliveryPercent } from '../../shared/hooks/queries'
 import { notifyWarnings } from '../../shared/lib/notify'
 import { errorMessage, isCreditLimitExceeded, isVersionConflict } from '../../shared/lib/errors'
 import type { FulfilmentMode } from '../../shared/lib/fulfilment'
@@ -35,7 +43,7 @@ interface OrderActionsProps {
 
 /**
  * Order lifecycle: confirm (credit warn/block with the override dialog, approval above the
- * threshold), revise before deliveries, cancel with a reason, and the delivery / invoice wizard.
+ * threshold), revise before deliveries, cancel, close, and the delivery / invoice wizard.
  */
 export function OrderActions({
   order,
@@ -53,15 +61,20 @@ export function OrderActions({
   const canConfirm = usePermission(SALES_ACCESS.orderConfirm)
   const canRevise = usePermission(SALES_ACCESS.orderRevise)
   const canCancel = usePermission(SALES_ACCESS.orderCancel)
+  const canClose = usePermission(SALES_ACCESS.orderClose)
   const canDeliver = usePermission(SALES_ACCESS.createDelivery)
   const canInvoice = usePermission(SALES_ACCESS.createInvoice)
   /** The saved order the confirmation describes and confirms (edits are saved first). */
   const [confirming, setConfirming] = useState<SalesOrder | null>(null)
   const [preparing, setPreparing] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [closing, setClosing] = useState(false)
   const [credit, setCredit] = useState<{ error: unknown; target: SalesOrder } | null>(null)
   const [wizard, setWizard] = useState<FulfilmentMode | null>(null)
-  const allowed = orderActions(order)
+  // Tolerance of the company setting when readable; null = the server bounds deliveries alone.
+  const overDelivery = useOverDeliveryPercent()
+  const withTolerance: SalesOrder = { ...order, over_delivery_percent: overDelivery }
+  const allowed = orderActions(withTolerance)
 
   const settle = (doc: SalesOrder) => {
     keyFor.reset()
@@ -91,17 +104,31 @@ export function OrderActions({
   })
 
   const cancel = useMutation({
-    mutationFn: ({ target, reason }: { target: SalesOrder; reason: string }) =>
+    mutationFn: ({ target }: { target: SalesOrder }) =>
       ordersApi.cancel(
         target.id,
         target.version,
-        reason,
-        keyFor({ cancel: target.id, version: target.version, reason }),
+        keyFor({ cancel: target.id, version: target.version }),
       ),
     onSuccess: ({ document: doc }) => {
       settle(doc)
       if (useCompanyStore.getState().activeCompanyId !== company) return
       platform.notify.success(t('actions.cancelled'))
+      onDone?.()
+    },
+  })
+
+  const close = useMutation({
+    mutationFn: ({ target }: { target: SalesOrder }) =>
+      ordersApi.close(
+        target.id,
+        target.version,
+        keyFor({ close: target.id, version: target.version }),
+      ),
+    onSuccess: ({ document: doc }) => {
+      settle(doc)
+      if (useCompanyStore.getState().activeCompanyId !== company) return
+      platform.notify.success(t('actions.closed'))
       onDone?.()
     },
   })
@@ -136,19 +163,30 @@ export function OrderActions({
     }
   }
 
-  const runCancel = async (reason: string) => {
+  const runCancel = async () => {
     const doc = await target()
     // Validation or save errors are shown in the form; the dialog closes.
     if (!doc) return
     try {
-      await cancel.mutateAsync({ target: doc, reason })
+      await cancel.mutateAsync({ target: doc })
     } catch (error) {
       if (isVersionConflict(error)) onConflict()
+      else platform.notify.error(errorMessage(error, t('actions.failed')))
       throw error
     }
   }
 
-  const pending = busy || preparing || confirm.isPending || cancel.isPending
+  const runClose = async () => {
+    try {
+      await close.mutateAsync({ target: order })
+    } catch (error) {
+      if (isVersionConflict(error)) onConflict()
+      else platform.notify.error(errorMessage(error, t('actions.failed')))
+      throw error
+    }
+  }
+
+  const pending = busy || preparing || confirm.isPending || cancel.isPending || close.isPending
 
   return (
     <>
@@ -161,6 +199,12 @@ export function OrderActions({
         >
           <Ban aria-hidden="true" />
           {t('actions.cancel')}
+        </Button>
+      )}
+      {canClose && allowed.includes('close') && (
+        <Button type="button" variant="ghost" disabled={pending} onClick={() => setClosing(true)}>
+          <Archive aria-hidden="true" />
+          {t('actions.close')}
         </Button>
       )}
       {canRevise && onRevise && allowed.includes('revise') && (
@@ -216,20 +260,28 @@ export function OrderActions({
         confirmLabel={t('actions.confirm')}
         onConfirm={runConfirm}
       />
-      <ReasonDialog
+      <ConfirmDialog
         open={cancelling}
         onOpenChange={setCancelling}
         title={t('cancel.title')}
         description={t('cancel.body')}
-        label={t('cancel.reason')}
         confirmLabel={t('actions.cancel')}
-        tone="danger"
         onConfirm={runCancel}
+      />
+      <ConfirmDialog
+        open={closing}
+        onOpenChange={setClosing}
+        tone="primary"
+        title={t('closeOrder.title')}
+        description={t('closeOrder.body')}
+        confirmLabel={t('actions.close')}
+        onConfirm={runClose}
       />
       <CreditOverrideDialog
         error={credit?.error ?? null}
         onClose={() => setCredit(null)}
         partyId={order.party_id}
+        documentId={credit?.target.id ?? null}
         documentTotal={order.total}
         documentCurrency={order.currency_code}
         onOverride={async (reason) => {
@@ -237,7 +289,7 @@ export function OrderActions({
           await confirm.mutateAsync({ target: credit.target, reason })
         }}
       />
-      <FulfilmentWizard order={order} mode={wizard} onClose={() => setWizard(null)} />
+      <FulfilmentWizard order={withTolerance} mode={wizard} onClose={() => setWizard(null)} />
     </>
   )
 }

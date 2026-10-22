@@ -8,12 +8,12 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { Can } from '@/lib/permissions'
-import { ExportButtons } from '../../invoices/kit/components/ExportButtons'
+import { ExportButtons } from '../../shared/components/ExportButtons'
 import { ListFilters } from '../../invoices/kit/components/ListFilters'
 import { useListFilters } from '../../invoices/kit/listFilters'
 import { DeliveryStatusBadge } from '../../invoices/kit/components/StatusBadges'
 import { exportParams } from '../../invoices/kit/http'
-import { DELIVERIES_BASE } from '../../invoices/kit/links'
+import { DELIVERIES_BASE, linkTo } from '../../invoices/kit/links'
 import { SALES_PERMS } from '../../invoices/kit/permissions'
 import { deliveriesApi } from '../api'
 import { useDeliveryList } from '../queries'
@@ -61,26 +61,26 @@ export function DeliveryListPage() {
         size: 260,
         cell: (c) => c.getValue() ?? '',
       }),
-      col.accessor('order_number', {
+      col.accessor('order_id', {
         header: t('delivery.order'),
         meta: { label: t('delivery.order') },
-        size: 140,
-        cell: (c) => <span className="font-code">{c.getValue() ?? t('delivery.direct')}</span>,
+        size: 110,
+        cell: (c) => {
+          const order = c.getValue()
+          return order ? (
+            <Link to={linkTo('sales_order', order)} className="text-primary hover:underline">
+              {t('view.open')}
+            </Link>
+          ) : (
+            t('delivery.direct')
+          )
+        },
       }),
       col.accessor('line_count', {
         header: t('fields.lineCount'),
         meta: { label: t('fields.lineCount'), align: 'right' },
         size: 80,
         cell: (c) => <span className="tabular-nums">{c.getValue() ?? ''}</span>,
-      }),
-      col.accessor('invoiced_state', {
-        header: t('fields.invoicedState'),
-        meta: { label: t('fields.invoicedState') },
-        size: 130,
-        cell: (c) => {
-          const v = c.getValue()
-          return v ? t(`invoicedState.${v}`) : ''
-        },
       }),
       col.accessor('status', {
         header: t('fields.status'),

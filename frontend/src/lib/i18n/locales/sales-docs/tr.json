@@ -151,7 +151,8 @@
     "sales_invoice": "Fatura",
     "sales_return": "İade",
     "stock_document": "Stok fişi",
-    "journal_entry": "Yevmiye"
+    "journal_entry": "Yevmiye",
+    "sales_credit_note": "İade faturası"
   },
   "print": {
     "open": "Yazdır",
@@ -161,7 +162,15 @@
     "seller": "Satıcı",
     "buyer": "Alıcı",
     "draft": "TASLAK",
-    "deliveryAddress": "Teslimat adresi"
+    "deliveryAddress": "Teslimat adresi",
+    "titles": {
+      "sales_quote": "Teklif",
+      "sales_order": "Satış Siparişi",
+      "sales_delivery": "Sevk İrsaliyesi",
+      "sales_invoice": "Satış Faturası",
+      "sales_credit_note": "İade Faturası",
+      "sales_return": "Satış İadesi"
+    }
   },
   "totals": {
     "title": "Toplamlar",
@@ -220,7 +229,8 @@
     "discount": "İskonto 0 ile 100 arasında olmalı.",
     "taxCode": "Vergi kodu seçin.",
     "selectLines": "İade edilecek en az bir satır seçin.",
-    "overReturnable": "İade edilebilir miktarı aşıyor."
+    "overReturnable": "İade edilebilir miktarı aşıyor.",
+    "pickSerials": "İade edilecek seri numaralarını seçin."
   },
   "fefo": {
     "suggest": "{{index}}. satır için ilk son kullanma tarihli lotları öner",
@@ -305,7 +315,9 @@
     "thisDocument": "Bu fatura",
     "availableAfter": "Kesildikten sonra kalan",
     "available": "Kullanılabilir {{amount}} / {{limit}}",
-    "over": "Limit {{amount}} aşılmış"
+    "over": "Limit {{amount}} aşılmış",
+    "current": "Mevcut risk",
+    "totalAfter": "Belge ile toplam risk"
   },
   "reverse": {
     "title": "{{number}} faturasına ters kayıt",
@@ -337,7 +349,9 @@
     "invoice": "Fatura",
     "creditNote": "İade faturası",
     "steps": "İade adımları",
-    "lines": "İade satırları"
+    "lines": "İade satırları",
+    "serialsFor": "{{item}} için iade edilecek seri numaraları",
+    "pickSerial": "{{serial}} seri numarasını iade et"
   },
   "returnAction": {
     "approve": {
@@ -357,7 +371,7 @@
     "credit": {
       "button": "İade faturası kes",
       "title": "İade faturası kesilsin mi?",
-      "body": "İade faturası oluşturulur, alacak ve satılan malın maliyeti ters çevrilir.",
+      "body": "İade faturası kesilir ve alacak ters çevrilir; satılan malın maliyeti teslim almada zaten ters kaydedildi.",
       "confirm": "İade faturasını kes",
       "done": "İade faturası kesildi."
     },

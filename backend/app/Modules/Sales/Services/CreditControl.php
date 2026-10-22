@@ -29,10 +29,11 @@ final class CreditControl
     /**
      * @param  string  $documentLocal  this document's total in company currency
      * @param  string  $coveredLocal  part of the document already counted as open order value
+     * @param  array{exposure: string, currency: string}|null  $priorOverride  what an override recorded on the replaced orders authorised
      *
      * @throws CreditLimitExceeded in block mode without an authorized override
      */
-    public function check(string $companyId, PartyData $party, string $documentLocal, ?string $excludeOrderId = null, string $coveredLocal = '0', ?string $overrideReason = null, bool $canOverride = false, bool $preview = false): ?CreditCheck
+    public function check(string $companyId, PartyData $party, string $documentLocal, ?string $excludeOrderId = null, string $coveredLocal = '0', ?string $overrideReason = null, bool $canOverride = false, bool $preview = false, ?array $priorOverride = null): ?CreditCheck
     {
         $mode = $this->settings->creditCheckMode();
 
@@ -45,9 +46,7 @@ final class CreditControl
         }
         [$invoices, $orders] = $this->exposure->localParts($companyId, $party->id, $excludeOrderId);
         $exposure = $this->exposure->inRiskCurrency($party->id, $party->riskLimit, $party->riskCurrencyCode, $invoices, $orders);
-        $rate = $this->exposure->toRisk($this->settings->baseCurrency(), $exposure->currency);
-        $document = RoundingPolicy::currency(BigDecimal::of($documentLocal)->minus($coveredLocal)->multipliedBy($rate));
-        $document = $document->isNegative() ? BigDecimal::zero()->toScale(2) : $document;
+        $document = BigDecimal::of($this->documentAmount($exposure->currency, $documentLocal, $coveredLocal));
         $total = BigDecimal::of($exposure->total)->plus($document);
 
         if ($exposure->limit === null) {
@@ -56,7 +55,10 @@ final class CreditControl
 
         $exceeded = $total->isGreaterThan($exposure->limit);
         $reason = $overrideReason === null ? null : trim($overrideReason);
-        $overridden = $exceeded && $canOverride && $reason !== null && $reason !== '';
+        // A document that adds nothing to orders confirmed over the limit with an override keeps that override.
+        $inherited = $exceeded && $priorOverride !== null && ! $document->isPositive()
+            && $priorOverride['currency'] === $exposure->currency && ! $total->isGreaterThan($priorOverride['exposure']);
+        $overridden = $exceeded && ($inherited || ($canOverride && $reason !== null && $reason !== ''));
         $check = new CreditCheck($mode->value, $exposure->limit, $exposure->currency, $exposure->total, (string) $document, (string) $total,
             (string) BigDecimal::of($exposure->limit)->minus($total), $exceeded, $overridden);
 
@@ -65,6 +67,18 @@ final class CreditControl
         }
 
         return $check;
+    }
+
+    /**
+     * What a document adds to the exposure, in the risk currency at scale 2 (never negative): its
+     * company currency total less the open order value it replaces.
+     */
+    public function documentAmount(string $riskCurrency, string $documentLocal, string $coveredLocal = '0'): string
+    {
+        $rate = $this->exposure->toRisk($this->settings->baseCurrency(), $riskCurrency);
+        $document = RoundingPolicy::currency(BigDecimal::of($documentLocal)->minus($coveredLocal)->multipliedBy($rate));
+
+        return (string) ($document->isNegative() ? BigDecimal::zero()->toScale(2) : $document);
     }
 
     /**

@@ -95,18 +95,22 @@ export class ApiError extends Error {
   readonly status: number
   readonly code: string
   readonly fields: Record<string, string[]>
+  /** Structured context of the error (`errors.details`), e.g. a credit limit breakdown. */
+  readonly details: Record<string, unknown>
 
   constructor(
     status: number,
     code: string,
     message: string,
     fields: Record<string, string[]> = {},
+    details: Record<string, unknown> = {},
   ) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
     this.fields = fields
+    this.details = details
   }
 }
 

@@ -42,8 +42,8 @@ export interface ExposureState {
 }
 
 /**
- * Exposure badge state: over when this document's total (company currency, only when the risk
- * currency is the same) exceeds what is available; tight when under 20% of the limit remains.
+ * Exposure badge state: over when this document's amount (only when it is in the risk currency)
+ * exceeds what is available; tight when under 20% of the limit remains.
  */
 export function exposureState(
   exposure: CustomerExposure,
@@ -73,6 +73,7 @@ export const CHAIN_STAGES: SalesDocumentType[] = [
   'sales_delivery',
   'sales_invoice',
   'sales_return',
+  'sales_credit_note',
 ]
 
 export interface ChainNode extends SalesDocumentLink {
@@ -117,6 +118,7 @@ export function documentPath(type: SalesDocumentType, id: string): string {
     case 'sales_delivery':
       return `/sales/deliveries/${seg}`
     case 'sales_invoice':
+    case 'sales_credit_note':
       return `/sales/invoices/${seg}`
     case 'sales_return':
       return `/sales/returns/${seg}`

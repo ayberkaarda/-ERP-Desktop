@@ -144,6 +144,7 @@
     "priceSource": {
       "manual": "Prix saisi",
       "list": "Depuis la liste de prix",
+      "source": "Du document précédent",
       "none": "Aucun prix trouvé"
     },
     "netTax": "Net {{net}} · TVA {{rate}} %",
@@ -198,7 +199,8 @@
       "sales_order": "Commande",
       "sales_delivery": "Bon de livraison",
       "sales_invoice": "Facture",
-      "sales_return": "Retour"
+      "sales_return": "Retour",
+      "sales_credit_note": "Avoir"
     },
     "status": {
       "draft": "Brouillon",
@@ -215,7 +217,7 @@
       "partially_invoiced": "Partiellement facturé",
       "invoiced": "Facturé",
       "closed": "Clôturé",
-      "posted": "Comptabilisé",
+      "posted": "Expédié",
       "issued": "Émis",
       "partially_paid": "Partiellement payé",
       "paid": "Payé",

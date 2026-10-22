@@ -6,8 +6,15 @@ import { useCompanyStore } from '@/stores/company'
 import { lookupsApi, ordersApi, previewApi, quotesApi } from '../api'
 import { stableStringify } from '../lib/idempotency'
 import { salesKeys } from '../lib/keys'
-import { SALES_ACCESS } from '../permissions'
+import { SALES_ACCESS, SALES_PERMS } from '../permissions'
 import type { PreviewTotalsInput } from '../types'
+
+/** Company currency (the *_local totals); TRY until /auth/me serves it. */
+export function useCompanyCurrency(): string {
+  return useCompanyStore(
+    (s) => s.companies.find((c) => c.id === s.activeCompanyId)?.currency ?? 'TRY',
+  )
+}
 
 /** Re-renders on company switch so keys (which embed the company) move with it. */
 export function useCompany() {
@@ -50,15 +57,33 @@ export function useOrder(id: string | undefined) {
   })
 }
 
-export function useExposure(partyId: string) {
+/** Customer exposure; with a stored order / invoice id also what that document adds. */
+export function useExposure(partyId: string, documentId: string | null = null) {
   useCompany()
   const allowed = usePermission(SALES_ACCESS.exposure)
   return useQuery({
-    queryKey: salesKeys.exposure(partyId),
-    queryFn: ({ signal }) => lookupsApi.exposure(partyId, signal),
+    queryKey: [...salesKeys.exposure(partyId), documentId ?? ''],
+    queryFn: ({ signal }) => lookupsApi.exposure(partyId, signal, documentId),
     enabled: allowed && partyId !== '',
     staleTime: 30_000,
   })
+}
+
+/**
+ * Over-delivery tolerance (sales.allow_over_delivery_percent) for users who may read settings;
+ * null when it cannot be read: the server then alone bounds deliveries.
+ */
+export function useOverDeliveryPercent(): string | null {
+  useCompany()
+  const allowed = usePermission(SALES_PERMS.settingsView)
+  const query = useQuery({
+    queryKey: [...salesKeys.all(), 'settings', 'over-delivery'],
+    queryFn: ({ signal }) => lookupsApi.overDeliveryPercent(signal),
+    enabled: allowed,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  return allowed && query.isSuccess ? query.data : null
 }
 
 /** Debounce of the editor's preview requests (typing a quantity sends one request). */

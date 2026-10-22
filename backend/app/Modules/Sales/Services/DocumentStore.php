@@ -38,7 +38,7 @@ final class DocumentStore
     }
 
     /**
-     * Rewrites a draft: header columns and all lines (line ids change).
+     * Rewrites a draft: header columns and lines; lines whose extras carry an `id` keep that row, the others are replaced.
      *
      * @template T of SalesDocument
      *
@@ -53,7 +53,14 @@ final class DocumentStore
         $doc->bumpVersion();
         $doc->save();
         $class = $doc::lineClass();
-        $class::query()->where('document_id', $doc->id)->delete();
+        $keep = array_values(array_filter(array_map(static fn (array $e): mixed => $e['id'] ?? null, $extraLines), 'is_string'));
+        $class::query()->where('document_id', $doc->id)->when($keep !== [], fn ($q) => $q->whereNotIn('id', $keep))->delete();
+
+        if ($keep !== []) {
+            // Move kept rows out of the way of the unique (document_id, line_no) before renumbering.
+            $class::query()->where('document_id', $doc->id)->whereIn('id', $keep)->update(['line_no' => DB::raw('line_no + 100000')]);
+        }
+
         $this->writeLines($doc, $composed, $extraLines);
 
         return $doc;
@@ -76,9 +83,12 @@ final class DocumentStore
         $class = $doc::lineClass();
 
         foreach ($composed->lines as $i => $columns) {
+            $extra = $extraLines[$i] ?? [];
+            $id = is_string($extra['id'] ?? null) ? $extra['id'] : null;
+            unset($extra['id']);
             /** @var SalesLine $line */
-            $line = new $class;
-            $line->forceFill([...$columns, ...($extraLines[$i] ?? [])]);
+            $line = ($id === null ? null : $class::query()->where('document_id', $doc->id)->whereKey($id)->first()) ?? new $class;
+            $line->forceFill([...$columns, ...$extra]);
             $line->document_id = $doc->id;
             $line->save();
         }

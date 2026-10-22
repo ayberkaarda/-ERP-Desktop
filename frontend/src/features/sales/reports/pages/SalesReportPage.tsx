@@ -19,7 +19,8 @@ import type { Pagination } from '../../invoices/kit/types'
 import { ReportChart } from '../components/ReportChart'
 import { ReportParamsForm } from '../components/ReportParamsForm'
 import { ReportTable } from '../components/ReportTable'
-import { reportBySlug, type ColLabel, type ReportDef, type Row } from '../definitions'
+import { reportBySlug, viewFor, type ColLabel, type ReportDef, type Row } from '../definitions'
+import { useRowLabels } from '../lib/labels'
 import {
   apiParams,
   initialParams,
@@ -31,7 +32,7 @@ import {
   type ParamRecord,
 } from '../lib/params'
 
-/** Rows per page asked from paged reports. */
+/** Rows per page asked from the API (max 500). */
 export const REPORT_PAGE_SIZE = 100
 
 interface ReportResponse {
@@ -68,9 +69,8 @@ function ReportView({ def }: { def: ReportDef }) {
     setSeen(paramsKey)
     setPage(1)
   }
-  const query = def.paged
-    ? { ...params, page: String(page), per_page: String(REPORT_PAGE_SIZE) }
-    : params
+  const query = { ...params, page: String(page), per_page: String(REPORT_PAGE_SIZE) }
+  const view = viewFor(def, params.group_by)
   const enabled = ready && missingRequired(def, applied).length === 0 && !rangeInvalid(applied)
   const report = useQuery({
     queryKey: salesDocsKeys.report(def.slug, query),
@@ -79,15 +79,14 @@ function ReportView({ def }: { def: ReportDef }) {
     placeholderData: keepPreviousData,
   })
   const title = t(`report.${def.id}.title`)
-  const rows = report.data?.data ?? []
+  const rows = useRowLabels(report.data?.data)
   const meta: Row = report.data?.meta ?? {}
   const pagination = report.data?.meta?.pagination
   const lastPage = pagination?.last_page ?? 1
-  const totals = totalsRow(def.columns, rows, meta)
-  const labels = Object.fromEntries(def.columns.map((c) => [c.key, c.label])) as Record<
-    string,
-    ColLabel
-  >
+  const totals = totalsRow(view.columns, meta)
+  const labels = Object.fromEntries(
+    [...def.columns, ...view.columns].map((c) => [c.key, c.label]),
+  ) as Record<string, ColLabel>
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-4 px-6 py-6">
@@ -132,16 +131,16 @@ function ReportView({ def }: { def: ReportDef }) {
         <EmptyState description={t('hub.empty')} />
       ) : (
         <>
-          {def.chart && (
+          {view.chart && (
             <ReportChart
-              def={def.chart}
+              def={view.chart}
               rows={rows}
               totals={totals}
               title={t(`report.${def.id}.chart`)}
               labels={labels}
             />
           )}
-          <ReportTable def={def} rows={rows} totals={totals} />
+          <ReportTable def={def} columns={view.columns} rows={rows} totals={totals} />
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>{t('hub.rows', { count: pagination?.total ?? rows.length })}</span>
             {lastPage > 1 && (

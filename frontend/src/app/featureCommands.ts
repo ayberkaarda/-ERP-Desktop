@@ -15,6 +15,12 @@ import { registerStockCommands } from '@/features/inventory/stock/commands'
 import { registerWarehousesCommands } from '@/features/inventory/warehouses/commands'
 import { registerPartyCommands } from '@/features/parties/commands'
 import { registerReferenceCommands } from '@/features/reference/commands'
+import { registerSalesDeliveriesCommands } from '@/features/sales/deliveries/commands'
+import { registerSalesInvoicesCommands } from '@/features/sales/invoices/commands'
+import { registerOrdersCommands } from '@/features/sales/orders/commands'
+import { registerQuotesCommands } from '@/features/sales/quotes/commands'
+import { registerSalesReportsCommands } from '@/features/sales/reports/commands'
+import { registerSalesReturnsCommands } from '@/features/sales/returns/commands'
 
 let unregister: (() => void) | null = null
 
@@ -39,6 +45,12 @@ export function registerFeatureCommands(): () => void {
       registerCountsCommands(),
       registerReservationsCommands(),
       registerInventoryReportsCommands(),
+      registerQuotesCommands(),
+      registerOrdersCommands(),
+      registerSalesDeliveriesCommands(),
+      registerSalesInvoicesCommands(),
+      registerSalesReturnsCommands(),
+      registerSalesReportsCommands(),
     ]
     unregister = () => {
       parts.forEach((off) => off())

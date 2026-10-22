@@ -3,7 +3,7 @@ import type { ListQueryState } from '@/components/shared/data-table'
 import { useDebouncedValue } from '@/components/shared/hooks/useDebouncedValue'
 import { useCompanyStore } from '@/stores/company'
 import { invoicesApi } from './api'
-import { stableStringify } from './kit/idempotency'
+import { stableStringify } from '../shared/lib/idempotency'
 import { salesDocsKeys } from './kit/keys'
 import type { PreviewInput } from './types'
 

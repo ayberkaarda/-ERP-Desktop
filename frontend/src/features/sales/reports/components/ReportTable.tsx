@@ -5,7 +5,7 @@ import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { cn } from '@/lib/utils'
 import { DELIVERIES_BASE, INVOICES_BASE, LINK_PATHS } from '../../invoices/kit/links'
 import { isDecimal, money, percent, qty } from '../../invoices/kit/money'
-import type { ColDef, ReportDef, Row } from '../definitions'
+import type { ColDef, ColLabel, ReportDef, Row } from '../definitions'
 import { stringAt } from '../lib/params'
 
 const NUMERIC: ColDef['kind'][] = ['qty', 'money', 'percent', 'integer']
@@ -16,14 +16,24 @@ const LINK_BASE = {
   invoice: INVOICES_BASE,
 } as const
 
+/** Ageing bucket values -> their column labels. */
+const BUCKET_LABEL: Record<string, ColLabel> = {
+  not_due: 'notDue',
+  days_0_30: 'days0to30',
+  days_31_60: 'days31to60',
+  days_61_90: 'days61to90',
+  days_over_90: 'daysOver90',
+}
+
 interface ReportTableProps {
   def: ReportDef
+  columns: ColDef[]
   rows: Row[]
   totals: Row | null
 }
 
 /** Report rows with typed formatting, document links and the totals row. */
-export function ReportTable({ def, rows, totals }: ReportTableProps) {
+export function ReportTable({ def, columns, rows, totals }: ReportTableProps) {
   const { t } = useTranslation('sales-reports')
   const locale = useIntlLocale()
 
@@ -44,8 +54,7 @@ export function ReportTable({ def, rows, totals }: ReportTableProps) {
       case 'code':
         return <span className="font-code">{v}</span>
       case 'document': {
-        const id =
-          stringAt(row, `${c.key.replace(/_number$/, '')}_id`) || stringAt(row, 'document_id')
+        const id = c.idKey ? stringAt(row, c.idKey) : ''
         return id && c.link ? (
           <Link
             to={`${LINK_BASE[c.link]}/${encodeURIComponent(id)}`}
@@ -57,6 +66,8 @@ export function ReportTable({ def, rows, totals }: ReportTableProps) {
           <span className="font-code">{v}</span>
         )
       }
+      case 'bucket':
+        return BUCKET_LABEL[v] ? t(`col.${BUCKET_LABEL[v]}`) : v
       case 'text':
         return v
     }
@@ -70,7 +81,7 @@ export function ReportTable({ def, rows, totals }: ReportTableProps) {
       >
         <thead className="sticky top-0 bg-surface-sunken text-xs text-muted-foreground">
           <tr>
-            {def.columns.map((c) => (
+            {columns.map((c) => (
               <th
                 key={c.key}
                 scope="col"
@@ -87,7 +98,7 @@ export function ReportTable({ def, rows, totals }: ReportTableProps) {
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} className="hover:bg-surface-sunken/60">
-              {def.columns.map((c) => (
+              {columns.map((c) => (
                 <td
                   key={c.key}
                   className={cn(
@@ -104,7 +115,7 @@ export function ReportTable({ def, rows, totals }: ReportTableProps) {
         {totals && (
           <tfoot>
             <tr className="font-semibold" data-testid="report-totals">
-              {def.columns.map((c, i) => (
+              {columns.map((c, i) => (
                 <td
                   key={c.key}
                   className={cn(

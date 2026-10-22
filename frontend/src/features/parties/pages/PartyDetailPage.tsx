@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate, useParams } from 'react-router'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { CustomerExposureBadge } from '@/features/sales/reports/components/CustomerExposureBadge'
 import { Button } from '@/components/ui/button'
 import { useIntlLocale } from '@/lib/datetime'
 import { readServerError } from '@/lib/forms/serverErrors'
@@ -87,7 +88,12 @@ export function PartyDetailPage() {
     <div className="mx-auto max-w-5xl space-y-8">
       <PageHeader
         title={p.name}
-        meta={<PartyStatusBadge active={p.is_active} />}
+        meta={
+          <>
+            <PartyStatusBadge active={p.is_active} />
+            {p.roles.includes('customer') && <CustomerExposureBadge partyId={p.id} />}
+          </>
+        }
         description={<span className="font-code">{p.code}</span>}
         breadcrumbs={[{ label: t('title'), to: '/parties' }, { label: p.name }]}
         actions={

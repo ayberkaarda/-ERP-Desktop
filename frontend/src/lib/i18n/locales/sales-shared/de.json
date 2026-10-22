@@ -144,6 +144,7 @@
     "priceSource": {
       "manual": "Eingegebener Preis",
       "list": "Aus der Preisliste",
+      "source": "Aus dem Vorgängerbeleg",
       "none": "Kein Preis gefunden"
     },
     "netTax": "Netto {{net}} · MwSt. {{rate}} %",
@@ -198,7 +199,8 @@
       "sales_order": "Auftrag",
       "sales_delivery": "Lieferschein",
       "sales_invoice": "Rechnung",
-      "sales_return": "Retoure"
+      "sales_return": "Retoure",
+      "sales_credit_note": "Gutschrift"
     },
     "status": {
       "draft": "Entwurf",
@@ -215,7 +217,7 @@
       "partially_invoiced": "Teilweise fakturiert",
       "invoiced": "Fakturiert",
       "closed": "Abgeschlossen",
-      "posted": "Gebucht",
+      "posted": "Versandt",
       "issued": "Ausgestellt",
       "partially_paid": "Teilweise bezahlt",
       "paid": "Bezahlt",

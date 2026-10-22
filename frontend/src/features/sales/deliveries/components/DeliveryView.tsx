@@ -13,7 +13,7 @@ import { invoicesApi } from '../../invoices/api'
 import { ActionError } from '../../invoices/kit/components/ActionError'
 import { DocLinks } from '../../invoices/kit/components/DocLinks'
 import { DeliveryStatusBadge } from '../../invoices/kit/components/StatusBadges'
-import { usePayloadKeys } from '../../invoices/kit/idempotency'
+import { usePayloadKeys } from '../../shared/lib/idempotency'
 import { activeCompany, invalidateSalesEffects, salesDocsKeys } from '../../invoices/kit/keys'
 import { DELIVERIES_BASE, INVOICES_BASE, linkTo } from '../../invoices/kit/links'
 import { money, qty } from '../../invoices/kit/money'
@@ -36,6 +36,7 @@ export function DeliveryView({ delivery: d, onReload }: DeliveryViewProps) {
   const canCancel = usePermission(SALES_PERMS.deliveries.reverse)
   const canInvoice = usePermission(SALES_PERMS.invoices.create)
   const canJournal = usePermission(SALES_PERMS.journalView)
+  const canStock = usePermission(SALES_PERMS.stockDocumentView)
   const [cancelling, setCancelling] = useState(false)
   const posted = d.status === 'posted'
   const invoiceable = posted && d.invoiced_state !== 'full'
@@ -77,13 +78,17 @@ export function DeliveryView({ delivery: d, onReload }: DeliveryViewProps) {
   if (d.stock_document_id)
     facts.push([
       t('fields.stockDocument'),
-      <Link
-        key="s"
-        to={linkTo('stock_document', d.stock_document_id)}
-        className="text-primary hover:underline"
-      >
-        {t('view.open')}
-      </Link>,
+      canStock ? (
+        <Link
+          key="s"
+          to={linkTo('stock_document', d.stock_document_id)}
+          className="text-primary hover:underline"
+        >
+          {t('view.open')}
+        </Link>
+      ) : (
+        t('view.posted')
+      ),
     ])
   if (d.journal_entry_id)
     facts.push([

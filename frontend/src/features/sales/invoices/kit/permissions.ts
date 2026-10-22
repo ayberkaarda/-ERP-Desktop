@@ -2,8 +2,8 @@ import { anyOf } from '@/lib/permissions'
 
 /**
  * Permission names of the delivery, invoice, return and report endpoints. The resource verbs follow
- * PHASE5 (sales.<resource>.view|create|update|delete|approve|issue|reverse); delivery post and
- * return receive/credit are assumed names (see .orchestra/fe-sales2.md).
+ * Sales permissions.php: delivery post/reverse (cancel of a posted delivery), invoice issue/reverse,
+ * return approve/receive/credit; cancelling a draft or a return is an update.
  */
 export const SALES_PERMS = {
   deliveries: {
@@ -20,7 +20,6 @@ export const SALES_PERMS = {
     create: 'sales.invoices.create',
     update: 'sales.invoices.update',
     delete: 'sales.invoices.delete',
-    approve: 'sales.invoices.approve',
     issue: 'sales.invoices.issue',
     reverse: 'sales.invoices.reverse',
   },
@@ -33,11 +32,13 @@ export const SALES_PERMS = {
     receive: 'sales.returns.receive',
     credit: 'sales.returns.credit',
   },
+  quotes: { view: 'sales.quotes.view' },
   orders: { view: 'sales.orders.view' },
   reports: 'sales.reports.view',
   creditOverride: 'sales.credit_override',
   priceOverride: 'sales.price_override',
-  journalView: 'accounting.journal.view',
+  journalView: 'accounting.entries.view',
+  stockDocumentView: 'inventory.documents.view',
 } as const
 
 const P = SALES_PERMS
@@ -51,8 +52,8 @@ export const SALES_OPEN = {
   returns: P.returns.view,
   newReturn: [P.returns.view, P.returns.create],
   reports: P.reports,
-  /** The Parties sales tab shows whatever of summary / exposure the user may read. */
-  customerSummary: anyOf(P.invoices.view, P.orders.view, P.reports),
+  /** GET /customers/{id}/exposure and /sales-summary (backend gate sales-customer-view). */
+  customerSummary: anyOf(P.quotes.view, P.orders.view, P.invoices.view),
 } as const
 
 /** Saving a stored draft (PATCH, update) or a new one (POST, create). */

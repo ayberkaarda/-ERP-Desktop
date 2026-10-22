@@ -5,7 +5,7 @@ import { Link, useNavigate } from 'react-router'
 import { DataTable } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
-import { ExportButtons } from '../../invoices/kit/components/ExportButtons'
+import { ExportButtons } from '../../shared/components/ExportButtons'
 import { ListFilters } from '../../invoices/kit/components/ListFilters'
 import { ReturnStatusBadge } from '../../invoices/kit/components/StatusBadges'
 import { exportParams } from '../../invoices/kit/http'
@@ -52,16 +52,13 @@ export function ReturnListPage() {
         size: 240,
         cell: (c) => c.getValue() ?? '',
       }),
-      col.accessor('invoice_number', {
+      col.accessor('invoice_id', {
         header: t('return.invoice'),
         meta: { label: t('return.invoice') },
-        size: 140,
+        size: 110,
         cell: (c) => (
-          <Link
-            to={linkTo('sales_invoice', c.row.original.invoice_id)}
-            className="font-code text-primary hover:underline"
-          >
-            {c.getValue() ?? t('links.unnumbered')}
+          <Link to={linkTo('sales_invoice', c.getValue())} className="text-primary hover:underline">
+            {t('view.open')}
           </Link>
         ),
       }),
@@ -75,11 +72,20 @@ export function ReturnListPage() {
           </span>
         ),
       }),
-      col.accessor('credit_invoice_number', {
+      col.accessor('credit_invoice_id', {
         header: t('return.creditNote'),
         meta: { label: t('return.creditNote') },
-        size: 140,
-        cell: (c) => <span className="font-code">{c.getValue() ?? ''}</span>,
+        size: 110,
+        cell: (c) => {
+          const id = c.getValue()
+          return id ? (
+            <Link to={linkTo('sales_invoice', id)} className="text-primary hover:underline">
+              {t('view.open')}
+            </Link>
+          ) : (
+            ''
+          )
+        },
       }),
       col.accessor('status', {
         header: t('fields.status'),

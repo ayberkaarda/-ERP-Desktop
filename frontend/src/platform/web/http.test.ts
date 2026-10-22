@@ -80,6 +80,27 @@ describe('web http adapter', () => {
     const error = await rejection(client.post('/items', {}))
     expect(error).toMatchObject({ status: 422, code: 'VALIDATION_FAILED', message: 'Geçersiz' })
     expect(error.fields).toEqual({ name: ['Zorunlu'] })
+    expect(error.details).toEqual({})
+  })
+
+  it('keeps errors.details and ignores a details value that is not an object', async () => {
+    const details = { mode: 'block', limit: '1000.00', currency: 'TRY', exceeded: true }
+    server.use(
+      http.post('*/api/v1/orders', () =>
+        HttpResponse.json(
+          { errors: { message: 'Limit', code: 'sales.credit_limit_exceeded', details } },
+          { status: 422 },
+        ),
+      ),
+      http.post('*/api/v1/other', () =>
+        HttpResponse.json(
+          { errors: { message: 'X', code: 'X', details: ['not', 'an', 'object'] } },
+          { status: 422 },
+        ),
+      ),
+    )
+    expect((await rejection(client.post('/orders', {}))).details).toEqual(details)
+    expect((await rejection(client.post('/other', {}))).details).toEqual({})
   })
 })
 

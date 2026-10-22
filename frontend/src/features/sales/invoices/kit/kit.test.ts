@@ -1,10 +1,13 @@
 import { QueryClient } from '@tanstack/react-query'
 import { useCompanyStore } from '@/stores/company'
-import { createPayloadKeys } from './idempotency'
+import { createPayloadKeys } from '../../shared/lib/idempotency'
 import { invalidateSalesEffects, salesDocsKeys } from './keys'
 import { linkTo } from './links'
 import { money, percent, qty } from './money'
 import { saveDraftPermission, SALES_OPEN } from './permissions'
+import { wireHeader } from './fixtures'
+import { linksOf, normalizeHeader } from './normalize'
+import type { ApiLink } from './types'
 import { scopedViewKey } from './viewKey'
 
 describe('sales kit', () => {
@@ -56,9 +59,60 @@ describe('sales kit', () => {
   it('links chain documents and gates with anyOf', () => {
     expect(linkTo('journal_entry', 'j 1')).toBe('/accounting/journal-entries/j%201')
     expect(SALES_OPEN.customerSummary).toEqual({
-      anyOf: ['sales.invoices.view', 'sales.orders.view', 'sales.reports.view'],
+      anyOf: ['sales.quotes.view', 'sales.orders.view', 'sales.invoices.view'],
     })
     expect(saveDraftPermission('invoices', true)).toBe('sales.invoices.update')
     expect(saveDraftPermission('invoices', false)).toBe('sales.invoices.create')
+  })
+
+  it('turns the named links of a detail into one source-then-target chain', () => {
+    const l = (id: string, document_type: ApiLink['document_type']): ApiLink => ({
+      id,
+      document_type,
+      number: id.toUpperCase(),
+      status: 'issued',
+      document_date: '2026-10-01',
+      total: '10.0000',
+      currency_code: 'TRY',
+    })
+    const chain = linksOf(
+      {
+        order: l('o1', 'sales_order'),
+        deliveries: [l('d1', 'sales_delivery')],
+        returns: [l('r1', 'sales_return')],
+        credit_notes: [l('c1', 'sales_credit_note')],
+        original_invoice: null,
+        return: null,
+      },
+      'sales_invoice',
+    )
+    expect(chain.map((c) => [c.id, c.type, c.relation])).toEqual([
+      ['o1', 'sales_order', 'source'],
+      ['d1', 'sales_delivery', 'source'],
+      ['r1', 'sales_return', 'target'],
+      ['c1', 'sales_invoice', 'target'],
+    ])
+    expect(chain[3]?.credit).toBe(true)
+    // On a delivery, "invoice" is the invoice that created it (source); "invoices" follow it.
+    const d = linksOf(
+      { invoice: l('i0', 'sales_invoice'), invoices: [l('i1', 'sales_invoice')] },
+      'sales_delivery',
+    )
+    expect(d.map((c) => c.relation)).toEqual(['source', 'target'])
+  })
+
+  it('builds the party snapshot from the flat header columns', () => {
+    const doc = normalizeHeader({
+      ...wireHeader({ party_name: 'Acme', party_tax_office: 'Kadıköy', party_tax_number: '123' }),
+      audit: [{ event: 'created', description: 'created', causer_id: 'u1', created_at: null }],
+    })
+    expect(doc.party_snapshot).toEqual({
+      name: 'Acme',
+      tax_office: 'Kadıköy',
+      tax_number: '123',
+      billing_address: null,
+    })
+    expect(doc.links).toEqual([])
+    expect(doc.audit?.[0]?.causer?.id).toBe('u1')
   })
 })

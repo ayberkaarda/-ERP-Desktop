@@ -15,4 +15,12 @@ return [
     'accounting.closing_mapping' => 'Year-end closing mapping',
     'inventory.valuation_method' => 'Stock valuation method',
     'inventory.cost_rounding_scale' => 'Unit cost decimal places',
+    'sales.allow_direct_delivery' => 'Allow deliveries without an order',
+    'sales.credit_check_mode' => 'Credit limit check',
+    'sales.reserve_on_confirm' => 'Reserve stock when an order is confirmed',
+    'sales.require_approval_over' => 'Orders above this amount need approval',
+    'sales.default_warehouse_id' => 'Default sales warehouse',
+    'sales.quote_validity_days' => 'Quote validity (days)',
+    'sales.allow_over_delivery_percent' => 'Allowed over-delivery percentage',
+    'sales.rounding' => 'Sales document rounding',
 ];

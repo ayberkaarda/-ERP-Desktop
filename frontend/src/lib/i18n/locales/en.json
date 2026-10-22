@@ -60,7 +60,13 @@
     "stockLots": "Lots",
     "stockSerials": "Serial numbers",
     "stockWarehouses": "Warehouse stock settings",
-    "inventoryReports": "Inventory reports"
+    "inventoryReports": "Inventory reports",
+    "salesQuotes": "Quotes",
+    "salesOrders": "Orders",
+    "salesDeliveries": "Deliveries",
+    "salesInvoices": "Invoices",
+    "salesReturns": "Returns",
+    "salesReports": "Sales reports"
   },
   "topbar": {
     "company": "Company",

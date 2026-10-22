@@ -10,6 +10,7 @@ use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Sales\Models\SalesReturn;
+use App\Modules\Sales\Services\ReturnableSerials;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -68,6 +69,12 @@ final class DocumentResource extends JsonResource
 
         if ($doc->relationLoaded('lines')) {
             $data['lines'] = LineResource::collection($doc->lines)->resolve($request);
+
+            if ($doc instanceof SalesInvoice && ! $doc->isCreditNote()) {
+                // Serials a new return may pick per line (serial-tracked goods are returned by serial).
+                $serials = ReturnableSerials::forLines($doc->lines);
+                $data['lines'] = array_map(static fn (array $l): array => [...$l, 'returnable_serials' => $serials[$l['id']] ?? []], $data['lines']);
+            }
         }
 
         return $data;
