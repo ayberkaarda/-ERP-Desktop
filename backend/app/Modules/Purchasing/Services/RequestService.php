@@ -231,12 +231,12 @@ final class RequestService extends DocumentService
     }
 
     /** Approval granted (ApprovalCompleted). */
-    public function approvalCompleted(string $requestId): void
+    public function approvalCompleted(string $requestId, string $approvalRequestId): void
     {
-        $request = Purchasing::transaction(function () use ($requestId): ?PurchaseRequest {
+        $request = Purchasing::transaction(function () use ($requestId, $approvalRequestId): ?PurchaseRequest {
             $request = PurchaseRequest::query()->whereKey($requestId)->lockForUpdate()->first();
 
-            if ($request === null || $request->status !== RequestStatus::PendingApproval) {
+            if ($request === null || $request->status !== RequestStatus::PendingApproval || ! self::isCurrentApproval($request->approval_request_id, $approvalRequestId)) {
                 return null;
             }
 
@@ -251,12 +251,12 @@ final class RequestService extends DocumentService
     }
 
     /** Approval rejected: the request is rejected (an edit reopens it). */
-    public function approvalRejected(string $requestId): void
+    public function approvalRejected(string $requestId, string $approvalRequestId): void
     {
-        $request = Purchasing::transaction(function () use ($requestId): ?PurchaseRequest {
+        $request = Purchasing::transaction(function () use ($requestId, $approvalRequestId): ?PurchaseRequest {
             $request = PurchaseRequest::query()->whereKey($requestId)->lockForUpdate()->first();
 
-            if ($request === null || $request->status !== RequestStatus::PendingApproval) {
+            if ($request === null || $request->status !== RequestStatus::PendingApproval || ! self::isCurrentApproval($request->approval_request_id, $approvalRequestId)) {
                 return null;
             }
 

@@ -66,7 +66,7 @@ final class InvoiceController extends PurchaseDocumentController
     protected function details(Model $doc): array
     {
         /** @var PurchaseInvoice $doc */
-        return ['links' => app(DocumentLinks::class)->for($doc), 'match' => app(InvoiceService::class)->match($doc)];
+        return ['links' => app(DocumentLinks::class)->for($doc, self::viewer()), 'match' => app(InvoiceService::class)->match($doc)];
     }
 
     public function store(DocumentRequest $request): JsonResponse
@@ -150,6 +150,15 @@ final class InvoiceController extends PurchaseDocumentController
             static fn (array $l): ?string => is_string($l[$key] ?? null) ? $l[$key] : null, $lines)));
         $receiptLines = $ids('receipt_line_id');
         $orderLines = $ids('order_line_id');
+
+        // The permission first, so a missing source and a forbidden one answer alike (403).
+        if ($receiptLines !== []) {
+            Gate::authorize('viewAny', PurchaseReceipt::class);
+        }
+
+        if ($orderLines !== []) {
+            Gate::authorize('viewAny', PurchaseOrder::class);
+        }
 
         if ($receiptLines !== []) {
             foreach (PurchaseReceipt::query()->whereIn('id', PurchaseReceiptLine::query()->select('document_id')->whereIn('id', $receiptLines))->get() as $receipt) {

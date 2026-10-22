@@ -23,9 +23,9 @@ final class ApprovalListener
     public function completed(ApprovalCompleted $event): void
     {
         match ($event->documentType) {
-            RequestService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(RequestService::class)->approvalCompleted($event->documentId)),
-            OrderService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(OrderService::class)->approvalCompleted($event->documentId)),
-            InvoiceService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(InvoiceService::class)->approvalCompleted($event->documentId)),
+            RequestService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(RequestService::class)->approvalCompleted($event->documentId, $event->requestId)),
+            OrderService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(OrderService::class)->approvalCompleted($event->documentId, $event->requestId)),
+            InvoiceService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(InvoiceService::class)->approvalCompleted($event->documentId, $event->requestId)),
             default => null,
         };
     }
@@ -33,9 +33,9 @@ final class ApprovalListener
     public function rejected(ApprovalRejected $event): void
     {
         match ($event->documentType) {
-            RequestService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(RequestService::class)->approvalRejected($event->documentId)),
-            OrderService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(OrderService::class)->approvalRejected($event->documentId)),
-            InvoiceService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(InvoiceService::class)->approvalRejected($event->documentId)),
+            RequestService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(RequestService::class)->approvalRejected($event->documentId, $event->requestId)),
+            OrderService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(OrderService::class)->approvalRejected($event->documentId, $event->requestId)),
+            InvoiceService::APPROVAL_TYPE => app(CompanyContext::class)->runAs($event->companyId, fn () => app(InvoiceService::class)->approvalRejected($event->documentId, $event->requestId)),
             default => null,
         };
     }

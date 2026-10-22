@@ -86,7 +86,7 @@ final class RequestController extends PurchasingController
             $lines[$line->id] = (string) $quantities->orderedOnRequest($line->id);
         }
 
-        return ['links' => app(DocumentLinks::class)->for($doc), 'ordered_quantities' => $lines];
+        return ['links' => app(DocumentLinks::class)->for($doc, self::viewer()), 'ordered_quantities' => $lines];
     }
 
     public function store(DocumentRequest $request): JsonResponse

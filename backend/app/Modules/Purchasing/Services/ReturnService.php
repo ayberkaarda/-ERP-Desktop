@@ -34,6 +34,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Returns to the supplier. From a booked invoice: bounded by the invoiced quantity minus earlier
@@ -268,13 +269,13 @@ final class ReturnService extends DocumentService
                 }
 
                 $corrections = [];
+                $allocated = [];
 
                 foreach ($posting as $n => [$line, $receiptLine]) {
                     /** @var PurchaseReturnLine $line */
                     /** @var PurchaseReceiptLine $receiptLine */
                     $cost = Purchasing::dec($costs[$n + 1] ?? '0')->toScale(4, RoundingMode::HalfUp);
-                    $receiptCost = ($receiptLine->cost_total ?? BigDecimal::zero())->multipliedBy($line->base_quantity)
-                        ->dividedBy($receiptLine->base_quantity, 4, RoundingMode::HalfUp);
+                    $receiptCost = $this->receiptCost($return, $line, $receiptLine, $allocated);
                     $line->setAttribute('cost_total', (string) $cost);
                     $line->setAttribute('unit_cost', (string) $cost->dividedBy($line->base_quantity, 6, RoundingMode::HalfUp));
                     $line->setAttribute('receipt_cost', (string) $receiptCost);
@@ -326,6 +327,57 @@ final class ReturnService extends DocumentService
 
             return [$return, false];
         });
+    }
+
+    /**
+     * The accrual value a returned line moves. Invoiced goods: its share of what the invoice line
+     * cleared (grni_amount); goods not yet invoiced: its share of the receipt line cost left after
+     * booked invoices and earlier returns. The return that completes its source takes exactly what
+     * is left, so the accrual ends at zero.
+     *
+     * @param  array<string, array{qty: BigDecimal, value: BigDecimal}>  $allocated  per source, within this return
+     */
+    private function receiptCost(PurchaseReturn $return, PurchaseReturnLine $line, PurchaseReceiptLine $receiptLine, array &$allocated): BigDecimal
+    {
+        $shipped = DB::table('purchase_return_lines as l')->join('purchase_returns as r', 'r.id', '=', 'l.document_id')
+            ->whereIn('r.status', [ReturnStatus::Shipped->value, ReturnStatus::Debited->value])->where('r.id', '<>', $return->id);
+
+        if ($line->invoice_line_id !== null) {
+            $source = PurchaseInvoiceLine::query()->whereKey($line->invoice_line_id)->firstOrFail();
+            $key = 'i'.$source->id;
+            $total = $source->grni_amount;
+            $sourceQty = $source->quantity;
+            $used = [$shipped->where('l.invoice_line_id', $source->id)
+                ->selectRaw('coalesce(sum(l.quantity), 0) AS qty, coalesce(sum(l.receipt_cost), 0) AS value')->first()];
+        } else {
+            $key = 'r'.$receiptLine->id;
+            $total = $receiptLine->cost_total ?? BigDecimal::zero();
+            $sourceQty = $receiptLine->quantity;
+            $used = [
+                $shipped->where('l.receipt_line_id', $receiptLine->id)->whereNull('l.invoice_line_id')
+                    ->selectRaw('coalesce(sum(l.quantity), 0) AS qty, coalesce(sum(l.receipt_cost), 0) AS value')->first(),
+                DB::table('purchase_invoice_lines as l')->join('purchase_invoices as i', 'i.id', '=', 'l.document_id')
+                    ->where('l.receipt_line_id', $receiptLine->id)->where('i.invoice_type', 'purchase')->whereIn('i.status', InvoiceStatus::booked())
+                    ->selectRaw('coalesce(sum(l.quantity), 0) AS qty, coalesce(sum(l.grni_amount), 0) AS value')->first(),
+            ];
+        }
+
+        $here = $allocated[$key] ?? ['qty' => BigDecimal::zero(), 'value' => BigDecimal::zero()];
+        $usedQty = $here['qty'];
+        $usedValue = $here['value'];
+
+        foreach ($used as $row) {
+            $usedQty = $usedQty->plus((string) ($row->qty ?? '0'));
+            $usedValue = $usedValue->plus((string) ($row->value ?? '0'));
+        }
+
+        $left = Purchasing::max($total->minus($usedValue), BigDecimal::zero())->toScale(4);
+        $value = $usedQty->plus($line->quantity)->isGreaterThanOrEqualTo($sourceQty)
+            ? $left
+            : Purchasing::min($total->multipliedBy($line->quantity)->dividedBy($sourceQty, 4, RoundingMode::HalfUp), $left);
+        $allocated[$key] = ['qty' => $here['qty']->plus($line->quantity), 'value' => $here['value']->plus($value)];
+
+        return $value->toScale(4);
     }
 
     /**

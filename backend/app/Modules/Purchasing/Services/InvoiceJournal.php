@@ -120,7 +120,8 @@ final class InvoiceJournal
             // The accrual account is resolved like the stock posting did (item, category, warehouse).
             $grniContext = array_filter([
                 'item_id' => $line->item_id, 'item_category' => $categories[$line->item_id],
-                'warehouse_id' => $receiptWarehouses[$line->id] ?? $invoice->warehouse_id,
+                // Debit notes carry the warehouse the returned goods were shipped from.
+                'warehouse_id' => ($debitNote ? $line->warehouse_id : null) ?? $receiptWarehouses[$line->id] ?? $invoice->warehouse_id,
             ], static fn (?string $v): bool => $v !== null);
 
             if (! $line->grni_amount->isZero()) {

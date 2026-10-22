@@ -277,6 +277,15 @@ abstract class DocumentService
         activity()->performedOn($doc)->causedBy(self::causer($actor))->withProperties(['overrides' => $composed->priceOverrides])->event('price_override')->log('price_override');
     }
 
+    /**
+     * An approval result applies only to the request the document currently waits for: a result of
+     * an earlier request (replaced by a revision or a new submission) is ignored.
+     */
+    protected static function isCurrentApproval(?string $current, string $event): bool
+    {
+        return $current !== null && $current === $event;
+    }
+
     /** The acting user as activity causer (a model), or nobody. */
     protected static function causer(?Authenticatable $actor): ?Model
     {

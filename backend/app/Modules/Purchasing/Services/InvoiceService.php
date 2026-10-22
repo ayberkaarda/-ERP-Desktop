@@ -414,8 +414,11 @@ final class InvoiceService extends DocumentService
         foreach ($return->lines()->get() as $line) {
             /** @var PurchaseInvoiceLine $source */
             $source = $originalLines->get($line->invoice_line_id);
-            $inputs[] = [...$this->fixedLine($source, (string) $line->quantity, true), 'source_line_id' => $line->id];
-            $extras[] = ['original_line_id' => $source->id];
+            // The accrual is cleared in the warehouse the goods left from, as the shipment booked it.
+            $warehouse = $line->receipt_line_id === null ? $source->warehouse_id
+                : ($return->warehouse_id ?? PurchaseReceipt::query()->whereKey(PurchaseReceiptLine::query()->whereKey($line->receipt_line_id)->value('document_id'))->value('warehouse_id'));
+            $inputs[] = [...$this->fixedLine($source, (string) $line->quantity, true), 'source_line_id' => $line->id, 'warehouse_id' => $warehouse];
+            $extras[] = ['original_line_id' => $source->id, 'receipt_line_id' => $line->receipt_line_id];
         }
 
         $header = $this->mergedHeader($original, ['document_date' => $return->document_date->format('Y-m-d')]);
@@ -432,21 +435,21 @@ final class InvoiceService extends DocumentService
     }
 
     /** Approval granted (ApprovalCompleted): book with the override recorded at submission. */
-    public function approvalCompleted(string $invoiceId): void
+    public function approvalCompleted(string $invoiceId, string $approvalRequestId): void
     {
         $result = null;
 
         try {
-            $result = Purchasing::transaction(function () use ($invoiceId): ?PurchaseInvoice {
+            $result = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
                 $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->first();
 
-                if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval) {
+                if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
                     return null;
                 }
 
                 [$invoice, $orders] = $this->lockWithSources($invoice);
 
-                if ($invoice->status !== InvoiceStatus::PendingApproval) {
+                if ($invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
                     return null;
                 }
 
@@ -458,10 +461,10 @@ final class InvoiceService extends DocumentService
         } catch (ValidationException|MatchFailed|ApiException $e) {
             // The invoice can no longer be booked (period closed, sources changed, match block): back to draft.
             Log::info('purchase invoice approval could not book', ['invoice' => $invoiceId, 'error' => $e->getMessage()]);
-            $invoice = Purchasing::transaction(function () use ($invoiceId): ?PurchaseInvoice {
+            $invoice = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
                 $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->lockForUpdate()->first();
 
-                if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval) {
+                if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
                     return null;
                 }
 
@@ -483,12 +486,12 @@ final class InvoiceService extends DocumentService
     }
 
     /** Approval rejected: back to draft with a comment. */
-    public function approvalRejected(string $invoiceId): void
+    public function approvalRejected(string $invoiceId, string $approvalRequestId): void
     {
-        $invoice = Purchasing::transaction(function () use ($invoiceId): ?PurchaseInvoice {
+        $invoice = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
             $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->lockForUpdate()->first();
 
-            if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval) {
+            if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
                 return null;
             }
 
@@ -689,6 +692,8 @@ final class InvoiceService extends DocumentService
     private function allocateDebit(Composed $composed, array $extras, array $originals, string $fxRate): Composed
     {
         $lines = $composed->lines;
+        // What earlier lines of this same debit note already took of each original line.
+        $taken = [];
 
         foreach ($lines as $i => $row) {
             $source = $originals[(string) ($extras[$i]['original_line_id'] ?? '')] ?? null;
@@ -702,13 +707,14 @@ final class InvoiceService extends DocumentService
                 ->selectRaw('coalesce(sum(l.quantity), 0) AS qty, coalesce(sum(l.line_discount), 0) AS discount, coalesce(sum(l.net_amount), 0) AS net,
                     coalesce(sum(l.tax_amount), 0) AS tax, coalesce(sum(l.withholding_amount), 0) AS withholding')
                 ->first();
+            $here = $taken[$source->id] ?? ['qty' => BigDecimal::zero(), 'discount' => BigDecimal::zero(), 'net' => BigDecimal::zero(), 'tax' => BigDecimal::zero(), 'withholding' => BigDecimal::zero()];
             $left = [
-                'discount' => $source->line_discount->minus((string) ($prev->discount ?? '0')),
-                'net' => $source->net_amount->minus((string) ($prev->net ?? '0')),
-                'tax' => $source->tax_amount->minus((string) ($prev->tax ?? '0')),
-                'withholding' => $source->withholding_amount->minus((string) ($prev->withholding ?? '0')),
+                'discount' => $source->line_discount->minus((string) ($prev->discount ?? '0'))->minus($here['discount']),
+                'net' => $source->net_amount->minus((string) ($prev->net ?? '0'))->minus($here['net']),
+                'tax' => $source->tax_amount->minus((string) ($prev->tax ?? '0'))->minus($here['tax']),
+                'withholding' => $source->withholding_amount->minus((string) ($prev->withholding ?? '0'))->minus($here['withholding']),
             ];
-            $final = Purchasing::dec((string) ($prev->qty ?? '0'))->plus((string) $row['quantity'])->isGreaterThanOrEqualTo($source->quantity);
+            $final = Purchasing::dec((string) ($prev->qty ?? '0'))->plus($here['qty'])->plus((string) $row['quantity'])->isGreaterThanOrEqualTo($source->quantity);
             $amounts = [];
 
             foreach (['discount' => 'line_discount', 'net' => 'net_amount', 'tax' => 'tax_amount', 'withholding' => 'withholding_amount'] as $key => $column) {
@@ -720,6 +726,12 @@ final class InvoiceService extends DocumentService
             if ($amounts['withholding']->isGreaterThan($amounts['tax'])) {
                 $amounts['withholding'] = $amounts['tax'];
             }
+
+            $taken[$source->id] = [
+                'qty' => $here['qty']->plus((string) $row['quantity']), 'discount' => $here['discount']->plus($amounts['discount']),
+                'net' => $here['net']->plus($amounts['net']), 'tax' => $here['tax']->plus($amounts['tax']),
+                'withholding' => $here['withholding']->plus($amounts['withholding']),
+            ];
 
             $lines[$i] = [...$row,
                 'line_discount' => Purchasing::money($amounts['discount']),

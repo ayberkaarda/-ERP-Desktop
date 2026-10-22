@@ -124,6 +124,7 @@ final class RfqService extends DocumentService
             }
 
             $inputs = [];
+            $requested = [];
 
             foreach ($lines as $i => $line) {
                 $source = $requestLines->get(is_string($line['request_line_id'] ?? null) ? $line['request_line_id'] : '');
@@ -133,7 +134,9 @@ final class RfqService extends DocumentService
                 }
 
                 $qty = Purchasing::dec(is_string($line['quantity'] ?? null) ? $line['quantity'] : '0');
-                $this->requestService->assertWithinRequest($source, $qty, "lines.{$i}.quantity");
+                // Several RFQ lines of one request line count together.
+                $requested[$source->id] = ($requested[$source->id] ?? BigDecimal::zero())->plus($qty);
+                $this->requestService->assertWithinRequest($source, $requested[$source->id], "lines.{$i}.quantity");
                 $inputs[] = [
                     'item_id' => $source->item_id, 'variant_id' => $source->variant_id, 'unit_id' => $source->unit_id, 'quantity' => (string) $qty,
                     'description' => $source->description, 'needed_by' => $source->needed_by?->format('Y-m-d') ?? $request->needed_by?->format('Y-m-d'),
@@ -326,7 +329,12 @@ final class RfqService extends DocumentService
     {
         return Purchasing::transaction(function () use ($rfq, $data, $version, $actor): array {
             if ($rfq->request_id !== null) {
-                PurchaseRequest::query()->whereKey($rfq->request_id)->lockForUpdate()->first();
+                $request = PurchaseRequest::query()->whereKey($rfq->request_id)->lockForUpdate()->first();
+
+                // The request may have been cancelled or fully ordered since the RFQ was made.
+                if ($request === null || ! in_array($request->status, RequestStatus::open(), true)) {
+                    Messages::fail('request', 'request_not_open');
+                }
             }
 
             $rfq = $this->lock($rfq, $version);
@@ -370,6 +378,7 @@ final class RfqService extends DocumentService
             }
 
             ksort($byParty);
+            $this->assertAwardWithinRequests($picks, $rfqLines->all());
             $orders = [];
 
             foreach ($byParty as $partyId => $rows) {
@@ -379,11 +388,6 @@ final class RfqService extends DocumentService
                 foreach ($rows as $n => [$line, $quote]) {
                     /** @var PurchaseRfqLine $line */
                     /** @var RfqQuote $quote */
-                    if ($line->request_line_id !== null) {
-                        $requestLine = PurchaseRequestLine::query()->whereKey($line->request_line_id)->firstOrFail();
-                        $this->requestService->assertWithinRequest($requestLine, $line->quantity, "lines.{$n}.quantity");
-                    }
-
                     $inputs[] = [
                         'item_id' => $line->item_id, 'variant_id' => $line->variant_id, 'unit_id' => $line->unit_id, 'quantity' => (string) $line->quantity,
                         'unit_price' => (string) $quote->unit_price, 'discount_percent' => (string) $quote->discount_percent, 'description' => $line->description,
@@ -416,6 +420,30 @@ final class RfqService extends DocumentService
 
             return $orders;
         });
+    }
+
+    /**
+     * Everything awarded from one request line (all suppliers together) must fit in what the line
+     * still lacks; the request is locked by the caller.
+     *
+     * @param  array<string, RfqQuote>  $picks  rfq line id => quote
+     * @param  array<string, PurchaseRfqLine>  $rfqLines
+     */
+    private function assertAwardWithinRequests(array $picks, array $rfqLines): void
+    {
+        $requested = [];
+
+        foreach (array_keys($picks) as $n => $lineId) {
+            $line = $rfqLines[$lineId] ?? null;
+
+            if ($line === null || $line->request_line_id === null) {
+                continue;
+            }
+
+            $requested[$line->request_line_id] = ($requested[$line->request_line_id] ?? BigDecimal::zero())->plus($line->quantity);
+            $requestLine = PurchaseRequestLine::query()->whereKey($line->request_line_id)->firstOrFail();
+            $this->requestService->assertWithinRequest($requestLine, $requested[$line->request_line_id], "lines.{$n}.quantity");
+        }
     }
 
     /**

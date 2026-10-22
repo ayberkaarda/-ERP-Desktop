@@ -6,6 +6,7 @@ namespace App\Modules\Purchasing\Http\Controllers;
 
 use App\Core\Company\CompanyContext;
 use App\Core\Http\ApiResponse;
+use App\Models\User;
 use App\Modules\Parties\Contracts\PartyLookup;
 use App\Modules\Purchasing\Contracts\SupplierExposure;
 use App\Modules\Purchasing\Contracts\SupplierPerformance;
@@ -13,6 +14,7 @@ use App\Modules\Purchasing\Enums\InvoiceStatus;
 use App\Modules\Purchasing\Enums\OrderStatus;
 use App\Modules\Purchasing\Models\PurchaseInvoice;
 use App\Modules\Purchasing\Models\PurchaseOrder;
+use App\Modules\Purchasing\Policies\PurchasingPolicy;
 use App\Modules\Purchasing\Services\DocumentLinks;
 use App\Modules\Purchasing\Support\PurchasingSettings;
 use Brick\Math\BigDecimal;
@@ -71,9 +73,9 @@ final class SupplierController
                 'balance_due' => self::money($invoices->balance_due ?? '0'),
                 'last_invoice_date' => $invoices->last_invoice_date ?? null,
             ],
-            'recent_orders' => PurchaseOrder::query()->where('party_id', $party)->orderByDesc('document_date')->orderByDesc('id')->limit(5)->get()
+            'recent_orders' => ! self::may('purchasing.orders.view') ? [] : PurchaseOrder::query()->where('party_id', $party)->orderByDesc('document_date')->orderByDesc('id')->limit(5)->get()
                 ->map(static fn (PurchaseOrder $o): array => DocumentLinks::link($o))->values()->all(),
-            'recent_invoices' => PurchaseInvoice::query()->where('party_id', $party)->orderByDesc('document_date')->orderByDesc('id')->limit(5)->get()
+            'recent_invoices' => ! self::may('purchasing.invoices.view') ? [] : PurchaseInvoice::query()->where('party_id', $party)->orderByDesc('document_date')->orderByDesc('id')->limit(5)->get()
                 ->map(static fn (PurchaseInvoice $i): array => [...DocumentLinks::link($i), 'balance_due' => (string) $i->balance_due])->values()->all(),
         ]);
     }
@@ -98,6 +100,13 @@ final class SupplierController
         }
 
         return $id;
+    }
+
+    private static function may(string $permission): bool
+    {
+        $user = request()->user();
+
+        return $user instanceof User && PurchasingPolicy::permits($user, $permission);
     }
 
     private static function money(mixed $value): string

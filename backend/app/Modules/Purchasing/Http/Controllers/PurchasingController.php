@@ -73,7 +73,7 @@ abstract class PurchasingController
      */
     protected function details(Model $doc): array
     {
-        return ['links' => app(DocumentLinks::class)->for($doc)];
+        return ['links' => app(DocumentLinks::class)->for($doc, self::viewer())];
     }
 
     /** @return list<string> */
@@ -216,6 +216,14 @@ abstract class PurchasingController
     protected function actor(Request $request): ?Authenticatable
     {
         return $request->user();
+    }
+
+    /** The user of the current request (links are limited to what this user may view). */
+    protected static function viewer(): ?User
+    {
+        $user = request()->user();
+
+        return $user instanceof User ? $user : null;
     }
 
     public static function version(Request $request): ?int

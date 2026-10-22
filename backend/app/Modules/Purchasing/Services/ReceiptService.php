@@ -306,11 +306,19 @@ final class ReceiptService extends DocumentService
                 $this->assertWithinOrder($orderLine, $requested[$orderLine->id], null, "lines.{$i}.quantity");
             }
 
-            $inputs[] = [...$this->fixedLine($line, (string) $line->quantity, true), 'source_line_id' => $line->id];
+            // Goods of an order are received at the order's net price (like any receipt of it), so the
+            // invoice books the difference as price variance; goods without an order at the invoice price.
+            $source = $orderLine instanceof PurchaseOrderLine ? $orderLine : $line;
+            $inputs[] = [...$this->fixedLine($source, (string) $line->quantity, true), 'source_line_id' => $line->id,
+                '_base_quantity' => (string) $line->base_quantity, 'warehouse_id' => $line->warehouse_id];
             $extras[] = ['order_line_id' => $orderLine?->id];
         }
 
         $header = $this->mergedHeader($invoice, []);
+
+        if ($order !== null) {
+            $header['fx_rate'] = (string) $order->fx_rate;
+        }
         $composed = $this->compose($header, $inputs, true, requireWarehouse: true);
         $receipt = $this->store->create(new PurchaseReceipt, $composed, [
             'order_id' => $order?->id, 'invoice_id' => $invoice->id, 'source_type' => 'purchase_invoice', 'source_id' => $invoice->id,

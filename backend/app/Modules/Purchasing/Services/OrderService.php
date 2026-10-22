@@ -173,12 +173,12 @@ final class OrderService extends DocumentService
     }
 
     /** Approval granted (ApprovalCompleted). */
-    public function approvalCompleted(string $orderId): void
+    public function approvalCompleted(string $orderId, string $approvalRequestId): void
     {
-        $order = Purchasing::transaction(function () use ($orderId): ?PurchaseOrder {
+        $order = Purchasing::transaction(function () use ($orderId, $approvalRequestId): ?PurchaseOrder {
             $order = PurchaseOrder::query()->whereKey($orderId)->lockForUpdate()->first();
 
-            if ($order === null || $order->status !== OrderStatus::PendingApproval) {
+            if ($order === null || $order->status !== OrderStatus::PendingApproval || ! self::isCurrentApproval($order->approval_request_id, $approvalRequestId)) {
                 return null;
             }
 
@@ -191,12 +191,12 @@ final class OrderService extends DocumentService
     }
 
     /** Approval rejected: back to draft with a comment. */
-    public function approvalRejected(string $orderId): void
+    public function approvalRejected(string $orderId, string $approvalRequestId): void
     {
-        $order = Purchasing::transaction(function () use ($orderId): ?PurchaseOrder {
+        $order = Purchasing::transaction(function () use ($orderId, $approvalRequestId): ?PurchaseOrder {
             $order = PurchaseOrder::query()->whereKey($orderId)->lockForUpdate()->first();
 
-            if ($order === null || $order->status !== OrderStatus::PendingApproval) {
+            if ($order === null || $order->status !== OrderStatus::PendingApproval || ! self::isCurrentApproval($order->approval_request_id, $approvalRequestId)) {
                 return null;
             }
 
