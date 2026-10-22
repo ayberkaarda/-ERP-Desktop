@@ -17,6 +17,7 @@ use App\Modules\Sales\Support\Messages;
 use App\Modules\Sales\Support\Sales;
 use App\Modules\Sales\Support\SalesSettings;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
+use Brick\Math\BigDecimal;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -301,8 +302,8 @@ final class OrderService extends DocumentService
         // What the override authorised; invoices of the order inherit it only while this still holds.
         $order->credit_override_party_id = $order->party_id;
         $order->credit_override_revision = $order->revision;
-        $order->credit_override_amount = (string) $order->total_local;
-        $order->credit_override_exposure = $check->total;
+        $order->credit_override_amount = $order->total_local;
+        $order->credit_override_exposure = BigDecimal::of($check->total);
         $order->credit_override_currency = $check->currency;
         activity()->performedOn($order)->causedBy(self::causer($actor))->withProperties(['reason' => $reason, 'check' => $check->toArray()])
             ->event('credit_override')->log('credit_override');
