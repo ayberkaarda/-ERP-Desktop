@@ -142,6 +142,7 @@ final class RequestController extends PurchasingController
 
     private function request(string $id, string $ability): PurchaseRequest
     {
+        Gate::authorize($ability, PurchaseRequest::class);
         /** @var PurchaseRequest $doc */
         $doc = $this->find($id);
         Gate::authorize($ability, $doc);

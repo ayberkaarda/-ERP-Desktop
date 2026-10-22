@@ -56,7 +56,7 @@ final class ReceiptController extends PurchaseDocumentController
     /** Draft: cancel (update). Posted: reversal with body reason (required) and date (needs reverse). */
     public function cancel(ActionRequest $request, string $id): JsonResponse
     {
-        $receipt = $this->receipt($id, 'view');
+        $receipt = $this->receipt($id, 'cancel');
 
         return $this->respond(app(ReceiptService::class)->cancel($receipt, $request->optionalVersion(), $request->text('reason'), $request->text('date'), $this->actor($request)));
     }

@@ -44,7 +44,7 @@ final class DocumentRequest extends PurchasingRequest
                 ...$optionalLines, 'lines.*.request_line_id' => ['required', 'uuid'],
             ],
             'request_order' => [
-                ...$date, 'notes' => ['sometimes', 'nullable', 'string', 'max:5000'], 'party_id' => ['required', 'uuid'],
+                ...$date, 'notes' => ['sometimes', 'nullable', 'string', 'max:5000'], 'party_id' => ['sometimes', 'uuid'],
                 'expected_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'], 'currency_code' => ['sometimes', 'nullable', 'string', 'regex:/^[A-Z]{3}$/'],
                 'warehouse_id' => ['sometimes', 'nullable', 'uuid'],
                 ...$optionalLines, 'lines.*.request_line_id' => ['required', 'uuid'], 'lines.*.unit_price' => ['sometimes', 'nullable', 'string', 'regex:'.self::QTY],
@@ -60,8 +60,8 @@ final class DocumentRequest extends PurchasingRequest
                 ...$this->versionRules($patch),
             ],
             'rfq_quote' => [
-                'party_id' => ['required', 'uuid'], 'declined' => ['sometimes', 'boolean'],
-                'quotes' => ['required_unless:declined,true', 'array', 'max:'.$max], 'quotes.*' => ['array'],
+                'party_id' => ['sometimes', 'uuid'], 'declined' => ['sometimes', 'boolean'],
+                'quotes' => ['sometimes', 'array', 'max:'.$max], 'quotes.*' => ['array'],
                 'quotes.*.rfq_line_id' => ['required', 'uuid'], 'quotes.*.unit_price' => ['required', 'string', 'regex:'.self::QTY],
                 'quotes.*.discount_percent' => ['sometimes', 'nullable', 'string', 'regex:'.self::PERCENT],
                 'quotes.*.lead_time_days' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:3650'],
@@ -69,9 +69,9 @@ final class DocumentRequest extends PurchasingRequest
                 ...$this->versionRules(false),
             ],
             'rfq_award' => [
-                ...$date, 'party_id' => ['required_without:lines', 'uuid'], 'expected_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
+                ...$date, 'party_id' => ['sometimes', 'uuid'], 'expected_date' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
                 'warehouse_id' => ['sometimes', 'nullable', 'uuid'],
-                'lines' => ['required_without:party_id', 'array', 'min:1', 'max:'.$max], 'lines.*' => ['array'],
+                'lines' => ['sometimes', 'array', 'min:1', 'max:'.$max], 'lines.*' => ['array'],
                 'lines.*.rfq_line_id' => ['required', 'uuid'], 'lines.*.party_id' => ['required', 'uuid'],
                 ...$this->versionRules(false),
             ],

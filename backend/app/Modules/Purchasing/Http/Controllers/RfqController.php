@@ -116,7 +116,7 @@ final class RfqController extends PurchasingController
         $data = $request->validated();
         $quotes = is_array($data['quotes'] ?? null) ? array_values(array_filter($data['quotes'], 'is_array')) : [];
 
-        return $this->respond(app(RfqService::class)->quote($rfq, (string) $data['party_id'], $quotes, (bool) ($data['declined'] ?? false),
+        return $this->respond(app(RfqService::class)->quote($rfq, is_string($data['party_id'] ?? null) ? $data['party_id'] : '', $quotes, (bool) ($data['declined'] ?? false),
             $request->optionalVersion(), $this->actor($request)));
     }
 
@@ -131,8 +131,8 @@ final class RfqController extends PurchasingController
     /** Body: party_id (whole RFQ) or lines [{rfq_line_id, party_id}]; creates one draft order per supplier. */
     public function award(DocumentRequest $request, string $id): JsonResponse
     {
-        $rfq = $this->rfq($id, 'award');
         Gate::authorize('create', PurchaseOrder::class);
+        $rfq = $this->rfq($id, 'award');
         $orders = app(RfqService::class)->award($rfq, [...$request->headerData(), 'lines' => $request->lineData()], $request->optionalVersion(), $this->actor($request));
         $rfq->refresh()->load($this->with());
 
@@ -144,6 +144,7 @@ final class RfqController extends PurchasingController
 
     private function rfq(string $id, string $ability): PurchaseRfq
     {
+        Gate::authorize($ability, PurchaseRfq::class);
         /** @var PurchaseRfq $doc */
         $doc = $this->find($id);
         Gate::authorize($ability, $doc);

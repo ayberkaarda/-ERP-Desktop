@@ -83,6 +83,8 @@ abstract class PurchaseDocumentController extends PurchasingController
 
     protected function document(string $id, string $ability): PurchaseDocument
     {
+        // The permission first: without it the caller learns nothing about the record (403, not 404).
+        Gate::authorize($ability, $this->model());
         /** @var PurchaseDocument $doc */
         $doc = $this->find($id);
         Gate::authorize($ability, $doc);
