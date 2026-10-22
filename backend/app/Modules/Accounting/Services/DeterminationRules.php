@@ -29,6 +29,9 @@ final class DeterminationRules
         'purchase.expense' => ['7A' => '770', '7B' => '793'],
         'purchase.vat_input' => '191',
         'purchase.vat_withholding' => '360',
+        // Goods received not invoiced: no party flag, the stock posting books it without a party.
+        'purchase.goods_received' => '381',
+        'purchase.price_variance' => '621',
         'inventory.stock' => '153',
         'inventory.cogs' => '621',
         'treasury.cash' => '100',
