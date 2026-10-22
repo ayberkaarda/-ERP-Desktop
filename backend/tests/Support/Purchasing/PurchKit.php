@@ -244,8 +244,8 @@ final class PurchKit
 
         foreach ($rows as $row) {
             $out[(string) $row->code] = [
-                'debit' => (string) BigDecimal::of((string) $row->debit)->toScale(2),
-                'credit' => (string) BigDecimal::of((string) $row->credit)->toScale(2),
+                'debit' => self::amount((string) $row->debit),
+                'credit' => self::amount((string) $row->credit),
             ];
         }
 
@@ -257,6 +257,15 @@ final class PurchKit
     {
         $row = DB::table('journal_lines')->where('entry_id', $entryId)->selectRaw('coalesce(sum(debit), 0) AS d, coalesce(sum(credit), 0) AS c')->first();
 
-        return [(string) BigDecimal::of((string) ($row->d ?? '0'))->toScale(2), (string) BigDecimal::of((string) ($row->c ?? '0'))->toScale(2)];
+        return [self::amount((string) ($row->d ?? '0')), self::amount((string) ($row->c ?? '0'))];
+    }
+
+    /** An amount at scale 2, or 4 when it has more decimals (stock and accrual amounts). */
+    public static function amount(string $value): string
+    {
+        $value = BigDecimal::of($value);
+        $cents = $value->toScale(2, \Brick\Math\RoundingMode::Down);
+
+        return (string) ($cents->isEqualTo($value) ? $cents : $value->toScale(4));
     }
 }
