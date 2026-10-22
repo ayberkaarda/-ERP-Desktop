@@ -6,6 +6,7 @@ import type commonTr from './locales/common/tr.json'
 import type inventoryDocsTr from './locales/inventory-docs/tr.json'
 import type inventoryStockTr from './locales/inventory-stock/tr.json'
 import type partiesTr from './locales/parties/tr.json'
+import type purchasingOrdersTr from './locales/purchasing-orders/tr.json'
 import type salesDocsTr from './locales/sales-docs/tr.json'
 import type salesReportsTr from './locales/sales-reports/tr.json'
 import type referenceTr from './locales/reference/tr.json'
@@ -33,6 +34,7 @@ declare module 'i18next' {
       'sales-shared': typeof salesSharedTr
       'sales-quotes': typeof salesQuotesTr
       'sales-orders': typeof salesOrdersTr
+      'purchasing-orders': typeof purchasingOrdersTr
     }
   }
 }
