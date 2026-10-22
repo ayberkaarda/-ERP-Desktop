@@ -129,6 +129,25 @@ it('sends large orders to approval and approves them through the workflow', func
         ->assertJsonPath('data.approval_comment', fn (?string $c): bool => $c !== null);
 });
 
+it('returns a revised sent order to sent once its new approval is granted', function (): void {
+    $order = PurchKit::approvedOrder($this->w, [[$this->w->item->id, '1', '100']]);
+    $sent = PurchKit::post($this->w->user, $this->w->company, "purchase-orders/{$order['id']}/send")->assertOk()->json('data');
+    PurchKit::setting($this->w->company, 'purchasing.require_approval_over', '500');
+    $approver = Actors::user(['approvals.view', 'approvals.decide', 'approval_flows.manage']);
+    PurchKit::post($approver, $this->w->company, 'approval-flows', [
+        'name' => 'Purchase orders', 'document_type' => 'purchase_order',
+        'steps' => [['position' => 1, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => $approver->id]],
+    ])->assertCreated();
+
+    $pending = PurchKit::post($this->w->user, $this->w->company, "purchase-orders/{$order['id']}/revise", [
+        'version' => $sent['version'], 'lines' => [['id' => $sent['lines'][0]['id'], 'item_id' => $this->w->item->id, 'quantity' => '9']],
+    ])->assertOk()->assertJsonPath('data.status', 'pending_approval')->assertJsonPath('data.revision', 2)->json('data');
+    $request = PurchKit::get($approver, $this->w->company, "approvals/{$pending['approval_request_id']}")->json('data');
+    PurchKit::post($approver, $this->w->company, "approvals/{$pending['approval_request_id']}/decisions", ['decision' => 'approve', 'version' => $request['version'], 'step' => $request['current_step']])->assertOk();
+    PurchKit::get($this->w->user, $this->w->company, "purchase-orders/{$order['id']}")->assertJsonPath('data.status', 'sent')
+        ->assertJsonPath('data.lines.0.quantity', '9.000000');
+});
+
 it('books a large invoice only after approval, keeping the override given at submission', function (): void {
     PurchKit::setting($this->w->company, 'purchasing.invoice_approval_over', '50');
     PurchKit::setting($this->w->company, 'purchasing.match_mode', 'block');

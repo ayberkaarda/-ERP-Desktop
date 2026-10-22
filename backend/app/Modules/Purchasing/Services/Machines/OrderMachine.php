@@ -18,7 +18,8 @@ final class OrderMachine extends StateMachine
     {
         $map = [
             'draft' => ['pending_approval', 'approved', 'cancelled'],
-            'pending_approval' => ['approved', 'draft', 'cancelled'],
+            // A revision of a sent order goes back to sent once approved again.
+            'pending_approval' => ['approved', 'sent', 'draft', 'cancelled'],
         ];
 
         foreach (self::PROGRESS as $from) {

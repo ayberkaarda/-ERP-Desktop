@@ -14,6 +14,7 @@ use App\Modules\Reference\Models\Warehouse;
 use App\Modules\Reference\Services\CurrencyCatalog;
 use App\Modules\Settings\Services\SettingsService;
 use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -264,7 +265,7 @@ final class PurchKit
     public static function amount(string $value): string
     {
         $value = BigDecimal::of($value);
-        $cents = $value->toScale(2, \Brick\Math\RoundingMode::Down);
+        $cents = $value->toScale(2, RoundingMode::Down);
 
         return (string) ($cents->isEqualTo($value) ? $cents : $value->toScale(4));
     }

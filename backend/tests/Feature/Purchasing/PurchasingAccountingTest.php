@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
 use Tests\Support\Inventory\Inv;
 use Tests\Support\Purchasing\PurchKit;
@@ -194,7 +195,7 @@ it('reverses a posted receipt that nothing invoiced: stock and accrual back, ord
     $w = $this->w;
     $order = PurchKit::approvedOrder($w, [[$w->item->id, '5', '40']]);
     $receipt = PurchKit::receive($w, $order['id'], [$order['lines'][0]['id'] => '5']);
-    $clerk = \Tests\Support\Actors::user(['purchasing.receipts.view', 'purchasing.receipts.update']);
+    $clerk = Actors::user(['purchasing.receipts.view', 'purchasing.receipts.update']);
     PurchKit::post($clerk, $w->company, "purchase-receipts/{$receipt['id']}/cancel", ['reason' => 'x'])->assertForbidden();
 
     PurchKit::post($w->user, $w->company, "purchase-receipts/{$receipt['id']}/cancel", ['reason' => 'Wrong goods', 'date' => '2027-06-14'])

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Support\Purchasing\PurchKit;
+use Tests\Support\Sales\SalesKit;
 
 uses(RefreshDatabase::class);
 
@@ -103,7 +104,7 @@ it('orders a request directly, bounded by what it still lacks; a cancelled order
     PurchKit::post($w->user, $w->company, "purchase-orders/{$order['id']}/cancel")->assertOk()->assertJsonPath('data.status', 'cancelled');
     PurchKit::get($w->user, $w->company, "purchase-requests/{$this->request['id']}")->assertJsonPath('data.status', 'approved');
     // Suppliers only: a customer cannot receive an order.
-    $customer = \Tests\Support\Sales\SalesKit::party($w->company);
+    $customer = SalesKit::party($w->company);
     PurchKit::post($w->user, $w->company, "purchase-requests/{$this->request['id']}/orders", ['party_id' => $customer->id])
         ->assertStatus(422)->assertJsonPath('errors.fields', fn (array $f): bool => isset($f['party_id']));
 });
