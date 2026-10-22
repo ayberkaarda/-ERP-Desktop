@@ -101,3 +101,5 @@ Route::middleware(['auth:sanctum', 'password.changed', 'company'])->group(functi
     Route::get('suppliers/{id}/purchase-summary', [SupplierController::class, 'summary'])->whereUuid('id');
     Route::get('suppliers/{id}/performance', [SupplierController::class, 'performance'])->whereUuid('id');
 });
+
+require __DIR__.'/Reports/routes.php';

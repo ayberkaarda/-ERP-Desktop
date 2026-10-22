@@ -26,6 +26,7 @@ use App\Modules\Purchasing\Policies\ReceiptPolicy;
 use App\Modules\Purchasing\Policies\RequestPolicy;
 use App\Modules\Purchasing\Policies\ReturnPolicy;
 use App\Modules\Purchasing\Policies\RfqPolicy;
+use App\Modules\Purchasing\Reports\ReportsServiceProvider;
 use App\Modules\Purchasing\Services\ExposureCalculator;
 use App\Modules\Purchasing\Services\InvoiceDirectory;
 use App\Modules\Purchasing\Services\PerformanceCalculator;
@@ -53,6 +54,7 @@ final class PurchasingServiceProvider extends ModuleServiceProvider
         $this->app->bind(PurchaseInvoiceLookup::class, InvoiceDirectory::class);
         $this->app->bind(PayableSettlement::class, Settlement::class);
         $this->app->bind(SupplierPerformance::class, PerformanceCalculator::class);
+        $this->app->register(ReportsServiceProvider::class);
     }
 
     public function boot(): void
