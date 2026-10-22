@@ -75,7 +75,15 @@ export interface SalesDocsDb {
   exposure: Record<string, CustomerExposure>
   summary: Record<string, CustomerSalesSummaryData>
   /** Canned report rows and meta by API path. */
-  reports: Record<string, { rows: Record<string, unknown>[]; meta: Record<string, unknown> }>
+  /** Canned report rows (default group) and meta by report name; other group_by rows in `groups`. */
+  reports: Record<
+    string,
+    {
+      rows: Record<string, unknown>[]
+      meta: Record<string, unknown>
+      groups?: Record<string, Record<string, unknown>[]>
+    }
+  >
   creditMode: 'off' | 'warn' | 'block'
   /** When set, /stock-balances answers only after it resolves (slow responses). */
   lotsGate?: Promise<void>
@@ -583,59 +591,223 @@ export function createSalesDocsDb(overrides: Partial<SalesDocsDb> = {}): SalesDo
       },
     },
     reports: {
-      '/sales-reports/sales-by-period': {
+      'sales-by-period': {
         rows: [
           {
             period: '2026-08',
+            period_start: '2026-08-01',
+            period_end: '2026-08-31',
             invoice_count: 3,
-            gross_amount: '5000.0000',
+            credit_note_count: 0,
+            reversal_count: 0,
+            sales_amount: '5000.0000',
             returns_amount: '0.0000',
             net_amount: '5000.0000',
             tax_amount: '1000.0000',
-            total: '6000.0000',
+            total_amount: '6000.0000',
           },
           {
             period: '2026-09',
+            period_start: '2026-09-01',
+            period_end: '2026-09-30',
             invoice_count: 4,
-            gross_amount: '9600.0000',
+            credit_note_count: 1,
+            reversal_count: 0,
+            sales_amount: '9600.0000',
             returns_amount: '200.0000',
             net_amount: '9400.0000',
             tax_amount: '1880.0000',
-            total: '11280.0000',
+            total_amount: '11280.0000',
           },
         ],
         meta: {
+          period: 'month',
           totals: {
-            invoice_count: '7',
-            gross_amount: '14600.0000',
+            invoice_count: 7,
+            credit_note_count: 1,
+            reversal_count: 0,
+            sales_amount: '14600.0000',
             returns_amount: '200.0000',
             net_amount: '14400.0000',
             tax_amount: '2880.0000',
-            total: '17280.0000',
+            total_amount: '17280.0000',
           },
+          by_currency: [
+            {
+              currency_code: 'TRY',
+              sales_amount: '14600.0000',
+              returns_amount: '200.0000',
+              net_amount: '14400.0000',
+              net_amount_local: '14400.0000',
+            },
+          ],
         },
       },
-      '/sales-reports/customer-ageing': {
+      'by-category': {
         rows: [
           {
-            code: 'C001',
-            name: 'Acme Ticaret A.Ş.',
-            not_due: '0.0000',
-            d0_30: '1200.0000',
-            d31_60: '0.0000',
-            d61_90: '0.0000',
-            d90_plus: '300.0000',
-            total: '1500.0000',
+            category_id: 'cat-1',
+            item_count: 2,
+            invoice_count: 5,
+            credit_note_count: 0,
+            reversal_count: 0,
+            sales_amount: '900.0000',
+            returns_amount: '0.0000',
+            net_amount: '900.0000',
+            tax_amount: '180.0000',
+            total_amount: '1080.0000',
+            share_percent: '90.00',
+          },
+          {
+            category_id: null,
+            item_count: 1,
+            invoice_count: 1,
+            credit_note_count: 0,
+            reversal_count: 0,
+            sales_amount: '100.0000',
+            returns_amount: '0.0000',
+            net_amount: '100.0000',
+            tax_amount: '20.0000',
+            total_amount: '120.0000',
+            share_percent: '10.00',
           },
         ],
         meta: {
           totals: {
+            invoice_count: 6,
+            credit_note_count: 0,
+            reversal_count: 0,
+            sales_amount: '1000.0000',
+            returns_amount: '0.0000',
+            net_amount: '1000.0000',
+            tax_amount: '200.0000',
+            total_amount: '1200.0000',
+          },
+        },
+      },
+      'customer-ageing': {
+        rows: [
+          {
+            party_id: PARTY_ACME,
+            party_code: 'C001',
+            party_name: 'Acme Ticaret A.Ş.',
+            invoice_count: 2,
+            balance_local: '1500.0000',
             not_due: '0.0000',
-            d0_30: '1200.0000',
-            d31_60: '0.0000',
-            d61_90: '0.0000',
-            d90_plus: '300.0000',
-            total: '1500.0000',
+            days_0_30: '1200.0000',
+            days_31_60: '0.0000',
+            days_61_90: '0.0000',
+            days_over_90: '300.0000',
+            overdue: '1500.0000',
+            oldest_due_date: '2026-05-01',
+          },
+        ],
+        meta: {
+          as_of: '2026-10-21',
+          totals: {
+            invoice_count: 2,
+            balance_local: '1500.0000',
+            not_due: '0.0000',
+            days_0_30: '1200.0000',
+            days_31_60: '0.0000',
+            days_61_90: '0.0000',
+            days_over_90: '300.0000',
+            overdue: '1500.0000',
+          },
+        },
+        groups: {
+          invoice: [
+            {
+              invoice_id: 'inv-recent-1',
+              number: 'INV2026000000007',
+              invoice_type: 'sale',
+              document_date: '2026-10-01',
+              due_date: '2026-10-01',
+              days_overdue: 20,
+              bucket: 'days_0_30',
+              party_id: PARTY_ACME,
+              party_name: 'Acme Ticaret A.Ş.',
+              currency_code: 'TRY',
+              fx_rate: '1.000000',
+              total: '1200.0000',
+              settled_amount: '0.0000',
+              balance: '1200.0000',
+              balance_local: '1200.0000',
+            },
+          ],
+        },
+      },
+      margin: {
+        rows: [
+          {
+            item_id: ITEM_BOLT,
+            item_code: 'BOLT',
+            item_name: 'Civata',
+            category_id: 'cat-1',
+            invoiced_quantity: '10.000000',
+            delivered_quantity: '10.000000',
+            revenue: '800.0000',
+            cogs: '500.0000',
+            gross_margin: '300.0000',
+            margin_percent: '37.50',
+          },
+        ],
+        meta: {
+          group_by: 'item',
+          totals: {
+            revenue: '800.0000',
+            cogs: '500.0000',
+            gross_margin: '300.0000',
+            margin_percent: '37.50',
+          },
+        },
+        groups: {
+          warehouse: [
+            {
+              warehouse_id: WH_MAIN,
+              revenue: '800.0000',
+              cogs: '500.0000',
+              gross_margin: '300.0000',
+              margin_percent: '37.50',
+            },
+          ],
+        },
+      },
+      'delivery-vs-invoice': {
+        rows: [
+          {
+            delivery_id: 'dlv-1',
+            delivery_number: 'DLV2026000000001',
+            document_date: '2026-10-10',
+            days_open: 11,
+            order_id: 'ord-1',
+            order_number: 'ORD2026000000001',
+            party_id: PARTY_ACME,
+            party_name: 'Acme Ticaret A.Ş.',
+            line_no: 1,
+            item_id: ITEM_BOLT,
+            item_code: 'BOLT',
+            item_name: 'Civata',
+            unit_id: 'u',
+            warehouse_id: WH_MAIN,
+            currency_code: 'TRY',
+            quantity: '4.000000',
+            invoiced_quantity: '1.000000',
+            uninvoiced_quantity: '3.000000',
+            in_draft_quantity: '0.000000',
+            uninvoiced_base_quantity: '3.000000',
+            uninvoiced_value: '300.0000',
+            uninvoiced_value_local: '300.0000',
+            uninvoiced_cost: '150.0000',
+          },
+        ],
+        meta: {
+          as_of: '2026-10-21',
+          totals: {
+            delivery_count: 1,
+            line_count: 1,
+            uninvoiced_value_local: '300.0000',
+            uninvoiced_cost: '150.0000',
           },
         },
       },
@@ -650,6 +822,38 @@ export function createSalesDocsDb(overrides: Partial<SalesDocsDb> = {}): SalesDo
     shippedSerials: {},
     ...overrides,
   }
+}
+
+/** group_by choices per report as the API validates them (reports without any refuse it). */
+const REPORT_GROUPS: Record<string, string[]> = {
+  'sales-by-period': [],
+  'by-customer': [],
+  'by-item': [],
+  'by-category': [],
+  'top-customers': [],
+  margin: ['item', 'customer', 'category', 'warehouse', 'month'],
+  'return-rate': ['item', 'customer', 'category'],
+  'quote-conversion': ['none', 'customer', 'month'],
+  'open-orders': ['line', 'order', 'customer', 'item'],
+  'delivery-vs-invoice': ['line', 'delivery', 'customer', 'item'],
+  'customer-ageing': ['customer', 'customer_currency', 'invoice'],
+}
+
+/** Field errors of a report request the way SalesReportRequest validates it. */
+function reportParamErrors(name: string, url: URL): Record<string, string[]> | null {
+  const fields: Record<string, string[]> = {}
+  const groups = REPORT_GROUPS[name]
+  const group = url.searchParams.get('group_by')
+  if (!groups) fields.report = ['Bilinmeyen rapor.']
+  else if (group && !groups.includes(group)) fields.group_by = ['Seçilen gruplama geçersiz.']
+  const period = url.searchParams.get('period')
+  if (period && !['day', 'week', 'month'].includes(period))
+    fields.period = ['Seçilen dönem geçersiz.']
+  if (Number(url.searchParams.get('per_page') ?? 100) > 500) fields.per_page = ['En çok 500.']
+  const from = url.searchParams.get('date_from')
+  const to = url.searchParams.get('date_to')
+  if (from && to && to < from) fields.date_to = ['Bitiş başlangıçtan önce olamaz.']
+  return Object.keys(fields).length > 0 ? fields : null
 }
 
 function error(
@@ -1852,16 +2056,29 @@ export function salesDocsHandlers(db: SalesDocsDb) {
     // ---- Reports ----
     http.get(`${base}/sales-reports/:name`, async ({ request, params }) => {
       const { url } = await record(request)
-      const canned = db.reports[`/sales-reports/${String(params.name)}`]
-      if (!canned) return HttpResponse.json({ data: [], meta: {} })
-      if (url.searchParams.has('page')) {
-        const p = paginate(canned.rows, url, 100)
-        return HttpResponse.json({
-          data: p.data,
-          meta: { ...canned.meta, pagination: p.meta.pagination },
-        })
-      }
-      return HttpResponse.json({ data: canned.rows, meta: canned.meta })
+      const name = String(params.name)
+      const invalid = reportParamErrors(name, url)
+      if (invalid) return error(422, 'VALIDATION_ERROR', 'Gönderilen veriler geçersiz.', invalid)
+      const canned = db.reports[name]
+      const group = url.searchParams.get('group_by')
+      const rows = (group ? canned?.groups?.[group] : undefined) ?? canned?.rows ?? []
+      const perPage = Math.min(500, Number(url.searchParams.get('per_page') ?? 100))
+      const page = Number(url.searchParams.get('page') ?? 1)
+      return HttpResponse.json({
+        data: rows.slice((page - 1) * perPage, page * perPage),
+        meta: {
+          report: name,
+          currency: 'TRY',
+          filters: Object.fromEntries(url.searchParams),
+          ...(canned?.meta ?? {}),
+          pagination: {
+            current_page: page,
+            per_page: perPage,
+            total: rows.length,
+            last_page: Math.max(1, Math.ceil(rows.length / perPage)),
+          },
+        },
+      })
     }),
   ]
 }

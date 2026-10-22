@@ -1,7 +1,5 @@
-import Decimal from 'decimal.js'
 import { useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router'
-import { dec, isDecimal } from '../../invoices/kit/money'
 import type { ColDef, ReportDef, Row } from '../definitions'
 
 /** Report parameters as flat strings: URL- and preset-friendly. */
@@ -37,29 +35,14 @@ export function stringAt(row: Row | null | undefined, key: string): string {
   return typeof v === 'string' ? v : typeof v === 'number' ? String(v) : ''
 }
 
-/**
- * Totals row: the API's meta.totals (over every row) when present, else the sum of the page's
- * money / quantity / integer `total` columns. Percent totals only come from the API.
- */
-export function totalsRow(
-  columns: readonly ColDef[],
-  rows: readonly Row[],
-  meta?: Row | null,
-): Row | null {
+/** Totals row from the API's meta.totals (over every row, not just the page). */
+export function totalsRow(columns: readonly ColDef[], meta?: Row | null): Row | null {
   const api = meta?.totals
+  if (api === null || typeof api !== 'object') return null
   const out: Row = {}
-  if (api !== null && typeof api === 'object') {
-    for (const c of columns) {
-      const v = stringAt(api as Row, c.key)
-      if (c.total && v !== '') out[c.key] = v
-    }
-  } else {
-    for (const c of columns) {
-      if (!c.total || c.kind === 'percent') continue
-      const values = rows.map((r) => stringAt(r, c.key)).filter(isDecimal)
-      if (values.length === 0) continue
-      out[c.key] = values.reduce((acc, v) => acc.plus(dec(v)), new Decimal(0)).toString()
-    }
+  for (const c of columns) {
+    const v = stringAt(api as Row, c.key)
+    if (c.total && v !== '') out[c.key] = v
   }
   return Object.keys(out).length > 0 ? out : null
 }

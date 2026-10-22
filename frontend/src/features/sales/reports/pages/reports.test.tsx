@@ -59,6 +59,100 @@ describe('sales reports', () => {
     const exp = db.calls.find((c) => c.path === '/sales-reports/sales-by-period/export')
     expect(exp?.url.searchParams.get('format')).toBe('csv')
     expect(exp?.url.searchParams.get('period')).toBe('month')
+    expect(exp?.url.searchParams.has('page')).toBe(false)
+  })
+
+  it('pages every report and leaves group_by out of reports that refuse it', async () => {
+    const db = setupSales()
+    const user = userEvent.setup()
+    renderSales('/sales/reports/sales-by-period')
+    await user.click(await screen.findByRole('button', { name: 'Çalıştır' }))
+    await screen.findByRole('table', { name: 'Döneme göre satışlar' })
+    const call = db.calls.filter((c) => c.path === '/sales-reports/sales-by-period').at(-1)
+    expect(call?.url.searchParams.get('page')).toBe('1')
+    expect(call?.url.searchParams.get('per_page')).toBe('100')
+    expect(call?.url.searchParams.has('group_by')).toBe(false)
+  })
+
+  it('switches margin columns with group_by and names warehouses and categories', async () => {
+    const db = setupSales()
+    const user = userEvent.setup()
+    renderSales('/sales/reports/margin')
+    await user.click(await screen.findByRole('button', { name: 'Çalıştır' }))
+    let table = await screen.findByRole('table', { name: 'Kârlılık' })
+    expect(within(table).getByText('Civata')).toBeInTheDocument()
+    await waitFor(() => expect(within(table).getByText('HRD · Hırdavat')).toBeInTheDocument())
+    expect(within(table).getByTestId('report-totals')).toHaveTextContent('300,00')
+    expect(
+      db.calls
+        .filter((c) => c.path === '/sales-reports/margin')
+        .at(-1)
+        ?.url.searchParams.get('group_by'),
+    ).toBe('item')
+
+    await user.selectOptions(screen.getByLabelText('Gruplama'), 'warehouse')
+    await user.click(screen.getByRole('button', { name: 'Çalıştır' }))
+    await waitFor(() =>
+      expect(
+        db.calls
+          .filter((c) => c.path === '/sales-reports/margin')
+          .at(-1)
+          ?.url.searchParams.get('group_by'),
+      ).toBe('warehouse'),
+    )
+    table = await screen.findByRole('table', { name: 'Kârlılık' })
+    await waitFor(() => expect(within(table).getByText('ANA · Ana depo')).toBeInTheDocument())
+    expect(within(table).queryByText('Civata')).not.toBeInTheDocument()
+  })
+
+  it('lists categories by name and uncategorised sales separately', async () => {
+    setupSales()
+    const user = userEvent.setup()
+    renderSales('/sales/reports/by-category')
+    await user.click(await screen.findByRole('button', { name: 'Çalıştır' }))
+    const table = await screen.findByRole('table', { name: 'Kategoriye göre satışlar' })
+    await waitFor(() => expect(within(table).getByText('HRD · Hırdavat')).toBeInTheDocument())
+    expect(within(table).getByText('Kategorisiz')).toBeInTheDocument()
+    expect(within(table).getByTestId('report-totals')).toHaveTextContent('1.000,00')
+  })
+
+  it('links delivery-vs-invoice rows to their documents', async () => {
+    const db = setupSales()
+    const user = userEvent.setup()
+    renderSales('/sales/reports/delivery-vs-invoice')
+    await user.click(await screen.findByRole('button', { name: 'Çalıştır' }))
+    const table = await screen.findByRole('table', { name: 'İrsaliye - fatura karşılaştırması' })
+    expect(within(table).getByRole('link', { name: 'DLV2026000000001' })).toHaveAttribute(
+      'href',
+      '/sales/deliveries/dlv-1',
+    )
+    expect(within(table).getByRole('link', { name: 'ORD2026000000001' })).toHaveAttribute(
+      'href',
+      '/sales/orders/ord-1',
+    )
+    expect(within(table).getByTestId('report-totals')).toHaveTextContent('150,00')
+    const call = db.calls.filter((c) => c.path === '/sales-reports/delivery-vs-invoice').at(-1)
+    expect(call?.url.searchParams.get('group_by')).toBe('line')
+    expect(call?.url.searchParams.get('as_of')).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    expect(call?.url.searchParams.has('date_from')).toBe(false)
+  })
+
+  it('shows ageing per invoice with its bucket and a link', async () => {
+    setupSales()
+    const user = userEvent.setup()
+    renderSales('/sales/reports/customer-ageing')
+    await user.click(await screen.findByRole('button', { name: 'Çalıştır' }))
+    await screen.findByRole('table', { name: 'Müşteri yaşlandırma' })
+    await user.selectOptions(screen.getByLabelText('Gruplama'), 'invoice')
+    await user.click(screen.getByRole('button', { name: 'Çalıştır' }))
+    const table = await screen.findByRole('table', { name: 'Müşteri yaşlandırma' })
+    await waitFor(() =>
+      expect(within(table).getByRole('link', { name: 'INV2026000000007' })).toHaveAttribute(
+        'href',
+        '/sales/invoices/inv-recent-1',
+      ),
+    )
+    expect(within(table).getByText('0-30 gün')).toBeInTheDocument()
   })
 
   it('draws ageing buckets from the totals', async () => {
