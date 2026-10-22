@@ -1,0 +1,437 @@
+{
+  "nav": {
+    "purchasing": "Einkauf",
+    "requests": "Bedarfsanforderungen",
+    "rfqs": "Angebotsanfragen",
+    "orders": "Bestellungen"
+  },
+  "palette": {
+    "requests": "Bedarfsanforderungen",
+    "newRequest": "Neue Bedarfsanforderung",
+    "rfqs": "Angebotsanfragen (RFQ)",
+    "newRfq": "Neue Angebotsanfrage",
+    "orders": "Bestellungen",
+    "newOrder": "Neue Bestellung"
+  },
+  "common": {
+    "new": "Neu",
+    "unnumbered": "(Entwurf ohne Nummer)"
+  },
+  "actions": {
+    "cancel": "Abbrechen"
+  },
+  "status": {
+    "request": {
+      "draft": "Entwurf",
+      "pending_approval": "Wartet auf Freigabe",
+      "approved": "Freigegeben",
+      "rejected": "Abgelehnt",
+      "partially_ordered": "Teilweise bestellt",
+      "ordered": "Bestellt",
+      "cancelled": "Storniert"
+    },
+    "rfq": {
+      "draft": "Entwurf",
+      "sent": "Versendet",
+      "collecting": "Angebote werden gesammelt",
+      "awarded": "Vergeben",
+      "cancelled": "Storniert"
+    },
+    "order": {
+      "draft": "Entwurf",
+      "pending_approval": "Wartet auf Freigabe",
+      "approved": "Freigegeben",
+      "sent": "An Lieferant gesendet",
+      "partially_received": "Teilweise eingegangen",
+      "received": "Eingegangen",
+      "partially_invoiced": "Teilweise berechnet",
+      "invoiced": "Berechnet",
+      "closed": "Abgeschlossen",
+      "cancelled": "Storniert"
+    }
+  },
+  "fields": {
+    "number": "Nummer",
+    "status": "Status",
+    "supplier": "Lieferant",
+    "taxNumber": "Finanzamt / Steuernummer",
+    "documentDate": "Belegdatum",
+    "dueDate": "Fälligkeit",
+    "expectedDate": "Erwartete Lieferung",
+    "neededBy": "Bedarfsdatum",
+    "responseDue": "Antwortfrist",
+    "currency": "Währung",
+    "fxRate": "Kurs",
+    "fxRateHelp": "Leer lassen, um den Kurs des Belegdatums zu verwenden.",
+    "paymentTerm": "Zahlungsziel",
+    "warehouse": "Lager",
+    "supplierReference": "Referenz des Lieferanten",
+    "revision": "Revision",
+    "notes": "Notiz",
+    "notesHelp": "Erscheint auf dem Beleg an den Lieferanten.",
+    "internalNotes": "Interne Notiz",
+    "internalNotesHelp": "Nur intern sichtbar.",
+    "estimatedTotal": "Geschätzter Betrag",
+    "lineCount": "Positionen",
+    "total": "Summe"
+  },
+  "filters": {
+    "title": "Filter",
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "supplier": "Lieferant",
+    "suggestedSupplier": "Vorgeschlagener Lieferant",
+    "invitedSupplier": "Eingeladener Lieferant",
+    "item": "Artikel",
+    "number": "Belegnummer",
+    "clear": "Filter zurücksetzen"
+  },
+  "editor": {
+    "header": "Belegdaten",
+    "notes": "Notizen",
+    "saveDraft": "Entwurf speichern",
+    "saved": "Entwurf gespeichert.",
+    "delete": "Entwurf löschen",
+    "deleteBody": "Der Entwurf wird endgültig gelöscht.",
+    "deleted": "Entwurf gelöscht.",
+    "readOnly": "Sie dürfen diesen Beleg nicht bearbeiten."
+  },
+  "errors": {
+    "generic": "Die Aktion konnte nicht ausgeführt werden.",
+    "action": "Die Aktion konnte nicht ausgeführt werden; der Beleg ist unverändert."
+  },
+  "warnings": {
+    "line": "Position {{index}}"
+  },
+  "view": {
+    "lines": "Positionen",
+    "audit": "Verlauf",
+    "attachments": "Anhänge"
+  },
+  "chain": {
+    "title": "Belegkette",
+    "type": {
+      "purchase_request": "Anforderung",
+      "purchase_rfq": "Angebotsanfrage",
+      "purchase_order": "Bestellung",
+      "purchase_receipt": "Wareneingang",
+      "purchase_invoice": "Eingangsrechnung",
+      "purchase_debit_note": "Lastschrift",
+      "purchase_return": "Rücksendung"
+    },
+    "status": {
+      "draft": "Entwurf",
+      "pending_approval": "Wartet auf Freigabe",
+      "approved": "Freigegeben",
+      "rejected": "Abgelehnt",
+      "partially_ordered": "Teilweise bestellt",
+      "ordered": "Bestellt",
+      "sent": "Versendet",
+      "collecting": "Angebote werden gesammelt",
+      "awarded": "Vergeben",
+      "partially_received": "Teilweise eingegangen",
+      "received": "Eingegangen",
+      "partially_invoiced": "Teilweise berechnet",
+      "invoiced": "Berechnet",
+      "closed": "Abgeschlossen",
+      "cancelled": "Storniert",
+      "posted": "Gebucht",
+      "booked": "Verbucht",
+      "partially_paid": "Teilweise bezahlt",
+      "paid": "Bezahlt",
+      "reversed": "Storniert (Gegenbuchung)",
+      "shipped": "Versendet",
+      "debited": "Belastet"
+    }
+  },
+  "approval": {
+    "tab": "Freigabe",
+    "pending": "Der Beleg wartet auf Freigabe; danach sind die Aktionen verfügbar.",
+    "rejected": "Freigabe abgelehnt: {{comment}}",
+    "unavailable": "Die Freigabe kann nicht angezeigt werden."
+  },
+  "exposure": {
+    "loading": "Lieferantensaldo wird geladen…",
+    "unavailable": "Der Lieferantensaldo kann nicht angezeigt werden.",
+    "total": "Offener Saldo {{amount}}",
+    "overdue": "Überfällige Verbindlichkeiten {{amount}}",
+    "breakdown": "Offene Verbindlichkeiten {{payables}} · nicht berechnete Bestellungen {{orders}}",
+    "after": "mit diesem Beleg {{amount}}"
+  },
+  "totals": {
+    "withholdingTitle": "Einbehalt",
+    "withholding": "USt-Einbehalt",
+    "payable": "An Lieferant zu zahlen"
+  },
+  "lines": {
+    "title": "Positionen",
+    "item": "Artikel",
+    "description": "Beschreibung",
+    "quantity": "Menge",
+    "unit": "Einheit",
+    "unitPrice": "Einzelpreis",
+    "estimatedPrice": "Geschätzter Preis",
+    "estimatedTotal": "Geschätzter Betrag",
+    "suggestedSupplier": "Vorgeschlagener Lieferant",
+    "neededBy": "Bedarfsdatum",
+    "discountPercent": "Rabatt %",
+    "discountAmount": "Rabattbetrag",
+    "tax": "USt",
+    "withholding": "Einbehalt",
+    "lineTotal": "Positionssumme",
+    "net": "Netto",
+    "netTax": "Netto {{net}} · USt {{rate}} %",
+    "withheld": "einbehalten {{amount}}",
+    "ordered": "Bestellt",
+    "received": "Eingegangen",
+    "invoiced": "Berechnet",
+    "priceSource": {
+      "quote": "Angebotspreis",
+      "request": "Geschätzter Preis der Anforderung"
+    }
+  },
+  "validation": {
+    "supplier": "Wählen Sie einen Lieferanten.",
+    "suppliersRequired": "Wählen Sie mindestens einen Lieferanten.",
+    "suppliersMax": "Höchstens 100 Lieferanten können eingeladen werden.",
+    "currency": "Wählen Sie eine Währung.",
+    "minLines": "Erfassen Sie mindestens eine Position.",
+    "maxLines": "Höchstens {{max}} Positionen sind erlaubt.",
+    "item": "Wählen Sie einen Artikel.",
+    "unit": "Wählen Sie eine Einheit.",
+    "quantity": "Geben Sie eine Menge größer null ein (höchstens 6 Nachkommastellen).",
+    "price": "Geben Sie einen gültigen Preis ein (höchstens 6 Nachkommastellen).",
+    "discountPercent": "Der Rabatt muss zwischen 0 und 100 liegen.",
+    "discountAmount": "Geben Sie einen gültigen Rabattbetrag ein.",
+    "fxRate": "Der Kurs muss größer null sein.",
+    "expectedDate": "Die erwartete Lieferung darf nicht vor dem Belegdatum liegen.",
+    "neededBy": "Das Bedarfsdatum darf nicht vor dem Belegdatum liegen.",
+    "responseDue": "Die Antwortfrist darf nicht vor dem Belegdatum liegen.",
+    "leadTime": "Die Lieferzeit muss zwischen 0 und 3650 Tagen liegen."
+  },
+  "requests": {
+    "listTitle": "Bedarfsanforderungen",
+    "listDescription": "Bedarfe der Abteilungen; freigegebene werden zu Angebotsanfragen oder Bestellungen.",
+    "exportName": "bedarfsanforderungen",
+    "new": "Neue Anforderung",
+    "newTitle": "Neue Bedarfsanforderung",
+    "editTitle": "Anforderung {{number}}",
+    "viewTitle": "Anforderung {{number}}",
+    "deleteTitle": "Anforderungsentwurf löschen?",
+    "actions": {
+      "submit": "Zur Freigabe senden",
+      "cancel": "Anforderung stornieren",
+      "toRfq": "Angebotsanfrage erstellen",
+      "toOrder": "Bestellung erstellen"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Anforderung zur Freigabe senden?",
+        "body": "{{number}} erhält eine Nummer; unter der Freigabegrenze wird sie sofort freigegeben."
+      },
+      "cancel": {
+        "title": "Anforderung stornieren?",
+        "body": "{{number}} wird storniert; daraus erstellte Bestellentwürfe müssen zuerst gelöscht werden."
+      }
+    },
+    "done": {
+      "approved": "Anforderung freigegeben.",
+      "pendingApproval": "Anforderung zur Freigabe gesendet.",
+      "cancel": "Anforderung storniert."
+    }
+  },
+  "convert": {
+    "linesLabel": "Zu übernehmende Positionen",
+    "quantity": "Zu übernehmende Menge",
+    "priceFor": "Einzelpreis von {{item}}",
+    "rfq": {
+      "title": "Angebotsanfrage zu {{number}}",
+      "description": "Die offenen Mengen werden in einer Entwurfsanfrage bei den gewählten Lieferanten angefragt.",
+      "create": "Entwurf der Angebotsanfrage erstellen",
+      "created": "Entwurf der Angebotsanfrage erstellt."
+    },
+    "order": {
+      "title": "Bestellung zu {{number}}",
+      "description": "Für den gewählten Lieferanten wird ein Bestellentwurf mit den offenen Mengen erstellt.",
+      "currencyHelp": "Leer lassen, um die Währung des Lieferanten zu verwenden.",
+      "create": "Bestellentwurf erstellen",
+      "created": "Bestellentwurf erstellt."
+    }
+  },
+  "rfqs": {
+    "listTitle": "Angebotsanfragen",
+    "listDescription": "Preise bei Lieferanten einholen, vergleichen und vergeben.",
+    "exportName": "angebotsanfragen",
+    "new": "Neue Anfrage",
+    "newTitle": "Neue Angebotsanfrage",
+    "editTitle": "Angebotsanfrage {{number}}",
+    "viewTitle": "Angebotsanfrage {{number}}",
+    "deleteTitle": "Entwurf der Angebotsanfrage löschen?",
+    "suppliers": "Eingeladene Lieferanten",
+    "suppliersTab": "Lieferanten und Angebote",
+    "suppliersHelp": "Zum Versenden ist mindestens ein Lieferant nötig.",
+    "addSupplier": "Lieferant hinzufügen…",
+    "removeSupplier": "{{name}} aus der Einladung entfernen",
+    "currencyHelp": "Angebote werden in dieser Währung erfasst.",
+    "notesHelp": "Erscheint auf der Anfrage an die Lieferanten.",
+    "awardedTo": "Vergeben an",
+    "quotedLines": "{{quoted}}/{{total}} Positionen mit Preis",
+    "supplierStatus": {
+      "invited": "Eingeladen",
+      "responded": "Geantwortet",
+      "declined": "Abgelehnt"
+    },
+    "actions": {
+      "send": "Senden",
+      "cancel": "Angebotsanfrage stornieren",
+      "award": "Vergeben"
+    },
+    "confirm": {
+      "send": {
+        "title": "Angebotsanfrage senden?",
+        "body": "Sie erhält eine Nummer und gilt als an die eingeladenen Lieferanten ({{count}}) gesendet; die Positionen sind danach fest."
+      },
+      "cancel": {
+        "title": "Angebotsanfrage stornieren?",
+        "body": "Erfasste Angebote bleiben erhalten; eine Vergabe ist nicht mehr möglich."
+      }
+    },
+    "done": {
+      "send": "{{number}} gesendet.",
+      "cancel": "Angebotsanfrage storniert."
+    },
+    "quotes": {
+      "enter": "Angebot von {{supplier}} erfassen",
+      "title": "Angebot von {{supplier}}",
+      "description": "Preise in {{currency}}; Positionen ohne Preis gelten als nicht angeboten.",
+      "declined": "Der Lieferant hat kein Angebot abgegeben",
+      "declinedHelp": "Entfernt die zuvor erfassten Preise.",
+      "linesLabel": "Angebotspositionen",
+      "leadTime": "Lieferzeit (Tage)",
+      "validUntil": "Gültig bis",
+      "lineTotal": "Positionsbetrag",
+      "priceFor": "Einzelpreis von {{item}}",
+      "discountFor": "Rabattsatz von {{item}}",
+      "leadTimeFor": "Lieferzeit von {{item}} (Tage)",
+      "validUntilFor": "Angebotsgültigkeit von {{item}}",
+      "nothingPriced": "Erfassen Sie mindestens einen Preis oder markieren Sie die Absage des Lieferanten.",
+      "save": "Angebot speichern",
+      "saved": "Angebot gespeichert.",
+      "declinedSaved": "Die Absage des Lieferanten wurde erfasst."
+    },
+    "comparison": {
+      "title": "Vergleich",
+      "empty": "Noch keine Angebote erfasst.",
+      "noQuote": "Kein Angebot",
+      "lowest": "Günstigstes",
+      "fastest": "Schnellstes",
+      "days": "Lieferzeit {{count}} T.",
+      "total": "Summe",
+      "complete": "Alle Positionen",
+      "partial": "{{quoted}}/{{total}} Positionen",
+      "awardedTo": "Vergeben: {{supplier}}"
+    },
+    "award": {
+      "title": "Vergabe von {{number}}",
+      "description": "Je Lieferant wird ein Bestellentwurf zu den Angebotspreisen erstellt.",
+      "mode": "Art der Vergabe",
+      "wholeSupplier": "Ein Lieferant (alle angebotenen Positionen)",
+      "perLine": "Lieferant je Position wählen",
+      "supplier": "Lieferant",
+      "lowestTotal": "niedrigste Summe",
+      "pickFor": "{{supplier}} für {{item}}",
+      "expectedHelp": "Leer lassen, um sie aus der Lieferzeit abzuleiten.",
+      "summary": "Zu erstellende Bestellungen",
+      "orderFor": "{{supplier}} — Positionen: {{count}}",
+      "create": "Bestellungen erstellen ({{count}})",
+      "done": "Bestellentwürfe erstellt ({{count}}): {{suppliers}}"
+    }
+  },
+  "orders": {
+    "listTitle": "Bestellungen",
+    "listDescription": "Lieferantenbestellungen mit Freigabe-, Versand-, Wareneingangs- und Rechnungsstand.",
+    "exportName": "bestellungen",
+    "new": "Neue Bestellung",
+    "newTitle": "Neue Bestellung",
+    "editTitle": "Bestellung {{number}}",
+    "viewTitle": "Bestellung {{number}}",
+    "reviseTitle": "Revision von {{number}}",
+    "reviseHelp": "Nach dem Speichern der Revision geht die Bestellung erneut in die Freigabe.",
+    "saveRevise": "Revision speichern",
+    "cancelRevise": "Revision verlassen",
+    "revised": "Revision gespeichert.",
+    "revisedPending": "Revision gespeichert; die Bestellung wartet auf Freigabe.",
+    "deleteTitle": "Bestellentwurf löschen?",
+    "actions": {
+      "submit": "Zur Freigabe senden",
+      "send": "Als gesendet markieren",
+      "revise": "Revidieren",
+      "cancel": "Bestellung stornieren",
+      "close": "Bestellung abschließen",
+      "createReceipt": "Wareneingang erstellen",
+      "createInvoice": "Rechnung erstellen"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Bestellung zur Freigabe senden?",
+        "body": "{{number}} ({{supplier}}, {{total}}) erhält eine Nummer; unter der Freigabegrenze wird sie sofort freigegeben."
+      },
+      "send": {
+        "title": "Bestellung als gesendet markieren?",
+        "body": "Es wird erfasst, dass {{number}} an {{supplier}} übermittelt wurde."
+      },
+      "cancel": {
+        "title": "Bestellung stornieren?",
+        "body": "{{number}} ({{supplier}}, {{total}}) wird storniert; mit Wareneingängen oder Rechnungen nicht möglich."
+      },
+      "close": {
+        "title": "Bestellung abschließen?",
+        "body": "Restmengen von {{number}} werden nicht mehr empfangen oder berechnet."
+      }
+    },
+    "done": {
+      "submit": "Bestellung freigegeben.",
+      "pendingApproval": "Bestellung zur Freigabe gesendet.",
+      "send": "Bestellung als gesendet markiert.",
+      "cancel": "Bestellung storniert.",
+      "close": "Bestellung abgeschlossen."
+    }
+  },
+  "wizard": {
+    "close": "Schließen",
+    "step": "Schritt {{step}}/{{total}}",
+    "step1": "Mengen",
+    "step2": "Angaben und Übersicht",
+    "linesLabel": "Bestellpositionen",
+    "remaining": "Offen",
+    "service": "(Dienstleistung)",
+    "quantityFor": "Menge von {{item}}",
+    "exceeds": "Höchstens {{max}} möglich.",
+    "invalid": "Geben Sie eine gültige Menge ein.",
+    "nothingChosen": "Erfassen Sie bei mindestens einer Position eine Menge.",
+    "fillAll": "Alle offenen",
+    "clear": "Leeren",
+    "tolerance": "Mehrlieferungstoleranz: {{percent}} %",
+    "receiveOnInvoice": "Noch nicht eingegangene Ware mit der Rechnung vereinnahmen",
+    "receiveOnInvoiceHelp": "Beim Buchen der Rechnung wird auch der Wareneingang gebucht (nicht für Chargen- oder Seriennummernartikel).",
+    "documentDate": "Belegdatum",
+    "supplierInvoiceNo": "Rechnungsnummer des Lieferanten",
+    "supplierInvoiceNoHelp": "Zum Buchen erforderlich; kann vorerst leer bleiben.",
+    "summary": "Übersicht",
+    "back": "Zurück",
+    "next": "Weiter",
+    "failed": "Der Beleg konnte nicht erstellt werden.",
+    "receipt": {
+      "title": "Wareneingang zu {{number}}",
+      "quantity": "Eingegangen",
+      "create": "Wareneingangsentwurf erstellen",
+      "created": "Wareneingangsentwurf erstellt {{number}}"
+    },
+    "invoice": {
+      "title": "Eingangsrechnung zu {{number}}",
+      "quantity": "Berechnet",
+      "create": "Rechnungsentwurf erstellen",
+      "created": "Rechnungsentwurf erstellt {{number}}"
+    }
+  }
+}

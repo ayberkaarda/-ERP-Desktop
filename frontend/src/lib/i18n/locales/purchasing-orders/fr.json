@@ -1,0 +1,437 @@
+{
+  "nav": {
+    "purchasing": "Achats",
+    "requests": "Demandes d'achat",
+    "rfqs": "Demandes de prix",
+    "orders": "Commandes fournisseurs"
+  },
+  "palette": {
+    "requests": "Demandes d'achat",
+    "newRequest": "Nouvelle demande d'achat",
+    "rfqs": "Demandes de prix (RFQ)",
+    "newRfq": "Nouvelle demande de prix",
+    "orders": "Commandes fournisseurs",
+    "newOrder": "Nouvelle commande fournisseur"
+  },
+  "common": {
+    "new": "Nouveau",
+    "unnumbered": "(brouillon sans numéro)"
+  },
+  "actions": {
+    "cancel": "Annuler"
+  },
+  "status": {
+    "request": {
+      "draft": "Brouillon",
+      "pending_approval": "En attente d'approbation",
+      "approved": "Approuvée",
+      "rejected": "Rejetée",
+      "partially_ordered": "Partiellement commandée",
+      "ordered": "Commandée",
+      "cancelled": "Annulée"
+    },
+    "rfq": {
+      "draft": "Brouillon",
+      "sent": "Envoyée",
+      "collecting": "Collecte des offres",
+      "awarded": "Attribuée",
+      "cancelled": "Annulée"
+    },
+    "order": {
+      "draft": "Brouillon",
+      "pending_approval": "En attente d'approbation",
+      "approved": "Approuvée",
+      "sent": "Envoyée au fournisseur",
+      "partially_received": "Partiellement reçue",
+      "received": "Reçue",
+      "partially_invoiced": "Partiellement facturée",
+      "invoiced": "Facturée",
+      "closed": "Clôturée",
+      "cancelled": "Annulée"
+    }
+  },
+  "fields": {
+    "number": "Numéro",
+    "status": "Statut",
+    "supplier": "Fournisseur",
+    "taxNumber": "Centre des impôts / numéro",
+    "documentDate": "Date du document",
+    "dueDate": "Échéance",
+    "expectedDate": "Livraison prévue",
+    "neededBy": "Date de besoin",
+    "responseDue": "Date limite de réponse",
+    "currency": "Devise",
+    "fxRate": "Taux de change",
+    "fxRateHelp": "Laisser vide pour utiliser le taux de la date du document.",
+    "paymentTerm": "Condition de paiement",
+    "warehouse": "Entrepôt",
+    "supplierReference": "Référence fournisseur",
+    "revision": "Révision",
+    "notes": "Note",
+    "notesHelp": "Apparaît sur le document envoyé au fournisseur.",
+    "internalNotes": "Note interne",
+    "internalNotesHelp": "Visible uniquement en interne.",
+    "estimatedTotal": "Montant estimé",
+    "lineCount": "Lignes",
+    "total": "Total"
+  },
+  "filters": {
+    "title": "Filtres",
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "supplier": "Fournisseur",
+    "suggestedSupplier": "Fournisseur suggéré",
+    "invitedSupplier": "Fournisseur invité",
+    "item": "Article",
+    "number": "N° de document",
+    "clear": "Effacer les filtres"
+  },
+  "editor": {
+    "header": "Informations du document",
+    "notes": "Notes",
+    "saveDraft": "Enregistrer le brouillon",
+    "saved": "Brouillon enregistré.",
+    "delete": "Supprimer le brouillon",
+    "deleteBody": "Le brouillon sera supprimé définitivement.",
+    "deleted": "Brouillon supprimé.",
+    "readOnly": "Vous ne pouvez pas modifier ce document."
+  },
+  "errors": {
+    "generic": "L'action n'a pas pu être effectuée.",
+    "action": "L'action n'a pas pu être effectuée ; le document est inchangé."
+  },
+  "warnings": {
+    "line": "Ligne {{index}}"
+  },
+  "view": {
+    "lines": "Lignes",
+    "audit": "Historique",
+    "attachments": "Pièces jointes"
+  },
+  "chain": {
+    "title": "Chaîne documentaire",
+    "type": {
+      "purchase_request": "Demande",
+      "purchase_rfq": "Demande de prix",
+      "purchase_order": "Commande",
+      "purchase_receipt": "Réception",
+      "purchase_invoice": "Facture d'achat",
+      "purchase_debit_note": "Note de débit",
+      "purchase_return": "Retour"
+    },
+    "status": {
+      "draft": "Brouillon",
+      "pending_approval": "En attente d'approbation",
+      "approved": "Approuvé",
+      "rejected": "Rejeté",
+      "partially_ordered": "Partiellement commandé",
+      "ordered": "Commandé",
+      "sent": "Envoyé",
+      "collecting": "Collecte des offres",
+      "awarded": "Attribué",
+      "partially_received": "Partiellement reçu",
+      "received": "Reçu",
+      "partially_invoiced": "Partiellement facturé",
+      "invoiced": "Facturé",
+      "closed": "Clôturé",
+      "cancelled": "Annulé",
+      "posted": "Comptabilisé",
+      "booked": "Enregistré",
+      "partially_paid": "Partiellement payé",
+      "paid": "Payé",
+      "reversed": "Extourné",
+      "shipped": "Expédié",
+      "debited": "Débité"
+    }
+  },
+  "approval": {
+    "tab": "Approbation",
+    "pending": "Le document attend son approbation ; les actions seront disponibles ensuite.",
+    "rejected": "Approbation rejetée : {{comment}}",
+    "unavailable": "L'approbation ne peut pas être affichée."
+  },
+  "exposure": {
+    "loading": "Chargement du solde fournisseur…",
+    "unavailable": "Le solde fournisseur ne peut pas être affiché.",
+    "total": "Solde ouvert {{amount}}",
+    "overdue": "Dettes échues {{amount}}",
+    "breakdown": "Dettes ouvertes {{payables}} · commandes non facturées {{orders}}",
+    "after": "avec ce document {{amount}}"
+  },
+  "totals": {
+    "withholdingTitle": "Retenue",
+    "withholding": "Retenue de TVA",
+    "payable": "À payer au fournisseur"
+  },
+  "lines": {
+    "title": "Lignes",
+    "item": "Article",
+    "description": "Description",
+    "quantity": "Quantité",
+    "unit": "Unité",
+    "unitPrice": "Prix unitaire",
+    "estimatedPrice": "Prix estimé",
+    "estimatedTotal": "Montant estimé",
+    "suggestedSupplier": "Fournisseur suggéré",
+    "neededBy": "Date de besoin",
+    "discountPercent": "Rem. %",
+    "discountAmount": "Montant remise",
+    "tax": "TVA",
+    "withholding": "Retenue",
+    "lineTotal": "Total ligne",
+    "net": "Net",
+    "netTax": "Net {{net}} · TVA {{rate}} %",
+    "withheld": "retenue {{amount}}",
+    "ordered": "Commandé",
+    "received": "Reçu",
+    "invoiced": "Facturé",
+    "priceSource": {
+      "quote": "Prix de l'offre",
+      "request": "Prix estimé de la demande"
+    }
+  },
+  "validation": {
+    "supplier": "Choisissez un fournisseur.",
+    "suppliersRequired": "Choisissez au moins un fournisseur.",
+    "suppliersMax": "100 fournisseurs au maximum peuvent être invités.",
+    "currency": "Choisissez une devise.",
+    "minLines": "Saisissez au moins une ligne.",
+    "maxLines": "{{max}} lignes au maximum sont autorisées.",
+    "item": "Choisissez un article.",
+    "unit": "Choisissez une unité.",
+    "quantity": "Saisissez une quantité supérieure à zéro (6 décimales au plus).",
+    "price": "Saisissez un prix valide (6 décimales au plus).",
+    "discountPercent": "La remise doit être comprise entre 0 et 100.",
+    "discountAmount": "Saisissez un montant de remise valide.",
+    "fxRate": "Le taux doit être supérieur à zéro.",
+    "expectedDate": "La livraison prévue ne peut précéder la date du document.",
+    "neededBy": "La date de besoin ne peut précéder la date du document.",
+    "responseDue": "La date limite de réponse ne peut précéder la date du document.",
+    "leadTime": "Le délai doit être compris entre 0 et 3650 jours."
+  },
+  "requests": {
+    "listTitle": "Demandes d'achat",
+    "listDescription": "Besoins des services ; les demandes approuvées deviennent des demandes de prix ou des commandes.",
+    "exportName": "demandes-achat",
+    "new": "Nouvelle demande",
+    "newTitle": "Nouvelle demande d'achat",
+    "editTitle": "Demande {{number}}",
+    "viewTitle": "Demande {{number}}",
+    "deleteTitle": "Supprimer le brouillon de demande ?",
+    "actions": {
+      "submit": "Soumettre à l'approbation",
+      "cancel": "Annuler la demande",
+      "toRfq": "Créer une demande de prix",
+      "toOrder": "Créer une commande"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Soumettre la demande à l'approbation ?",
+        "body": "{{number}} reçoit son numéro ; sous le seuil d'approbation elle est approuvée immédiatement."
+      },
+      "cancel": {
+        "title": "Annuler la demande ?",
+        "body": "{{number}} est annulée ; les brouillons de commande issus d'elle doivent d'abord être supprimés."
+      }
+    },
+    "done": {
+      "approved": "Demande approuvée.",
+      "pendingApproval": "Demande soumise à l'approbation.",
+      "cancel": "Demande annulée."
+    }
+  },
+  "convert": {
+    "linesLabel": "Lignes à reprendre",
+    "quantity": "Quantité à reprendre",
+    "priceFor": "Prix unitaire de {{item}}",
+    "rfq": {
+      "title": "Demande de prix pour {{number}}",
+      "description": "Les quantités ouvertes sont demandées aux fournisseurs choisis dans une demande de prix brouillon.",
+      "create": "Créer la demande de prix brouillon",
+      "created": "Demande de prix brouillon créée."
+    },
+    "order": {
+      "title": "Commande pour {{number}}",
+      "description": "Une commande brouillon avec les quantités ouvertes est créée pour le fournisseur choisi.",
+      "currencyHelp": "Laisser vide pour utiliser la devise du fournisseur.",
+      "create": "Créer la commande brouillon",
+      "created": "Commande brouillon créée."
+    }
+  },
+  "rfqs": {
+    "listTitle": "Demandes de prix",
+    "listDescription": "Recueillir les prix des fournisseurs, les comparer et attribuer.",
+    "exportName": "demandes-de-prix",
+    "new": "Nouvelle demande de prix",
+    "newTitle": "Nouvelle demande de prix",
+    "editTitle": "Demande de prix {{number}}",
+    "viewTitle": "Demande de prix {{number}}",
+    "deleteTitle": "Supprimer le brouillon de demande de prix ?",
+    "suppliers": "Fournisseurs invités",
+    "suppliersTab": "Fournisseurs et offres",
+    "suppliersHelp": "Au moins un fournisseur est nécessaire pour l'envoi.",
+    "addSupplier": "Ajouter un fournisseur…",
+    "removeSupplier": "Retirer {{name}} de l'invitation",
+    "currencyHelp": "Les offres sont saisies dans cette devise.",
+    "notesHelp": "Apparaît sur la demande envoyée aux fournisseurs.",
+    "awardedTo": "Attribuée à",
+    "quotedLines": "{{quoted}}/{{total}} lignes chiffrées",
+    "supplierStatus": {
+      "invited": "Invité",
+      "responded": "A répondu",
+      "declined": "A décliné"
+    },
+    "actions": {
+      "send": "Envoyer",
+      "cancel": "Annuler la demande de prix",
+      "award": "Attribuer"
+    },
+    "confirm": {
+      "send": {
+        "title": "Envoyer la demande de prix ?",
+        "body": "Elle reçoit son numéro et est considérée comme envoyée aux fournisseurs invités ({{count}}) ; les lignes sont alors figées."
+      },
+      "cancel": {
+        "title": "Annuler la demande de prix ?",
+        "body": "Les offres saisies sont conservées ; l'attribution n'est plus possible."
+      }
+    },
+    "done": {
+      "send": "{{number}} envoyée.",
+      "cancel": "Demande de prix annulée."
+    },
+    "quotes": {
+      "enter": "Saisir l'offre de {{supplier}}",
+      "title": "Offre de {{supplier}}",
+      "description": "Prix en {{currency}} ; les lignes sans prix sont considérées comme non chiffrées.",
+      "declined": "Le fournisseur n'a pas fait d'offre",
+      "declinedHelp": "Supprime les prix saisis auparavant.",
+      "linesLabel": "Lignes de l'offre",
+      "leadTime": "Délai (jours)",
+      "validUntil": "Valable jusqu'au",
+      "lineTotal": "Montant ligne",
+      "priceFor": "Prix unitaire de {{item}}",
+      "discountFor": "Taux de remise de {{item}}",
+      "leadTimeFor": "Délai de {{item}} (jours)",
+      "validUntilFor": "Validité de l'offre pour {{item}}",
+      "nothingPriced": "Chiffrez au moins une ligne ou indiquez que le fournisseur a décliné.",
+      "save": "Enregistrer l'offre",
+      "saved": "Offre enregistrée.",
+      "declinedSaved": "Le refus du fournisseur a été enregistré."
+    },
+    "comparison": {
+      "title": "Comparaison",
+      "empty": "Aucune offre saisie pour l'instant.",
+      "noQuote": "Pas d'offre",
+      "lowest": "Moins cher",
+      "fastest": "Plus rapide",
+      "days": "délai {{count}} j",
+      "total": "Total",
+      "complete": "Toutes les lignes",
+      "partial": "{{quoted}}/{{total}} lignes",
+      "awardedTo": "Attribuée : {{supplier}}"
+    },
+    "award": {
+      "title": "Attribution de {{number}}",
+      "description": "Une commande brouillon par fournisseur est créée aux prix des offres.",
+      "mode": "Mode d'attribution",
+      "wholeSupplier": "Un seul fournisseur (toutes les lignes qu'il a chiffrées)",
+      "perLine": "Choisir un fournisseur par ligne",
+      "supplier": "Fournisseur",
+      "lowestTotal": "total le plus bas",
+      "pickFor": "{{supplier}} pour {{item}}",
+      "expectedHelp": "Laisser vide pour la déduire du délai.",
+      "summary": "Commandes à créer",
+      "orderFor": "{{supplier}} — lignes : {{count}}",
+      "create": "Créer les commandes ({{count}})",
+      "done": "Commandes brouillon créées ({{count}}) : {{suppliers}}"
+    }
+  },
+  "orders": {
+    "listTitle": "Commandes fournisseurs",
+    "listDescription": "Commandes fournisseurs avec état d'approbation, d'envoi, de réception et de facturation.",
+    "exportName": "commandes-fournisseurs",
+    "new": "Nouvelle commande",
+    "newTitle": "Nouvelle commande fournisseur",
+    "editTitle": "Commande {{number}}",
+    "viewTitle": "Commande {{number}}",
+    "reviseTitle": "Révision de {{number}}",
+    "reviseHelp": "Une fois la révision enregistrée, la commande repasse en approbation.",
+    "saveRevise": "Enregistrer la révision",
+    "cancelRevise": "Quitter la révision",
+    "revised": "Révision enregistrée.",
+    "revisedPending": "Révision enregistrée ; la commande attend son approbation.",
+    "deleteTitle": "Supprimer le brouillon de commande ?",
+    "actions": {
+      "submit": "Soumettre à l'approbation",
+      "send": "Marquer comme envoyée",
+      "revise": "Réviser",
+      "cancel": "Annuler la commande",
+      "close": "Clôturer la commande",
+      "createReceipt": "Créer une réception",
+      "createInvoice": "Créer une facture"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Soumettre la commande à l'approbation ?",
+        "body": "{{number}} ({{supplier}}, {{total}}) reçoit son numéro ; sous le seuil d'approbation elle est approuvée immédiatement."
+      },
+      "send": {
+        "title": "Marquer la commande comme envoyée ?",
+        "body": "Enregistre que {{number}} a été transmise à {{supplier}}."
+      },
+      "cancel": {
+        "title": "Annuler la commande ?",
+        "body": "{{number}} ({{supplier}}, {{total}}) est annulée ; impossible dès qu'il existe des réceptions ou des factures."
+      },
+      "close": {
+        "title": "Clôturer la commande ?",
+        "body": "Les quantités restantes de {{number}} ne seront plus reçues ni facturées."
+      }
+    },
+    "done": {
+      "submit": "Commande approuvée.",
+      "pendingApproval": "Commande soumise à l'approbation.",
+      "send": "Commande marquée comme envoyée.",
+      "cancel": "Commande annulée.",
+      "close": "Commande clôturée."
+    }
+  },
+  "wizard": {
+    "close": "Fermer",
+    "step": "Étape {{step}}/{{total}}",
+    "step1": "Quantités",
+    "step2": "Informations et résumé",
+    "linesLabel": "Lignes de commande",
+    "remaining": "Restant",
+    "service": "(service)",
+    "quantityFor": "Quantité de {{item}}",
+    "exceeds": "{{max}} au maximum.",
+    "invalid": "Saisissez une quantité valide.",
+    "nothingChosen": "Saisissez une quantité sur au moins une ligne.",
+    "fillAll": "Tout le restant",
+    "clear": "Vider",
+    "tolerance": "Tolérance de surlivraison : {{percent}} %",
+    "receiveOnInvoice": "Réceptionner avec la facture les marchandises non encore reçues",
+    "receiveOnInvoiceHelp": "L'enregistrement de la facture comptabilise aussi la réception (sauf articles suivis par lot ou numéro de série).",
+    "documentDate": "Date du document",
+    "supplierInvoiceNo": "N° de facture fournisseur",
+    "supplierInvoiceNoHelp": "Obligatoire pour l'enregistrement ; peut rester vide pour l'instant.",
+    "summary": "Résumé",
+    "back": "Retour",
+    "next": "Suivant",
+    "failed": "Le document n'a pas pu être créé.",
+    "receipt": {
+      "title": "Réception pour {{number}}",
+      "quantity": "Reçu",
+      "create": "Créer la réception brouillon",
+      "created": "Réception brouillon créée {{number}}"
+    },
+    "invoice": {
+      "title": "Facture d'achat pour {{number}}",
+      "quantity": "Facturé",
+      "create": "Créer la facture brouillon",
+      "created": "Facture brouillon créée {{number}}"
+    }
+  }
+}

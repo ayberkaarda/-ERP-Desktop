@@ -1,0 +1,437 @@
+{
+  "nav": {
+    "purchasing": "Satınalma",
+    "requests": "Satınalma talepleri",
+    "rfqs": "Teklif talepleri",
+    "orders": "Satınalma siparişleri"
+  },
+  "palette": {
+    "requests": "Satınalma talepleri",
+    "newRequest": "Yeni satınalma talebi",
+    "rfqs": "Teklif talepleri (RFQ)",
+    "newRfq": "Yeni teklif talebi",
+    "orders": "Satınalma siparişleri",
+    "newOrder": "Yeni satınalma siparişi"
+  },
+  "common": {
+    "new": "Yeni",
+    "unnumbered": "(numarasız taslak)"
+  },
+  "actions": {
+    "cancel": "Vazgeç"
+  },
+  "status": {
+    "request": {
+      "draft": "Taslak",
+      "pending_approval": "Onay bekliyor",
+      "approved": "Onaylandı",
+      "rejected": "Reddedildi",
+      "partially_ordered": "Kısmen siparişe döndü",
+      "ordered": "Siparişe döndü",
+      "cancelled": "İptal"
+    },
+    "rfq": {
+      "draft": "Taslak",
+      "sent": "Gönderildi",
+      "collecting": "Teklifler toplanıyor",
+      "awarded": "Karara bağlandı",
+      "cancelled": "İptal"
+    },
+    "order": {
+      "draft": "Taslak",
+      "pending_approval": "Onay bekliyor",
+      "approved": "Onaylandı",
+      "sent": "Tedarikçiye gönderildi",
+      "partially_received": "Kısmen teslim alındı",
+      "received": "Teslim alındı",
+      "partially_invoiced": "Kısmen faturalandı",
+      "invoiced": "Faturalandı",
+      "closed": "Kapatıldı",
+      "cancelled": "İptal"
+    }
+  },
+  "fields": {
+    "number": "Numara",
+    "status": "Durum",
+    "supplier": "Tedarikçi",
+    "taxNumber": "Vergi dairesi / no",
+    "documentDate": "Belge tarihi",
+    "dueDate": "Vade tarihi",
+    "expectedDate": "Beklenen teslim",
+    "neededBy": "İhtiyaç tarihi",
+    "responseDue": "Son yanıt tarihi",
+    "currency": "Para birimi",
+    "fxRate": "Kur",
+    "fxRateHelp": "Boş bırakılırsa belge tarihindeki kur kullanılır.",
+    "paymentTerm": "Ödeme vadesi",
+    "warehouse": "Depo",
+    "supplierReference": "Tedarikçi referansı",
+    "revision": "Revizyon",
+    "notes": "Not",
+    "notesHelp": "Tedarikçiye giden belgede görünür.",
+    "internalNotes": "İç not",
+    "internalNotesHelp": "Yalnızca şirket içinde görünür.",
+    "estimatedTotal": "Tahmini tutar",
+    "lineCount": "Satır",
+    "total": "Toplam"
+  },
+  "filters": {
+    "title": "Filtreler",
+    "dateFrom": "Başlangıç tarihi",
+    "dateTo": "Bitiş tarihi",
+    "supplier": "Tedarikçi",
+    "suggestedSupplier": "Önerilen tedarikçi",
+    "invitedSupplier": "Davet edilen tedarikçi",
+    "item": "Stok kartı",
+    "number": "Belge no",
+    "clear": "Filtreleri temizle"
+  },
+  "editor": {
+    "header": "Belge bilgileri",
+    "notes": "Notlar",
+    "saveDraft": "Taslağı kaydet",
+    "saved": "Taslak kaydedildi.",
+    "delete": "Taslağı sil",
+    "deleteBody": "Taslak kalıcı olarak silinecek.",
+    "deleted": "Taslak silindi.",
+    "readOnly": "Bu belgeyi düzenleme yetkiniz yok."
+  },
+  "errors": {
+    "generic": "İşlem tamamlanamadı.",
+    "action": "İşlem tamamlanamadı; belge değişmedi."
+  },
+  "warnings": {
+    "line": "{{index}}. satır"
+  },
+  "view": {
+    "lines": "Satırlar",
+    "audit": "Geçmiş",
+    "attachments": "Ekler"
+  },
+  "chain": {
+    "title": "Belge zinciri",
+    "type": {
+      "purchase_request": "Talep",
+      "purchase_rfq": "Teklif talebi",
+      "purchase_order": "Sipariş",
+      "purchase_receipt": "Mal kabul",
+      "purchase_invoice": "Alış faturası",
+      "purchase_debit_note": "İade faturası",
+      "purchase_return": "İade"
+    },
+    "status": {
+      "draft": "Taslak",
+      "pending_approval": "Onay bekliyor",
+      "approved": "Onaylandı",
+      "rejected": "Reddedildi",
+      "partially_ordered": "Kısmen siparişte",
+      "ordered": "Siparişte",
+      "sent": "Gönderildi",
+      "collecting": "Teklif toplanıyor",
+      "awarded": "Karara bağlandı",
+      "partially_received": "Kısmen teslim",
+      "received": "Teslim alındı",
+      "partially_invoiced": "Kısmen faturalı",
+      "invoiced": "Faturalandı",
+      "closed": "Kapatıldı",
+      "cancelled": "İptal",
+      "posted": "Kaydedildi",
+      "booked": "Muhasebeleşti",
+      "partially_paid": "Kısmen ödendi",
+      "paid": "Ödendi",
+      "reversed": "Ters kayıt",
+      "shipped": "Sevk edildi",
+      "debited": "Borç dekontu kesildi"
+    }
+  },
+  "approval": {
+    "tab": "Onay süreci",
+    "pending": "Belge onay bekliyor; onaylanınca işlemler açılır.",
+    "rejected": "Onay reddedildi: {{comment}}",
+    "unavailable": "Onay süreci görüntülenemiyor."
+  },
+  "exposure": {
+    "loading": "Tedarikçi bakiyesi yükleniyor…",
+    "unavailable": "Tedarikçi bakiyesi görüntülenemiyor.",
+    "total": "Açık bakiye {{amount}}",
+    "overdue": "Vadesi geçmiş borç {{amount}}",
+    "breakdown": "Açık borç {{payables}} · faturalanmamış sipariş {{orders}}",
+    "after": "bu belgeyle {{amount}}"
+  },
+  "totals": {
+    "withholdingTitle": "Tevkifat",
+    "withholding": "KDV tevkifatı",
+    "payable": "Tedarikçiye ödenecek"
+  },
+  "lines": {
+    "title": "Satırlar",
+    "item": "Stok kartı",
+    "description": "Açıklama",
+    "quantity": "Miktar",
+    "unit": "Birim",
+    "unitPrice": "Birim fiyat",
+    "estimatedPrice": "Tahmini fiyat",
+    "estimatedTotal": "Tahmini tutar",
+    "suggestedSupplier": "Önerilen tedarikçi",
+    "neededBy": "İhtiyaç tarihi",
+    "discountPercent": "İnd. %",
+    "discountAmount": "İnd. tutarı",
+    "tax": "KDV",
+    "withholding": "Tevkifat",
+    "lineTotal": "Satır toplamı",
+    "net": "Net",
+    "netTax": "Net {{net}} · KDV %{{rate}}",
+    "withheld": "tevkifat {{amount}}",
+    "ordered": "Sipariş",
+    "received": "Teslim alınan",
+    "invoiced": "Faturalanan",
+    "priceSource": {
+      "quote": "Teklif fiyatı",
+      "request": "Talepteki tahmini fiyat"
+    }
+  },
+  "validation": {
+    "supplier": "Tedarikçi seçin.",
+    "suppliersRequired": "En az bir tedarikçi seçin.",
+    "suppliersMax": "En fazla 100 tedarikçi davet edilebilir.",
+    "currency": "Para birimi seçin.",
+    "minLines": "En az bir satır girin.",
+    "maxLines": "En fazla {{max}} satır girilebilir.",
+    "item": "Stok kartı seçin.",
+    "unit": "Birim seçin.",
+    "quantity": "Sıfırdan büyük bir miktar girin (en çok 6 ondalık).",
+    "price": "Geçerli bir fiyat girin (en çok 6 ondalık).",
+    "discountPercent": "İndirim oranı 0 ile 100 arasında olmalı.",
+    "discountAmount": "Geçerli bir indirim tutarı girin.",
+    "fxRate": "Kur sıfırdan büyük olmalı.",
+    "expectedDate": "Beklenen teslim belge tarihinden önce olamaz.",
+    "neededBy": "İhtiyaç tarihi belge tarihinden önce olamaz.",
+    "responseDue": "Son yanıt tarihi belge tarihinden önce olamaz.",
+    "leadTime": "Teslim süresi 0 ile 3650 gün arasında olmalı."
+  },
+  "requests": {
+    "listTitle": "Satınalma talepleri",
+    "listDescription": "Birimlerin ihtiyaç talepleri; onaylananlar teklif talebine veya siparişe dönüşür.",
+    "exportName": "satinalma-talepleri",
+    "new": "Yeni talep",
+    "newTitle": "Yeni satınalma talebi",
+    "editTitle": "Talep {{number}}",
+    "viewTitle": "Talep {{number}}",
+    "deleteTitle": "Talep taslağı silinsin mi?",
+    "actions": {
+      "submit": "Onaya gönder",
+      "cancel": "Talebi iptal et",
+      "toRfq": "Teklif talebi oluştur",
+      "toOrder": "Sipariş oluştur"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Talep onaya gönderilsin mi?",
+        "body": "{{number}} numaralandırılır; onay sınırının altındaysa hemen onaylanır."
+      },
+      "cancel": {
+        "title": "Talep iptal edilsin mi?",
+        "body": "{{number}} iptal edilir; bağlı taslak siparişler varsa önce onlar silinmelidir."
+      }
+    },
+    "done": {
+      "approved": "Talep onaylandı.",
+      "pendingApproval": "Talep onaya gönderildi.",
+      "cancel": "Talep iptal edildi."
+    }
+  },
+  "convert": {
+    "linesLabel": "Aktarılacak satırlar",
+    "quantity": "Aktarılacak miktar",
+    "priceFor": "{{item}} için birim fiyat",
+    "rfq": {
+      "title": "{{number}} için teklif talebi",
+      "description": "Talebin açık miktarları seçilen tedarikçilere sorulur; taslak teklif talebi açılır.",
+      "create": "Taslak teklif talebi oluştur",
+      "created": "Teklif talebi taslağı oluşturuldu."
+    },
+    "order": {
+      "title": "{{number}} için sipariş",
+      "description": "Seçilen tedarikçiye talebin açık miktarlarıyla taslak sipariş açılır.",
+      "currencyHelp": "Boş bırakılırsa tedarikçinin para birimi kullanılır.",
+      "create": "Taslak sipariş oluştur",
+      "created": "Sipariş taslağı oluşturuldu."
+    }
+  },
+  "rfqs": {
+    "listTitle": "Teklif talepleri",
+    "listDescription": "Tedarikçilerden fiyat toplama, karşılaştırma ve karar.",
+    "exportName": "teklif-talepleri",
+    "new": "Yeni teklif talebi",
+    "newTitle": "Yeni teklif talebi",
+    "editTitle": "Teklif talebi {{number}}",
+    "viewTitle": "Teklif talebi {{number}}",
+    "deleteTitle": "Teklif talebi taslağı silinsin mi?",
+    "suppliers": "Davet edilen tedarikçiler",
+    "suppliersTab": "Tedarikçiler ve teklifler",
+    "suppliersHelp": "Göndermek için en az bir tedarikçi gerekir.",
+    "addSupplier": "Tedarikçi ekle…",
+    "removeSupplier": "{{name}} davetten çıkar",
+    "currencyHelp": "Teklifler bu para biriminde girilir.",
+    "notesHelp": "Tedarikçilere giden talepte görünür.",
+    "awardedTo": "Karar",
+    "quotedLines": "{{quoted}}/{{total}} satır fiyatlı",
+    "supplierStatus": {
+      "invited": "Davet edildi",
+      "responded": "Yanıt verdi",
+      "declined": "Teklif vermedi"
+    },
+    "actions": {
+      "send": "Gönder",
+      "cancel": "Teklif talebini iptal et",
+      "award": "Karar ver"
+    },
+    "confirm": {
+      "send": {
+        "title": "Teklif talebi gönderilsin mi?",
+        "body": "Numaralandırılır ve davet edilen tedarikçilere ({{count}}) gönderilmiş sayılır; satırlar artık değişmez."
+      },
+      "cancel": {
+        "title": "Teklif talebi iptal edilsin mi?",
+        "body": "Girilen teklifler saklanır, karar verilemez."
+      }
+    },
+    "done": {
+      "send": "{{number}} gönderildi.",
+      "cancel": "Teklif talebi iptal edildi."
+    },
+    "quotes": {
+      "enter": "{{supplier}} teklifini gir",
+      "title": "{{supplier}} teklifi",
+      "description": "Fiyatlar {{currency}} cinsindendir; fiyatı boş satırlar teklif edilmemiş sayılır.",
+      "declined": "Tedarikçi teklif vermedi",
+      "declinedHelp": "Daha önce girilen fiyatları siler.",
+      "linesLabel": "Teklif satırları",
+      "leadTime": "Teslim (gün)",
+      "validUntil": "Geçerlilik",
+      "lineTotal": "Satır tutarı",
+      "priceFor": "{{item}} birim fiyatı",
+      "discountFor": "{{item}} indirim oranı",
+      "leadTimeFor": "{{item}} teslim süresi (gün)",
+      "validUntilFor": "{{item}} teklif geçerliliği",
+      "nothingPriced": "En az bir satıra fiyat girin ya da tedarikçinin teklif vermediğini işaretleyin.",
+      "save": "Teklifi kaydet",
+      "saved": "Teklif kaydedildi.",
+      "declinedSaved": "Tedarikçinin teklif vermediği kaydedildi."
+    },
+    "comparison": {
+      "title": "Karşılaştırma",
+      "empty": "Henüz teklif girilmedi.",
+      "noQuote": "Teklif yok",
+      "lowest": "En düşük",
+      "fastest": "En hızlı",
+      "days": "{{count}} gün teslim",
+      "total": "Toplam",
+      "complete": "Tüm satırlar",
+      "partial": "{{quoted}}/{{total}} satır",
+      "awardedTo": "Karar: {{supplier}}"
+    },
+    "award": {
+      "title": "{{number}} için karar",
+      "description": "Her tedarikçi için bir taslak sipariş, teklif fiyatlarıyla açılır.",
+      "mode": "Karar şekli",
+      "wholeSupplier": "Tek tedarikçi (teklif verdiği tüm satırlar)",
+      "perLine": "Satır bazında tedarikçi seç",
+      "supplier": "Tedarikçi",
+      "lowestTotal": "en düşük toplam",
+      "pickFor": "{{item}} için {{supplier}}",
+      "expectedHelp": "Boş bırakılırsa teslim süresinden hesaplanır.",
+      "summary": "Oluşacak siparişler",
+      "orderFor": "{{supplier}} — {{count}} satır",
+      "create": "Siparişleri oluştur ({{count}})",
+      "done": "Taslak sipariş oluşturuldu ({{count}}): {{suppliers}}"
+    }
+  },
+  "orders": {
+    "listTitle": "Satınalma siparişleri",
+    "listDescription": "Tedarikçi siparişleri, onay, gönderim, mal kabul ve faturalama durumu.",
+    "exportName": "satinalma-siparisleri",
+    "new": "Yeni sipariş",
+    "newTitle": "Yeni satınalma siparişi",
+    "editTitle": "Sipariş {{number}}",
+    "viewTitle": "Sipariş {{number}}",
+    "reviseTitle": "{{number}} revizyonu",
+    "reviseHelp": "Revizyon kaydedilince sipariş yeniden onaya girer.",
+    "saveRevise": "Revizyonu kaydet",
+    "cancelRevise": "Revizyondan çık",
+    "revised": "Revizyon kaydedildi.",
+    "revisedPending": "Revizyon kaydedildi; sipariş onay bekliyor.",
+    "deleteTitle": "Sipariş taslağı silinsin mi?",
+    "actions": {
+      "submit": "Onaya gönder",
+      "send": "Tedarikçiye gönderildi",
+      "revise": "Revize et",
+      "cancel": "Siparişi iptal et",
+      "close": "Siparişi kapat",
+      "createReceipt": "Mal kabul oluştur",
+      "createInvoice": "Fatura oluştur"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Sipariş onaya gönderilsin mi?",
+        "body": "{{number}} ({{supplier}}, {{total}}) numaralandırılır; onay sınırının altındaysa hemen onaylanır."
+      },
+      "send": {
+        "title": "Sipariş gönderildi olarak işaretlensin mi?",
+        "body": "{{number}} siparişinin {{supplier}} firmasına iletildiği kaydedilir."
+      },
+      "cancel": {
+        "title": "Sipariş iptal edilsin mi?",
+        "body": "{{number}} ({{supplier}}, {{total}}) iptal edilir; mal kabul veya fatura varsa iptal edilemez."
+      },
+      "close": {
+        "title": "Sipariş kapatılsın mı?",
+        "body": "{{number}} için kalan miktarlar artık teslim alınmaz ve faturalanmaz."
+      }
+    },
+    "done": {
+      "submit": "Sipariş onaylandı.",
+      "pendingApproval": "Sipariş onaya gönderildi.",
+      "send": "Sipariş gönderildi olarak işaretlendi.",
+      "cancel": "Sipariş iptal edildi.",
+      "close": "Sipariş kapatıldı."
+    }
+  },
+  "wizard": {
+    "close": "Kapat",
+    "step": "Adım {{step}}/{{total}}",
+    "step1": "Miktarlar",
+    "step2": "Bilgiler ve özet",
+    "linesLabel": "Sipariş satırları",
+    "remaining": "Kalan",
+    "service": "(hizmet)",
+    "quantityFor": "{{item}} miktarı",
+    "exceeds": "En fazla {{max}} girilebilir.",
+    "invalid": "Geçerli bir miktar girin.",
+    "nothingChosen": "En az bir satıra miktar girin.",
+    "fillAll": "Kalanların tümü",
+    "clear": "Temizle",
+    "tolerance": "Fazla teslim toleransı: %{{percent}}",
+    "receiveOnInvoice": "Teslim alınmamış malları fatura ile teslim al",
+    "receiveOnInvoiceHelp": "Fatura kaydedilince mal kabul de otomatik oluşur (lot/seri takipli ürünler hariç).",
+    "documentDate": "Belge tarihi",
+    "supplierInvoiceNo": "Tedarikçi fatura no",
+    "supplierInvoiceNoHelp": "Muhasebeleştirmede zorunludur; şimdi boş bırakılabilir.",
+    "summary": "Özet",
+    "back": "Geri",
+    "next": "İleri",
+    "failed": "Belge oluşturulamadı.",
+    "receipt": {
+      "title": "{{number}} için mal kabul",
+      "quantity": "Teslim alınan",
+      "create": "Taslak mal kabul oluştur",
+      "created": "Mal kabul taslağı oluşturuldu {{number}}"
+    },
+    "invoice": {
+      "title": "{{number}} için alış faturası",
+      "quantity": "Faturalanan",
+      "create": "Taslak fatura oluştur",
+      "created": "Fatura taslağı oluşturuldu {{number}}"
+    }
+  }
+}

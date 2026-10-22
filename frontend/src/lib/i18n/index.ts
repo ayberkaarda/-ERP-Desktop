@@ -52,6 +52,10 @@ import salesOrdersDe from './locales/sales-orders/de.json'
 import salesOrdersEn from './locales/sales-orders/en.json'
 import salesOrdersFr from './locales/sales-orders/fr.json'
 import salesOrdersTr from './locales/sales-orders/tr.json'
+import purchasingOrdersDe from './locales/purchasing-orders/de.json'
+import purchasingOrdersEn from './locales/purchasing-orders/en.json'
+import purchasingOrdersFr from './locales/purchasing-orders/fr.json'
+import purchasingOrdersTr from './locales/purchasing-orders/tr.json'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
@@ -88,6 +92,7 @@ void i18n.use(initReactI18next).init({
       'sales-shared': salesSharedTr,
       'sales-quotes': salesQuotesTr,
       'sales-orders': salesOrdersTr,
+      'purchasing-orders': purchasingOrdersTr,
     },
     en: {
       translation: en,
@@ -104,6 +109,7 @@ void i18n.use(initReactI18next).init({
       'sales-shared': salesSharedEn,
       'sales-quotes': salesQuotesEn,
       'sales-orders': salesOrdersEn,
+      'purchasing-orders': purchasingOrdersEn,
     },
     de: {
       translation: de,
@@ -120,6 +126,7 @@ void i18n.use(initReactI18next).init({
       'sales-shared': salesSharedDe,
       'sales-quotes': salesQuotesDe,
       'sales-orders': salesOrdersDe,
+      'purchasing-orders': purchasingOrdersDe,
     },
     fr: {
       translation: fr,
@@ -136,6 +143,7 @@ void i18n.use(initReactI18next).init({
       'sales-shared': salesSharedFr,
       'sales-quotes': salesQuotesFr,
       'sales-orders': salesOrdersFr,
+      'purchasing-orders': purchasingOrdersFr,
     },
   },
   ns: [
@@ -153,6 +161,7 @@ void i18n.use(initReactI18next).init({
     'sales-shared',
     'sales-quotes',
     'sales-orders',
+    'purchasing-orders',
   ],
   lng: storedLanguage(),
   fallbackLng: 'tr',
