@@ -33,8 +33,8 @@ function ledgerCounts(string $company): array
 it('bootstraps a new company from the chart template on CompanyCreated', function (): void {
     $company = Books::company();
 
-    // 45 template rows: one invalid, two of the 7/B layout.
-    expect(ledgerCounts($company))->toBe(['accounts' => 42, 'rules' => 17, 'years' => 1, 'periods' => 12]);
+    // 45 template rows: one invalid, two of the 7/B layout. Rules include purchase.price_variance (621); 381 is not in this chart.
+    expect(ledgerCounts($company))->toBe(['accounts' => 42, 'rules' => 18, 'years' => 1, 'periods' => 12]);
 
     $cash = Books::account($company, '100');
     $group = Books::account($company, '10');
@@ -59,7 +59,7 @@ it('is idempotent and adds only what is missing', function (): void {
 
     $this->artisan('accounting:seed-chart', ['company' => $company, '--scheme' => '7b'])->assertSuccessful();
     expect(Books::in($company, fn () => Account::query()->whereIn('code', ['79', '793'])->count()))->toBe(2)
-        ->and(ledgerCounts($company)['rules'])->toBe(17);
+        ->and(ledgerCounts($company)['rules'])->toBe(18);
 });
 
 it('seeds an existing company through the command with the 7/B layout', function (): void {
@@ -68,7 +68,7 @@ it('seeds an existing company through the command with the 7/B layout', function
     $this->artisan('accounting:seed-chart', ['company' => $company, '--scheme' => '7B'])
         ->expectsTable(['key', 'value'], [
             ['accounts_created', '42'], ['accounts_skipped', '0'], ['accounts_invalid', '1'], ['chart_available', 'yes'],
-            ['rules_created', '16'], ['fiscal_year_created', '2027'],
+            ['rules_created', '17'], ['fiscal_year_created', '2027'],
         ])
         ->assertSuccessful();
 

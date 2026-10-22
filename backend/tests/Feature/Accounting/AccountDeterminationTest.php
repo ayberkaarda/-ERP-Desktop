@@ -24,8 +24,10 @@ it('seeds one default rule per known event whose TDHP account exists', function 
         'sales.receivable' => '120', 'sales.revenue.goods' => '600', 'sales.vat_output' => '391', 'sales.returns' => '610',
         'purchase.payable' => '320', 'purchase.expense' => '770', 'purchase.vat_input' => '191', 'purchase.vat_withholding' => '360',
         'inventory.stock' => '153', 'inventory.cogs' => '621', 'treasury.cash' => '100', 'treasury.bank' => '102',
-        'treasury.cheque_portfolio' => '101', 'fx.gain' => '646', 'fx.loss' => '656',
-    ])->and($rules)->toHaveCount(17); // plus inventory.opening_offset (500), seeded by Inventory
+        'treasury.cheque_portfolio' => '101', 'fx.gain' => '646', 'fx.loss' => '656', 'purchase.price_variance' => '621',
+    ])->and($rules)->toHaveCount(18) // plus inventory.opening_offset (500), seeded by Inventory
+        // 381 (goods received not invoiced) is not in this fixture chart, so its rule is skipped.
+        ->and($rules->has('purchase.goods_received'))->toBeFalse();
 });
 
 it('resolves the highest priority matching rule and falls back to the default', function (): void {
