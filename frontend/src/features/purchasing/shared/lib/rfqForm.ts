@@ -130,6 +130,15 @@ export function rfqToInput(v: RfqValues): RfqInput {
 }
 
 /**
+ * Lines taken from a purchase request: the RFQ API rewrites lines from the payload without
+ * request_line_id (not part of its line rules), which would drop the link that bounds the award
+ * by the request. Such lines are shown read-only and never sent back.
+ */
+export function rfqLinesLocked(doc: Pick<PurchaseRfq, 'lines'>): boolean {
+  return doc.lines.some((l) => l.request_line_id !== null)
+}
+
+/**
  * Unchanged lines are left out of a PATCH: the API would otherwise rewrite them and drop their
  * link to the purchase request lines.
  */

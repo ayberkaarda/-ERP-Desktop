@@ -188,7 +188,8 @@
     "priceSource": {
       "quote": "Teklif fiyatı",
       "request": "Talepteki tahmini fiyat"
-    }
+    },
+    "taxInclusive": "KDV dahil fiyat"
   },
   "validation": {
     "supplier": "Tedarikçi seçin.",
@@ -345,7 +346,8 @@
       "orderFor": "{{supplier}} — {{count}} satır",
       "create": "Siparişleri oluştur ({{count}})",
       "done": "Taslak sipariş oluşturuldu ({{count}}): {{suppliers}}"
-    }
+    },
+    "linesFromRequest": "Talepten gelen satırlar burada değiştirilemez; talep bağlantısı korunur."
   },
   "orders": {
     "listTitle": "Satınalma siparişleri",

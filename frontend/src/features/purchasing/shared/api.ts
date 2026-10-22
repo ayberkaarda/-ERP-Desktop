@@ -323,6 +323,7 @@ export const previewApi = {
         discount_amount: l.discount_amount,
         tax_code_id: l.tax_code_id,
         withholding_code_id: l.withholding_code_id,
+        tax_inclusive: l.tax_inclusive,
         warehouse_id: l.warehouse_id,
       })),
     }

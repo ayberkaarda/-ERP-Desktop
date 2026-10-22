@@ -188,7 +188,8 @@
     "priceSource": {
       "quote": "Angebotspreis",
       "request": "Geschätzter Preis der Anforderung"
-    }
+    },
+    "taxInclusive": "Preis inkl. USt"
   },
   "validation": {
     "supplier": "Wählen Sie einen Lieferanten.",
@@ -345,7 +346,8 @@
       "orderFor": "{{supplier}} — Positionen: {{count}}",
       "create": "Bestellungen erstellen ({{count}})",
       "done": "Bestellentwürfe erstellt ({{count}}): {{suppliers}}"
-    }
+    },
+    "linesFromRequest": "Aus einer Anforderung übernommene Positionen können hier nicht geändert werden; die Verknüpfung bleibt erhalten."
   },
   "orders": {
     "listTitle": "Bestellungen",

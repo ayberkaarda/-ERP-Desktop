@@ -374,8 +374,14 @@ export function OrderEditor({
                     const opts = { shouldDirty: true }
                     form.setValue('partyName', party?.name ?? '', opts)
                     if (!party) return
-                    if (party.default_currency_code)
+                    if (
+                      party.default_currency_code &&
+                      party.default_currency_code !== form.getValues('currencyCode')
+                    ) {
                       form.setValue('currencyCode', party.default_currency_code, opts)
+                      // Another currency: the rate of the document date again.
+                      form.setValue('fxRate', '', opts)
+                    }
                     form.setValue('paymentTermId', party.payment_term_id ?? '', opts)
                   }}
                 />
@@ -432,7 +438,10 @@ export function OrderEditor({
                 clearable={false}
                 disabled={disabled || revising}
                 onBlur={field.onBlur}
-                onChange={(v) => field.onChange(v ?? '')}
+                onChange={(v) => {
+                  if ((v ?? '') !== field.value) form.setValue('fxRate', '', { shouldDirty: true })
+                  field.onChange(v ?? '')
+                }}
               />
             )}
           />

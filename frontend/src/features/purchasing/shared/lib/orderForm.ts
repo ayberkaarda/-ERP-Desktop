@@ -40,6 +40,8 @@ export interface OrderLineValues {
   discountAmount: string
   taxCodeId: string
   withholdingCodeId: string
+  /** Price includes VAT (kept from the stored line; new lines are net). */
+  taxInclusive: boolean
   variantId: string
   warehouseId: string
   expectedDate: string
@@ -78,6 +80,7 @@ export function emptyOrderLine(): OrderLineValues {
     discountAmount: '',
     taxCodeId: '',
     withholdingCodeId: '',
+    taxInclusive: false,
     variantId: '',
     warehouseId: '',
     expectedDate: '',
@@ -122,6 +125,7 @@ export function orderLineToValues(l: OrderLine): OrderLineValues {
     discountAmount: optional(l.discount_amount),
     taxCodeId: l.tax_code_id ?? '',
     withholdingCodeId: l.withholding_code_id ?? '',
+    taxInclusive: l.tax_inclusive,
     variantId: l.variant_id ?? '',
     warehouseId: l.warehouse_id ?? '',
     expectedDate: l.expected_date ?? '',
@@ -136,7 +140,8 @@ export function orderToValues(doc: PurchaseOrder): OrderValues {
     documentDate: doc.document_date,
     expectedDate: doc.expected_date ?? '',
     currencyCode: doc.currency_code,
-    fxRate: dec(doc.fx_rate).eq(1) ? '' : trimDecimal(doc.fx_rate),
+    // The stored rate is kept as is (also "1"); only a new currency asks for the day's rate.
+    fxRate: trimDecimal(doc.fx_rate),
     paymentTermId: doc.payment_term_id ?? '',
     warehouseId: doc.warehouse_id ?? '',
     supplierReference: doc.supplier_reference ?? '',
@@ -159,6 +164,7 @@ export function orderLineToInput(l: OrderLineValues): OrderLineInput {
     // null = untaxed / no withholding on purpose (the API defaults only absent keys).
     tax_code_id: orNull(l.taxCodeId),
     withholding_code_id: orNull(l.withholdingCodeId),
+    tax_inclusive: l.taxInclusive,
     description: orNull(l.description),
     warehouse_id: orNull(l.warehouseId),
     expected_date: orNull(l.expectedDate),
@@ -212,6 +218,7 @@ export function orderPreviewInput(v: OrderValues): PreviewInput | null {
     discount_amount: isDecimal(l.discountAmount) ? l.discountAmount.trim() : '0',
     tax_code_id: orNull(l.taxCodeId),
     withholding_code_id: orNull(l.withholdingCodeId),
+    tax_inclusive: l.taxInclusive,
     warehouse_id: orNull(l.warehouseId),
   }))
   if (lines.length === 0 || !v.partyId) return null

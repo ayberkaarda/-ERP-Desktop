@@ -71,7 +71,7 @@ export function OrderActions({
     invoice: usePermission(PURCH_ACCESS.createInvoice),
   }
   const overReceipt = useOverReceiptPercent()
-  const allowed = orderActions(order)
+  const allowed = orderActions(order, overReceipt)
   /** The stored order a confirmation describes and acts on (edits are saved first). */
   const [confirming, setConfirming] = useState<{
     action: StateAction

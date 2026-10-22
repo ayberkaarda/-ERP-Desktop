@@ -26,6 +26,7 @@ import { invalidatePurchasing, purchKeys } from '../../shared/lib/keys'
 import {
   emptyRfqValues,
   rfqFieldMapper,
+  rfqLinesLocked,
   rfqLinesUnchanged,
   rfqSchema,
   rfqToInput,
@@ -95,7 +96,7 @@ export function RfqEditor({ document, onReload, actions }: RfqEditorProps) {
     mutationFn: ({ values: v }: { values: RfqValues; company: string | null }) => {
       setLastValues(v)
       const input = rfqToInput(v)
-      if (base && rfqLinesUnchanged(v, base)) delete input.lines
+      if (base && (rfqLinesLocked(base) || rfqLinesUnchanged(v, base))) delete input.lines
       if (base) return rfqsApi.update(base.id, { ...input, version: base.version })
       return rfqsApi.create(input, keyFor({ create: 'rfq', ...input }))
     },
@@ -173,6 +174,7 @@ export function RfqEditor({ document, onReload, actions }: RfqEditorProps) {
   }
 
   const disabled = !canEdit || save.isPending
+  const linesLocked = base !== null && rfqLinesLocked(base)
   const busy = save.isPending || remove.isPending
   const number = document?.number ?? t('common.unnumbered')
 
@@ -319,7 +321,12 @@ export function RfqEditor({ document, onReload, actions }: RfqEditorProps) {
             />
           </div>
         </section>
-        <RfqLinesGrid disabled={disabled} />
+        {linesLocked && (
+          <p role="note" className="text-sm text-muted-foreground">
+            {t('rfqs.linesFromRequest')}
+          </p>
+        )}
+        <RfqLinesGrid disabled={disabled || linesLocked} />
         <section aria-label={t('editor.notes')} className="grid gap-4 md:grid-cols-2">
           <FormField<RfqValues, 'notes'>
             name="notes"

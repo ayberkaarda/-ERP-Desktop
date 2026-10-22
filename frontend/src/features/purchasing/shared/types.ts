@@ -491,6 +491,7 @@ export interface OrderLineInput {
   discount_amount: string
   tax_code_id: string | null
   withholding_code_id: string | null
+  tax_inclusive: boolean
   description: string | null
   warehouse_id: string | null
   expected_date: string | null
@@ -550,6 +551,7 @@ export interface PreviewLineInput {
   discount_amount: string
   tax_code_id: string | null
   withholding_code_id: string | null
+  tax_inclusive: boolean
   warehouse_id: string | null
 }
 

@@ -188,7 +188,8 @@
     "priceSource": {
       "quote": "Prix de l'offre",
       "request": "Prix estimé de la demande"
-    }
+    },
+    "taxInclusive": "Prix TTC"
   },
   "validation": {
     "supplier": "Choisissez un fournisseur.",
@@ -345,7 +346,8 @@
       "orderFor": "{{supplier}} — lignes : {{count}}",
       "create": "Créer les commandes ({{count}})",
       "done": "Commandes brouillon créées ({{count}}) : {{suppliers}}"
-    }
+    },
+    "linesFromRequest": "Les lignes issues d'une demande d'achat ne peuvent pas être modifiées ici ; le lien avec la demande est conservé."
   },
   "orders": {
     "listTitle": "Commandes fournisseurs",

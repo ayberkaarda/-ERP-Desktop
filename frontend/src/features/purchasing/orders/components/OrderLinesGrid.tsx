@@ -108,6 +108,11 @@ export function OrderLinesGrid({
             }}
             onBlur={ctx.onBlur}
           />
+          {ctx.line.taxInclusive && (
+            <p className="px-1 pt-0.5 text-left text-2xs text-muted-foreground">
+              {t('lines.taxInclusive')}
+            </p>
+          )}
           {(ctx.line.priceSource === 'quote' || ctx.line.priceSource === 'request') && (
             <p className="px-1 pt-0.5 text-left text-2xs text-muted-foreground">
               {t(`lines.priceSource.${ctx.line.priceSource}`)}

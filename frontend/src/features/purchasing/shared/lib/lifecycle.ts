@@ -117,11 +117,19 @@ export function needsReceiveOnInvoice(lines: readonly OrderLine[]): boolean {
   )
 }
 
-export function orderActions(order: {
-  status: OrderStatus
-  lines: readonly OrderLine[]
-  links: readonly PurchaseLink[]
-}): OrderAction[] {
+/**
+ * Actions of an order. `overReceiptPercent` (purchasing.allow_over_receipt_percent) keeps the
+ * receipt action while the tolerance still allows quantity; null (not readable) falls back to
+ * what is left of the order.
+ */
+export function orderActions(
+  order: {
+    status: OrderStatus
+    lines: readonly OrderLine[]
+    links: readonly PurchaseLink[]
+  },
+  overReceiptPercent: string | null = null,
+): OrderAction[] {
   const { status, lines, links } = order
   const untouched = !orderHasDocuments(lines, links)
   if (status === 'draft') return ['edit', 'delete', 'submit', 'cancel']
@@ -131,7 +139,9 @@ export function orderActions(order: {
   const out: OrderAction[] = []
   if (status === 'approved') out.push('send')
   if ((status === 'approved' || status === 'sent') && untouched) out.push('revise', 'cancel')
-  if (lines.some((l) => unreceivedQuantity(l).gt(0))) out.push('createReceipt')
+  const receivable = (l: OrderLine) =>
+    overReceiptPercent === null ? unreceivedQuantity(l) : receivableQuantity(l, overReceiptPercent)
+  if (lines.some((l) => receivable(l).gt(0))) out.push('createReceipt')
   if (lines.some((l) => invoiceableQuantity(l).gt(0) || invoiceableQuantity(l, true).gt(0)))
     out.push('createInvoice')
   out.push('close')

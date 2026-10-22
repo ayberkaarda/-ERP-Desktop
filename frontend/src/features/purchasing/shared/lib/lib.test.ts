@@ -269,6 +269,7 @@ describe('preview, links, exposure', () => {
             discount_amount: '0',
             tax_code_id: 't',
             withholding_code_id: 'w',
+            tax_inclusive: false,
             warehouse_id: null,
           },
         ],

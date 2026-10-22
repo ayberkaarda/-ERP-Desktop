@@ -188,7 +188,8 @@
     "priceSource": {
       "quote": "Quoted price",
       "request": "Estimated price of the request"
-    }
+    },
+    "taxInclusive": "Price includes VAT"
   },
   "validation": {
     "supplier": "Choose a supplier.",
@@ -345,7 +346,8 @@
       "orderFor": "{{supplier}} — lines: {{count}}",
       "create": "Create orders ({{count}})",
       "done": "Draft orders created ({{count}}): {{suppliers}}"
-    }
+    },
+    "linesFromRequest": "Lines taken from a purchase request cannot be changed here; the link to the request is kept."
   },
   "orders": {
     "listTitle": "Purchase orders",
