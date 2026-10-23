@@ -107,9 +107,10 @@ final class SupplierAgeingReport
         $settled = DB::table('purchase_payable_applications as a')
             ->whereColumn('a.invoice_id', 'i.id')
             ->where('a.company_id', $f->companyId)
-            ->where('a.applied_at', '<', $endOfDay)
-            ->where(fn (Builder $q) => $q->whereNull('a.unapplied_at')->orWhere('a.unapplied_at', '>=', $endOfDay))
+            ->whereRaw('coalesce(a.effective_date,a.applied_at::date) < ?::date', [$endOfDay])
+            ->where(fn (Builder $q) => $q->whereNull('a.unapplied_at')->orWhereRaw('coalesce(a.unapplied_effective_date,a.unapplied_at::date) >= ?::date', [$endOfDay]))
             ->selectRaw('coalesce(sum(a.amount), 0)');
+        $settledLocal = (clone $settled)->select([])->selectRaw('coalesce(sum(coalesce(a.local_amount,round(a.amount * (i.total_local - i.withholding_total_local) / nullif((i.total - i.withholding_total),0),2))),0)');
         $base = DB::table('purchase_invoices as i')
             ->where('i.company_id', $f->companyId)
             ->whereIn('i.status', [...InvoiceStatus::booked(), InvoiceStatus::Reversed->value])
@@ -121,7 +122,7 @@ final class SupplierAgeingReport
                 'i.fx_rate', 'i.total', 'i.withholding_total', 'i.total_local', 'i.withholding_total_local'])
             ->selectRaw('coalesce(i.due_date, i.document_date) AS due_date')
             ->selectRaw('CASE WHEN i.invoice_type = ? THEN -1 ELSE 1 END AS sign', [InvoiceType::Return->value])
-            ->selectSub($settled, 'settled');
+            ->selectSub($settled, 'settled')->selectSub($settledLocal, 'settled_local');
         $days = '(?::date - b.due_date)';
 
         return DB::query()->fromSub($base, 'b')
@@ -132,7 +133,6 @@ final class SupplierAgeingReport
                 WHEN {$days} <= 90 THEN 'days_61_90' ELSE 'days_over_90' END AS bucket", [$asOf, $asOf, $asOf, $asOf])
             ->selectRaw('(b.total - b.withholding_total) * b.sign AS payable, b.settled * b.sign AS settled_amount')
             ->selectRaw('(b.total - b.withholding_total - b.settled) * b.sign AS balance')
-            ->selectRaw('(CASE WHEN b.settled = 0 THEN b.total_local - b.withholding_total_local
-                ELSE round((b.total - b.withholding_total - b.settled) * b.fx_rate, 2) END) * b.sign AS balance_local');
+            ->selectRaw('(b.total_local - b.withholding_total_local - b.settled_local) * b.sign AS balance_local');
     }
 }

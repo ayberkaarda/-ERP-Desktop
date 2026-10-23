@@ -1,3 +1,4 @@
+import type treasuryTr from './locales/treasury/tr.json'
 import 'i18next'
 import type accountingTr from './locales/accounting/tr.json'
 import type accountingJournalTr from './locales/accounting-journal/tr.json'
@@ -22,6 +23,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'translation'
     resources: {
+      treasury: typeof treasuryTr
       translation: typeof tr
       common: typeof commonTr
       accounting: typeof accountingTr

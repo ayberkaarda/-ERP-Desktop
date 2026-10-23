@@ -82,7 +82,7 @@ describe('serials', () => {
     const grid = await screen.findByRole('grid', { name: 'Seri numaraları' })
     const unit = (await within(grid).findByText('MTK-0001')).closest('tr') as HTMLElement
     expect(within(unit).getByText('Stokta')).toBeInTheDocument()
-    expect(within(unit).getByText('MRK')).toBeInTheDocument()
+    expect(await within(unit).findByText('MRK')).toBeInTheDocument()
     expect(within(grid).getByText('Çıkışı yapıldı')).toBeInTheDocument()
 
     await user.click(within(unit).getByRole('button', { name: 'MTK-0001 geçmişini aç' }))

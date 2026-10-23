@@ -37,6 +37,10 @@ final class DeterminationRules
         'treasury.cash' => '100',
         'treasury.bank' => '102',
         'treasury.cheque_portfolio' => '101',
+        'treasury.cheque_payable' => '103',
+        'treasury.note_portfolio' => '121',
+        'treasury.note_payable' => '321',
+        'treasury.collection' => '108',
         'fx.gain' => '646',
         'fx.loss' => '656',
     ];

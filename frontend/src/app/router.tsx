@@ -1,3 +1,4 @@
+import { treasuryRoutes } from '@/features/treasury/routes'
 import { purchaseRequestsRoutes } from '@/features/purchasing/requests/routes'
 import { purchaseRfqsRoutes } from '@/features/purchasing/rfqs/routes'
 import { purchaseOrdersRoutes } from '@/features/purchasing/orders/routes'
@@ -100,6 +101,7 @@ export const routes: RouteObject[] = [
               Component: (await import('@/features/auth/pages/SecurityPage')).SecurityPage,
             }),
           },
+          ...treasuryRoutes,
           ...partyRoutes,
           ...catalogRoutes,
           ...referenceRoutes,

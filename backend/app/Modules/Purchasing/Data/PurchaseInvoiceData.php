@@ -34,6 +34,8 @@ final readonly class PurchaseInvoiceData
         public string $paidAmount,
         public string $balanceDue,
         public ?string $journalEntryId,
+        public ?string $payableLocal = null,
+        public ?string $balanceLocal = null,
     ) {}
 
     public static function of(PurchaseInvoice $invoice): self
@@ -59,6 +61,8 @@ final readonly class PurchaseInvoiceData
             (string) $invoice->paid_amount,
             (string) $invoice->balance_due,
             $invoice->journal_entry_id,
+            (string) $invoice->total_local->minus($invoice->withholding_total_local),
+            is_string($invoice->getAttribute('treasury_balance_local')) ? $invoice->getAttribute('treasury_balance_local') : null,
         );
     }
 }

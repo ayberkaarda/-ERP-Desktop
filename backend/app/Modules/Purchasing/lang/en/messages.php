@@ -100,4 +100,5 @@ return [
     'warehouse_unavailable' => 'The warehouse does not exist or is inactive.',
     'withholding_code_unavailable' => 'The withholding code is not a valid withholding (tevkifat) rate on the document date.',
     'withholding_without_vat' => 'Withholding needs a VAT code on the line.',
+    'settlement_date_order' => 'The settlement date cannot precede the latest settlement or reversal date on this invoice.',
 ];

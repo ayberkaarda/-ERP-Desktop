@@ -73,7 +73,14 @@
     "purchaseReceipts": "Goods receipts",
     "purchaseInvoices": "Supplier invoices",
     "purchaseReturns": "Purchase returns",
-    "purchaseReports": "Purchasing reports"
+    "purchaseReports": "Purchasing reports",
+    "treasuryAccounts": "Cash and bank accounts",
+    "treasuryPayments": "Receipts and payments",
+    "treasuryTransfers": "Account transfers",
+    "treasuryInstruments": "Cheques and notes",
+    "treasuryBanking": "Bank reconciliation",
+    "treasuryPlans": "Payment plans",
+    "treasuryReports": "Treasury reports"
   },
   "topbar": {
     "company": "Company",

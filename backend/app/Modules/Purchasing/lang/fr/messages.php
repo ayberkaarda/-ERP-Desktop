@@ -100,4 +100,5 @@ return [
     'warehouse_unavailable' => 'L’entrepôt n’existe pas ou est inactif.',
     'withholding_code_unavailable' => 'Le code de retenue n’est pas un taux de retenue (tevkifat) valide à la date du document.',
     'withholding_without_vat' => 'Une retenue nécessite un code de TVA sur la ligne.',
+    'settlement_date_order' => 'La date d?affectation ne peut pas pr?c?der la derni?re affectation ou annulation de cette facture.',
 ];

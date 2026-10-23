@@ -78,6 +78,13 @@ describe('feature routes in the app shell', () => {
     '/purchasing/returns',
     '/purchasing/reports',
     '/purchasing/reports/receipt-vs-invoice',
+    '/treasury/accounts',
+    '/treasury/payments/new',
+    '/treasury/transfers',
+    '/treasury/instruments',
+    '/treasury/banking',
+    '/treasury/plans',
+    '/treasury/reports',
   ])('shows the forbidden state on %s without the permission', async (path) => {
     const db = setupFea({ permissions: { [COMPANY_A]: ['parties.view'], [COMPANY_B]: [] } })
     server.use(...partiesHandlers(createPartiesDb()))

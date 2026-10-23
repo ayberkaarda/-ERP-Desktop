@@ -9,6 +9,7 @@ use App\Modules\Accounting\Console\RebuildBalances;
 use App\Modules\Accounting\Console\SeedChart;
 use App\Modules\Accounting\Contracts\AccountDeterminer;
 use App\Modules\Accounting\Contracts\AccountLookup;
+use App\Modules\Accounting\Contracts\JournalPartyAccountLookup;
 use App\Modules\Accounting\Contracts\PeriodGuard;
 use App\Modules\Accounting\Contracts\PostingService;
 use App\Modules\Accounting\Listeners\BootstrapCompanyLedger;
@@ -23,6 +24,7 @@ use App\Modules\Accounting\Policies\DeterminationRulePolicy;
 use App\Modules\Accounting\Policies\FiscalYearPolicy;
 use App\Modules\Accounting\Policies\JournalEntryPolicy;
 use App\Modules\Accounting\Services\AccountDirectory;
+use App\Modules\Accounting\Services\JournalPartyAccounts;
 use App\Modules\Accounting\Services\LedgerPoster;
 use App\Modules\Accounting\Services\Periods;
 use App\Modules\Accounting\Services\RuleDeterminer;
@@ -47,6 +49,7 @@ final class AccountingServiceProvider extends ModuleServiceProvider
         $this->app->bind(AccountDeterminer::class, RuleDeterminer::class);
         $this->app->bind(PeriodGuard::class, Periods::class);
         $this->app->bind(AccountLookup::class, AccountDirectory::class);
+        $this->app->bind(JournalPartyAccountLookup::class, JournalPartyAccounts::class);
 
         // Reports/ is a sub-package by convention: its own provider (bindings) when present.
         $reports = __NAMESPACE__.'\\Reports\\ReportsServiceProvider';

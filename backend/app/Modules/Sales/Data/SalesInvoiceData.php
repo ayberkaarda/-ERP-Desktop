@@ -30,6 +30,7 @@ final readonly class SalesInvoiceData
         public string $paidAmount,
         public string $balanceDue,
         public ?string $journalEntryId,
+        public ?string $balanceLocal = null,
     ) {}
 
     public static function of(SalesInvoice $invoice): self
@@ -52,6 +53,7 @@ final readonly class SalesInvoiceData
             (string) $invoice->paid_amount,
             (string) $invoice->balance_due,
             $invoice->journal_entry_id,
+            is_string($invoice->getAttribute('treasury_balance_local')) ? $invoice->getAttribute('treasury_balance_local') : null,
         );
     }
 }

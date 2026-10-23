@@ -100,4 +100,5 @@ return [
     'warehouse_unavailable' => 'Das Lager existiert nicht oder ist inaktiv.',
     'withholding_code_unavailable' => 'Der Einbehaltungscode ist zum Belegdatum kein gültiger Einbehaltungssatz (Tevkifat).',
     'withholding_without_vat' => 'Ein Einbehalt erfordert einen Umsatzsteuercode in der Zeile.',
+    'settlement_date_order' => 'Das Ausgleichsdatum darf nicht vor dem letzten Ausgleich oder dessen Storno liegen.',
 ];

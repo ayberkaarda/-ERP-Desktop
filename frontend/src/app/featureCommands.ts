@@ -1,3 +1,4 @@
+import { registerTreasuryCommands } from '@/features/treasury/commands'
 import { registerPurchaseRequestsCommands } from '@/features/purchasing/requests/commands'
 import { registerPurchaseRfqsCommands } from '@/features/purchasing/rfqs/commands'
 import { registerPurchaseOrdersCommands } from '@/features/purchasing/orders/commands'
@@ -35,6 +36,7 @@ let unregister: (() => void) | null = null
 export function registerFeatureCommands(): () => void {
   if (!unregister) {
     const parts = [
+      registerTreasuryCommands(),
       registerPurchaseRequestsCommands(),
       registerPurchaseRfqsCommands(),
       registerPurchaseOrdersCommands(),

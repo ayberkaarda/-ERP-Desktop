@@ -103,9 +103,24 @@ export type NavKey =
   | 'purchaseInvoices'
   | 'purchaseReturns'
   | 'purchaseReports'
+  | 'treasuryAccounts'
+  | 'treasuryPayments'
+  | 'treasuryTransfers'
+  | 'treasuryInstruments'
+  | 'treasuryBanking'
+  | 'treasuryPlans'
+  | 'treasuryReports'
 
 export type NavSectionKey =
-  'main' | 'masterData' | 'purchasing' | 'sales' | 'accounting' | 'inventory' | 'reference' | 'system'
+  | 'treasury'
+  | 'main'
+  | 'masterData'
+  | 'purchasing'
+  | 'sales'
+  | 'accounting'
+  | 'inventory'
+  | 'reference'
+  | 'system'
 
 export interface NavItem {
   key: NavKey
@@ -126,8 +141,54 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'main',
     items: [
       { key: 'dashboard', icon: LayoutDashboard, to: '/' },
-      { key: 'treasury', icon: WalletCards },
       { key: 'hr', icon: UsersRound },
+    ],
+  },
+  {
+    key: 'treasury',
+    items: [
+      {
+        key: 'treasuryAccounts',
+        icon: WalletCards,
+        to: '/treasury/accounts',
+        permission: 'treasury.accounts.view',
+      },
+      {
+        key: 'treasuryPayments',
+        icon: Banknote,
+        to: '/treasury/payments',
+        permission: 'treasury.payments.view',
+      },
+      {
+        key: 'treasuryTransfers',
+        icon: ArrowLeftRight,
+        to: '/treasury/transfers',
+        permission: 'treasury.transfers.view',
+      },
+      {
+        key: 'treasuryInstruments',
+        icon: ReceiptText,
+        to: '/treasury/instruments',
+        permission: 'treasury.instruments.view',
+      },
+      {
+        key: 'treasuryBanking',
+        icon: FileSpreadsheet,
+        to: '/treasury/banking',
+        permission: 'treasury.banking.view',
+      },
+      {
+        key: 'treasuryPlans',
+        icon: CalendarClock,
+        to: '/treasury/plans',
+        permission: 'treasury.plans.view',
+      },
+      {
+        key: 'treasuryReports',
+        icon: ChartColumn,
+        to: '/treasury/reports',
+        permission: 'treasury.reports.view',
+      },
     ],
   },
   {
@@ -216,13 +277,48 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     key: 'purchasing',
     items: [
-      { key: 'purchaseRequests', icon: ClipboardList, to: '/purchasing/requests', permission: 'purchasing.requests.view' },
-      { key: 'purchaseRfqs', icon: FileText, to: '/purchasing/rfqs', permission: 'purchasing.rfqs.view' },
-      { key: 'purchaseOrders', icon: ShoppingCart, to: '/purchasing/orders', permission: 'purchasing.orders.view' },
-      { key: 'purchaseReceipts', icon: Truck, to: '/purchasing/receipts', permission: 'purchasing.receipts.view' },
-      { key: 'purchaseInvoices', icon: ReceiptText, to: '/purchasing/invoices', permission: 'purchasing.invoices.view' },
-      { key: 'purchaseReturns', icon: RotateCcw, to: '/purchasing/returns', permission: 'purchasing.returns.view' },
-      { key: 'purchaseReports', icon: ChartColumn, to: '/purchasing/reports', permission: 'purchasing.reports.view' },
+      {
+        key: 'purchaseRequests',
+        icon: ClipboardList,
+        to: '/purchasing/requests',
+        permission: 'purchasing.requests.view',
+      },
+      {
+        key: 'purchaseRfqs',
+        icon: FileText,
+        to: '/purchasing/rfqs',
+        permission: 'purchasing.rfqs.view',
+      },
+      {
+        key: 'purchaseOrders',
+        icon: ShoppingCart,
+        to: '/purchasing/orders',
+        permission: 'purchasing.orders.view',
+      },
+      {
+        key: 'purchaseReceipts',
+        icon: Truck,
+        to: '/purchasing/receipts',
+        permission: 'purchasing.receipts.view',
+      },
+      {
+        key: 'purchaseInvoices',
+        icon: ReceiptText,
+        to: '/purchasing/invoices',
+        permission: 'purchasing.invoices.view',
+      },
+      {
+        key: 'purchaseReturns',
+        icon: RotateCcw,
+        to: '/purchasing/returns',
+        permission: 'purchasing.returns.view',
+      },
+      {
+        key: 'purchaseReports',
+        icon: ChartColumn,
+        to: '/purchasing/reports',
+        permission: 'purchasing.reports.view',
+      },
     ],
   },
   {

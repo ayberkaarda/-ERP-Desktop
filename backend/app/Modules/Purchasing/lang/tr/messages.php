@@ -100,4 +100,5 @@ return [
     'warehouse_unavailable' => 'Depo bulunamadı veya pasif.',
     'withholding_code_unavailable' => 'Tevkifat kodu belge tarihinde geçerli bir tevkifat oranı değil.',
     'withholding_without_vat' => 'Tevkifat için satırda bir KDV kodu gerekir.',
+    'settlement_date_order' => 'Kapama tarihi, bu faturadaki son kapama veya geri alma tarihinden ?nce olamaz.',
 ];

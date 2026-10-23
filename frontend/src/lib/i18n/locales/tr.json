@@ -73,7 +73,14 @@
     "purchaseReceipts": "Mal kabulleri",
     "purchaseInvoices": "Tedarikçi faturaları",
     "purchaseReturns": "Satın alma iadeleri",
-    "purchaseReports": "Satın alma raporları"
+    "purchaseReports": "Satın alma raporları",
+    "treasuryAccounts": "Kasa ve banka hesapları",
+    "treasuryPayments": "Tahsilat ve ödemeler",
+    "treasuryTransfers": "Hesaplar arası transferler",
+    "treasuryInstruments": "Çek ve senetler",
+    "treasuryBanking": "Banka mutabakatı",
+    "treasuryPlans": "Ödeme planları",
+    "treasuryReports": "Hazine raporları"
   },
   "topbar": {
     "company": "Şirket",

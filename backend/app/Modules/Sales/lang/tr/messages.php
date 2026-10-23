@@ -84,4 +84,5 @@ return [
     'violation_invoice_lines_immutable' => 'Kesilmiş faturanın satırları değiştirilemez.',
     'warehouse_required' => 'Depo zorunludur.',
     'warehouse_unavailable' => 'Depo bulunamadı veya pasif.',
+    'settlement_date_order' => 'Kapama tarihi, bu faturadaki son kapama veya geri alma tarihinden ?nce olamaz.',
 ];

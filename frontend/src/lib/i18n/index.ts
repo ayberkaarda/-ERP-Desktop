@@ -1,3 +1,7 @@
+import treasuryTr from './locales/treasury/tr.json'
+import treasuryEn from './locales/treasury/en.json'
+import treasuryDe from './locales/treasury/de.json'
+import treasuryFr from './locales/treasury/fr.json'
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import accountingDe from './locales/accounting/de.json'
@@ -86,6 +90,7 @@ function storedLanguage(): Language {
 void i18n.use(initReactI18next).init({
   resources: {
     tr: {
+      treasury: treasuryTr,
       translation: tr,
       common: commonTr,
       accounting: accountingTr,
@@ -105,6 +110,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsTr,
     },
     en: {
+      treasury: treasuryEn,
       translation: en,
       common: commonEn,
       accounting: accountingEn,
@@ -124,6 +130,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsEn,
     },
     de: {
+      treasury: treasuryDe,
       translation: de,
       common: commonDe,
       accounting: accountingDe,
@@ -143,6 +150,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsDe,
     },
     fr: {
+      treasury: treasuryFr,
       translation: fr,
       common: commonFr,
       accounting: accountingFr,
@@ -180,6 +188,7 @@ void i18n.use(initReactI18next).init({
     'purchasing-orders',
     'purchasing-docs',
     'purchasing-reports',
+    'treasury',
   ],
   lng: storedLanguage(),
   fallbackLng: 'tr',

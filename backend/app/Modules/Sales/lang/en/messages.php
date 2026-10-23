@@ -84,4 +84,5 @@ return [
     'violation_invoice_lines_immutable' => 'The lines of an issued invoice cannot be changed.',
     'warehouse_required' => 'A warehouse is required.',
     'warehouse_unavailable' => 'The warehouse does not exist or is inactive.',
+    'settlement_date_order' => 'The settlement date cannot precede the latest settlement or reversal date on this invoice.',
 ];

@@ -73,7 +73,14 @@
     "purchaseReceipts": "Wareneingänge",
     "purchaseInvoices": "Lieferantenrechnungen",
     "purchaseReturns": "Einkaufsretouren",
-    "purchaseReports": "Einkaufsberichte"
+    "purchaseReports": "Einkaufsberichte",
+    "treasuryAccounts": "Kassen und Bankkonten",
+    "treasuryPayments": "Ein- und Auszahlungen",
+    "treasuryTransfers": "Kontotransfers",
+    "treasuryInstruments": "Schecks und Wechsel",
+    "treasuryBanking": "Bankabstimmung",
+    "treasuryPlans": "Zahlungspläne",
+    "treasuryReports": "Finanzberichte"
   },
   "topbar": {
     "company": "Unternehmen",

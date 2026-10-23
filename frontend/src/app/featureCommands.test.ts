@@ -35,6 +35,13 @@ describe('registerFeatureCommands', () => {
         'purchasing.returns',
         'purchasing.reports',
         'purchasing.reports.receipt-vs-invoice',
+        'treasury.accounts',
+        'treasury.payments',
+        'treasury.transfers',
+        'treasury.instruments',
+        'treasury.banking',
+        'treasury.plans',
+        'treasury.reports',
       ]),
     )
     expect(ids.some((id) => id.startsWith('parties.'))).toBe(true)

@@ -39,6 +39,38 @@ afterEach(() => {
 })
 
 describe('Sidebar', () => {
+  it.each([false, true])('shows seven live treasury links for grants or admin (%s)', (admin) => {
+    const areas = [
+      'accounts',
+      'payments',
+      'transfers',
+      'instruments',
+      'banking',
+      'plans',
+      'reports',
+    ]
+    signInWith(admin ? [] : areas.map((area) => `treasury.${area}.view`), admin)
+    renderSidebar('/treasury/accounts')
+    for (const area of areas) {
+      expect(
+        screen
+          .getAllByRole('link')
+          .find((link) => link.getAttribute('href') === `/treasury/${area}`),
+      ).toBeDefined()
+    }
+    const main = screen.getByRole('group', { name: 'Ana menü' })
+    expect(within(main).queryByText('Finans')).not.toBeInTheDocument()
+  })
+  it('hides unauthorized treasury links', () => {
+    signInWith(['treasury.accounts.view'])
+    renderSidebar()
+    expect(
+      screen
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('href')?.startsWith('/treasury/'))
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(['/treasury/accounts'])
+  })
   it('shows only purchasing entries granted by the active company', () => {
     signInWith(['purchasing.receipts.view', 'purchasing.reports.view'])
     renderSidebar('/purchasing/receipts')
@@ -55,8 +87,12 @@ describe('Sidebar', () => {
       'href',
       '/purchasing/reports',
     )
-    expect(within(purchasing).queryByRole('link', { name: 'Tedarikçi faturaları' })).not.toBeInTheDocument()
-    expect(within(purchasing).queryByRole('link', { name: 'Satın alma siparişleri' })).not.toBeInTheDocument()
+    expect(
+      within(purchasing).queryByRole('link', { name: 'Tedarikçi faturaları' }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(purchasing).queryByRole('link', { name: 'Satın alma siparişleri' }),
+    ).not.toBeInTheDocument()
   })
 
   it('shows only the entries the active company grants and drops empty sections', () => {

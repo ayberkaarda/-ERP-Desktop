@@ -13,8 +13,8 @@ use App\Modules\Purchasing\Data\SettlementData;
 interface PayableSettlement
 {
     /** Applies $amount (> 0, at most the balance) under $reference; a repeated reference returns the first result. */
-    public function apply(string $companyId, string $invoiceId, string $amount, string $reference): SettlementData;
+    public function apply(string $companyId, string $invoiceId, string $amount, string $reference, ?string $effectiveDate = null, ?string $localAmount = null): SettlementData;
 
     /** Takes the application of $reference back; unapplying twice returns the first result. */
-    public function unapply(string $companyId, string $invoiceId, string $reference): SettlementData;
+    public function unapply(string $companyId, string $invoiceId, string $reference, ?string $effectiveDate = null): SettlementData;
 }

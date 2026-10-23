@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Parties;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Modules\Parties\Contracts\IbanValidation;
 use App\Modules\Parties\Contracts\PartyAddressLookup;
 use App\Modules\Parties\Contracts\PartyLookup;
 use App\Modules\Parties\Contracts\PartyUsageChecker;
@@ -15,6 +16,7 @@ use App\Modules\Parties\Models\PartyContact;
 use App\Modules\Parties\Policies\PartyPolicy;
 use App\Modules\Parties\Services\EloquentPartyAddressLookup;
 use App\Modules\Parties\Services\EloquentPartyLookup;
+use App\Modules\Parties\Services\IbanValidationAdapter;
 use App\Modules\Parties\Services\PartyCodeGenerator;
 use App\Modules\Parties\Services\TaggedPartyUsageChecker;
 use App\Modules\Parties\Support\ReferenceGuards;
@@ -47,6 +49,7 @@ final class PartiesServiceProvider extends ModuleServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/config/parties.php', 'parties');
+        $this->app->bind(IbanValidation::class, IbanValidationAdapter::class);
         $this->app->bind(PartyLookup::class, EloquentPartyLookup::class);
         $this->app->bind(PartyAddressLookup::class, EloquentPartyAddressLookup::class);
         $this->app->bind(PartyUsageChecker::class, TaggedPartyUsageChecker::class);

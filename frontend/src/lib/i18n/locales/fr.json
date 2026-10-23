@@ -73,7 +73,14 @@
     "purchaseReceipts": "Réceptions",
     "purchaseInvoices": "Factures fournisseurs",
     "purchaseReturns": "Retours d’achat",
-    "purchaseReports": "Rapports d’achat"
+    "purchaseReports": "Rapports d’achat",
+    "treasuryAccounts": "Caisses et comptes bancaires",
+    "treasuryPayments": "Encaissements et paiements",
+    "treasuryTransfers": "Virements entre comptes",
+    "treasuryInstruments": "Chèques et effets",
+    "treasuryBanking": "Rapprochement bancaire",
+    "treasuryPlans": "Échéanciers",
+    "treasuryReports": "Rapports de trésorerie"
   },
   "topbar": {
     "company": "Société",

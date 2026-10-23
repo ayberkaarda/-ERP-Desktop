@@ -84,4 +84,5 @@ return [
     'violation_invoice_lines_immutable' => 'Les lignes d\'une facture émise ne peuvent pas être modifiées.',
     'warehouse_required' => 'Un entrepôt est requis.',
     'warehouse_unavailable' => 'L\'entrepôt n\'existe pas ou est inactif.',
+    'settlement_date_order' => 'La date d?affectation ne peut pas pr?c?der la derni?re affectation ou annulation de cette facture.',
 ];

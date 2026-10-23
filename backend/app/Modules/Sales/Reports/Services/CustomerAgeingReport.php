@@ -63,7 +63,7 @@ final class CustomerAgeingReport
             }
 
             $sign = $row->invoice_type === InvoiceType::Return->value ? -1 : 1;
-            $local = $settled->isZero() ? Num::dec($row->total_local) : Num::cents($balance->multipliedBy(Num::dec($row->fx_rate)));
+            $local = Num::dec($row->total_local)->minus(Num::dec($row->settled_local));
             $due = is_string($row->due_date) ? $row->due_date : (string) $row->document_date;
             $days = self::days($due, $asOf);
             $bucket = self::bucket($days);
@@ -108,9 +108,10 @@ final class CustomerAgeingReport
         $settled = DB::table('sales_receivable_applications as a')
             ->whereColumn('a.invoice_id', 'i.id')
             ->where('a.company_id', $f->companyId)
-            ->where('a.applied_at', '<', $endOfDay)
-            ->where(fn (Builder $q) => $q->whereNull('a.unapplied_at')->orWhere('a.unapplied_at', '>=', $endOfDay))
+            ->whereRaw('coalesce(a.effective_date,a.applied_at::date) < ?::date', [$endOfDay])
+            ->where(fn (Builder $q) => $q->whereNull('a.unapplied_at')->orWhereRaw('coalesce(a.unapplied_effective_date,a.unapplied_at::date) >= ?::date', [$endOfDay]))
             ->selectRaw('coalesce(sum(a.amount), 0)');
+        $settledLocal = (clone $settled)->select([])->selectRaw('coalesce(sum(coalesce(a.local_amount,round(a.amount * i.total_local / nullif(i.total,0),2))),0)');
 
         return DB::table('sales_invoices as i')
             ->where('i.company_id', $f->companyId)
@@ -121,7 +122,7 @@ final class CustomerAgeingReport
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('i.currency_code', $f->currencyCode))
             ->select(['i.id', 'i.number', 'i.invoice_type', 'i.document_date', 'i.due_date', 'i.party_id', 'i.party_name', 'i.currency_code',
                 'i.fx_rate', 'i.total', 'i.total_local'])
-            ->selectSub($settled, 'settled');
+            ->selectSub($settled, 'settled')->selectSub($settledLocal, 'settled_local');
     }
 
     private static function days(string $due, string $asOf): int
