@@ -55,7 +55,8 @@
         ],
         "test": [
             "@php artisan config:clear --ansi",
-            "@php vendor/bin/pest"
+            "@php vendor/bin/pest --testsuite=Arch",
+            "@php vendor/bin/pest --testsuite=Unit,Feature"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
