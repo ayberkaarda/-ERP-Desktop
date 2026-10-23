@@ -7,6 +7,7 @@ namespace App\Modules\Sales\Services;
 use App\Core\Money\RoundingPolicy;
 use App\Modules\Accounting\Contracts\PeriodGuard;
 use App\Modules\Accounting\Contracts\PostingService;
+use App\Modules\Sales\Contracts\EDocumentSourceGuard;
 use App\Modules\Sales\Enums\DeliveryStatus;
 use App\Modules\Sales\Enums\InvoiceStatus;
 use App\Modules\Sales\Enums\InvoiceType;
@@ -274,6 +275,8 @@ final class InvoiceService extends DocumentService
     {
         return Sales::transaction(function () use ($invoice, $version, $date, $reason, $reverseStock, $actor): array {
             [$invoice, $orders] = $this->lockWithSources($invoice);
+
+            app(EDocumentSourceGuard::class)->assertReversible('invoice', $invoice->id);
 
             if ($invoice->status === InvoiceStatus::Reversed) {
                 return [$invoice, true];

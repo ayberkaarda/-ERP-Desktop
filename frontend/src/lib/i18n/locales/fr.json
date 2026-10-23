@@ -81,7 +81,11 @@
     "treasuryInstruments": "Chèques et effets",
     "treasuryBanking": "Rapprochement bancaire",
     "treasuryPlans": "Échéanciers",
-    "treasuryReports": "Rapports de trésorerie"
+    "treasuryReports": "Rapports de trésorerie",
+    "edocuments": "Documents électroniques",
+    "edocOutbox": "Boîte d’envoi",
+    "edocInbox": "Boîte de réception",
+    "edocTaxpayers": "Recherche de contribuable"
   },
   "topbar": {
     "company": "Société",

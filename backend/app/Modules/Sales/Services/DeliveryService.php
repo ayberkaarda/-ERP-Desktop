@@ -10,6 +10,7 @@ use App\Modules\Inventory\Data\StockPostingLine;
 use App\Modules\Inventory\Data\StockPostingRequest;
 use App\Modules\Inventory\Enums\DocumentType;
 use App\Modules\Inventory\Enums\MovementType;
+use App\Modules\Sales\Contracts\EDocumentSourceGuard;
 use App\Modules\Sales\Enums\DeliveryStatus;
 use App\Modules\Sales\Enums\DocumentKind;
 use App\Modules\Sales\Enums\OrderStatus;
@@ -128,6 +129,7 @@ final class DeliveryService extends DocumentService
         return Sales::transaction(function () use ($delivery, $data, $lines, $version, $actor, $canOverridePrice): SalesDelivery {
             $order = $delivery->order_id === null ? null : $this->lockOrder($delivery->order_id);
             $delivery = $this->lock($delivery, $version);
+
             $this->assertDraft($delivery);
 
             if ($delivery->invoice_id !== null) {
@@ -203,6 +205,8 @@ final class DeliveryService extends DocumentService
         return Sales::transaction(function () use ($delivery, $version, $reason, $date, $actor, $fromInvoice): SalesDelivery {
             $order = $delivery->order_id === null ? null : $this->lockOrder($delivery->order_id);
             $delivery = $this->lock($delivery, $version);
+
+            app(EDocumentSourceGuard::class)->assertReversible('delivery', $delivery->id);
 
             if ($delivery->status === DeliveryStatus::Cancelled) {
                 return $delivery;

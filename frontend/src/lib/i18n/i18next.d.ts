@@ -1,3 +1,4 @@
+import type edocumentsTr from './locales/edocuments/tr.json'
 import type assistantTr from './locales/assistant/tr.json'
 import type treasuryTr from './locales/treasury/tr.json'
 import 'i18next'
@@ -24,6 +25,7 @@ declare module 'i18next' {
   interface CustomTypeOptions {
     defaultNS: 'translation'
     resources: {
+      edocuments: typeof edocumentsTr
       assistant: typeof assistantTr
       treasury: typeof treasuryTr
       translation: typeof tr

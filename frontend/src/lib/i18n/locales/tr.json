@@ -81,7 +81,11 @@
     "treasuryInstruments": "Çek ve senetler",
     "treasuryBanking": "Banka mutabakatı",
     "treasuryPlans": "Ödeme planları",
-    "treasuryReports": "Hazine raporları"
+    "treasuryReports": "Hazine raporları",
+    "edocuments": "E-Belgeler",
+    "edocOutbox": "Giden belgeler",
+    "edocInbox": "Gelen belgeler",
+    "edocTaxpayers": "Mükellef sorgulama"
   },
   "topbar": {
     "company": "Şirket",

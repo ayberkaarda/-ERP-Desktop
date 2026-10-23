@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ban, FileText, Loader2, Printer } from 'lucide-react'
+import { EDocumentSourceLinks } from '@/features/edocuments/SourceLinks'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
@@ -127,6 +128,7 @@ export function DeliveryView({ delivery: d, onReload }: DeliveryViewProps) {
         meta={<DeliveryStatusBadge status={d.status} />}
         actions={
           <>
+            {posted && <EDocumentSourceLinks id={d.id} number={d.number} kind="delivery" />}
             <Button asChild variant="secondary">
               <Link to={`${DELIVERIES_BASE}/${d.id}/print`}>
                 <Printer aria-hidden="true" />

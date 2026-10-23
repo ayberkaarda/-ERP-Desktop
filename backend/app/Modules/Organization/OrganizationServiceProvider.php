@@ -22,6 +22,7 @@ final class OrganizationServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\EDocumentCompany::class, Services\EDocumentCompanyProfile::class);
         $this->app->singleton(CompanyDirectory::class, DatabaseCompanyDirectory::class);
         $this->app->bind(BranchLookup::class, DatabaseBranchLookup::class);
     }

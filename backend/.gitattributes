@@ -1,5 +1,8 @@
 * text=auto eol=lf
 
+# Preserve checksum-pinned validation resources byte for byte.
+/app/Modules/EDocuments/Resources/** -text
+
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html

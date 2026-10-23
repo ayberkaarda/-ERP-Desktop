@@ -33,7 +33,7 @@ beforeEach(function (): void {
         'items.view', 'parties.view', 'inventory.stock.view', 'accounting.accounts.view', 'accounting.entries.create',
         'sales.quotes.create', 'sales.orders.view', 'sales.reports.view', 'purchasing.requests.create', 'purchasing.requests.view',
         'purchasing.orders.view', 'purchasing.reports.view', 'treasury.accounts.view', 'currencies.view', 'warehouses.view',
-        'cost_centers.view', 'projects.view', 'payment_terms.view',
+        'cost_centers.view', 'projects.view', 'payment_terms.view', 'edocuments.view',
     ], $this->world->company);
     config(['assistant.enabled' => true]);
     Actors::activate($this->world->company);
@@ -65,7 +65,8 @@ it('exposes only authorized tools and exposes none while disabled', function ():
 it('declares serializable schemas and permissions from the real catalog for every tool', function (): void {
     $catalog = app(PermissionRegistry::class)->all();
     $tools = app(ToolRegistry::class)->forUser($this->actor);
-    expect(count($tools))->toBe(19);
+    expect(count($tools))->toBe(20);
+    expect(array_map(fn (ErpTool $tool): string => $tool->name(), $tools))->toContain('e_document_status');
     foreach ($tools as $tool) {
         expect($catalog)->toContain($tool->permission());
         expect(json_encode($tool->schema(new JsonSchemaTypeFactory), JSON_THROW_ON_ERROR))->toBeString();

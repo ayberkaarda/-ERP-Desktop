@@ -40,9 +40,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: Install backend dependencies
         working-directory: backend
         run: composer install --no-interaction --prefer-dist
+      - name: Cache electronic document validation runtime
+        uses: actions/cache@v4
+        with:
+          path: backend/storage/app/edocuments/runtime
+          key: edoc-validation-${{ hashFiles('backend/app/Modules/EDocuments/Resources/runtime-manifest.json') }}
+      - name: Install electronic document validation runtime
+        working-directory: backend
+        run: php scripts/install-edocument-runtime.php
       - name: Create test database
         env:
           PGPASSWORD: keystone

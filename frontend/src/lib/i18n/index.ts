@@ -1,3 +1,7 @@
+import edocumentsTr from './locales/edocuments/tr.json'
+import edocumentsEn from './locales/edocuments/en.json'
+import edocumentsDe from './locales/edocuments/de.json'
+import edocumentsFr from './locales/edocuments/fr.json'
 import assistantTr from './locales/assistant/tr.json'
 import assistantEn from './locales/assistant/en.json'
 import assistantDe from './locales/assistant/de.json'
@@ -94,6 +98,7 @@ function storedLanguage(): Language {
 void i18n.use(initReactI18next).init({
   resources: {
     tr: {
+      edocuments: edocumentsTr,
       assistant: assistantTr,
       treasury: treasuryTr,
       translation: tr,
@@ -115,6 +120,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsTr,
     },
     en: {
+      edocuments: edocumentsEn,
       assistant: assistantEn,
       treasury: treasuryEn,
       translation: en,
@@ -136,6 +142,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsEn,
     },
     de: {
+      edocuments: edocumentsDe,
       assistant: assistantDe,
       treasury: treasuryDe,
       translation: de,
@@ -157,6 +164,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsDe,
     },
     fr: {
+      edocuments: edocumentsFr,
       assistant: assistantFr,
       treasury: treasuryFr,
       translation: fr,
@@ -179,6 +187,7 @@ void i18n.use(initReactI18next).init({
     },
   },
   ns: [
+    'edocuments',
     'assistant',
     'translation',
     'common',

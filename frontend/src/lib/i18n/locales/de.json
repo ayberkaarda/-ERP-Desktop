@@ -81,7 +81,11 @@
     "treasuryInstruments": "Schecks und Wechsel",
     "treasuryBanking": "Bankabstimmung",
     "treasuryPlans": "Zahlungspläne",
-    "treasuryReports": "Finanzberichte"
+    "treasuryReports": "Finanzberichte",
+    "edocuments": "Elektronische Belege",
+    "edocOutbox": "Ausgang",
+    "edocInbox": "Eingang",
+    "edocTaxpayers": "Steuerpflichtige suchen"
   },
   "topbar": {
     "company": "Unternehmen",

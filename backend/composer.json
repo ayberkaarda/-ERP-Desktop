@@ -83,7 +83,7 @@
             "@php vendor/bin/phpstan analyse --memory-limit=1G --no-progress"
         ],
         "openapi": [
-            "@php artisan scramble:export --path=storage/api-docs/openapi.json"
+            "@php -d memory_limit=1G artisan scramble:export --path=storage/api-docs/openapi.json"
         ],
         "install-windows": [
             "@composer install --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix"

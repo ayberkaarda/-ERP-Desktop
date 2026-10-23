@@ -52,6 +52,9 @@ import { REF_PERMISSIONS } from '@/features/reference/permissions'
 import { anyOf, type PermissionRequirement } from '@/lib/permissions'
 
 export type NavKey =
+  | 'edocOutbox'
+  | 'edocInbox'
+  | 'edocTaxpayers'
   | 'dashboard'
   | 'sales'
   | 'purchasing'
@@ -114,6 +117,7 @@ export type NavKey =
   | 'treasuryReports'
 
 export type NavSectionKey =
+  | 'edocuments'
   | 'treasury'
   | 'main'
   | 'masterData'
@@ -144,6 +148,24 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { key: 'dashboard', icon: LayoutDashboard, to: '/' },
       { key: 'hr', icon: UsersRound },
+    ],
+  },
+  {
+    key: 'edocuments',
+    items: [
+      {
+        key: 'edocOutbox',
+        icon: FileText,
+        to: '/edocuments/outbox',
+        permission: 'edocuments.view',
+      },
+      { key: 'edocInbox', icon: FileText, to: '/edocuments/inbox', permission: 'edocuments.view' },
+      {
+        key: 'edocTaxpayers',
+        icon: UsersRound,
+        to: '/edocuments/taxpayers',
+        permission: 'edocuments.view',
+      },
     ],
   },
   {

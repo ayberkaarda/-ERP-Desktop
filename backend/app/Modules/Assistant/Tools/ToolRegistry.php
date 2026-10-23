@@ -10,6 +10,7 @@ use App\Modules\Accounting\Contracts\AssistantTools as AccountingTools;
 use App\Modules\Assistant\Contracts\AssistantToolProvider;
 use App\Modules\Assistant\Contracts\ErpTool;
 use App\Modules\Catalog\Contracts\AssistantTools as CatalogTools;
+use App\Modules\EDocuments\Contracts\AssistantTools as EDocumentTools;
 use App\Modules\Identity\Contracts\CompanyAuthorizer;
 use App\Modules\Inventory\Contracts\AssistantTools as InventoryTools;
 use App\Modules\Parties\Contracts\AssistantTools as PartiesTools;
@@ -22,7 +23,7 @@ use Illuminate\Contracts\Container\Container;
 final class ToolRegistry
 {
     /** @var list<class-string<AssistantToolProvider>> */
-    private const array PROVIDERS = [AccountingTools::class, CatalogTools::class, PartiesTools::class, InventoryTools::class, SalesTools::class, PurchasingTools::class, TreasuryTools::class, ReferenceTools::class];
+    private const array PROVIDERS = [AccountingTools::class, CatalogTools::class, PartiesTools::class, InventoryTools::class, SalesTools::class, PurchasingTools::class, TreasuryTools::class, ReferenceTools::class, EDocumentTools::class];
 
     public function __construct(private readonly Container $container) {}
 

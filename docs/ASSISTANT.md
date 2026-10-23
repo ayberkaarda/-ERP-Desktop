@@ -38,6 +38,7 @@ Okuma araçları yayımlanmış modül sözleşmeleri üzerinden sınırlı sonu
 | Satış | Satış özeti, geciken açık siparişler, müşteri yaşlandırması, teklif taslağı |
 | Satın alma | Açık siparişler ve talepler, tedarikçi yaşlandırması, talep taslağı |
 | Finans | Tarih itibarıyla kasa, banka ve POS bakiyeleri; para birimleri ayrı tutulur |
+| e-Belgeler | Yetkili gelen/giden belgelerin sınırlı durum sorgusu; XML, vergi kimliği ve gönderim işlemi içermez |
 
 ## Taslak onayı
 

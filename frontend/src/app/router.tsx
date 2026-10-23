@@ -1,3 +1,4 @@
+import { edocumentsRoutes } from '@/features/edocuments/routes'
 import { treasuryRoutes } from '@/features/treasury/routes'
 import { assistantRoutes } from '@/features/assistant/routes'
 import { purchaseRequestsRoutes } from '@/features/purchasing/requests/routes'
@@ -103,6 +104,7 @@ export const routes: RouteObject[] = [
             }),
           },
           ...treasuryRoutes,
+          ...edocumentsRoutes,
           ...assistantRoutes,
           ...partyRoutes,
           ...catalogRoutes,

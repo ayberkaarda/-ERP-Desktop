@@ -81,7 +81,11 @@
     "treasuryInstruments": "Cheques and notes",
     "treasuryBanking": "Bank reconciliation",
     "treasuryPlans": "Payment plans",
-    "treasuryReports": "Treasury reports"
+    "treasuryReports": "Treasury reports",
+    "edocuments": "Electronic documents",
+    "edocOutbox": "Outbox",
+    "edocInbox": "Inbox",
+    "edocTaxpayers": "Taxpayer lookup"
   },
   "topbar": {
     "company": "Company",

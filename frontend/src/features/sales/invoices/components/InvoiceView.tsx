@@ -1,4 +1,5 @@
 import { Printer, Undo2, RotateCcw } from 'lucide-react'
+import { EDocumentSourceLinks } from '@/features/edocuments/SourceLinks'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
@@ -98,6 +99,7 @@ export function InvoiceView({ invoice: inv, onReload }: InvoiceViewProps) {
         }
         actions={
           <>
+            {posted && <EDocumentSourceLinks id={inv.id} number={inv.number} kind="invoice" />}
             <Button asChild variant="secondary">
               <Link to={`${INVOICES_BASE}/${inv.id}/print`}>
                 <Printer aria-hidden="true" />
