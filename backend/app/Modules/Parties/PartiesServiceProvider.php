@@ -48,6 +48,7 @@ final class PartiesServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->mergeConfigFrom(__DIR__.'/config/parties.php', 'parties');
         $this->app->bind(IbanValidation::class, IbanValidationAdapter::class);
         $this->app->bind(PartyLookup::class, EloquentPartyLookup::class);

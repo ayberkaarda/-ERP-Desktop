@@ -46,6 +46,7 @@ final class InventoryServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->mergeConfigFrom(__DIR__.'/config/inventory.php', 'inventory');
 
         $this->app->bind(StockService::class, StockPoster::class);

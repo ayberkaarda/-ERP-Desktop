@@ -36,6 +36,7 @@ final class TreasuryServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->app->bind(TreasuryAccountLookup::class, AccountService::class);
         $this->app->bind(TreasuryMovementWriter::class, AccountService::class);
         $this->app->bind(TreasuryMovementLookup::class, AccountService::class);

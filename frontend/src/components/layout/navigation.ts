@@ -1,5 +1,6 @@
 import {
   Activity,
+  MessageSquare,
   FilePen,
   FileText,
   RotateCcw,
@@ -58,6 +59,7 @@ export type NavKey =
   | 'treasury'
   | 'hr'
   | 'health'
+  | 'assistant'
   | 'parties'
   | 'items'
   | 'categories'
@@ -486,5 +488,16 @@ export const NAV_SECTIONS: NavSection[] = [
       },
     ],
   },
-  { key: 'system', items: [{ key: 'health', icon: Activity, to: '/system/health' }] },
+  {
+    key: 'system',
+    items: [
+      { key: 'health', icon: Activity, to: '/system/health' },
+      {
+        key: 'assistant',
+        icon: MessageSquare,
+        to: '/system/assistant',
+        permission: 'assistant.usage.view',
+      },
+    ],
+  },
 ]

@@ -1,3 +1,7 @@
+import assistantTr from './locales/assistant/tr.json'
+import assistantEn from './locales/assistant/en.json'
+import assistantDe from './locales/assistant/de.json'
+import assistantFr from './locales/assistant/fr.json'
 import treasuryTr from './locales/treasury/tr.json'
 import treasuryEn from './locales/treasury/en.json'
 import treasuryDe from './locales/treasury/de.json'
@@ -90,6 +94,7 @@ function storedLanguage(): Language {
 void i18n.use(initReactI18next).init({
   resources: {
     tr: {
+      assistant: assistantTr,
       treasury: treasuryTr,
       translation: tr,
       common: commonTr,
@@ -110,6 +115,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsTr,
     },
     en: {
+      assistant: assistantEn,
       treasury: treasuryEn,
       translation: en,
       common: commonEn,
@@ -130,6 +136,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsEn,
     },
     de: {
+      assistant: assistantDe,
       treasury: treasuryDe,
       translation: de,
       common: commonDe,
@@ -150,6 +157,7 @@ void i18n.use(initReactI18next).init({
       'purchasing-reports': purchasingReportsDe,
     },
     fr: {
+      assistant: assistantFr,
       treasury: treasuryFr,
       translation: fr,
       common: commonFr,
@@ -171,6 +179,7 @@ void i18n.use(initReactI18next).init({
     },
   },
   ns: [
+    'assistant',
     'translation',
     'common',
     'accounting',

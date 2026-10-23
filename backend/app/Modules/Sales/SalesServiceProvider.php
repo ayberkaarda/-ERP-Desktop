@@ -45,6 +45,7 @@ final class SalesServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->mergeConfigFrom(__DIR__.'/config/sales.php', 'sales');
 
         $this->app->bind(CustomerExposure::class, ExposureCalculator::class);

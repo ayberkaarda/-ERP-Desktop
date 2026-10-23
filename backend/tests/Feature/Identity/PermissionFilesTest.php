@@ -108,7 +108,7 @@ it('expands wildcard roles and keeps the super-admin marker', function (): void 
 
 it('only checks permissions that exist in the catalog', function (): void {
     $all = app(PermissionCatalog::class)->all();
-    $pattern = "/(?:->|::)(?:allows|allowed|allowedInActiveCompany|manages|can|cannot|authorize|hasPermissionTo)\([^;]*?'([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)'/";
+    $pattern = "/(?:->|::)(?:allows|allowed|allowedInActiveCompany|manages|can|cannot|authorize|hasPermissionTo)\([^;]*?'([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+)'/";
     $used = [];
 
     $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(app_path('Modules'), FilesystemIterator::SKIP_DOTS));

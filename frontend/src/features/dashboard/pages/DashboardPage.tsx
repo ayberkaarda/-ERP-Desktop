@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts'
 import { PageHeader } from '@/components/shared/PageHeader'
+import { AssistantSetupCard } from '@/features/assistant/AssistantSetupCard'
 import { useChartTheme } from '@/components/shared/useChartTheme'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -63,6 +64,7 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-[1440px] p-4 sm:p-6">
+      <AssistantSetupCard />
       <PageHeader
         title={t('dashboard.title')}
         description={t('dashboard.subtitle', { company: company?.name ?? '' })}

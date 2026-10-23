@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { AssistantHost } from '@/features/assistant/AssistantHost'
 import { Skeleton } from '@/components/ui/skeleton'
 import { SignOutFailedDialog } from '@/features/auth/components/SignOutFailedDialog'
 import { useAccountRealtime } from '@/features/auth/hooks/useAccountRealtime'
@@ -85,6 +86,7 @@ export function AppShell() {
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <PaletteTrigger />
+            <AssistantHost />
             <ConnectivityBadge />
             <NotificationBell />
             <ThemeToggle />

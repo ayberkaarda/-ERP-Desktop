@@ -30,6 +30,7 @@ final class ReferenceServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->app->bindIf(Services\ExternalReferences::BRANCH_LOOKUP, Services\NullLookup::class);
         $this->app->bindIf(Services\ExternalReferences::PARTY_LOOKUP, Services\NullLookup::class);
         $this->app->bindIf(Services\ExternalReferences::STOCK_WAREHOUSE_LOOKUP, Services\NullLookup::class);

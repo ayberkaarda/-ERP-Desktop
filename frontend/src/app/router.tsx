@@ -1,4 +1,5 @@
 import { treasuryRoutes } from '@/features/treasury/routes'
+import { assistantRoutes } from '@/features/assistant/routes'
 import { purchaseRequestsRoutes } from '@/features/purchasing/requests/routes'
 import { purchaseRfqsRoutes } from '@/features/purchasing/rfqs/routes'
 import { purchaseOrdersRoutes } from '@/features/purchasing/orders/routes'
@@ -102,6 +103,7 @@ export const routes: RouteObject[] = [
             }),
           },
           ...treasuryRoutes,
+          ...assistantRoutes,
           ...partyRoutes,
           ...catalogRoutes,
           ...referenceRoutes,

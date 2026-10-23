@@ -244,6 +244,78 @@ export function createWebHttp(options: WebHttpOptions = {}): HttpClient {
   }
 
   return {
+    streamPost: async (url, body, o = {}) => {
+      assertApiPath(url)
+      const company = currentCompany()
+      const generation = currentGeneration()
+      const base = options.baseURL ?? '/api/v1'
+      const target = `${base.replace(/\/$/, '')}/${url.replace(/^\//, '')}`
+      if (!target.startsWith('/') || target.startsWith('//')) {
+        throw new ApiError(0, 'INVALID_URL', 'Streaming requires a same-origin API base.')
+      }
+      const send = () => {
+        const locale = options.getLocale?.()
+        const csrf = document.cookie
+          .split('; ')
+          .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+          ?.slice(11)
+        const headers: Record<string, string> = {
+          ...o.headers,
+          Accept: 'text/event-stream',
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          ...(company ? { 'X-Company-Id': company } : {}),
+          ...(locale ? { 'Accept-Language': locale } : {}),
+          ...(o.idempotencyKey ? { 'Idempotency-Key': o.idempotencyKey } : {}),
+          ...(csrf ? { 'X-XSRF-TOKEN': decodeURIComponent(csrf) } : {}),
+        }
+        return fetch(target, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers,
+          body: JSON.stringify(body),
+          signal: o.signal,
+          redirect: 'error',
+        })
+      }
+      let response = await send()
+      if (company !== currentCompany() || generation !== currentGeneration()) {
+        await response.body?.cancel()
+        throw new ApiError(0, STALE_REQUEST, 'Company or session changed.')
+      }
+      if (response.status === 419 && !o.skipAuthHandling) {
+        await response.body?.cancel()
+        await refreshCsrf()
+        if (company !== currentCompany() || generation !== currentGeneration()) {
+          throw new ApiError(0, STALE_REQUEST, 'Company or session changed; request not replayed.')
+        }
+        response = await send()
+      }
+      if (company !== currentCompany() || generation !== currentGeneration()) {
+        await response.body?.cancel()
+        throw new ApiError(0, STALE_REQUEST, 'Company or session changed.')
+      }
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => null)
+        if (company !== currentCompany() || generation !== currentGeneration()) {
+          throw new ApiError(0, STALE_REQUEST, 'Company or session changed.')
+        }
+        const errors = isRecord(payload) && isRecord(payload.errors) ? payload.errors : {}
+        const code = typeof errors.code === 'string' ? errors.code : 'HTTP_ERROR'
+        const failure = classifyAuthFailure(response.status, code)
+        if (failure && !o.skipAuthHandling) options.onAuthFailure?.(failure)
+        throw new ApiError(
+          response.status,
+          code,
+          typeof errors.message === 'string' ? errors.message : response.statusText,
+        )
+      }
+      if (!response.headers.get('content-type')?.includes('text/event-stream') || !response.body) {
+        await response.body?.cancel()
+        throw new ApiError(0, 'INVALID_STREAM', 'Expected an event stream.')
+      }
+      return response.body
+    },
     get: (url, o) => run(url, () => instance.get(url, toConfig(o))),
     post: (url, body, o) => run(url, () => instance.post(url, body, toConfig(o))),
     put: (url, body, o) => run(url, () => instance.put(url, body, toConfig(o))),

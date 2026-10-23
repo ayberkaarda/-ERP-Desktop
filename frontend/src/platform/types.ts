@@ -19,6 +19,12 @@ export interface DownloadResult {
 }
 
 export interface HttpClient {
+  /** POST with an SSE body. Optional for runtimes without streaming support. */
+  streamPost?(
+    url: string,
+    body: unknown,
+    options?: HttpRequestOptions,
+  ): Promise<ReadableStream<Uint8Array>>
   get<T>(url: string, options?: HttpRequestOptions): Promise<T>
   post<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>
   put<T>(url: string, body?: unknown, options?: HttpRequestOptions): Promise<T>

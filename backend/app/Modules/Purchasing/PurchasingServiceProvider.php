@@ -48,6 +48,7 @@ final class PurchasingServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->mergeConfigFrom(__DIR__.'/config/purchasing.php', 'purchasing');
 
         $this->app->bind(SupplierExposure::class, ExposureCalculator::class);

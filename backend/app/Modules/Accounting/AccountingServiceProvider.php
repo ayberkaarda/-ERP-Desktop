@@ -43,6 +43,7 @@ final class AccountingServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->mergeConfigFrom(__DIR__.'/config/accounting.php', 'accounting');
 
         $this->app->bind(PostingService::class, LedgerPoster::class);

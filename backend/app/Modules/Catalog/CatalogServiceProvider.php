@@ -42,6 +42,7 @@ final class CatalogServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->app->bind(ItemLookup::class, DatabaseItemLookup::class);
         $this->app->bind(UnitLookup::class, DatabaseUnitLookup::class);
         $this->app->bind(PriceListLookup::class, DatabasePriceListLookup::class);
