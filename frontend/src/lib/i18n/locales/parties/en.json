@@ -130,7 +130,8 @@
     "bankAccounts": "Bank accounts",
     "attachments": "Attachments",
     "history": "History",
-    "sales": "Sales"
+    "sales": "Sales",
+    "purchases": "Purchasing"
   },
   "sub": {
     "add": "Add",

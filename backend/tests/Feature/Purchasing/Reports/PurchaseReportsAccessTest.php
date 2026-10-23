@@ -98,7 +98,7 @@ it('ignores rows of another company attached to this company documents', functio
     $returnLine = (string) DB::table('purchase_return_lines')->where('document_id', $this->h->ret['id'])->value('id');
     $copy('purchase_return_lines', $returnLine, ['line_no' => 99, 'receipt_line_id' => $this->h->r2['lines'][0]['id'], 'cost_total' => '70']);
     $quote = (string) DB::table('purchase_rfq_quotes')->where('rfq_id', $this->h->rfq['id'])->value('id');
-    $copy('purchase_rfq_quotes', $quote, ['party_id' => (string) Str::uuid7(), 'unit_price' => '1']);
+    $copy('purchase_rfq_quotes', $quote, ['party_id' => PurchKit::supplier($b)->id, 'unit_price' => '1']);
     DB::table('purchase_payable_applications')->insert([
         'id' => (string) Str::uuid7(), 'company_id' => $b, 'invoice_id' => $this->h->invs['id'], 'reference' => 'FOREIGN', 'amount' => '50',
         'applied_at' => now(), 'created_at' => now(), 'updated_at' => now(),

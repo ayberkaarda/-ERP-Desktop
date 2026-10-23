@@ -1,3 +1,10 @@
+import { registerPurchaseRequestsCommands } from '@/features/purchasing/requests/commands'
+import { registerPurchaseRfqsCommands } from '@/features/purchasing/rfqs/commands'
+import { registerPurchaseOrdersCommands } from '@/features/purchasing/orders/commands'
+import { registerPurchaseReceiptsCommands } from '@/features/purchasing/receipts/commands'
+import { registerPurchaseInvoicesCommands } from '@/features/purchasing/invoices/commands'
+import { registerPurchaseReturnsCommands } from '@/features/purchasing/returns/commands'
+import { registerPurchaseReportsCommands } from '@/features/purchasing/reports/commands'
 import { registerAccountsCommands } from '@/features/accounting/accounts/commands'
 import { registerDeterminationCommands } from '@/features/accounting/determination/commands'
 import { registerFiscalCommands } from '@/features/accounting/fiscal/commands'
@@ -28,6 +35,13 @@ let unregister: (() => void) | null = null
 export function registerFeatureCommands(): () => void {
   if (!unregister) {
     const parts = [
+      registerPurchaseRequestsCommands(),
+      registerPurchaseRfqsCommands(),
+      registerPurchaseOrdersCommands(),
+      registerPurchaseReceiptsCommands(),
+      registerPurchaseInvoicesCommands(),
+      registerPurchaseReturnsCommands(),
+      registerPurchaseReportsCommands(),
       registerPartyCommands(),
       registerCatalogCommands(),
       registerReferenceCommands(),

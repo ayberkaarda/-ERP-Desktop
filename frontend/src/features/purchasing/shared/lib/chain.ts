@@ -1,6 +1,6 @@
 import type { PurchaseDocumentType, PurchaseLink } from '../types'
 
-/** App routes of the purchasing areas (receipts, invoices, returns belong to fe-purch2). */
+/** App routes of the purchasing areas. */
 export const PURCH_PATHS = {
   request: '/purchasing/requests',
   rfq: '/purchasing/rfqs',

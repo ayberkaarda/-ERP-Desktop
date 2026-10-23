@@ -11,6 +11,8 @@ import type salesDocsTr from './locales/sales-docs/tr.json'
 import type salesReportsTr from './locales/sales-reports/tr.json'
 import type referenceTr from './locales/reference/tr.json'
 import type salesOrdersTr from './locales/sales-orders/tr.json'
+import type purchasingDocsTr from './locales/purchasing-docs/tr.json'
+import type purchasingReportsTr from './locales/purchasing-reports/tr.json'
 import type salesQuotesTr from './locales/sales-quotes/tr.json'
 import type salesSharedTr from './locales/sales-shared/tr.json'
 import type tr from './locales/tr.json'
@@ -35,6 +37,8 @@ declare module 'i18next' {
       'sales-quotes': typeof salesQuotesTr
       'sales-orders': typeof salesOrdersTr
       'purchasing-orders': typeof purchasingOrdersTr
+      'purchasing-docs': typeof purchasingDocsTr
+      'purchasing-reports': typeof purchasingReportsTr
     }
   }
 }

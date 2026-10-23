@@ -158,4 +158,6 @@ Belge başlığı döviz kodu, altı basamaklı kur, fatura tarihi, ödeme koşu
 
 API kaynaklarına yazılan para ve miktar alanları ondalık metin biçiminde ele alınır; istemci toplamları doğrulama için gönderse bile sunucu toplam motoruyla tekrar hesaplar. `preview-totals` belge kaydetmeden aynı hesaplamanın ön izlemesini verir.
 
+Mal kabul ve alış faturası detaylarındaki her satırın `returnable_quantity` alanı, yeni bir iadeye ayrılabilecek miktarı altı ondalık basamaklı metin olarak verir. Hesap, iptal edilmemiş iade taslaklarını ve mal kabul satırlarında henüz kaydedilmemiş fatura rezervasyonlarını da düşer. İstemci bu değeri seçim sınırı olarak kullanır; eşzamanlı değişikliklere karşı son kontrol dönüşüm işlemi sırasında sunucuda yapılır.
+
 Detay kaynakları satırlar, kaynak bağlantıları, eşleşme bilgisi ve durum alanlarını sunar. Yazdırma modeli sipariş, mal kabul, fatura ve iade için vardır; talep ve RFQ rotalarında print-model tanımlanmamıştır. Liste/dışa aktarma şirket ve izin kapsamındaki kayıtlarla sınırlıdır.

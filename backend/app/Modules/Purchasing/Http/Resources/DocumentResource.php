@@ -9,6 +9,7 @@ use App\Modules\Purchasing\Models\PurchaseInvoice;
 use App\Modules\Purchasing\Models\PurchaseOrder;
 use App\Modules\Purchasing\Models\PurchaseReceipt;
 use App\Modules\Purchasing\Models\PurchaseReturn;
+use App\Modules\Purchasing\Services\Quantities;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -66,6 +67,12 @@ final class DocumentResource extends JsonResource
         }
 
         if ($doc->relationLoaded('lines')) {
+            $bounds = app(Quantities::class)->returnable($doc);
+            foreach ($doc->lines as $line) {
+                if (isset($bounds[$line->id])) {
+                    $line->setAttribute('returnable_quantity', $bounds[$line->id]);
+                }
+            }
             $data['lines'] = LineResource::collection($doc->lines)->resolve($request);
         }
 

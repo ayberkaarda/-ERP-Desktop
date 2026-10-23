@@ -1,3 +1,10 @@
+import { purchaseRequestsRoutes } from '@/features/purchasing/requests/routes'
+import { purchaseRfqsRoutes } from '@/features/purchasing/rfqs/routes'
+import { purchaseOrdersRoutes } from '@/features/purchasing/orders/routes'
+import { purchaseReceiptsRoutes } from '@/features/purchasing/receipts/routes'
+import { purchaseInvoicesRoutes } from '@/features/purchasing/invoices/routes'
+import { purchaseReturnsRoutes } from '@/features/purchasing/returns/routes'
+import { purchaseReportsRoutes } from '@/features/purchasing/reports/routes'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
 import { accountsRoutes } from '@/features/accounting/accounts/routes'
@@ -116,6 +123,13 @@ export const routes: RouteObject[] = [
           ...salesInvoicesRoutes,
           ...salesReturnsRoutes,
           ...salesReportsRoutes,
+          ...purchaseRequestsRoutes,
+          ...purchaseRfqsRoutes,
+          ...purchaseOrdersRoutes,
+          ...purchaseReceiptsRoutes,
+          ...purchaseInvoicesRoutes,
+          ...purchaseReturnsRoutes,
+          ...purchaseReportsRoutes,
           ...devRoutes,
           {
             path: '*',

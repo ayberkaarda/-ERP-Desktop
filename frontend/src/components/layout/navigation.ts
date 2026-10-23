@@ -35,7 +35,6 @@ import {
   ReceiptText,
   Ruler,
   Settings2,
-  ShoppingBasket,
   Tag,
   TicketPercent,
   UsersRound,
@@ -97,9 +96,16 @@ export type NavKey =
   | 'salesInvoices'
   | 'salesReturns'
   | 'salesReports'
+  | 'purchaseRequests'
+  | 'purchaseRfqs'
+  | 'purchaseOrders'
+  | 'purchaseReceipts'
+  | 'purchaseInvoices'
+  | 'purchaseReturns'
+  | 'purchaseReports'
 
 export type NavSectionKey =
-  'main' | 'masterData' | 'sales' | 'accounting' | 'inventory' | 'reference' | 'system'
+  'main' | 'masterData' | 'purchasing' | 'sales' | 'accounting' | 'inventory' | 'reference' | 'system'
 
 export interface NavItem {
   key: NavKey
@@ -120,7 +126,6 @@ export const NAV_SECTIONS: NavSection[] = [
     key: 'main',
     items: [
       { key: 'dashboard', icon: LayoutDashboard, to: '/' },
-      { key: 'purchasing', icon: ShoppingBasket },
       { key: 'treasury', icon: WalletCards },
       { key: 'hr', icon: UsersRound },
     ],
@@ -206,6 +211,18 @@ export const NAV_SECTIONS: NavSection[] = [
         to: '/sales/reports',
         permission: 'sales.reports.view',
       },
+    ],
+  },
+  {
+    key: 'purchasing',
+    items: [
+      { key: 'purchaseRequests', icon: ClipboardList, to: '/purchasing/requests', permission: 'purchasing.requests.view' },
+      { key: 'purchaseRfqs', icon: FileText, to: '/purchasing/rfqs', permission: 'purchasing.rfqs.view' },
+      { key: 'purchaseOrders', icon: ShoppingCart, to: '/purchasing/orders', permission: 'purchasing.orders.view' },
+      { key: 'purchaseReceipts', icon: Truck, to: '/purchasing/receipts', permission: 'purchasing.receipts.view' },
+      { key: 'purchaseInvoices', icon: ReceiptText, to: '/purchasing/invoices', permission: 'purchasing.invoices.view' },
+      { key: 'purchaseReturns', icon: RotateCcw, to: '/purchasing/returns', permission: 'purchasing.returns.view' },
+      { key: 'purchaseReports', icon: ChartColumn, to: '/purchasing/reports', permission: 'purchasing.reports.view' },
     ],
   },
   {

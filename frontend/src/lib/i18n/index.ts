@@ -56,6 +56,14 @@ import purchasingOrdersDe from './locales/purchasing-orders/de.json'
 import purchasingOrdersEn from './locales/purchasing-orders/en.json'
 import purchasingOrdersFr from './locales/purchasing-orders/fr.json'
 import purchasingOrdersTr from './locales/purchasing-orders/tr.json'
+import purchasingDocsDe from './locales/purchasing-docs/de.json'
+import purchasingDocsEn from './locales/purchasing-docs/en.json'
+import purchasingDocsFr from './locales/purchasing-docs/fr.json'
+import purchasingDocsTr from './locales/purchasing-docs/tr.json'
+import purchasingReportsDe from './locales/purchasing-reports/de.json'
+import purchasingReportsEn from './locales/purchasing-reports/en.json'
+import purchasingReportsFr from './locales/purchasing-reports/fr.json'
+import purchasingReportsTr from './locales/purchasing-reports/tr.json'
 import de from './locales/de.json'
 import en from './locales/en.json'
 import fr from './locales/fr.json'
@@ -93,6 +101,8 @@ void i18n.use(initReactI18next).init({
       'sales-quotes': salesQuotesTr,
       'sales-orders': salesOrdersTr,
       'purchasing-orders': purchasingOrdersTr,
+      'purchasing-docs': purchasingDocsTr,
+      'purchasing-reports': purchasingReportsTr,
     },
     en: {
       translation: en,
@@ -110,6 +120,8 @@ void i18n.use(initReactI18next).init({
       'sales-quotes': salesQuotesEn,
       'sales-orders': salesOrdersEn,
       'purchasing-orders': purchasingOrdersEn,
+      'purchasing-docs': purchasingDocsEn,
+      'purchasing-reports': purchasingReportsEn,
     },
     de: {
       translation: de,
@@ -127,6 +139,8 @@ void i18n.use(initReactI18next).init({
       'sales-quotes': salesQuotesDe,
       'sales-orders': salesOrdersDe,
       'purchasing-orders': purchasingOrdersDe,
+      'purchasing-docs': purchasingDocsDe,
+      'purchasing-reports': purchasingReportsDe,
     },
     fr: {
       translation: fr,
@@ -144,6 +158,8 @@ void i18n.use(initReactI18next).init({
       'sales-quotes': salesQuotesFr,
       'sales-orders': salesOrdersFr,
       'purchasing-orders': purchasingOrdersFr,
+      'purchasing-docs': purchasingDocsFr,
+      'purchasing-reports': purchasingReportsFr,
     },
   },
   ns: [
@@ -162,6 +178,8 @@ void i18n.use(initReactI18next).init({
     'sales-quotes',
     'sales-orders',
     'purchasing-orders',
+    'purchasing-docs',
+    'purchasing-reports',
   ],
   lng: storedLanguage(),
   fallbackLng: 'tr',

@@ -3,7 +3,7 @@ import { orderActions } from './lifecycle'
 import { orderPreviewInput, orderToInput, orderToValues } from './orderForm'
 import { rfqLinesLocked } from './rfqForm'
 
-// Regression tests of the review findings (fe-purch1).
+// Purchasing regression tests.
 
 const line = (over: Partial<OrderLine> = {}): OrderLine =>
   ({

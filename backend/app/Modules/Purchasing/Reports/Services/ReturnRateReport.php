@@ -8,6 +8,7 @@ use App\Modules\Purchasing\Enums\ReturnStatus;
 use App\Modules\Purchasing\Reports\Data\ReportFilters;
 use App\Modules\Purchasing\Reports\Data\ReportTable;
 use App\Modules\Purchasing\Reports\Support\Num;
+use App\Modules\Purchasing\Reports\Support\ReturnWarehouse;
 use App\Modules\Purchasing\Services\SupplierMovements;
 use App\Modules\Purchasing\Support\Export;
 use Brick\Math\BigDecimal;
@@ -138,17 +139,17 @@ final class ReturnRateReport
     {
         return $this->filtered(DB::table('purchase_return_lines as l')->join('purchase_returns as r', 'r.id', '=', 'l.document_id')
             ->whereIn('r.status', [ReturnStatus::Shipped->value, ReturnStatus::Debited->value])
-            ->whereBetween('r.document_date', [(string) $f->dateFrom, (string) $f->dateTo]), $f)
+            ->whereBetween('r.document_date', [(string) $f->dateFrom, (string) $f->dateTo]), $f, true)
             ->select(['l.id', 'l.document_id', 'l.item_id', 'l.base_quantity', DB::raw('coalesce(l.receipt_cost, 0) AS value'),
                 'r.document_date', 'r.party_id', 'r.party_name', DB::raw('1 AS factor')]);
     }
 
-    private function filtered(Builder $query, ReportFilters $f): Builder
+    private function filtered(Builder $query, ReportFilters $f, bool $return = false): Builder
     {
         return $query->where('r.company_id', $f->companyId)->where('l.company_id', $f->companyId)
             ->when($f->partyId !== null, fn (Builder $q) => $q->where('r.party_id', $f->partyId))
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('r.currency_code', $f->currencyCode))
             ->when($f->itemId !== null, fn (Builder $q) => $q->where('l.item_id', $f->itemId))
-            ->when($f->warehouseId !== null, fn (Builder $q) => $q->where('r.warehouse_id', $f->warehouseId));
+            ->when($f->warehouseId !== null, fn (Builder $q) => $q->whereRaw(($return ? ReturnWarehouse::expression() : 'r.warehouse_id').' = ?', [$f->warehouseId]));
     }
 }

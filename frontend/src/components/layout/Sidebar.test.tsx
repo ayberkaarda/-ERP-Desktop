@@ -39,6 +39,26 @@ afterEach(() => {
 })
 
 describe('Sidebar', () => {
+  it('shows only purchasing entries granted by the active company', () => {
+    signInWith(['purchasing.receipts.view', 'purchasing.reports.view'])
+    renderSidebar('/purchasing/receipts')
+
+    const purchasing = screen.getByRole('group', { name: 'Satın alma' })
+    expect(
+      within(screen.getByRole('group', { name: 'Ana menü' })).queryByText('Satın alma'),
+    ).not.toBeInTheDocument()
+    expect(within(purchasing).getByRole('link', { name: 'Mal kabulleri' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(within(purchasing).getByRole('link', { name: 'Satın alma raporları' })).toHaveAttribute(
+      'href',
+      '/purchasing/reports',
+    )
+    expect(within(purchasing).queryByRole('link', { name: 'Tedarikçi faturaları' })).not.toBeInTheDocument()
+    expect(within(purchasing).queryByRole('link', { name: 'Satın alma siparişleri' })).not.toBeInTheDocument()
+  })
+
   it('shows only the entries the active company grants and drops empty sections', () => {
     signInWith(['parties.view', 'items.view'])
     renderSidebar()

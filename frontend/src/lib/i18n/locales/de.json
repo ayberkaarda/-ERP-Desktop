@@ -66,7 +66,14 @@
     "salesDeliveries": "Lieferscheine",
     "salesInvoices": "Rechnungen",
     "salesReturns": "Retouren",
-    "salesReports": "Verkaufsberichte"
+    "salesReports": "Verkaufsberichte",
+    "purchaseRequests": "Bestellanforderungen",
+    "purchaseRfqs": "Angebotsanfragen",
+    "purchaseOrders": "Bestellungen",
+    "purchaseReceipts": "Wareneingänge",
+    "purchaseInvoices": "Lieferantenrechnungen",
+    "purchaseReturns": "Einkaufsretouren",
+    "purchaseReports": "Einkaufsberichte"
   },
   "topbar": {
     "company": "Unternehmen",

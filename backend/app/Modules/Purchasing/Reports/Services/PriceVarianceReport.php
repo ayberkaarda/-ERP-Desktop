@@ -10,6 +10,7 @@ use App\Modules\Purchasing\Enums\ReturnStatus;
 use App\Modules\Purchasing\Reports\Data\ReportFilters;
 use App\Modules\Purchasing\Reports\Data\ReportTable;
 use App\Modules\Purchasing\Reports\Support\Num;
+use App\Modules\Purchasing\Reports\Support\ReturnWarehouse;
 use App\Modules\Purchasing\Reports\Support\Sql;
 use App\Modules\Purchasing\Reports\Support\Window;
 use Illuminate\Database\Query\Builder;
@@ -133,7 +134,7 @@ final class PriceVarianceReport
             ->whereNotNull('l.receipt_cost')->whereNotNull('l.cost_total')->whereColumn('l.receipt_cost', '<>', 'l.cost_total')
             ->whereBetween('r.document_date', [(string) $f->dateFrom, (string) $f->dateTo])
             ->when($f->currencyCode !== null, fn (Builder $q) => $q->where('r.currency_code', $f->currencyCode))
-            ->when($f->warehouseId !== null, fn (Builder $q) => $q->where('r.warehouse_id', $f->warehouseId)), 'r', $f, $category)
+            ->when($f->warehouseId !== null, fn (Builder $q) => $q->whereRaw(ReturnWarehouse::expression().' = ?', [$f->warehouseId])), 'r', $f, $category)
             ->selectRaw("r.document_date AS date, 'return' AS source, 'shipped' AS event, l.document_id, r.number, NULL AS supplier_invoice_no,
                 r.party_id, r.party_name, l.line_no, l.item_id, NULL::uuid AS order_id, NULL AS order_number, r.currency_code, l.quantity,
                 NULL::numeric AS order_unit_price, NULL::numeric AS invoice_unit_price, NULL::numeric AS price_difference_percent,

@@ -66,7 +66,14 @@
     "salesDeliveries": "Deliveries",
     "salesInvoices": "Invoices",
     "salesReturns": "Returns",
-    "salesReports": "Sales reports"
+    "salesReports": "Sales reports",
+    "purchaseRequests": "Purchase requests",
+    "purchaseRfqs": "Requests for quotation",
+    "purchaseOrders": "Purchase orders",
+    "purchaseReceipts": "Goods receipts",
+    "purchaseInvoices": "Supplier invoices",
+    "purchaseReturns": "Purchase returns",
+    "purchaseReports": "Purchasing reports"
   },
   "topbar": {
     "company": "Company",

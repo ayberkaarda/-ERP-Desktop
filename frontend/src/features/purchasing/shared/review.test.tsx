@@ -5,7 +5,7 @@ import { renderPurch, setupPurch } from './test/testing'
 import '../orders/pages/OrderPage'
 import '../rfqs/pages/RfqPage'
 
-// Page-level regression tests of the review findings (fe-purch1).
+// Page-level purchasing regression tests.
 
 vi.setConfig({ testTimeout: 30_000 })
 

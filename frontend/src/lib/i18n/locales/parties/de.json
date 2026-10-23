@@ -130,7 +130,8 @@
     "bankAccounts": "Bankverbindungen",
     "attachments": "Anhänge",
     "history": "Verlauf",
-    "sales": "Verkauf"
+    "sales": "Verkauf",
+    "purchases": "Einkauf"
   },
   "sub": {
     "add": "Hinzufügen",

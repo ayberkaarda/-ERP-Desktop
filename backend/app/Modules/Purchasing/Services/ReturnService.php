@@ -283,6 +283,7 @@ final class ReturnService extends DocumentService
                     $corrections[] = [$line, $receiptCost->minus($cost), $warehouse];
                 }
 
+                $return->warehouse_id = $warehouse;
                 $return->stock_document_id = $posted->documentId;
                 $return->journal_entry_id = $this->bookCorrection($return, $corrections, $actor) ?? $posted->journalEntryId;
             }

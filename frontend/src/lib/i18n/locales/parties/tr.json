@@ -130,7 +130,8 @@
     "bankAccounts": "Banka hesapları",
     "attachments": "Ekler",
     "history": "Geçmiş",
-    "sales": "Satış"
+    "sales": "Satış",
+    "purchases": "Satın alma"
   },
   "sub": {
     "add": "Ekle",

@@ -46,7 +46,7 @@ export function setupPurch(
 export const without = (...names: string[]) =>
   ALL_PURCH_PERMISSIONS.filter((p) => !names.includes(p))
 
-/** Renders the real route tables of this lane (guards + lazy pages) at `path`. */
+/** Renders the purchasing route tables (guards + lazy pages) at `path`. */
 export function renderPurch(path: string) {
   return renderRoutes(
     [

@@ -130,7 +130,8 @@
     "bankAccounts": "Comptes bancaires",
     "attachments": "Pièces jointes",
     "history": "Historique",
-    "sales": "Ventes"
+    "sales": "Ventes",
+    "purchases": "Achats"
   },
   "sub": {
     "add": "Ajouter",
