@@ -5,7 +5,8 @@
 //! the backoff (1 s → 300 s, ±20%), never sooner than `Retry-After`; no
 //! timer while sign-in is required. Triggers sent through [`SyncHandle`]
 //! (network change, manual, realtime) run at once; triggers that queue up
-//! while a run is busy collapse into one run.
+//! while a run is busy collapse into one run, and a follow-up a cancelled
+//! run owed to a coalesced caller runs here.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -112,6 +113,8 @@ impl<A: SyncApi> SyncLoop<A> {
                     Some(next) => trigger = Some(next),
                     None => return,
                 },
+                // A run cancelled elsewhere owed a follow-up.
+                () = self.engine.follow_up_requested() => trigger = Some(Trigger::Manual),
                 () = sleep => trigger = Some(timer_trigger),
             }
         }

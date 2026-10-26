@@ -110,6 +110,18 @@ pub trait TokenStore: Send + Sync {
     /// the deactivation flag and removes the tokens, atomically, and returns
     /// `true`. Otherwise changes nothing and returns `false`.
     fn deactivate(&self, profile: &str, expected_generation: u64) -> Result<bool>;
+
+    /// Compare-and-set sign-out: when the generation is `expected_generation`,
+    /// removes the tokens atomically and returns `true`; otherwise (a newer
+    /// sign-in) changes nothing and returns `false`. The default fails
+    /// without changing anything: a store must implement it to support a
+    /// sign-out.
+    fn sign_out(&self, profile: &str, expected_generation: u64) -> Result<bool> {
+        let _ = (profile, expected_generation);
+        Err(crate::error::SyncError::TokenStore(
+            "this token store does not support a generation-bound sign-out".to_owned(),
+        ))
+    }
 }
 
 #[derive(Debug)]
@@ -181,6 +193,16 @@ impl TokenStore for MemoryTokenStore {
             true
         }))
     }
+
+    fn sign_out(&self, profile: &str, expected_generation: u64) -> Result<bool> {
+        Ok(self.with(profile, |record| {
+            if record.generation != expected_generation {
+                return false;
+            }
+            record.tokens = None;
+            true
+        }))
+    }
 }
 
 #[cfg(test)]
@@ -212,6 +234,17 @@ mod tests {
         assert!(!store.load_record("prod").unwrap().deactivated);
         assert_eq!(store.take("prod").unwrap(), Some(tokens(3)));
         assert_eq!(store.take("prod").unwrap(), None);
+    }
+
+    #[test]
+    fn sign_out_is_a_compare_and_set_on_the_generation() {
+        let store = MemoryTokenStore::default();
+        let first = store.sign_in("prod", &tokens(1)).unwrap();
+        store.sign_in("prod", &tokens(2)).unwrap();
+        assert!(!store.sign_out("prod", first).unwrap());
+        assert_eq!(store.load("prod").unwrap(), Some(tokens(2)));
+        assert!(store.sign_out("prod", first + 1).unwrap());
+        assert_eq!(store.load("prod").unwrap(), None);
     }
 
     #[test]

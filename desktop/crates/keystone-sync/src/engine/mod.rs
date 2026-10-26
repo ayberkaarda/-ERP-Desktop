@@ -49,17 +49,18 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
+use serde_json::{Map, Value};
 use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 
-use crate::auth::TokenStore;
+use crate::auth::{Session, TokenStore};
 use crate::backoff::Backoff;
 use crate::client::SyncApi;
-use crate::conflicts::ConflictStore;
+use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
 use crate::error::{Result, SyncError};
-use crate::outbox::{EnqueueOutcome, NewMutation, Outbox, OutboxQueue};
+use crate::outbox::{EnqueueOutcome, NewMutation, Outbox, OutboxEntry, OutboxQueue};
 use crate::store::{ListQuery, Migration, PullBase, ResourceSpec, Store};
-use crate::wire::{ErrorCode, MutationOp, PullResource, ResourceName};
+use crate::wire::{ConflictChoice, ErrorCode, MutationOp, PullResource, ResourceName};
 
 pub use driver::{SyncHandle, SyncLoop, next_delay, sync_loop};
 pub use overlay::{LocalPage, LocalRow};
@@ -204,9 +205,11 @@ struct Gate {
 
 /// Frees the run slot when a run is cancelled or panics. A run that ends
 /// normally frees it itself, in the same critical section that checks for
-/// a follow-up, and disarms this guard.
+/// a follow-up, and disarms this guard. A follow-up already promised to a
+/// coalesced caller is handed to the sync loop ([`SyncEngine::follow_up_requested`]).
 struct Running<'a> {
     gate: &'a Mutex<Gate>,
+    follow_up: &'a tokio::sync::Notify,
     armed: bool,
 }
 
@@ -215,7 +218,9 @@ impl Drop for Running<'_> {
         if self.armed {
             let mut gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
             gate.running = false;
-            gate.queued = false;
+            if std::mem::take(&mut gate.queued) {
+                self.follow_up.notify_one();
+            }
         }
     }
 }
@@ -246,11 +251,52 @@ enum Hook {
     GateDecided,
     /// `sign_out` counted the unsent work and has not wiped yet.
     SignOutCounted,
+    /// A local read passed its access check and has not read yet.
+    AccessChecked,
+    /// A push answer passed its commit check and is not written yet.
+    CommitChecked,
 }
 
 #[cfg(test)]
 type HookFn = dyn Fn(Hook) + Send + Sync;
 
+/// The sync engine of one profile. It owns local access: reads, writes and
+/// outbox or conflict work go through its guarded methods. There is no raw
+/// store, outbox, conflict or API accessor:
+///
+/// ```compile_fail
+/// fn raw<A: keystone_sync::client::SyncApi>(e: &keystone_sync::engine::SyncEngine<A>) {
+///     let _ = e.outbox();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn raw<A: keystone_sync::client::SyncApi>(e: &keystone_sync::engine::SyncEngine<A>) {
+///     let _ = e.store();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn raw<A: keystone_sync::client::SyncApi>(e: &keystone_sync::engine::SyncEngine<A>) {
+///     let _ = e.conflicts();
+/// }
+/// ```
+///
+/// ```compile_fail
+/// fn raw<A: keystone_sync::client::SyncApi>(e: &keystone_sync::engine::SyncEngine<A>) {
+///     let _ = e.api();
+/// }
+/// ```
+///
+/// The guarded ones are there (positive control of the blocks above):
+///
+/// ```no_run
+/// fn guarded<A: keystone_sync::client::SyncApi>(e: &keystone_sync::engine::SyncEngine<A>) {
+///     let _ = e.outbox_entries();
+///     let _ = e.conflict_records();
+///     let _ = e.status();
+/// }
+/// ```
 pub struct SyncEngine<A> {
     api: A,
     store: Arc<Store>,
@@ -275,6 +321,10 @@ pub struct SyncEngine<A> {
     failures: AtomicU32,
     status: watch::Sender<SyncStatus>,
     changes: broadcast::Sender<ResourcesChanged>,
+    /// Signalled when a cancelled run leaves a promised follow-up behind.
+    follow_up: tokio::sync::Notify,
+    /// Process-wide session of the profile (sign-in gate).
+    session: Arc<Session>,
     #[cfg(test)]
     hook: Mutex<Option<Arc<HookFn>>>,
 }
@@ -298,13 +348,15 @@ impl<A: SyncApi> SyncEngine<A> {
         tokens: Arc<dyn TokenStore>,
         profile: impl Into<String>,
     ) -> Self {
+        let profile = profile.into();
+        let session = Session::shared(&profile, tokens.as_ref());
         Self {
             api,
             outbox: Outbox::new(store.clone()),
             conflicts: ConflictStore::new(store.clone()),
             store,
             tokens,
-            profile: profile.into(),
+            profile,
             specs: Vec::new(),
             pull_limit: None,
             backoff: Backoff::default(),
@@ -316,6 +368,8 @@ impl<A: SyncApi> SyncEngine<A> {
             failures: AtomicU32::new(0),
             status: watch::Sender::new(SyncStatus::default()),
             changes: broadcast::channel(64).0,
+            follow_up: tokio::sync::Notify::new(),
+            session,
             #[cfg(test)]
             hook: Mutex::default(),
         }
@@ -354,6 +408,7 @@ impl<A: SyncApi> SyncEngine<A> {
         }
         let mut running = Running {
             gate: &self.gate,
+            follow_up: &self.follow_up,
             armed: true,
         };
         let mut trigger = trigger;
@@ -425,6 +480,8 @@ impl<A: SyncApi> SyncEngine<A> {
         let resource = mutation.resource.clone();
         let outcome = {
             let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+            // No sign-in completes between the check below and the work.
+            let _sign_in = self.session.hold();
             self.check_access(&resource)?;
             if mutation.op != MutationOp::Create {
                 local::save_base(&self.store, &resource, mutation.id)?;
@@ -440,23 +497,33 @@ impl<A: SyncApi> SyncEngine<A> {
     /// access rule as [`SyncEngine::enqueue`].
     pub fn list(&self, resource: &ResourceName, query: &ListQuery) -> Result<LocalPage> {
         let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the check below and the work.
+        let _sign_in = self.session.hold();
         self.check_access(resource)?;
+        self.hook(Hook::AccessChecked);
         overlay::list(&self.store, resource, query)
     }
 
     /// Local row, draft first. Same access rule as [`SyncEngine::enqueue`].
     pub fn get(&self, resource: &ResourceName, id: Uuid) -> Result<Option<LocalRow>> {
         let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the check below and the work.
+        let _sign_in = self.session.hold();
         self.check_access(resource)?;
         overlay::get(&self.store, resource, id)
     }
 
-    /// Signs out: removes tokens, mirror, outbox and conflicts. With unsent
-    /// work (any outbox entry or open conflict) nothing happens unless
-    /// `force`. Waits for a running pass; counting and wiping exclude
-    /// [`SyncEngine::enqueue`].
+    /// Signs out the sign-in current at the call: removes its tokens, and
+    /// mirror, outbox and conflicts. With unsent work (any outbox entry or
+    /// open conflict) nothing happens unless `force`. Waits for a running
+    /// pass and for token work of the profile (a refresh in flight cannot
+    /// write tokens back afterwards); counting and wiping exclude
+    /// [`SyncEngine::enqueue`]. Tokens of a sign-in made after the call
+    /// stay ([`TokenStore::sign_out`] is a compare-and-set).
     pub async fn sign_out(&self, force: bool) -> Result<SignOut> {
+        let generation = self.generation()?;
         let _work = self.work.lock().await;
+        let _tokens = self.session.lock().await;
         let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
         let counts = local::counts(&self.store)?;
         self.hook(Hook::SignOutCounted);
@@ -467,32 +534,84 @@ impl<A: SyncApi> SyncEngine<A> {
                 conflicts: counts.conflicts,
             });
         }
+        // The local data is the signing-out user's (a later sign-in is not
+        // verified yet, so it has none).
         self.wipe()?;
-        self.tokens.clear(&self.profile)?;
+        self.tokens.sign_out(&self.profile, generation)?;
         self.set_state(SyncState::AuthRequired, None)?;
         Ok(SignOut::Done)
     }
 
-    pub fn api(&self) -> &A {
-        &self.api
-    }
-
-    pub fn store(&self) -> &Arc<Store> {
-        &self.store
-    }
-
-    /// Direct outbox access (retry, discard, inspection). Queue new writes
-    /// through [`SyncEngine::enqueue`], which applies the access rules.
-    pub fn outbox(&self) -> &Outbox {
-        &self.outbox
-    }
-
-    pub fn conflicts(&self) -> &ConflictStore {
-        &self.conflicts
-    }
-
     pub fn backoff(&self) -> &Backoff {
         &self.backoff
+    }
+
+    /// Outbox entries (every state), for the pending-work and quarantine
+    /// views. Same verification rule as [`SyncEngine::enqueue`].
+    pub fn outbox_entries(&self) -> Result<Vec<OutboxEntry>> {
+        self.guarded(|| self.outbox.list())
+    }
+
+    /// Sends a rejected or quarantined entry again.
+    pub fn retry(&self, key: Uuid) -> Result<()> {
+        self.guarded(|| self.outbox.retry(key))?;
+        self.refresh_status().map(|_| ())
+    }
+
+    /// Drops a rejected or quarantined entry.
+    pub fn discard(&self, key: Uuid) -> Result<()> {
+        self.guarded(|| self.outbox.discard(key))?;
+        self.refresh_status().map(|_| ())
+    }
+
+    /// Open Conflict Inbox records.
+    pub fn conflict_records(&self) -> Result<Vec<ConflictRecord>> {
+        self.guarded(|| self.conflicts.list())
+    }
+
+    /// See [`ConflictInbox::resolve`]; an `Enqueue` action goes through
+    /// [`SyncEngine::enqueue`].
+    pub fn resolve_conflict(&self, key: Uuid, choice: ConflictChoice) -> Result<ResolutionAction> {
+        let action = self.guarded(|| self.conflicts.resolve(key, choice))?;
+        self.refresh_status()?;
+        Ok(action)
+    }
+
+    /// See [`ConflictInbox::resolve_use_existing`].
+    pub fn resolve_conflict_use_existing(
+        &self,
+        key: Uuid,
+        candidate: Uuid,
+    ) -> Result<ResolutionAction> {
+        let action = self.guarded(|| self.conflicts.resolve_use_existing(key, candidate))?;
+        self.refresh_status()?;
+        Ok(action)
+    }
+
+    /// See [`ConflictInbox::resolve_merge`].
+    pub fn resolve_conflict_merge(
+        &self,
+        key: Uuid,
+        merged_payload: Map<String, Value>,
+    ) -> Result<ResolutionAction> {
+        let action = self.guarded(|| self.conflicts.resolve_merge(key, merged_payload))?;
+        self.refresh_status()?;
+        Ok(action)
+    }
+
+    /// Resolves when a follow-up run was promised to a coalesced caller but
+    /// the run that owed it was cancelled; the sync loop then runs it.
+    pub async fn follow_up_requested(&self) {
+        self.follow_up.notified().await;
+    }
+
+    /// `f` under the local guard, for a verified sign-in only.
+    fn guarded<T>(&self, f: impl FnOnce() -> Result<T>) -> Result<T> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the check below and the work.
+        let _sign_in = self.session.hold();
+        self.check_verified()?;
+        f()
     }
 
     /// One pass under the work lock, with state publication and the
@@ -582,13 +701,7 @@ impl<A: SyncApi> SyncEngine<A> {
 
     /// Local access rule of reads and enqueues; the caller holds `local`.
     fn check_access(&self, resource: &ResourceName) -> Result<()> {
-        let record = self.tokens.load_record(&self.profile)?;
-        let session = local::session(&self.store)?;
-        if record.deactivated || session.generation != Some(record.generation) {
-            return Err(SyncError::OfflineUnavailable(
-                "local data is not verified for the current sign-in yet; sync first".to_owned(),
-            ));
-        }
+        let session = self.check_verified()?;
         if !session.resources.contains(resource) {
             return Err(SyncError::Api {
                 status: 403,
@@ -600,6 +713,19 @@ impl<A: SyncApi> SyncEngine<A> {
             });
         }
         Ok(())
+    }
+
+    /// The local data was verified by a manifest of the current sign-in
+    /// generation, which is not deactivated. Returns that local session.
+    fn check_verified(&self) -> Result<local::LocalSession> {
+        let record = self.tokens.load_record(&self.profile)?;
+        let session = local::session(&self.store)?;
+        if record.deactivated || session.generation != Some(record.generation) {
+            return Err(SyncError::OfflineUnavailable(
+                "local data is not verified for the current sign-in yet; sync first".to_owned(),
+            ));
+        }
+        Ok(session)
     }
 
     /// Current sign-in generation of the profile.
@@ -722,7 +848,9 @@ impl<A> SyncEngine<A> {
 /// State after a failed run, by error.
 pub fn state_after_error(error: &SyncError) -> SyncState {
     match error {
-        SyncError::Network(_) | SyncError::OfflineUnavailable(_) => SyncState::Offline,
+        SyncError::Network(_) | SyncError::NotSent(_) | SyncError::OfflineUnavailable(_) => {
+            SyncState::Offline
+        }
         SyncError::Api {
             code: ErrorCode::Unauthenticated | ErrorCode::UserDeactivated,
             ..
@@ -732,11 +860,13 @@ pub fn state_after_error(error: &SyncError) -> SyncState {
 }
 
 /// Counts towards the outbox quarantine: the server answered with a
-/// failure that resending later is expected to fix. A network failure does
-/// not count: the client does not tell "never sent" from "answer lost"
-/// apart, and a resend of an applied batch is answered `duplicate`.
+/// failure that resending later is expected to fix, or the answer was lost
+/// (`Network`: the batch may have been applied; after the attempt limit
+/// the user decides instead of the batch holding the queue forever). A
+/// request that was never sent (`NotSent`) does not count.
 fn is_transient(error: &SyncError) -> bool {
     match error {
+        SyncError::Network(_) => true,
         SyncError::Api { status, code, .. } => {
             *status >= 500 || *status == 429 || *code == ErrorCode::IdempotencyInProgress
         }

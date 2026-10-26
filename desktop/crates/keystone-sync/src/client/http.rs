@@ -110,7 +110,8 @@ enum Transport {
 impl From<Transport> for SyncError {
     fn from(error: Transport) -> Self {
         match error {
-            Transport::NotSent(e) | Transport::Lost(e) => SyncError::Network(e.to_string()),
+            Transport::NotSent(e) => SyncError::NotSent(e.to_string()),
+            Transport::Lost(e) => SyncError::Network(e.to_string()),
         }
     }
 }
@@ -307,7 +308,7 @@ impl<T: TokenStore> HttpClient<T> {
             Ok(raw) => raw,
             Err(Transport::NotSent(e)) => {
                 self.store().save(self.profile(), &taken)?;
-                return Err(SyncError::Network(e.to_string()));
+                return Err(SyncError::NotSent(e.to_string()));
             }
             Err(Transport::Lost(_)) => {
                 return Err(sign_in_required(
@@ -393,8 +394,8 @@ impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
             }
             let response = decode_token(&raw)?;
             let _gate = self.session.lock().await;
-            self.store()
-                .sign_in(self.profile(), &StoredTokens::from(response.data.clone()))?;
+            self.session
+                .sign_in(self.store(), &StoredTokens::from(response.data.clone()))?;
             Ok(response)
         }
         .await;

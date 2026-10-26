@@ -217,7 +217,7 @@ async fn a_cancelled_run_settles_its_state_and_reports_changes() {
 }
 
 #[tokio::test]
-async fn network_failures_on_push_do_not_quarantine() {
+async fn lost_push_answers_end_in_quarantine() {
     let env = env_with(Duration::from_millis(300)).await;
     mount_manifest(&env.server, simple_manifest(&["parties"])).await;
     mount_empty_pull(&env.server).await;
@@ -236,11 +236,46 @@ async fn network_failures_on_push_do_not_quarantine() {
             json!({"name": "X"}),
         ))
         .unwrap();
-    for _ in 0..6 {
+    // Outcome unknown each time: it may have been applied. After the
+    // attempt limit the entry waits for the user instead of holding the
+    // queue forever (a never-sent push does not count, see the unit tests).
+    for _ in 0..5 {
         let error = env.engine.run_once(Trigger::Probe).await.unwrap_err();
         assert_eq!(error.code(), "NETWORK_ERROR");
     }
-    let entries = env.engine.outbox().list().unwrap();
-    assert_eq!(entries[0].state, OutboxState::Pending);
-    assert_eq!(env.engine.status().quarantined, 0);
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries[0].state, OutboxState::Quarantined);
+    assert_eq!(env.engine.status().quarantined, 1);
+    env.engine.run_once(Trigger::Probe).await.unwrap();
+    assert_eq!(hits(&env.server, PUSH).await, 5);
+}
+
+#[tokio::test]
+async fn a_follow_up_promised_to_a_coalesced_caller_survives_cancellation() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    Mock::given(method("POST"))
+        .and(path(PULL))
+        .respond_with(|request: &Request| empty_pull(request).set_delay(Duration::from_secs(5)))
+        .mount(&env.server)
+        .await;
+    let mut running = Box::pin(env.engine.run_once(Trigger::Manual));
+    tokio::select! {
+        _ = &mut running => panic!("the pull answers late"),
+        () = tokio::time::sleep(Duration::from_millis(300)) => {}
+    }
+    let second = env
+        .engine
+        .run_once(Trigger::Realtime(name("parties")))
+        .await
+        .unwrap();
+    assert!(second.coalesced, "a follow-up run was promised");
+    drop(running);
+
+    let requested =
+        tokio::time::timeout(Duration::from_secs(2), env.engine.follow_up_requested()).await;
+    assert!(
+        requested.is_ok(),
+        "the promised follow-up run was dropped with the cancelled run"
+    );
 }

@@ -38,10 +38,12 @@ impl<A: SyncApi> SyncEngine<A> {
         self.outbox.requeue_in_flight()?;
         let manifest = self.api.manifest_in(generation).await?.data;
         self.apply_session(&manifest, generation, report)?;
-        self.push_all(&manifest, generation, report).await?;
+        // A push answer with invalid rows stops pushing for this run but
+        // not the pull; the run still reports it.
+        let invalid = self.push_all(&manifest, generation, report).await?;
         self.pull_all(&manifest, generation, report).await?;
         local::prune_bases(&self.store)?;
-        Ok(())
+        invalid.map_or(Ok(()), Err)
     }
 
     /// Identity and manifest, in one exclusive step that no read or enqueue
@@ -53,6 +55,7 @@ impl<A: SyncApi> SyncEngine<A> {
         report: &mut SyncReport,
     ) -> Result<()> {
         let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+        let _sign_in = self.session.hold();
         self.ensure_generation(generation)?;
         let identity = format!("{}:{}", manifest.user_id, manifest.company_id);
         // A different user or company than the local data belongs to: wipe
@@ -137,7 +140,7 @@ impl<A: SyncApi> SyncEngine<A> {
         manifest: &Manifest,
         generation: u64,
         report: &mut SyncReport,
-    ) -> Result<()> {
+    ) -> Result<Option<SyncError>> {
         let max = usize::try_from(manifest.limits.push_batch_max)
             .unwrap_or(500)
             .clamp(1, 500);
@@ -166,15 +169,31 @@ impl<A: SyncApi> SyncEngine<A> {
             };
             let results = &response.data.results;
             let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+            // No sign-in completes between the check below and the work.
+            let _sign_in = self.session.hold();
             // Nothing is written from an answer that arrived after another
-            // sign-in, or that carries rows outside the request.
-            if let Err(error) = self
-                .ensure_generation(generation)
-                .and_then(|()| check_push_results(&request, results, manifest))
-            {
+            // sign-in.
+            if let Err(error) = self.ensure_generation(generation) {
                 self.outbox.requeue_in_flight()?;
                 return Err(error);
             }
+            self.hook(super::Hook::CommitChecked);
+            // A result whose row lies outside the request is not applied; its
+            // mutation counts an attempt (quarantine after the limit, then the
+            // user decides) while the valid results of the batch settle.
+            let company = manifest.company_id.to_string();
+            let mut invalid: Option<SyncError> = None;
+            let mut bad = Vec::new();
+            let mut valid = Vec::with_capacity(results.len());
+            for result in results {
+                if let Err(error) = check_push_result(&request, result, manifest, &company) {
+                    bad.push(result.idempotency_key);
+                    invalid.get_or_insert(error);
+                } else {
+                    valid.push(result.clone());
+                }
+            }
+            let results = &valid;
             // Mirror first: a crash before the outbox settles resends the
             // batch and gets `duplicate` with the same rows.
             for result in results {
@@ -204,10 +223,16 @@ impl<A: SyncApi> SyncEngine<A> {
                     self.touch(report, &result.resource);
                 }
             }
+            for key in bad {
+                self.outbox.transient_failure(key)?;
+            }
             // A mutation without a result goes back to the queue.
             self.outbox.requeue_in_flight()?;
+            if invalid.is_some() {
+                return Ok(invalid);
+            }
         }
-        Ok(())
+        Ok(None)
     }
 
     async fn pull_all(
@@ -278,6 +303,8 @@ impl<A: SyncApi> SyncEngine<A> {
             };
 
             let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+            // No sign-in completes between the check below and the work.
+            let _sign_in = self.session.hold();
             self.ensure_generation(generation)?;
             for page in &response.data.resources {
                 let Some(at) = chunk.iter().position(|n| *n == page.resource) else {
@@ -412,21 +439,20 @@ fn was_sent(request: &PushRequest, result: &PushResult) -> bool {
     })
 }
 
-/// Every row an answer would write must be the row of the mutation it
-/// answers, of a manifest resource, and of the manifest's company. One bad
-/// row rejects the whole answer before anything is written.
-fn check_push_results(
+/// A row an answer would write must be the row of the mutation it answers,
+/// of a manifest resource, and of the manifest's company.
+fn check_push_result(
     request: &PushRequest,
-    results: &[PushResult],
+    result: &PushResult,
     manifest: &Manifest,
+    company: &str,
 ) -> Result<()> {
-    let company = manifest.company_id.to_string();
-    for result in results {
+    {
         let Some(Some(row)) = &result.data else {
-            continue;
+            return Ok(());
         };
         if !is_settled(result) || !was_sent(request, result) {
-            continue;
+            return Ok(());
         }
         if row.id != result.id {
             return Err(invalid_answer(
@@ -444,7 +470,7 @@ fn check_push_results(
         }
         match row.fields.get("company_id") {
             None | Some(Value::Null) => {}
-            Some(Value::String(id)) if *id == company => {}
+            Some(Value::String(id)) if id == company => {}
             Some(_) => {
                 return Err(invalid_answer(
                     "a push result carries a row of another company",

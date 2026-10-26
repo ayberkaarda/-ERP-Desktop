@@ -163,7 +163,7 @@ async fn another_user_signing_in_wipes_local_data_before_pushing() {
     );
     assert_eq!(env.engine.status().pending, 0);
     assert_eq!(local_rows(&env), 0);
-    assert!(env.engine.outbox().list().unwrap().is_empty());
+    assert!(outbox_list(&env.store).is_empty());
 }
 
 #[tokio::test]
@@ -185,9 +185,8 @@ async fn deactivation_of_the_current_generation_wipes_everything() {
     mount_empty_pull(&env.server).await;
     seed(&env).await;
     // An open conflict too.
-    let local = env.engine.outbox().list().unwrap()[0].mutation.clone();
-    env.engine
-        .conflicts()
+    let local = outbox_list(&env.store)[0].mutation.clone();
+    inbox(&env.store)
         .record(ConflictRecord {
             idempotency_key: local.idempotency_key,
             resource: local.resource.clone(),
@@ -208,8 +207,8 @@ async fn deactivation_of_the_current_generation_wipes_everything() {
     let error = env.engine.run_once(Trigger::Timer).await.unwrap_err();
     assert_eq!(error.code(), "USER_DEACTIVATED");
     assert_eq!(local_rows(&env), 0);
-    assert!(env.engine.outbox().list().unwrap().is_empty());
-    assert_eq!(env.engine.conflicts().count().unwrap(), 0);
+    assert!(outbox_list(&env.store).is_empty());
+    assert_eq!(inbox(&env.store).count().unwrap(), 0);
     let record = env.tokens.load_record(PROFILE).unwrap();
     assert!(record.deactivated && record.tokens.is_none());
     let status = env.engine.status();
@@ -284,6 +283,6 @@ async fn sign_out_with_pending_work_needs_force() {
     assert_eq!(env.engine.sign_out(true).await.unwrap(), SignOut::Done);
     assert!(env.tokens.load(PROFILE).unwrap().is_none());
     assert_eq!(local_rows(&env), 0);
-    assert!(env.engine.outbox().list().unwrap().is_empty());
+    assert!(outbox_list(&env.store).is_empty());
     assert_eq!(env.engine.status().state, SyncState::AuthRequired);
 }

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use engine_support::*;
 use keystone_sync::conflicts::ConflictInbox;
 use keystone_sync::engine::{SyncState, Trigger};
-use keystone_sync::outbox::{MAX_ATTEMPTS, OutboxQueue, OutboxState};
+use keystone_sync::outbox::{MAX_ATTEMPTS, OutboxState};
 use keystone_sync::store::MirrorStore;
 use keystone_sync::wire::{MutationOp, ResourceRow};
 use serde_json::{Value, json};
@@ -132,15 +132,15 @@ async fn push_results_settle_the_outbox_and_update_the_mirror() {
 
     // Mirror: server row for the applied create, delete applied, the
     // conflicting row untouched.
-    let row = e.store().get_row(&parties, created).unwrap().unwrap();
+    let row = env.store.get_row(&parties, created).unwrap().unwrap();
     assert_eq!(row.fields["code"], "C-0001");
     assert_eq!(row.version, Some(1));
-    assert!(e.store().get_row(&parties, deleted).unwrap().is_none());
-    let kept = e.store().get_row(&parties, updated).unwrap().unwrap();
+    assert!(env.store.get_row(&parties, deleted).unwrap().is_none());
+    let kept = env.store.get_row(&parties, updated).unwrap().unwrap();
     assert_eq!(kept.fields["name"], "Eski");
 
     // Outbox and inbox.
-    let entries = e.outbox().list().unwrap();
+    let entries = outbox_list(&env.store);
     let states: Vec<(Uuid, OutboxState)> =
         entries.iter().map(|x| (x.mutation.id, x.state)).collect();
     assert_eq!(
@@ -150,7 +150,7 @@ async fn push_results_settle_the_outbox_and_update_the_mirror() {
             (invalid, OutboxState::Rejected)
         ]
     );
-    assert_eq!(e.conflicts().count().unwrap(), 1);
+    assert_eq!(inbox(&env.store).count().unwrap(), 1);
     let status = e.status();
     assert_eq!(status.state, SyncState::Idle);
     assert_eq!(
@@ -202,7 +202,7 @@ async fn repeated_transient_failures_quarantine_the_mutation_visibly() {
     }
     let status = e.status();
     assert_eq!((status.pending, status.quarantined), (0, 1));
-    let entry = &e.outbox().list().unwrap()[0];
+    let entry = &outbox_list(&env.store)[0];
     assert_eq!(entry.state, OutboxState::Quarantined);
     assert_eq!(entry.attempts, MAX_ATTEMPTS);
 
@@ -215,6 +215,6 @@ async fn repeated_transient_failures_quarantine_the_mutation_visibly() {
     assert!(e.get(&name("parties"), id).unwrap().unwrap().draft);
 
     // Retried by the user, it goes out again.
-    e.outbox().retry(entry.mutation.idempotency_key).unwrap();
+    e.retry(entry.mutation.idempotency_key).unwrap();
     assert_eq!(e.refresh_status().unwrap().pending, 1);
 }

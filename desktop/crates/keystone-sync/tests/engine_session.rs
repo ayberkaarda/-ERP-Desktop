@@ -114,7 +114,7 @@ async fn a_run_never_sends_with_the_tokens_of_a_later_sign_in() {
         "user A's draft must not be pushed with user B's token: {pushes:?}"
     );
     // The follow-up run under B's sign-in wiped A's data.
-    assert!(env.engine.outbox().list().unwrap().is_empty());
+    assert!(outbox_list(&env.store).is_empty());
     assert_eq!(env.store.row_count(&name("parties")).unwrap(), 0);
 }
 
@@ -139,7 +139,7 @@ async fn a_late_push_answer_after_a_new_sign_in_is_not_committed() {
         env.store.get_row(&name("parties"), id).unwrap().is_none(),
         "the answer to A's push arrived after B signed in"
     );
-    let entries = env.engine.outbox().list().unwrap();
+    let entries = outbox_list(&env.store);
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].state, OutboxState::Pending);
 }
@@ -307,5 +307,93 @@ async fn a_draft_queued_after_sign_out_never_reaches_the_next_user() {
     env.tokens.sign_in(PROFILE, &tokens(2)).unwrap();
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert_eq!(hits(&env.server, PUSH).await, 0);
-    assert!(env.engine.outbox().list().unwrap().is_empty());
+    assert!(outbox_list(&env.store).is_empty());
+}
+
+#[tokio::test]
+async fn sign_out_waits_for_a_refresh_instead_of_racing_it() {
+    let env = env().await;
+    mount_manifests(&env, |_| Some(USER_A)).await;
+    mount_empty_pull(&env.server).await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+
+    // Another client of the same profile refreshes; the server answers only
+    // when the test lets it.
+    let (entered_tx, entered_rx) = std::sync::mpsc::channel::<()>();
+    let (release_tx, release_rx) = std::sync::mpsc::channel::<()>();
+    let entered_tx = Mutex::new(entered_tx);
+    let release_rx = Mutex::new(release_rx);
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/device/refresh"))
+        .respond_with(move |_: &Request| {
+            let _ = entered_tx.lock().unwrap().send(());
+            let _ = release_rx
+                .lock()
+                .unwrap()
+                .recv_timeout(Duration::from_secs(10));
+            ResponseTemplate::new(200).set_body_json(json!({"data": {
+                "token": "access-5-0123456789abcdef",
+                "expires_at": "2026-10-26T10:15:00+03:00",
+                "refresh_token": "refresh-5-0123456789abcdef",
+                "refresh_expires_at": "2026-11-25T09:15:00+03:00",
+            }}))
+        })
+        .mount(&env.server)
+        .await;
+    let other = other_client(&env);
+    // The access token is rejected once, so this call refreshes.
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .and(wiremock::matchers::header(
+            "authorization",
+            "Bearer access-1-0123456789abcdef",
+        ))
+        .respond_with(
+            ResponseTemplate::new(401).set_body_json(error_body("UNAUTHENTICATED", "expired")),
+        )
+        .with_priority(1)
+        .mount(&env.server)
+        .await;
+    let refreshing = tokio::spawn(async move {
+        use keystone_sync::client::SyncApi;
+        let _ = other.manifest().await;
+    });
+    tokio::task::spawn_blocking(move || entered_rx.recv_timeout(Duration::from_secs(10)))
+        .await
+        .unwrap()
+        .expect("refresh in flight");
+
+    let engine = env.engine.clone();
+    let mut signing_out = tokio::spawn(async move { engine.sign_out(true).await });
+    let finished_early = tokio::time::timeout(Duration::from_millis(300), &mut signing_out)
+        .await
+        .is_ok();
+    release_tx.send(()).unwrap();
+    refreshing.await.unwrap();
+    if !finished_early {
+        signing_out.await.unwrap().unwrap();
+    }
+    assert!(
+        env.tokens.load(PROFILE).unwrap().is_none(),
+        "the refresh wrote tokens back after sign-out (sign-out finished early: {finished_early})"
+    );
+}
+
+/// A second client of the same store and profile (it shares the session).
+fn other_client(env: &Env) -> keystone_sync::client::HttpClient<MemoryTokenStore> {
+    keystone_sync::client::HttpClient::new(
+        &keystone_sync::client::ApiConfig {
+            base_url: env.server.uri(),
+            company_id: Uuid::parse_str(COMPANY).unwrap(),
+            user_agent: "keystone-desktop-test".into(),
+        },
+        PROFILE,
+        env.tokens.clone(),
+        &keystone_sync::client::ClientOptions {
+            connect_timeout: Duration::from_secs(2),
+            request_timeout: Duration::from_secs(20),
+            allow_http_localhost: true,
+        },
+    )
+    .unwrap()
 }

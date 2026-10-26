@@ -323,3 +323,16 @@ pub fn put_row(store: &Store, resource: &str, id: &str, fields: Value) {
         serde_json::from_value(row(id, 1, fields)).expect("row");
     store.put_row(&name(resource), &row).expect("put_row");
 }
+
+/// Outbox entries read straight from the store (the test owns it), also
+/// when the engine refuses access.
+pub fn outbox_list(store: &Arc<Store>) -> Vec<keystone_sync::outbox::OutboxEntry> {
+    keystone_sync::outbox::Outbox::new(store.clone())
+        .list()
+        .expect("outbox list")
+}
+
+/// Conflict Inbox straight on the store.
+pub fn inbox(store: &Arc<Store>) -> keystone_sync::conflicts::ConflictStore {
+    keystone_sync::conflicts::ConflictStore::new(store.clone())
+}

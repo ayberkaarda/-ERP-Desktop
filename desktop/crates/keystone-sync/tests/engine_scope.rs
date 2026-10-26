@@ -94,7 +94,7 @@ async fn a_resource_that_left_the_manifest_is_not_readable() {
     assert!(got.is_err());
     assert!(env.engine.list(&parties, &Default::default()).is_err());
     // The user's own work is kept.
-    assert_eq!(env.engine.outbox().list().unwrap().len(), 1);
+    assert_eq!(outbox_list(&env.store).len(), 1);
 }
 
 #[tokio::test]
@@ -174,7 +174,7 @@ fn assert_nothing_written(env: &Env, error: Option<keystone_sync::error::SyncErr
         rows.rows
     );
     assert!(error.is_some(), "an invalid answer fails the run");
-    let entries = env.engine.outbox().list().unwrap();
+    let entries = outbox_list(&env.store);
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].state, OutboxState::Pending);
 }
@@ -208,5 +208,75 @@ async fn a_push_row_of_the_own_company_is_written() {
     .await;
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert!(env.store.get_row(&name("parties"), id).unwrap().is_some());
-    assert!(env.engine.outbox().list().unwrap().is_empty());
+    assert!(outbox_list(&env.store).is_empty());
+}
+
+#[tokio::test]
+async fn one_bad_push_row_neither_blocks_its_batch_nor_the_pull() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    mount_empty_pull(&env.server).await;
+    let bad = Uuid::now_v7();
+    let bad_id = bad.to_string();
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .respond_with(move |request: &Request| {
+            let results: Vec<Value> = body(request)["mutations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|m| {
+                    let id = m["id"].as_str().unwrap();
+                    // The row of `bad` always comes back under another id.
+                    let row_id = if id == bad_id {
+                        "0193b1e8-0000-7d30-8333-0000000000c9"
+                    } else {
+                        id
+                    };
+                    json!({"idempotency_key": m["idempotency_key"], "resource": m["resource"],
+                           "id": m["id"], "status": "applied", "replayed": false, "version": 1,
+                           "data": row(row_id, 1, m["payload"].clone())})
+                })
+                .collect();
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"data": {"results": results}, "meta": {}}))
+        })
+        .mount(&env.server)
+        .await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    let good = Uuid::now_v7();
+    for id in [good, bad] {
+        env.engine
+            .enqueue(draft(
+                MutationOp::Create,
+                "parties",
+                id,
+                json!({"name": "X"}),
+            ))
+            .unwrap();
+    }
+    let pulls_before = hits(&env.server, "/api/v1/sync/pull").await;
+
+    let error = env.engine.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "DECODE_ERROR");
+    assert!(
+        env.store.get_row(&name("parties"), good).unwrap().is_some(),
+        "the valid result of the batch is applied"
+    );
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert_eq!((entries[0].mutation.id, entries[0].attempts), (bad, 1));
+    assert!(
+        hits(&env.server, "/api/v1/sync/pull").await > pulls_before,
+        "the pull still runs"
+    );
+
+    // Each answer counts; after the limit the user decides.
+    for _ in 1..5 {
+        let _ = env.engine.run_once(Trigger::Manual).await;
+    }
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries[0].state, OutboxState::Quarantined);
+    assert_eq!(env.engine.status().quarantined, 1);
+    env.engine.run_once(Trigger::Manual).await.unwrap();
 }

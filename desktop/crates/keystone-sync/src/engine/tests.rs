@@ -1,20 +1,21 @@
 //! Interleavings that need a seam inside the engine: a trigger arriving
-//! just as a run ends, and a write arriving while sign-out is between its
-//! count and its wipe. The [`Hook`] points stop the engine there.
+//! just as a run ends, a write arriving while sign-out is between its
+//! count and its wipe, a sign-in landing between a check and the work it
+//! guards. The [`Hook`] points stop the engine there.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
-use serde_json::json;
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{Hook, SignOut, SyncEngine, Trigger};
-use crate::auth::{MemoryTokenStore, Secret, StoredTokens, TokenStore};
+use crate::auth::{MemoryTokenStore, Secret, Session, StoredTokens, TokenStore};
 use crate::client::SyncApi;
 use crate::error::{Result, SyncError};
-use crate::outbox::NewMutation;
-use crate::store::{DbKey, Store};
+use crate::outbox::{NewMutation, OutboxState};
+use crate::store::{DbKey, ListQuery, Store};
 use crate::wire::{
     ManifestResponse, MutationOp, PullRequest, PullResponse, PushRequest, PushResponse,
     ResourceName, Timestamp,
@@ -22,9 +23,15 @@ use crate::wire::{
 
 const PROFILE: &str = "engine-unit";
 
+/// What [`FakeApi::push`] answers.
+const PUSH_LOST: u8 = 0;
+const PUSH_APPLY: u8 = 1;
+const PUSH_NOT_SENT: u8 = 2;
+
 #[derive(Debug, Default)]
 struct FakeApi {
     manifests: AtomicUsize,
+    push_mode: AtomicU8,
 }
 
 fn manifest() -> ManifestResponse {
@@ -77,14 +84,56 @@ impl SyncApi for FakeApi {
         }))?)
     }
 
-    async fn push(&self, _: &PushRequest) -> Result<PushResponse> {
-        Err(SyncError::Network("offline".into()))
+    async fn push(&self, request: &PushRequest) -> Result<PushResponse> {
+        match self.push_mode.load(Ordering::SeqCst) {
+            PUSH_APPLY => {
+                let results: Vec<Value> = request
+                    .mutations
+                    .iter()
+                    .map(|m| {
+                        let mut data = Value::Object(m.payload.clone());
+                        data["id"] = json!(m.id);
+                        data["version"] = json!(1);
+                        json!({"idempotency_key": m.idempotency_key, "resource": m.resource,
+                               "id": m.id, "status": "applied", "replayed": false,
+                               "version": 1, "data": data})
+                    })
+                    .collect();
+                Ok(serde_json::from_value(
+                    json!({"data": {"results": results}, "meta": {}}),
+                )?)
+            }
+            PUSH_NOT_SENT => Err(SyncError::NotSent("connection refused".into())),
+            _ => Err(SyncError::Network("answer lost".into())),
+        }
+    }
+
+    async fn manifest_in(&self, _: u64) -> Result<ManifestResponse> {
+        self.manifest().await
+    }
+
+    async fn pull_in(&self, request: &PullRequest, _: u64) -> Result<PullResponse> {
+        self.pull(request).await
+    }
+
+    async fn push_in(&self, request: &PushRequest, _: u64) -> Result<PushResponse> {
+        self.push(request).await
     }
 }
 
 struct Fixture {
     _dir: tempfile::TempDir,
+    tokens: Arc<MemoryTokenStore>,
     engine: Arc<SyncEngine<FakeApi>>,
+}
+
+fn tokens(n: u8) -> StoredTokens {
+    StoredTokens {
+        access_token: Secret::new(format!("access-{n}")),
+        access_expires_at: Timestamp("2026-10-26T10:15:00+03:00".into()),
+        refresh_token: Secret::new(format!("refresh-{n}")),
+        refresh_expires_at: Timestamp("2026-11-25T09:15:00+03:00".into()),
+    }
 }
 
 fn fixture() -> Fixture {
@@ -92,25 +141,19 @@ fn fixture() -> Fixture {
     let store =
         Arc::new(Store::open(dir.path().join("unit.db"), &DbKey::from_bytes([7; 32])).unwrap());
     let tokens = Arc::new(MemoryTokenStore::default());
-    tokens
-        .sign_in(
-            PROFILE,
-            &StoredTokens {
-                access_token: Secret::new("access"),
-                access_expires_at: Timestamp("2026-10-26T10:15:00+03:00".into()),
-                refresh_token: Secret::new("refresh"),
-                refresh_expires_at: Timestamp("2026-11-25T09:15:00+03:00".into()),
-            },
-        )
-        .unwrap();
-    let dyn_tokens: Arc<dyn TokenStore> = tokens;
+    tokens.sign_in(PROFILE, &self::tokens(1)).unwrap();
+    let dyn_tokens: Arc<dyn TokenStore> = tokens.clone();
     let engine = Arc::new(SyncEngine::new(
         FakeApi::default(),
         store,
         dyn_tokens,
         PROFILE,
     ));
-    Fixture { _dir: dir, engine }
+    Fixture {
+        _dir: dir,
+        tokens,
+        engine,
+    }
 }
 
 fn create() -> NewMutation {
@@ -150,7 +193,7 @@ async fn a_trigger_arriving_as_a_run_ends_is_not_lost() {
 
     f.engine.run_once(Trigger::Startup).await.unwrap();
     let became_runner = entered.lock().unwrap().take().expect("hook ran");
-    let runs = f.engine.api().manifests.load(Ordering::SeqCst);
+    let runs = f.engine.api.manifests.load(Ordering::SeqCst);
     assert!(
         became_runner || runs == 2,
         "the caller was told a follow-up run would happen, but none did (runs: {runs})"
@@ -196,9 +239,131 @@ async fn a_write_during_sign_out_is_either_counted_or_refused() {
             .recv_timeout(Duration::from_secs(10))
             .expect("writer finished"),
     };
-    let kept = f.engine.outbox().list().unwrap().len();
+    let kept = f.engine.outbox.list().unwrap().len();
     assert!(
         result.is_err() || kept == 1,
         "enqueue reported success but sign-out deleted the entry"
     );
+}
+
+/// Runs a sign-in through the session gate on another thread from inside
+/// a hook and waits up to 300 ms for it. `landed` is set when the sign-in
+/// completed within that window, i.e. inside the guarded section.
+struct SignInProbe {
+    landed: Mutex<Option<bool>>,
+    worker: Mutex<Option<std::thread::JoinHandle<()>>>,
+}
+
+impl SignInProbe {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            landed: Mutex::new(None),
+            worker: Mutex::new(None),
+        })
+    }
+
+    fn fire(&self, store: Arc<MemoryTokenStore>) {
+        let (tx, rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let session = Session::shared(PROFILE, store.as_ref());
+            session.sign_in(store.as_ref(), &tokens(2)).unwrap();
+            let _ = tx.send(());
+        });
+        let landed = rx.recv_timeout(Duration::from_millis(300)).is_ok();
+        *self.landed.lock().unwrap() = Some(landed);
+        *self.worker.lock().unwrap() = Some(worker);
+    }
+
+    fn finish(&self) -> bool {
+        if let Some(worker) = self.worker.lock().unwrap().take() {
+            worker.join().unwrap();
+        }
+        self.landed.lock().unwrap().take().expect("hook ran")
+    }
+}
+
+#[tokio::test]
+async fn a_sign_in_cannot_land_between_the_access_check_and_the_read() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    let probe = SignInProbe::new();
+    let (p, store) = (probe.clone(), f.tokens.clone());
+    let fired = AtomicBool::new(false);
+    f.engine.set_hook(move |point| {
+        if point == Hook::AccessChecked && !fired.swap(true, Ordering::SeqCst) {
+            p.fire(store.clone());
+        }
+    });
+
+    let read = f
+        .engine
+        .list(&ResourceName("parties".into()), &ListQuery::default());
+    let landed = probe.finish();
+    assert!(read.is_ok());
+    assert!(
+        !landed,
+        "user B's sign-in completed after A's access check and before A's read"
+    );
+    assert_eq!(f.tokens.load_record(PROFILE).unwrap().generation, 2);
+}
+
+#[tokio::test]
+async fn a_sign_in_cannot_land_between_the_commit_check_and_the_write() {
+    let f = fixture();
+    f.engine.api.push_mode.store(PUSH_APPLY, Ordering::SeqCst);
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.enqueue(create()).unwrap();
+    let probe = SignInProbe::new();
+    let (p, store) = (probe.clone(), f.tokens.clone());
+    let fired = AtomicBool::new(false);
+    f.engine.set_hook(move |point| {
+        if point == Hook::CommitChecked && !fired.swap(true, Ordering::SeqCst) {
+            p.fire(store.clone());
+        }
+    });
+
+    let _ = f.engine.run_once(Trigger::Manual).await;
+    assert!(
+        !probe.finish(),
+        "user B's sign-in completed after the commit check and before A's answer was written"
+    );
+}
+
+#[tokio::test]
+async fn sign_out_keeps_a_sign_in_made_while_it_runs() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    let store = f.tokens.clone();
+    let fired = AtomicBool::new(false);
+    f.engine.set_hook(move |point| {
+        if point == Hook::SignOutCounted && !fired.swap(true, Ordering::SeqCst) {
+            store.sign_in(PROFILE, &tokens(2)).unwrap();
+        }
+    });
+
+    assert_eq!(f.engine.sign_out(false).await.unwrap(), SignOut::Done);
+    assert_eq!(
+        f.tokens.load(PROFILE).unwrap(),
+        Some(tokens(2)),
+        "sign-out of A removed B's tokens"
+    );
+}
+
+#[tokio::test]
+async fn unsent_pushes_do_not_count_towards_the_quarantine() {
+    let f = fixture();
+    f.engine
+        .api
+        .push_mode
+        .store(PUSH_NOT_SENT, Ordering::SeqCst);
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.enqueue(create()).unwrap();
+    for _ in 0..8 {
+        let error = f.engine.run_once(Trigger::Probe).await.unwrap_err();
+        assert_eq!(error.code(), "NETWORK_ERROR");
+    }
+    let entries = f.engine.outbox.list().unwrap();
+    assert_eq!(entries[0].state, OutboxState::Pending);
+    assert_eq!(entries[0].attempts, 0);
+    let _ = PUSH_LOST;
 }
