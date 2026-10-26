@@ -35,6 +35,9 @@ final class PartyService
     {
         return $this->persist(function () use ($data): Party {
             $party = new Party;
+            if (isset($data['id']) && is_string($data['id'])) {
+                $party->id = $data['id'];
+            }
             $party->fill($this->clean($data));
             $party->code = $this->codes->next(app(CompanyContext::class)->id());
             $party->save();
