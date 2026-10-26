@@ -17,6 +17,7 @@ use App\Modules\Purchasing\Models\PurchaseReturn;
 use App\Modules\Purchasing\Models\PurchaseRfq;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -77,7 +78,9 @@ final readonly class PurchasingSyncResource implements SyncResource
         return $this->model::query()
             ->withoutGlobalScopes()
             ->where("{$table}.company_id", $companyId)
-            ->with($this->embeds());
+            // Relations by the explicit company too: the line models carry the ambient CompanyScope.
+            ->with(array_fill_keys($this->embeds(), static fn (Relation $relation): mixed => $relation->getQuery()->withoutGlobalScopes()
+                ->where($relation->getRelated()->qualifyColumn('company_id'), $companyId)));
     }
 
     public function positionColumn(): string

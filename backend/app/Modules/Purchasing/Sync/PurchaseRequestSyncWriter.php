@@ -57,7 +57,9 @@ final class PurchaseRequestSyncWriter implements SyncWriter
 
     public function isDraft(Model $target): bool
     {
-        return $target instanceof PurchaseRequest && $target->status === RequestStatus::Draft;
+        // A rejected request is editable like a draft (the web editor reopens it as a draft on save),
+        // so REST and the offline path share RequestService's Draft|Rejected rule.
+        return $target instanceof PurchaseRequest && in_array($target->status, [RequestStatus::Draft, RequestStatus::Rejected], true);
     }
 
     public function targetSatisfies(Model $target, array $constraints): bool

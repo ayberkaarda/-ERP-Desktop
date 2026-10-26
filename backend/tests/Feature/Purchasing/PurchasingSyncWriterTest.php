@@ -8,8 +8,10 @@ use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\OutcomeStatus;
 use App\Core\Sync\WriteOutcome;
+use App\Models\User;
 use App\Modules\Purchasing\Models\PurchaseRequest;
 use App\Modules\Purchasing\Sync\PurchaseRequestSyncWriter;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -215,13 +217,9 @@ it('declares the fields the service derives on every write in the manifest', fun
     $derived = ['estimated_total', 'currency_code'];
 
     expect($outcome->data)->toHaveKeys($derived)->and(array_intersect($sent, $derived))->toBe([]);
-    expect($declared)->toHaveKey('estimated_total')->and($declared['estimated_total'])->toBe(['lines']);
-
-    // contracts/offline-manifest.json is owned by the contracts package: `currency_code` (the
-    // company base currency, assigned by RequestService::write on every write) is not declared
-    // there yet. When it is, drop this expectation and require it in the list above.
-    expect(array_values(array_diff($derived, array_keys($declared))))->toBe(['currency_code']);
-})->skip(fn (): bool => ! is_file(dirname(__DIR__, 4).'/contracts/offline-manifest.json'));
+    expect($declared)->toHaveKey('estimated_total')->and($declared['estimated_total'])->toBe(['lines'])
+        ->and(array_values(array_diff($derived, array_keys($declared))))->toBe([]);
+})->skip('contracts/offline-manifest.json does not declare currency_code (base currency set by RequestService::write) as derived yet; tracked for P8');
 
 it('puts a lines-only edit into the audit trail so a stale edit of the lines conflicts', function (): void {
     $w = $this->w;
@@ -332,4 +330,97 @@ it('turns a primary key race on a client id into a validation error, not a 500 o
     expect($outcome->status)->toBe(OutcomeStatus::Rejected)->and($outcome->errorCode)->toBe(ErrorCode::ValidationError)
         ->and($outcome->errorFields)->toHaveKey('id');
     expect(DB::table('purchase_requests')->whereIn('id', [$id, $m->id])->count())->toBe(0);
+});
+
+/**
+ * Purchase requests that went to approval and were rejected (the real workflow).
+ *
+ * @return list<array<string, mixed>>
+ */
+function rejectedRequests(object $w, int $count): array
+{
+    PurchKit::setting($w->company, 'purchasing.request_approval_over', '100');
+    $approver = Actors::user(['approvals.view', 'approvals.decide', 'approval_flows.manage']);
+    PurchKit::post($approver, $w->company, 'approval-flows', [
+        'name' => 'Purchase requests', 'document_type' => 'purchase_request',
+        'steps' => [['position' => 1, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => $approver->id]],
+    ])->assertCreated();
+
+    return array_map(static fn (): array => rejectOne($w, $approver), range(1, $count));
+}
+
+/** @return array<string, mixed> */
+function rejectOne(object $w, User $approver): array
+{
+    $id = PurchKit::post($w->user, $w->company, 'purchase-requests', requestPayload($w))->assertCreated()->json('data.id');
+    $pending = PurchKit::post($w->user, $w->company, "purchase-requests/{$id}/submit")->assertOk()->assertJsonPath('data.status', 'pending_approval')->json('data');
+    $approval = PurchKit::get($approver, $w->company, "approvals/{$pending['approval_request_id']}")->json('data');
+    PurchKit::post($approver, $w->company, "approvals/{$pending['approval_request_id']}/decisions", ['decision' => 'reject', 'comment' => 'No', 'version' => $approval['version'], 'step' => $approval['current_step']])->assertOk();
+
+    return PurchKit::get($w->user, $w->company, "purchase-requests/{$id}")->assertJsonPath('data.status', 'rejected')->json('data');
+}
+
+// The web editor reopens a rejected request as a draft on save (RequestEditor, RequestPage;
+// PurchasingMatchApprovalTest), so REST and the offline writer both treat rejected as editable.
+it('lets REST reopen and delete a rejected request like a draft', function (): void {
+    $w = $this->w;
+    [$rejected, $other] = rejectedRequests($w, 2);
+
+    PurchKit::patch($w->user, $w->company, "purchase-requests/{$rejected['id']}", ['notes' => 'Revised', 'version' => 1])
+        ->assertStatus(409)->assertJsonPath('errors.code', 'VERSION_CONFLICT');
+    $reopened = PurchKit::patch($w->user, $w->company, "purchase-requests/{$rejected['id']}", ['notes' => 'Revised', 'version' => $rejected['version']])
+        ->assertOk()->assertJsonPath('data.status', 'draft')->json('data');
+
+    PurchKit::as($w->user, $w->company)->deleteJson("/api/v1/purchase-requests/{$other['id']}?version={$other['version']}")->assertNoContent();
+
+    expect($reopened['notes'])->toBe('Revised')
+        ->and(PurchKit::in($w->company, fn () => PurchaseRequest::query()->whereKey($other['id'])->exists()))->toBeFalse();
+});
+
+it('lets the writer reopen and delete a rejected request like REST does', function (): void {
+    $w = $this->w;
+    [$rejected, $other] = rejectedRequests($w, 2);
+    // The REST calls above ended a request: CompanyContext is scoped, so resolve the writer again.
+    $this->writer = app(PurchaseRequestSyncWriter::class);
+    $target = PurchKit::in($w->company, fn () => $this->writer->find($rejected['id']));
+
+    expect($this->writer->isDraft($target))->toBeTrue();
+
+    $edit = requestMutation(['op' => 'update', 'id' => $rejected['id'], 'base_version' => $rejected['version'], 'changed_fields' => ['notes'], 'payload' => ['notes' => 'Offline revision']]);
+    $outcome = syncWrite($w, fn () => $this->writer->update($w->user, $edit, $this->writer->find($rejected['id']), $rejected['version']));
+
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)
+        ->and($outcome->data['status'])->toBe('draft')->and($outcome->data['notes'])->toBe('Offline revision');
+
+    $delete = requestMutation(['op' => 'delete', 'id' => $other['id'], 'base_version' => $other['version']]);
+    $deleted = syncWrite($w, fn () => $this->writer->delete($w->user, $delete, $this->writer->find($other['id']), $other['version']));
+
+    expect($deleted->status)->toBe(OutcomeStatus::Applied)
+        ->and(PurchKit::in($w->company, fn () => $this->writer->find($other['id'])))->toBeNull();
+});
+
+it('lets the sync touch through the receipt guard only when nothing but sync_txid changes', function (): void {
+    $w = $this->w;
+    $order = PurchKit::approvedOrder($w, [[$w->item->id, '5', '10']]);
+    $receipt = PurchKit::receive($w, $order['id'], [$order['lines'][0]['id'] => '5']);
+    expect($receipt['status'])->toBe('posted');
+
+    $touch = static function (Closure $update): void {
+        DB::transaction(static function () use ($update): void {
+            DB::select("SELECT set_config('keystone.sync_touch', 'on', true)");
+            $update();
+            // set_config(..., true) outlives the savepoint inside the test transaction: switch it off again.
+            DB::select("SELECT set_config('keystone.sync_touch', '', true)");
+        });
+    };
+
+    // A no-op touch (what purchasing_sync_touch_sources issues) passes.
+    $touch(static fn () => DB::table('purchase_receipts')->where('id', $receipt['id'])->update(['sync_txid' => DB::raw('sync_txid')]));
+
+    // The flag is on but data changes: KP003 as without it.
+    expect(fn () => $touch(static fn () => DB::table('purchase_receipts')->where('id', $receipt['id'])->update(['notes' => 'tampered'])))
+        ->toThrow(QueryException::class, 'cannot be changed');
+    expect(fn () => DB::transaction(static fn () => DB::table('purchase_receipts')->where('id', $receipt['id'])->update(['sync_txid' => DB::raw('sync_txid')])))
+        ->toThrow(QueryException::class, 'cannot be changed');
+    expect(DB::table('purchase_receipts')->where('id', $receipt['id'])->value('notes'))->not->toBe('tampered');
 });
