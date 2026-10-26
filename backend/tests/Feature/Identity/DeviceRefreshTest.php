@@ -331,6 +331,10 @@ it('limits failed refresh attempts per IP without blocking other devices behind 
     }
 
     refreshWith('guess-final')->assertStatus(429)->assertJsonPath('errors.code', 'TOO_MANY_ATTEMPTS');
+
+    // A valid token from the same IP still works while the failure quota is spent.
+    $late = refreshLogin('fp-late-device-0001');
+    refreshWith((string) $late->json('data.refresh_token'))->assertOk();
 });
 
 it('limits successful refreshes per device', function (): void {

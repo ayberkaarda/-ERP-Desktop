@@ -73,10 +73,8 @@ final class DeviceTokens
     {
         $abuseKey = 'identity:device_refresh_abuse:'.hash('sha256', (string) $ip);
 
-        if ($this->limiter->tooManyAttempts($abuseKey, $this->setting('refresh_failures_per_minute', 30))) {
-            throw $this->tooMany($abuseKey);
-        }
-
+        // The token is checked first: the IP quota only counts and blocks failed attempts, so valid
+        // devices behind a shared IP keep refreshing while someone guesses.
         $outcome = $this->rotate($plainRefreshToken);
 
         if (is_array($outcome)) {
@@ -89,6 +87,10 @@ final class DeviceTokens
 
         if ($outcome === 'throttled') {
             throw new ApiException(ErrorCode::TooManyAttempts, headers: ['Retry-After' => '60']);
+        }
+
+        if ($this->limiter->tooManyAttempts($abuseKey, $this->setting('refresh_failures_per_minute', 30))) {
+            throw $this->tooMany($abuseKey);
         }
 
         $this->limiter->hit($abuseKey, 60);
