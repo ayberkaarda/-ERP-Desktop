@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Reference;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Core\Sync\Contracts\SyncResource;
 use App\Modules\Organization\Events\CompanyCreated;
 use App\Modules\Reference\Console\BackfillRates;
 use App\Modules\Reference\Console\FetchTcmbRates;
@@ -30,6 +31,16 @@ final class ReferenceServiceProvider extends ModuleServiceProvider
 {
     public function register(): void
     {
+        $this->app->tag([
+            Sync\CurrencySyncResource::class,
+            Sync\ExchangeRateSyncResource::class,
+            Sync\TaxCodeSyncResource::class,
+            Sync\PaymentTermSyncResource::class,
+            Sync\WarehouseSyncResource::class,
+            Sync\LocationSyncResource::class,
+            Sync\CostCenterSyncResource::class,
+            Sync\ProjectSyncResource::class,
+        ], SyncResource::TAG);
         $this->app->bind(Contracts\AssistantTools::class, Assistant\Tools::class);
         $this->app->bindIf(Services\ExternalReferences::BRANCH_LOOKUP, Services\NullLookup::class);
         $this->app->bindIf(Services\ExternalReferences::PARTY_LOOKUP, Services\NullLookup::class);

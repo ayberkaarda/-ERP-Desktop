@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Sales;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Core\Sync\Contracts\SyncResource;
+use App\Core\Sync\Contracts\SyncWriter;
 use App\Models\User;
 use App\Modules\Sales\Console\ExpireQuotes;
 use App\Modules\Sales\Contracts\CustomerExposure;
@@ -29,6 +31,8 @@ use App\Modules\Sales\Services\ExposureCalculator;
 use App\Modules\Sales\Services\InvoiceDirectory;
 use App\Modules\Sales\Services\Settlement;
 use App\Modules\Sales\Support\SalesSettings;
+use App\Modules\Sales\Sync\DocumentSyncResource;
+use App\Modules\Sales\Sync\DraftSyncWriter;
 use App\Modules\Settings\Contracts\SettingsRegistrar;
 use App\Modules\Workflow\Events\ApprovalCompleted;
 use App\Modules\Workflow\Events\ApprovalRejected;
@@ -54,6 +58,28 @@ final class SalesServiceProvider extends ModuleServiceProvider
         $this->app->bind(SalesInvoiceLookup::class, InvoiceDirectory::class);
         $this->app->bind(ReceivableSettlement::class, Settlement::class);
         $this->app->register(ReportsServiceProvider::class);
+        $this->registerSync();
+    }
+
+    /** Sync adapters of the offline manifest's sales resources, collected by the Sync module through the tags. */
+    private function registerSync(): void
+    {
+        $resources = [];
+
+        foreach (array_keys(DocumentSyncResource::RESOURCES) as $name) {
+            $this->app->bind("sales.sync.resource.{$name}", static fn (): DocumentSyncResource => DocumentSyncResource::for($name));
+            $resources[] = "sales.sync.resource.{$name}";
+        }
+
+        $writers = [];
+
+        foreach (array_keys(DraftSyncWriter::RESOURCES) as $name) {
+            $this->app->bind("sales.sync.writer.{$name}", static fn (): DraftSyncWriter => DraftSyncWriter::for($name));
+            $writers[] = "sales.sync.writer.{$name}";
+        }
+
+        $this->app->tag($resources, SyncResource::TAG);
+        $this->app->tag($writers, SyncWriter::TAG);
     }
 
     public function boot(): void

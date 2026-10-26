@@ -39,11 +39,11 @@ final class QuoteService extends DocumentService
      */
     public function create(array $data, array $lines, ?Authenticatable $actor, bool $canOverridePrice): SalesQuote
     {
-        return Sales::transaction(function () use ($data, $lines, $actor, $canOverridePrice): SalesQuote {
+        return $this->createKeyed('sales_quotes', self::clientId($data), function () use ($data, $lines, $actor, $canOverridePrice): SalesQuote {
             $composed = $this->compose($data, $lines, $canOverridePrice);
             $quote = $this->store->create(new SalesQuote, $composed, [
                 'valid_until' => $data['valid_until'] ?? $this->validUntil((string) $composed->header['document_date']),
-            ], actor: self::actorId($actor));
+            ], actor: self::actorId($actor), id: self::clientId($data));
             $this->logOverrides($quote, $composed, $actor);
 
             return $quote;
@@ -57,8 +57,7 @@ final class QuoteService extends DocumentService
     public function update(SalesQuote $quote, array $data, ?array $lines, int $version, ?Authenticatable $actor, bool $canOverridePrice): SalesQuote
     {
         return Sales::transaction(function () use ($quote, $data, $lines, $version, $actor, $canOverridePrice): SalesQuote {
-            $quote = $this->lock($quote, $version);
-            $this->assertDraft($quote);
+            $quote = $this->lockDraft($quote, $version);
             [$inputs, $kept] = $this->editedLines($quote->lines, $lines);
             $composed = $this->compose($this->mergedHeader($quote, $data), $inputs, $canOverridePrice);
             $extra = array_key_exists('valid_until', $data) ? ['valid_until' => $data['valid_until']] : [];
@@ -72,8 +71,7 @@ final class QuoteService extends DocumentService
     public function delete(SalesQuote $quote, ?int $version): void
     {
         Sales::transaction(function () use ($quote, $version): void {
-            $quote = $this->lock($quote, $version);
-            $this->assertDraft($quote);
+            $quote = $this->lockDraft($quote, $version);
             $quote->delete();
         });
     }

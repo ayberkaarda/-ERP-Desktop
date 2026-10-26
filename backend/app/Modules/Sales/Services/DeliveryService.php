@@ -128,9 +128,7 @@ final class DeliveryService extends DocumentService
     {
         return Sales::transaction(function () use ($delivery, $data, $lines, $version, $actor, $canOverridePrice): SalesDelivery {
             $order = $delivery->order_id === null ? null : $this->lockOrder($delivery->order_id);
-            $delivery = $this->lock($delivery, $version);
-
-            $this->assertDraft($delivery);
+            $delivery = $this->lockDraft($delivery, $version);
 
             if ($delivery->invoice_id !== null) {
                 Messages::fail('document', 'delivery_belongs_to_invoice');
@@ -159,8 +157,7 @@ final class DeliveryService extends DocumentService
     public function delete(SalesDelivery $delivery, ?int $version): void
     {
         Sales::transaction(function () use ($delivery, $version): void {
-            $delivery = $this->lock($delivery, $version);
-            $this->assertDraft($delivery);
+            $delivery = $this->lockDraft($delivery, $version);
 
             if ($delivery->invoice_id !== null) {
                 Messages::fail('document', 'delivery_belongs_to_invoice');

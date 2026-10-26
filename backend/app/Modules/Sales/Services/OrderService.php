@@ -50,11 +50,11 @@ final class OrderService extends DocumentService
      */
     public function create(array $data, array $lines, ?Authenticatable $actor, bool $canOverridePrice): SalesOrder
     {
-        return Sales::transaction(function () use ($data, $lines, $actor, $canOverridePrice): SalesOrder {
+        return $this->createKeyed('sales_orders', self::clientId($data), function () use ($data, $lines, $actor, $canOverridePrice): SalesOrder {
             $composed = $this->compose($data, $lines, $canOverridePrice);
             $order = $this->store->create(new SalesOrder, $composed, [
                 'requested_delivery_date' => $data['requested_delivery_date'] ?? null,
-            ], actor: self::actorId($actor));
+            ], actor: self::actorId($actor), id: self::clientId($data));
             $this->logOverrides($order, $composed, $actor);
 
             return $order;
@@ -68,8 +68,7 @@ final class OrderService extends DocumentService
     public function update(SalesOrder $order, array $data, ?array $lines, int $version, ?Authenticatable $actor, bool $canOverridePrice): SalesOrder
     {
         return Sales::transaction(function () use ($order, $data, $lines, $version, $actor, $canOverridePrice): SalesOrder {
-            $order = $this->lock($order, $version);
-            $this->assertDraft($order);
+            $order = $this->lockDraft($order, $version);
             [$inputs, $kept] = $this->editedLines($order->lines, $lines);
             $composed = $this->compose($this->mergedHeader($order, $data), $inputs, $canOverridePrice);
             $extra = array_key_exists('requested_delivery_date', $data) ? ['requested_delivery_date' => $data['requested_delivery_date']] : [];
@@ -83,8 +82,7 @@ final class OrderService extends DocumentService
     public function delete(SalesOrder $order, ?int $version): void
     {
         Sales::transaction(function () use ($order, $version): void {
-            $order = $this->lock($order, $version);
-            $this->assertDraft($order);
+            $order = $this->lockDraft($order, $version);
             $this->assertNoDocuments($order);
             $order->delete();
         });
