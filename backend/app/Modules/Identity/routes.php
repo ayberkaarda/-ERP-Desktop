@@ -20,6 +20,7 @@ Route::prefix('auth')->group(function (): void {
     Route::post('login', [AuthController::class, 'login'])->name('auth.login');
     Route::post('two-factor/verify', [AuthController::class, 'verifyTwoFactor'])->name('auth.two-factor.verify');
     Route::post('device', [DeviceController::class, 'login'])->name('auth.device');
+    Route::post('device/refresh', [DeviceController::class, 'refresh'])->middleware('throttle:20,1')->name('auth.device.refresh');
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('logout', [AuthController::class, 'logout'])->name('auth.logout');

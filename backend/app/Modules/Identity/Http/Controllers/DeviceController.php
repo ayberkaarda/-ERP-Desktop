@@ -9,6 +9,7 @@ use App\Core\Http\ApiResponse;
 use App\Core\Http\ErrorCode;
 use App\Modules\Identity\Enums\SessionEvent;
 use App\Modules\Identity\Http\Requests\DeviceLoginRequest;
+use App\Modules\Identity\Http\Requests\DeviceRefreshRequest;
 use App\Modules\Identity\Http\Resources\DeviceResource;
 use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\CredentialVerifier;
@@ -76,6 +77,14 @@ final class DeviceController
         $logger->log(SessionEvent::DeviceLogin, $request, $user);
 
         return ApiResponse::success($issued);
+    }
+
+    /**
+     * POST /auth/device/refresh: rotates the refresh token (unauthenticated, the access token may be expired).
+     */
+    public function refresh(DeviceRefreshRequest $request): JsonResponse
+    {
+        return ApiResponse::success($this->tokens->refresh($request->string('refresh_token')->toString()));
     }
 
     public function index(Request $request): JsonResponse
