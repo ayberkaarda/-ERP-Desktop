@@ -8,6 +8,7 @@ use App\Core\Modules\ModuleServiceProvider;
 use App\Modules\Identity\Events\AccessChanged;
 use App\Modules\Identity\Events\MembershipRevoked;
 use App\Modules\Sync\Console\PruneCommand;
+use App\Modules\Sync\Http\Middleware\EnsureDesktopToken;
 use App\Modules\Sync\Services\Visibility;
 use App\Modules\Sync\Services\VisibilityRefresh;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -15,7 +16,6 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
-use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Desktop sync server: GET /sync/manifest, POST /sync/pull, POST /sync/push over the module
@@ -30,11 +30,11 @@ final class SyncServiceProvider extends ModuleServiceProvider
     {
         parent::boot();
 
-        // Per device token and per user (config sync.throttle); 429 TOO_MANY_ATTEMPTS with Retry-After.
+        // Per device (user_devices.id, kept across token refreshes) and per user (config
+        // sync.throttle); 429 TOO_MANY_ATTEMPTS with Retry-After.
         RateLimiter::for(self::LIMITER, static function (Request $request): array {
             $user = (string) $request->user()?->getAuthIdentifier();
-            $token = $request->user()?->currentAccessToken();
-            $device = $token instanceof PersonalAccessToken ? (string) $token->getKey() : $user;
+            $device = EnsureDesktopToken::device($request) ?? "user:{$user}";
 
             return [
                 Limit::perMinute(max(1, (int) config('sync.throttle.device_per_minute', 120)))->by("sync:device:{$device}"),

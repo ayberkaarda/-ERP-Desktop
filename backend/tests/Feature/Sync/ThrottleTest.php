@@ -2,18 +2,23 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Sync\Http\Middleware\LimitConcurrentPulls;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Tests\Feature\Sync\Support\SyncKit;
 use Tests\Fixtures\Sync\SyncDatabase;
+use Tests\Support\Identity;
 use Tests\Support\Sync;
 
 /*
- * /sync/* is rate limited per device token and per user (TOO_MANY_ATTEMPTS, 429 with
- * Retry-After), and a device runs at most `concurrent_pulls_per_device` pulls at once.
+ * /sync/* is rate limited per device (user_devices.id, kept across token refreshes) and per user
+ * (TOO_MANY_ATTEMPTS, 429 with Retry-After), and a device runs at most
+ * `concurrent_pulls_per_device` pulls at once; a pull never outlives its slot.
  */
 uses(SyncDatabase::class);
 
@@ -64,7 +69,8 @@ it('limits the requests of one user across devices', function (): void {
 
 it('refuses a pull while the device already runs as many as allowed', function (): void {
     $token = (string) Str::of($this->headers['Authorization'])->after('Bearer ')->before('|');
-    $lock = Cache::lock(LimitConcurrentPulls::key('device', $token, 0), 60);
+    $device = (string) DB::table('user_devices')->where('token_id', $token)->value('id');
+    $lock = Cache::lock(LimitConcurrentPulls::key('device', $device, 0), 60);
     expect($lock->get())->toBeTrue();
 
     assertThrottled(throttledPull($this, $this->headers));
@@ -84,6 +90,49 @@ it('refuses a pull while the user already runs as many as allowed on other devic
 
     $lock->release();
     throttledPull($this, $this->headers)->assertOk();
+});
+
+it('keeps the device budget and the pull slot across a token refresh', function (): void {
+    config(['sync.throttle.device_per_minute' => 2, 'sync.throttle.user_per_minute' => 100]);
+    $tokens = app(DeviceTokens::class);
+    $issued = $tokens->issue($this->user, Request::create('/'), 'Refreshing device', 'fp-sync-desktop-0003');
+    $headers = fn (string $token): array => ['Accept' => 'application/json', 'Authorization' => 'Bearer '.$token, 'X-Company-Id' => $this->company->id];
+    Identity::fresh();
+
+    SyncKit::manifestOf($this, $headers($issued['token']))->assertOk();
+    SyncKit::manifestOf($this, $headers($issued['token']))->assertOk();
+    $refreshed = $tokens->refresh($issued['refresh_token'], '127.0.0.1');
+    Identity::fresh();
+
+    // Same device, new access token: the budget is the device's, not the token's.
+    assertThrottled(SyncKit::manifestOf($this, $headers($refreshed['token'])));
+
+    config(['sync.throttle.device_per_minute' => 100]);
+    $device = (string) DB::table('user_devices')->where('fingerprint_hash', hash('sha256', 'fp-sync-desktop-0003'))->value('id');
+    $lock = Cache::lock(LimitConcurrentPulls::key('device', $device, 0), 60);
+    expect($lock->get())->toBeTrue();
+
+    // A pull still running under the old token holds the device's slot for the new one too.
+    assertThrottled(throttledPull($this, $headers($refreshed['token'])));
+    $lock->release();
+});
+
+it('bounds a running pull by its slot lease in the database', function (): void {
+    config(['sync.throttle.pull_slot_seconds' => 30]);
+    $seen = null;
+    DB::listen(function ($query) use (&$seen): void {
+        if ($seen === null && str_contains($query->sql, 'REPEATABLE READ')) {
+            $seen = 'pending';
+            $seen = [DB::selectOne('show transaction_timeout')->transaction_timeout, DB::selectOne('show statement_timeout')->statement_timeout];
+        }
+    });
+
+    throttledPull($this, $this->headers)->assertOk();
+
+    // Inside the pull: the database ends it before the 30 s slot could be taken again.
+    expect($seen)->toBe(['25s', '25s'])
+        ->and(DB::selectOne('show transaction_timeout')->transaction_timeout)->toBe('0')
+        ->and(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('0');
 });
 
 it('frees the pull slot after every pull, failed ones too', function (): void {
