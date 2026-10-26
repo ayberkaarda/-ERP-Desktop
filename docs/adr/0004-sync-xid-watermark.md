@@ -22,3 +22,7 @@ Hesaplanmış bakiyeler (stok bakiyesi, cari yaşlandırma) syncable değildir; 
 ## Sonuçlar
 
 Web yazmaları kilit veya sayaç beklemez. Horizon'un altındaki tüm transaction'lar tamamlandığından satır atlanmaz. Uzun süren transaction'lar yalnızca senkronu geciktirir ve izlenmelidir. Her syncable tabloya trigger ve kolon eklenir; alt tablo yazmaları gömülü oldukları üst satırın `sync_txid`'ini de güncellemelidir. Ayrıntılar `docs/SYNC-PROTOCOL.md` ve `contracts/sync/` altındadır.
+
+## Değişiklik (2026-10-26)
+
+Cursor'a `session` alanı eklendi: `{txid, after_id, gen, session}`. Tam indirmenin devam sayfaları sunucunun ürettiği opak bir oturum kimliği taşır; artımlı cursor'larda `session` null'dur. Konum değerleri aynı olsa bile eski bir oturumun cursor'ı yeni oturumu devam ettirmez, reset alır (kaybolan reset yanıtından sonra tekrar deneme silmeyi kaçırmasın diye). Dağıtılmış istemci olmadığından `schema_version` 1 olarak kaldı. Ayrıntılar `docs/SYNC-PROTOCOL.md` "Tam indirme oturumu" bölümündedir.

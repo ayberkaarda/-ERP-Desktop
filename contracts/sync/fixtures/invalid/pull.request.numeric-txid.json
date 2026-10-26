@@ -6,7 +6,8 @@
       "cursor": {
         "txid": 48213907,
         "after_id": null,
-        "gen": 0
+        "gen": 0,
+        "session": null
       }
     }
   ]

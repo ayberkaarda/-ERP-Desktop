@@ -39,7 +39,8 @@
         "next_cursor": {
           "txid": "48213120",
           "after_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
-          "gen": 0
+          "gen": 0,
+          "session": "0193b1f2-5e55-7a10-9c33-0d1e2f3a4b5c"
         },
         "has_more": true,
         "reset": false
@@ -59,7 +60,8 @@
         "next_cursor": {
           "txid": "48214001",
           "after_id": null,
-          "gen": 0
+          "gen": 0,
+          "session": null
         },
         "has_more": false,
         "reset": false
@@ -71,7 +73,8 @@
         "next_cursor": {
           "txid": "48214001",
           "after_id": null,
-          "gen": 4
+          "gen": 4,
+          "session": null
         },
         "has_more": false,
         "reset": true,

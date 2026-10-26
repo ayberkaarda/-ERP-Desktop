@@ -5,7 +5,8 @@
       "resource": "parties",
       "cursor": {
         "txid": "48213907",
-        "after_id": null
+        "after_id": null,
+        "session": null
       }
     }
   ]
