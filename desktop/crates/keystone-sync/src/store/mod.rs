@@ -49,12 +49,13 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 /// Kept apart from [`MIGRATIONS`] so the base list stays `store_meta` only.
 /// Per-resource row tables (`m_*`) and FTS tables (`m_*#fts`) are created by
 /// [`Store::register`], not by migrations: their shape follows the spec.
-pub const MIRROR_MIGRATIONS: &[Migration] = &[
-    Migration {
-        id: 10,
-        module: "store",
-        name: "mirror_registry",
-        sql: "CREATE TABLE store_resources (
+/// Not shipped yet, so this one migration still holds the whole layout;
+/// databases from earlier dev builds must be deleted (no upgrade path).
+pub const MIRROR_MIGRATIONS: &[Migration] = &[Migration {
+    id: 10,
+    module: "store",
+    name: "mirror_registry",
+    sql: "CREATE TABLE store_resources (
         resource TEXT PRIMARY KEY,
         table_name TEXT NOT NULL UNIQUE,
         spec TEXT NOT NULL
@@ -69,18 +70,12 @@ pub const MIRROR_MIGRATIONS: &[Migration] = &[
         resource TEXT PRIMARY KEY,
         data TEXT NOT NULL,
         fetched_at TEXT NOT NULL
-    ) STRICT;",
-    },
-    Migration {
-        id: 11,
-        module: "store",
-        name: "mirror_epochs",
-        sql: "CREATE TABLE store_epochs (
+    ) STRICT;
+    CREATE TABLE store_epochs (
         resource TEXT PRIMARY KEY,
         epoch INTEGER NOT NULL
     ) STRICT;",
-    },
-];
+}];
 
 /// Readers opened next to the writer.
 pub const READER_POOL_SIZE: usize = 3;
@@ -112,6 +107,9 @@ impl fmt::Debug for DbKey {
 
 pub struct Store {
     writer: Mutex<Connection>,
+    /// Who holds `writer`; waited on with a timeout (std `Mutex` has none).
+    writer_gate: Gate,
+    lock_timeout: Mutex<Duration>,
     readers: ReaderPool,
     retention: Mutex<RetentionPolicy>,
     path: PathBuf,
@@ -171,6 +169,8 @@ impl Store {
         }
         Ok(Self {
             writer: Mutex::new(conn),
+            writer_gate: Gate::default(),
+            lock_timeout: Mutex::new(LOCK_WAIT),
             readers: ReaderPool {
                 idle: Mutex::new(idle),
                 ready: Condvar::new(),
@@ -186,16 +186,23 @@ impl Store {
     }
 
     /// Runs `f` on a pooled read-only connection, without a transaction.
-    /// Waits up to [`POOL_WAIT`] when every reader is busy; never waits for
-    /// the writer. Calling back into this store from inside `f` (or from
-    /// inside a [`Store::write`] callback) on the same thread is rejected
-    /// with `STORE_ERROR`; use the `*_on(conn, ..)` functions instead.
+    /// Waits up to the lock timeout ([`LOCK_WAIT`] by default) for a free
+    /// reader, then fails with `STORE_ERROR` (busy); never waits for the
+    /// writer.
+    ///
+    /// **Callback rule** (also for [`Store::write`] and everything built on
+    /// them): a callback must not wait on another call into a store, on the
+    /// same thread or on another thread it hands work to. Same-thread nesting
+    /// is rejected with `STORE_ERROR`; waiting across threads is caught
+    /// only by the lock timeout. Inside a callback use the `*_on(conn, ..)`
+    /// functions on the connection you were given.
     pub fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
         let _entry = Entry::enter(self)?;
         if self.readers.size == 0 {
-            return f(&self.lock_writer());
+            let lease = self.lock_writer()?;
+            return f(&lease.conn);
         }
-        let lease = self.readers.take()?;
+        let lease = self.readers.take(self.lock_timeout())?;
         match &lease.conn {
             Some(conn) => f(conn),
             None => Err(SyncError::Store(rusqlite::Error::InvalidQuery)),
@@ -203,11 +210,14 @@ impl Store {
     }
 
     /// Runs `f` in an IMMEDIATE transaction on the single writer; commits on
-    /// `Ok`, rolls back on `Err`. Same re-entrancy rule as [`Store::read`].
+    /// `Ok`, rolls back on `Err`. Waits up to the lock timeout for the writer.
+    /// The callback rule of [`Store::read`] applies.
     pub fn write<T>(&self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
         let _entry = Entry::enter(self)?;
-        let mut conn = self.lock_writer();
-        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut lease = self.lock_writer()?;
+        let tx = lease
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let value = f(&tx)?;
         tx.commit()?;
         Ok(value)
@@ -238,10 +248,47 @@ impl Store {
             .unwrap_or_else(PoisonError::into_inner) = policy;
     }
 
-    fn lock_writer(&self) -> MutexGuard<'_, Connection> {
+    /// Wait limit for the writer and for a free reader.
+    pub fn lock_timeout(&self) -> Duration {
+        *self
+            .lock_timeout
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    pub fn set_lock_timeout(&self, timeout: Duration) {
+        *self
+            .lock_timeout
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = timeout;
+    }
+
+    fn lock_writer(&self) -> Result<WriterLease<'_>> {
+        let gate = &self.writer_gate;
+        let deadline = Instant::now() + self.lock_timeout();
+        let mut busy = gate.busy.lock().unwrap_or_else(PoisonError::into_inner);
+        while *busy {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(sqlite_failure(
+                    rusqlite::ffi::SQLITE_BUSY,
+                    "the writer did not become free in time",
+                ));
+            }
+            busy = gate
+                .freed
+                .wait_timeout(busy, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
+        }
+        *busy = true;
+        drop(busy);
         // A panic inside `read`/`write` cannot leave a half-open transaction:
         // `Transaction` rolls back on drop. The connection stays usable.
-        self.writer.lock().unwrap_or_else(PoisonError::into_inner)
+        Ok(WriterLease {
+            gate,
+            conn: self.writer.lock().unwrap_or_else(PoisonError::into_inner),
+        })
     }
 }
 
@@ -252,8 +299,8 @@ struct ReaderPool {
 }
 
 impl ReaderPool {
-    fn take(&self) -> Result<Lease<'_>> {
-        let deadline = Instant::now() + POOL_WAIT;
+    fn take(&self, timeout: Duration) -> Result<Lease<'_>> {
+        let deadline = Instant::now() + timeout;
         let mut idle = self.idle.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
             if let Some(conn) = idle.pop() {
@@ -278,8 +325,31 @@ impl ReaderPool {
     }
 }
 
-/// Longest wait for a free reader.
-pub const POOL_WAIT: Duration = Duration::from_secs(30);
+/// Default wait limit for the writer and for a free reader.
+pub const LOCK_WAIT: Duration = Duration::from_secs(30);
+
+#[derive(Default)]
+struct Gate {
+    busy: Mutex<bool>,
+    freed: Condvar,
+}
+
+/// The writer connection; frees the gate on drop, also on panic.
+struct WriterLease<'a> {
+    gate: &'a Gate,
+    conn: MutexGuard<'a, Connection>,
+}
+
+impl Drop for WriterLease<'_> {
+    fn drop(&mut self) {
+        *self
+            .gate
+            .busy
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = false;
+        self.gate.freed.notify_one();
+    }
+}
 
 thread_local! {
     /// Stores this thread is inside a `read`/`write` callback of.

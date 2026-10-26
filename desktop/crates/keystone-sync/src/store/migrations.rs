@@ -77,8 +77,10 @@ pub fn validate(migrations: &[&Migration]) -> Result<()> {
 /// Applies the migrations that are not in the ledger yet. Returns how many ran.
 ///
 /// Every ledger row must match this build by id, name, module and SQL digest
-/// ([`sql_digest`]). A ledger from before digests existed gets the column
-/// added and its rows stamped with this build's digests once.
+/// ([`sql_digest`]). The ledger always records module and digest (NOT
+/// NULL); there is no upgrade path from the earlier digest-less ledger,
+/// which never shipped: such a dev database fails to open and must be
+/// deleted.
 pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<usize> {
     validate(migrations)?;
     conn.execute_batch(&format!(
@@ -87,7 +89,7 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
             module TEXT NOT NULL,
             name TEXT NOT NULL,
             applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
-            sql_digest TEXT
+            sql_digest TEXT NOT NULL
         ) STRICT;"
     ))?;
     let has_digest: bool = conn.query_row(
@@ -98,7 +100,10 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
         |r| r.get(0),
     )?;
     if !has_digest {
-        conn.execute_batch(&format!("ALTER TABLE {LEDGER} ADD COLUMN sql_digest TEXT;"))?;
+        return Err(invalid(
+            "ledger has no sql_digest column (database from an earlier dev build); delete it"
+                .to_owned(),
+        ));
     }
 
     let known = ledger_rows(conn)?;
@@ -122,21 +127,13 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
             )));
         }
         let digest = sql_digest(m.sql);
-        match &row.digest {
-            Some(stored) if *stored != digest => {
-                return Err(invalid(format!(
-                    "migration {} {}: SQL digest {stored} in the database, {digest} here; \
+        if row.digest != digest {
+            let stored = &row.digest;
+            return Err(invalid(format!(
+                "migration {} {}: SQL digest {stored} in the database, {digest} here; \
                      shipped migrations must not change, add a new one",
-                    row.id, row.name
-                )));
-            }
-            Some(_) => {}
-            None => {
-                conn.execute(
-                    &format!("UPDATE {LEDGER} SET sql_digest = ?1 WHERE id = ?2"),
-                    params![digest, row.id],
-                )?;
-            }
+                row.id, row.name
+            )));
         }
     }
 
@@ -164,12 +161,16 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
     Ok(applied)
 }
 
-/// Change detector for migration SQL: FNV-1a 64 over the text with `\r`
-/// removed (a CRLF checkout builds the same digest). Not a security hash;
-/// the ledger lives inside the encrypted database.
+/// Change detector for migration SQL: FNV-1a 64 over the text with line
+/// endings normalized (`\r\n` -> `\n`, so a CRLF checkout builds the same
+/// digest; any other `\r` still counts). FNV-1a reliably catches accidental
+/// edits; it is not collision resistant against a deliberate forgery. The
+/// ledger sits inside the encrypted database, and `sha2` is not a
+/// dependency of this crate (adding it is the client package's call).
 pub fn sql_digest(sql: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in sql.bytes().filter(|b| *b != b'\r') {
+    let normalized = sql.replace("\r\n", "\n");
+    for byte in normalized.bytes() {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -180,7 +181,7 @@ struct LedgerRow {
     id: u32,
     module: String,
     name: String,
-    digest: Option<String>,
+    digest: String,
 }
 
 fn ledger_rows(conn: &Connection) -> Result<Vec<LedgerRow>> {

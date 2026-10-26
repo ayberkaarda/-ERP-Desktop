@@ -74,6 +74,11 @@ pub struct Snapshot {
 }
 
 /// Local copy of pulled resources. Implemented by [`Store`].
+///
+/// Callback rule (see [`Store::read`]): do not call these from inside a store
+/// `read`/`write` callback, and never let such a callback wait on another
+/// store call, on the same thread or another one. Same-thread nesting fails
+/// fast; cross-thread waits fail after the lock timeout.
 pub trait MirrorStore {
     /// Stored cursor of `resource`; `None` before its first page.
     fn cursor(&self, resource: &ResourceName) -> Result<Option<Cursor>>;

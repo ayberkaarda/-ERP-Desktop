@@ -244,3 +244,78 @@ fn changed_migration_sql_is_rejected_on_open() {
         Err(SyncError::Migration(_))
     ));
 }
+
+#[test]
+fn greek_keeps_its_diacritics_like_unicode61() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path().join("greek.db"), &key()).unwrap();
+    store
+        .register(&ResourceSpec::new(res("items")).search(["name"]))
+        .unwrap();
+    store
+        .put_row(&res("items"), &row(1, json!({"name": "Ψάρι"})))
+        .unwrap();
+    store
+        .put_row(&res("items"), &row(2, json!({"name": "ψα\u{0301}ρι"})))
+        .unwrap();
+    store
+        .put_row(&res("items"), &row(3, json!({"name": "İstanbul Şeker"})))
+        .unwrap();
+    // Precomposed: same token both ways; the tonos is not removed (SQLite
+    // strips Latin diacritics only).
+    assert_eq!(search(&store, "items", "ψάρι"), [1]);
+    assert_eq!(search(&store, "items", "ΨΆΡΙ"), [1]);
+    assert!(!search(&store, "items", "ψαρι").contains(&1));
+    // Decomposed Greek keeps its mark; index and query fold it the same way.
+    assert!(search(&store, "items", "ψα\u{0301}ρι").contains(&2));
+    // Turkish still folds.
+    assert_eq!(search(&store, "items", "ıstanbul seker"), [3]);
+}
+
+#[test]
+fn a_writer_waiting_on_another_thread_times_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Arc::new(Store::open(dir.path().join("wait.db"), &key()).unwrap());
+    store.set_lock_timeout(Duration::from_millis(200));
+    let outer = Arc::clone(&store);
+    let outcome = within(move || {
+        outer.write(|_| {
+            // Breaks the callback rule: waits on a write from another thread.
+            let other = Arc::clone(&outer);
+            let inner = thread::spawn(move || other.write(|_| Ok(())).is_err());
+            Ok(inner.join().unwrap_or(false))
+        })
+    });
+    assert!(
+        outcome.unwrap(),
+        "inner write must time out instead of hanging"
+    );
+    // The store is usable afterwards.
+    store.write(|_| Ok(())).unwrap();
+}
+
+#[test]
+fn a_ledger_without_digests_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("old-ledger.db");
+    let store = Store::open(&path, &key()).unwrap();
+    store
+        .write(|tx| {
+            tx.execute_batch("ALTER TABLE _keystone_migrations DROP COLUMN sql_digest;")?;
+            Ok(())
+        })
+        .unwrap();
+    drop(store);
+    match Store::open(&path, &key()) {
+        Err(SyncError::Migration(m)) => assert!(m.contains("delete"), "{m}"),
+        other => panic!("digest-less ledger must be refused, got {other:?}"),
+    }
+}
+
+#[test]
+fn digest_normalizes_only_crlf() {
+    use keystone_sync::store::migrations::sql_digest;
+    assert_eq!(sql_digest("a\r\nb"), sql_digest("a\nb"));
+    assert_ne!(sql_digest("a\rb"), sql_digest("ab"));
+    assert_ne!(sql_digest("'x\ry'"), sql_digest("'xy'"));
+}

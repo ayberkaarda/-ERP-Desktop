@@ -1,18 +1,16 @@
 //! Turkish-aware text folding for FTS5.
 //!
-//! The FTS5 tokenizer is `unicode61 remove_diacritics 2`: it lower-cases and
-//! strips the marks of precomposed letters (ş/ğ/ç/ö/ü), but leaves dotless
-//! `ı` alone, has no Turkish casing, and treats a separate combining mark
-//! (`s` + U+0327) as a separator. So both the indexed text and every query
-//! go through [`fold`] first:
-//! - combining marks are dropped, so decomposed text (NFD) folds like the
-//!   precomposed form after diacritic removal (`s\u{0327}eker` = `şeker` =
-//!   `seker`) without a normalization table;
-//! - `İ`, `I`, `ı` become `i`, the rest is lower-cased.
+//! The FTS5 tokenizer is `unicode61 remove_diacritics 2`. It lower-cases,
+//! keeps a combining mark inside its token and removes diacritics the way
+//! SQLite defines (precomposed Latin letters lose theirs: ş/ğ/ç/ö/ü → s/g/c/o/u;
+//! Greek `ά` keeps its tonos). It has no Turkish casing and leaves dotless `ı`
+//! alone. Index text and queries both go through the same [`fold`], which adds
+//! only the Turkish rule: `İ`, `I`, `ı` become `i`, the rest is lower-cased.
+//! No general Unicode normalization (out of scope).
 //!
 //! With that, "İSTANBUL", "Istanbul", "istanbul" and "ıstanbul" are one
-//! token. Query words are split where the tokenizer splits (anything that
-//! is not a letter, number or private-use character).
+//! token. Query words are split where the tokenizer splits: a combining mark
+//! stays in its word (`s\u{0327}eker` is one term, as in the index).
 
 /// Folds `text` for indexing or matching.
 pub fn fold(text: &str) -> String {
@@ -20,28 +18,21 @@ pub fn fold(text: &str) -> String {
     for ch in text.chars() {
         match ch {
             'İ' | 'I' | 'ı' => out.push('i'),
-            c if is_combining_mark(c) => {}
             other => out.extend(other.to_lowercase()),
         }
     }
     out
 }
 
-/// Combining diacritical mark blocks.
+/// Combining Diacritical Marks: part of a token for unicode61.
 fn is_combining_mark(c: char) -> bool {
-    matches!(
-        c,
-        '\u{0300}'..='\u{036F}'
-            | '\u{1AB0}'..='\u{1AFF}'
-            | '\u{1DC0}'..='\u{1DFF}'
-            | '\u{20D0}'..='\u{20FF}'
-            | '\u{FE20}'..='\u{FE2F}'
-    )
+    matches!(c, '\u{0300}'..='\u{036F}')
 }
 
 /// Token character of the default `unicode61` categories (`L* N* Co`).
 fn is_token_char(c: char) -> bool {
     c.is_alphanumeric()
+        || is_combining_mark(c)
         || matches!(
             c,
             '\u{E000}'..='\u{F8FF}' | '\u{F0000}'..='\u{FFFFD}' | '\u{100000}'..='\u{10FFFD}'
@@ -70,16 +61,18 @@ mod tests {
 
     #[test]
     fn folds_turkish_i_forms_together() {
-        for s in [
-            "İSTANBUL",
-            "Istanbul",
-            "istanbul",
-            "ıstanbul",
-            "i\u{0307}stanbul",
-        ] {
+        for s in ["İSTANBUL", "Istanbul", "istanbul", "ıstanbul"] {
             assert_eq!(fold(s), "istanbul", "{s}");
         }
         assert_eq!(fold("ŞİŞLİ Çağ"), "şişli çağ");
+    }
+
+    #[test]
+    fn leaves_other_scripts_and_marks_to_the_tokenizer() {
+        assert_eq!(fold("α\u{0301}"), "α\u{0301}");
+        assert_eq!(fold("Ά"), "ά");
+        assert_eq!(fold("É"), "é");
+        assert_eq!(fold("s\u{0327}eker"), "s\u{0327}eker");
     }
 
     #[test]
@@ -89,5 +82,10 @@ mod tests {
             Some("\"ist\"* \"anb\"* \"or\"*")
         );
         assert_eq!(match_expression(" -- "), None);
+        // A combining mark stays inside its word, as unicode61 does.
+        assert_eq!(
+            match_expression("S\u{0327}EKER ψα\u{0301}ρι").as_deref(),
+            Some("\"s\u{0327}eker\"* \"ψα\u{0301}ρι\"*")
+        );
     }
 }
