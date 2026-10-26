@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/common.schema.json",
+  "title": "Senkron ortak tanımları",
+  "description": "Senkron sözleşmelerinin paylaştığı tanımlar ($defs). Kök şema yalnızca bu tanımların örneklerini taşıyan bir nesneyi doğrular; fixture'lar her tanımı bu yolla sınar. Bkz. docs/SYNC-PROTOCOL.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "uuid": { "$ref": "#/$defs/uuid" },
+    "uuidv7": { "$ref": "#/$defs/uuidv7" },
+    "xid8": { "$ref": "#/$defs/xid8" },
+    "cursor": { "$ref": "#/$defs/cursor" },
+    "visibility_generation": { "$ref": "#/$defs/visibilityGeneration" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "resource_name": { "$ref": "#/$defs/resourceName" },
+    "timestamp": { "$ref": "#/$defs/timestamp" },
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "permission": { "$ref": "#/$defs/permission" },
+    "requires": { "$ref": "#/$defs/requires" },
+    "api_error": { "$ref": "#/$defs/apiError" },
+    "meta": { "$ref": "#/$defs/meta" }
+  },
+  "$defs": {
+    "uuid": {
+      "description": "Küçük harfli kanonik UUID (herhangi bir sürüm). Sunucunun ürettiği satır kimlikleri için.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "uuidv7": {
+      "description": "İstemcinin ürettiği UUIDv7. Sunucuda doğrudan birincil anahtar olur (ADR 0002).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "xid8": {
+      "description": "PostgreSQL xid8 değeri (pg_current_xact_id). 64 bit olduğu için ondalık string olarak taşınır; JavaScript sayısına çevrilmez.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,19})$"
+    },
+    "cursor": {
+      "description": "Kaynak başına keyset konumu: (sync_txid, id) ve görünürlük nesli. after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır. gen, sunucudaki (kullanıcı, şirket, kaynak) görünürlük neslinden farklıysa kaynak reset alır.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["txid", "after_id", "gen"],
+      "properties": {
+        "txid": { "$ref": "#/$defs/xid8" },
+        "after_id": {
+          "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+        },
+        "gen": { "$ref": "#/$defs/visibilityGeneration" }
+      }
+    },
+    "visibilityGeneration": {
+      "description": "Sunucuda (kullanıcı, şirket, kaynak) başına tutulan, görünürlüğü etkileyen her değişiklikte (rol, izin, şirket üyeliği, kapsam) artan sayaç. Tüketilen bir bayrak değildir; her cihaz kendi cursor'ındaki değeri bununla karşılaştırır.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "scope": {
+      "description": "Kaynağın şirket kapsamı. company: company_id = etkin şirket. company_or_global: company_id IS NULL (sistem satırı, ör. TCMB kuru, resmî vergi kodu) veya etkin şirket. global_with_company_activation: satırlar globaldir (company_id yok); şirkete özel durum ayrı aktivasyon tablosundadır ve satırın etkin değişiklik konumu ikisinin büyüğüdür (currencies + company_currencies).",
+      "enum": ["company", "company_or_global", "global_with_company_activation"]
+    },
+    "resourceName": {
+      "description": "Senkron kaynak adı. /api/v1 sonrasındaki yolun parametresiz bölümlerinin '.' ile birleşimidir: 'parties', 'items.variants', 'treasury-reports.receivables-ageing'.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)*$",
+      "maxLength": 80
+    },
+    "timestamp": {
+      "description": "ISO 8601 zaman damgası, saat dilimi ofsetiyle (API Resource'ların toIso8601String çıktısı).",
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "schemaVersion": {
+      "description": "Senkron tel biçiminin sürümü. Uyumsuz değişiklikte artar.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "permission": {
+      "description": "Modüllerin permissions.php dosyalarındaki izin adı (ör. 'parties.view', 'sales.quotes.create').",
+      "type": "string",
+      "pattern": "^[a-z][a-z_]*(\\.[a-z][a-z_]*)+$"
+    },
+    "requires": {
+      "description": "Gerekli izinler. any_of: listeden biri yeterli (Catalog policy'lerindeki viewPermissions gibi). all_of: hepsi gerekli. İkisi birlikte verilirse ikisi de sağlanmalıdır.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "any_of": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/permission" }
+        },
+        "all_of": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/permission" }
+        }
+      }
+    },
+    "apiError": {
+      "description": "API hata gövdesindeki errors nesnesi: {message, code, fields?} (docs/ENGINEERING-RULES.md).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["message", "code"],
+      "properties": {
+        "message": { "type": "string", "minLength": 1 },
+        "code": { "$ref": "error-codes.schema.json" },
+        "fields": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "meta": {
+      "description": "Başarılı yanıtın meta nesnesi. Senkron uçları ek alan koymaz; ileride eklenebilir.",
+      "type": "object"
+    },
+    "resourceRow": {
+      "description": "Kaynağın REST API Resource'u ile birebir aynı JSON. Sözleşme yalnızca id alanını şart koşar; geri kalan şekil OpenAPI'deki ilgili Resource şemasıdır.",
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

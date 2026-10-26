@@ -19,8 +19,12 @@ return [
     ],
 
     'device_tokens' => [
-        // Overridable through sanctum.device_token_ttl_days (DEVICE_TOKEN_TTL_DAYS).
-        'ttl_days' => 30,
+        // Overridable through sanctum.device_access_ttl_minutes / device_refresh_ttl_days.
+        'access_ttl_minutes' => 60,
+        'refresh_ttl_days' => 30,
+        // Successful refreshes per device and failed attempts per IP, both per minute.
+        'refresh_per_device_per_minute' => 10,
+        'refresh_failures_per_minute' => 30,
     ],
 
     'sessions' => [

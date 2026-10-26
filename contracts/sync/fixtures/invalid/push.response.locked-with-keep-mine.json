@@ -1,0 +1,29 @@
+{
+  "data": {
+    "results": [
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-0000000000f2",
+        "resource": "sales-orders",
+        "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c40",
+        "status": "conflict",
+        "replayed": false,
+        "conflict": {
+          "code": "DOCUMENT_LOCKED",
+          "base_version": 4,
+          "server_version": 6,
+          "conflicting_fields": [],
+          "server_data": {
+            "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c40",
+            "status": "confirmed",
+            "version": 6
+          },
+          "choices": [
+            "keep_mine",
+            "discard"
+          ]
+        }
+      }
+    ]
+  },
+  "meta": {}
+}

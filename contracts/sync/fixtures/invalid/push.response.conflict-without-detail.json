@@ -1,0 +1,14 @@
+{
+  "data": {
+    "results": [
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000002",
+        "resource": "sales-orders",
+        "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c40",
+        "status": "conflict",
+        "replayed": false
+      }
+    ]
+  },
+  "meta": {}
+}

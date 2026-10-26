@@ -31,6 +31,19 @@ enum ErrorCode: string
     case ApprovalRequired = 'APPROVAL_REQUIRED';
     case FileTooLarge = 'FILE_TOO_LARGE';
     case UnsupportedFileType = 'UNSUPPORTED_FILE_TYPE';
+    case DocumentLocked = 'DOCUMENT_LOCKED';
+    case DuplicateRecord = 'DUPLICATE_RECORD';
+    case SyncSchemaMismatch = 'SYNC_SCHEMA_MISMATCH';
+    case SyncCursorInvalid = 'SYNC_CURSOR_INVALID';
+    case SyncResourceUnsupported = 'SYNC_RESOURCE_UNSUPPORTED';
+    case SyncOfflineWriteNotAllowed = 'SYNC_OFFLINE_WRITE_NOT_ALLOWED';
+    case SyncBatchTooLarge = 'SYNC_BATCH_TOO_LARGE';
+    // The four below only appear inside push results (HTTP 200 for the batch); status() is
+    // what they would mean on their own.
+    case SyncDependencyFailed = 'SYNC_DEPENDENCY_FAILED';
+    case SyncBaseVersionAhead = 'SYNC_BASE_VERSION_AHEAD';
+    case SyncChangedFieldsMismatch = 'SYNC_CHANGED_FIELDS_MISMATCH';
+    case SyncResolutionInvalid = 'SYNC_RESOLUTION_INVALID';
 
     public function status(): int
     {
@@ -39,7 +52,14 @@ enum ErrorCode: string
             self::IdempotencyKeyReused,
             self::InvalidTwoFactorCode,
             self::InvalidStateTransition,
-            self::UnsupportedFileType => 422,
+            self::UnsupportedFileType,
+            self::SyncCursorInvalid,
+            self::SyncResourceUnsupported,
+            self::SyncOfflineWriteNotAllowed,
+            self::SyncDependencyFailed,
+            self::SyncBaseVersionAhead,
+            self::SyncChangedFieldsMismatch,
+            self::SyncResolutionInvalid => 422,
             self::Unauthenticated,
             self::TwoFactorRequired => 401,
             self::Forbidden,
@@ -50,8 +70,12 @@ enum ErrorCode: string
             self::MethodNotAllowed => 405,
             self::VersionConflict,
             self::IdempotencyInProgress,
-            self::ApprovalRequired => 409,
-            self::FileTooLarge => 413,
+            self::ApprovalRequired,
+            self::DocumentLocked,
+            self::DuplicateRecord,
+            self::SyncSchemaMismatch => 409,
+            self::FileTooLarge,
+            self::SyncBatchTooLarge => 413,
             self::TooManyAttempts => 429,
             self::HttpError,
             self::IdempotencyKeyRequired,

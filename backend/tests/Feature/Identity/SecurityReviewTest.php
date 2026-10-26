@@ -26,7 +26,7 @@ use Tests\Support\Identity;
 uses(RefreshDatabase::class);
 
 /** Routes reachable without a signed-in user. */
-const PUBLIC_ROUTES = ['auth.login', 'auth.two-factor.verify', 'auth.device', 'health'];
+const PUBLIC_ROUTES = ['auth.login', 'auth.two-factor.verify', 'auth.device', 'auth.device.refresh', 'health', 'meta'];
 
 beforeEach(function (): void {
     Identity::boot();

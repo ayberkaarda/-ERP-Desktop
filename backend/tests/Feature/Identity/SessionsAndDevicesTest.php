@@ -98,7 +98,7 @@ it('does not let a super admin revoke someone else\'s session through /auth/sess
 });
 
 it('issues one desktop token per fingerprint and lists and revokes devices', function (): void {
-    $first = deviceLogin([])->assertOk()->assertJsonStructure(['data' => ['token', 'expires_at']]);
+    $first = deviceLogin([])->assertOk()->assertJsonStructure(['data' => ['token', 'expires_at', 'refresh_token', 'refresh_expires_at']]);
     $second = deviceLogin([])->assertOk();
 
     expect(UserDevice::query()->where('user_id', $this->user->id)->count())->toBe(1)
