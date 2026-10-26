@@ -76,12 +76,12 @@ final class StockLedger
         return $this->company->runAs($document->company_id, fn (): StockDocument => Stock::transaction(function () use ($document, $options, $version): StockDocument {
             $doc = StockDocument::query()->whereKey($document->id)->lockForUpdate()->firstOrFail();
 
-            if ($version !== null) {
-                $doc->assertVersion($version);
-            }
-
             if (! $doc->isDraft()) {
                 Messages::locked();
+            }
+
+            if ($version !== null) {
+                $doc->assertVersion($version);
             }
 
             // Judged on the locked row: a concurrent edit cannot switch the flag on after a check.

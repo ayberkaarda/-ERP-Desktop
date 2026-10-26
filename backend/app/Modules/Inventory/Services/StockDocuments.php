@@ -14,7 +14,9 @@ use App\Modules\Inventory\Models\StockDocumentLine;
 use App\Modules\Inventory\Services\Ledger\StockLedger;
 use App\Modules\Inventory\Support\Messages;
 use App\Modules\Inventory\Support\Stock;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Draft stock documents: header and lines (quantities converted to the item's base unit when
@@ -32,6 +34,31 @@ final class StockDocuments
      * @param  array<string, mixed>  $data
      */
     public function create(array $data, ?string $actor): StockDocument
+    {
+        try {
+            return $this->insert($data, $actor);
+        } catch (QueryException $e) {
+            // Two creates raced on one client-generated id past the request's unique check; the
+            // transaction (or savepoint) is already rolled back here.
+            if (self::duplicateId($e)) {
+                throw ValidationException::withMessages(['id' => [__('validation.unique', ['attribute' => 'id'])]]);
+            }
+
+            throw $e;
+        }
+    }
+
+    private static function duplicateId(QueryException $e): bool
+    {
+        $detail = $e->errorInfo[2] ?? $e->getMessage();
+
+        return ($e->errorInfo[0] ?? null) === '23505' && is_string($detail) && str_contains($detail, '"stock_documents_pkey"');
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function insert(array $data, ?string $actor): StockDocument
     {
         return Stock::transaction(function () use ($data, $actor): StockDocument {
             $doc = new StockDocument;
@@ -330,12 +357,13 @@ final class StockDocuments
     {
         $doc = StockDocument::query()->whereKey($document->id)->lockForUpdate()->firstOrFail();
 
-        if ($version !== null) {
-            $doc->assertVersion($version);
-        }
-
+        // Draft first: a stale client editing a document posted meanwhile must learn it is locked.
         if (! $doc->isDraft()) {
             Messages::locked();
+        }
+
+        if ($version !== null) {
+            $doc->assertVersion($version);
         }
 
         return $doc;

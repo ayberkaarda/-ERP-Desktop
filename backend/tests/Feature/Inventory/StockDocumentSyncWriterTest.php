@@ -14,6 +14,7 @@ use App\Modules\Inventory\Models\StockDocument;
 use App\Modules\Inventory\Sync\StockDocumentSyncResource;
 use App\Modules\Inventory\Sync\StockDocumentSyncWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
@@ -222,12 +223,74 @@ it('reports DOCUMENT_LOCKED once the count is posted', function (): void {
     expect(DB::table('stock_documents')->where('id', $created['id'])->exists())->toBeTrue();
 });
 
-it('answers 409 DOCUMENT_LOCKED on REST post and import of a posted document', function (): void {
+it('answers 409 DOCUMENT_LOCKED on REST post, import and stale edits of a posted document', function (): void {
     $doc = ($this->create)()->data;
+    $stale = $doc['version'];
     Inv::postJson($this->user, $this->company, "stock-documents/{$doc['id']}/post")->assertOk();
+    $api = fn () => Inv::as($this->user, $this->company);
+    $file = UploadedFile::fake()->createWithContent('count.csv', "item_code,counted_quantity\nW1,2\n");
 
-    Inv::postJson($this->user, $this->company, "stock-documents/{$doc['id']}/post")->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
-    Inv::as($this->user, $this->company)->patchJson("/api/v1/stock-documents/{$doc['id']}/counts", ['version' => 9, 'counts' => []])->assertStatus(409);
+    Inv::postJson($this->user, $this->company, "stock-documents/{$doc['id']}/post", ['version' => $stale])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    $api()->post("/api/v1/stock-documents/{$doc['id']}/import", ['file' => $file, 'version' => $stale], ['Idempotency-Key' => (string) Str::uuid7()])
+        ->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    $api()->patchJson("/api/v1/stock-documents/{$doc['id']}", ['version' => $stale, 'notes' => 'late'])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    $api()->patchJson("/api/v1/stock-documents/{$doc['id']}/counts", ['version' => $stale, 'counts' => []])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    $api()->deleteJson("/api/v1/stock-documents/{$doc['id']}?version={$stale}")->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+
+    expect(DB::table('stock_documents')->where('id', $doc['id'])->value('status'))->toBe('posted');
+});
+
+it('answers conflict with the posted server data to stale offline edits of a posted count', function (): void {
+    $created = ($this->create)()->data;
+    $stale = invDoc($this->company, $created['id']);
+    Inv::postJson($this->user, $this->company, "stock-documents/{$created['id']}/post")->assertOk();
+    $current = invDoc($this->company, $created['id'])->version;
+    expect($current)->toBeGreaterThan($stale->version);
+
+    $lineId = $created['lines'][0]['id'];
+    $calls = [
+        fn () => invWriter()->update($this->user, invMutation('update', $created['id'], ['notes' => 'late'], base: 1), $stale, 1),
+        fn () => invWriter()->delete($this->user, invMutation('delete', $created['id'], base: 1), $stale, 1),
+        fn () => invWriter()->action($this->user, invMutation('action', $created['id'], ['counts' => [['line_id' => $lineId, 'counted_quantity' => '1']]], 'counts', 1), $stale, 1),
+    ];
+
+    foreach ($calls as $call) {
+        $out = invRun($this->user, $this->company, $call);
+        expect($out->status)->toBe(OutcomeStatus::Conflict)
+            ->and($out->conflict->code)->toBe(ErrorCode::DocumentLocked)
+            ->and($out->conflict->serverData['status'])->toBe('posted')
+            ->and($out->conflict->serverData['version'])->toBe($current)
+            ->and($out->conflict->serverData['id'])->toBe($created['id']);
+    }
+});
+
+it('turns a create race on the same client id into a validation error on id', function (): void {
+    $id = (string) Str::uuid7();
+    $armed = true;
+
+    // The rival create lands after the request's unique check, before this insert.
+    StockDocument::creating(function (StockDocument $doc) use (&$armed): void {
+        if (! $armed) {
+            return;
+        }
+
+        $armed = false;
+        $rival = $doc->replicate();
+        $rival->id = $doc->id;
+        StockDocument::withoutEvents(fn () => $rival->save());
+    });
+
+    $out = invRun($this->user, $this->company, fn () => invWriter()->create($this->user, invMutation('create', $id, ($this->count)())));
+    expect($out->status)->toBe(OutcomeStatus::Rejected)
+        ->and($out->errorCode)->toBe(ErrorCode::ValidationError)
+        ->and($out->errorFields)->toHaveKey('id')
+        ->and(DB::table('stock_documents')->where('id', $id)->exists())->toBeFalse();
+
+    $armed = true;
+    $rest = (string) Str::uuid7();
+    Inv::postJson($this->user, $this->company, 'stock-documents', ['id' => $rest, ...($this->count)()])
+        ->assertStatus(422)->assertJsonPath('errors.code', 'VALIDATION_ERROR')->assertJsonPath('errors.fields.id.0', fn ($m) => is_string($m));
+    expect($armed)->toBeFalse()->and(DB::table('stock_documents')->where('id', $rest)->exists())->toBeFalse();
 });
 
 it('is tagged for the sync module and scopes the read side to the company', function (): void {
