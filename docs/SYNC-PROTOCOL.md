@@ -383,7 +383,7 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 
 ## Hata kodları
 
-İlk 22 kod `backend/app/Core/Http/ErrorCode.php` ile aynıdır. Aşağıdakiler senkron için önerilen yeni durumlardır; `ErrorCode` enum'una, `status()` eşlemesine ve `lang/*/errors.php` çevirilerine eklenmelidir.
+İlk 22 kod `backend/app/Core/Http/ErrorCode.php` ile aynıdır. Aşağıdakiler senkron için eklenen 11 koddur; `ErrorCode` enum'unda, `status()` eşlemesinde ve `lang/*/errors.php` çevirilerinde bulunurlar (`ErrorCode.php:43-46`, `:59-62`; `backend/lang/en/errors.php:30-38`). HTTP sütunu `status()` eşlemesidir.
 
 | Kod | HTTP | Nerede |
 |---|---|---|
@@ -394,12 +394,12 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 | `SYNC_RESOURCE_UNSUPPORTED` | 422 | İstek veya push `rejected`. Kaynak manifestte yok. |
 | `SYNC_OFFLINE_WRITE_NOT_ALLOWED` | 422 | Push `rejected`. Mutasyon `write` tanımının ya da hedef kısıtlarının dışında. |
 | `SYNC_BATCH_TOO_LARGE` | 413 | İstek. Kaynak veya mutasyon sayısı limitin üstünde. |
-| `SYNC_DEPENDENCY_FAILED` | — | Push `rejected`. Bağımlı olunan mutasyon başarısız. |
-| `SYNC_BASE_VERSION_AHEAD` | — | Push `rejected`. `base_version` sunucu sürümünden büyük. |
-| `SYNC_CHANGED_FIELDS_MISMATCH` | — | Push `rejected`. `changed_fields` payload anahtarlarına eşit değil. |
-| `SYNC_RESOLUTION_INVALID` | — | Push `rejected`. `resolution` saklanan bir çakışmaya karşılık gelmiyor. |
+| `SYNC_DEPENDENCY_FAILED` | 422 | Push `rejected`. Bağımlı olunan mutasyon başarısız. |
+| `SYNC_BASE_VERSION_AHEAD` | 422 | Push `rejected`. `base_version` sunucu sürümünden büyük. |
+| `SYNC_CHANGED_FIELDS_MISMATCH` | 422 | Push `rejected`. `changed_fields` payload anahtarlarına eşit değil. |
+| `SYNC_RESOLUTION_INVALID` | 422 | Push `rejected`. `resolution` saklanan bir çakışmaya karşılık gelmiyor. |
 
-"—" olan kodlar yalnızca push sonucu içinde döner; HTTP durumu 200'dür. Push sonuçlarında mevcut kodlar da kullanılır: `VALIDATION_ERROR`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `APPROVAL_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`. İzin kaybı `FORBIDDEN`, iptal edilmiş cihaz `UNAUTHENTICATED` döner. İstek düzeyinde hız ve eşzamanlı pull sınırı 429 `TOO_MANY_ATTEMPTS`, push'ta meşgul satır kilidi 409 `IDEMPOTENCY_IN_PROGRESS` döner (ikisi de `Retry-After` ile).
+Son dört kodun `status()` eşlemesi 422'dir, ancak bugün yalnızca push sonucu içinde `error.code` olarak döner; push yanıtının HTTP durumu 200'dür. İstek düzeyindeki hata zarfında gelmezler. Push sonuçlarında mevcut kodlar da kullanılır: `VALIDATION_ERROR`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `APPROVAL_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`. İzin kaybı `FORBIDDEN`, iptal edilmiş cihaz `UNAUTHENTICATED` döner. İstek düzeyinde hız ve eşzamanlı pull sınırı 429 `TOO_MANY_ATTEMPTS`, push'ta meşgul satır kilidi 409 `IDEMPOTENCY_IN_PROGRESS` döner (ikisi de `Retry-After` ile).
 
 ## Cihaz kimliği
 
