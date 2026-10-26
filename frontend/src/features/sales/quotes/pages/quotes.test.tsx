@@ -212,6 +212,28 @@ describe('quote editor', () => {
     )
     expect(within(table).getByLabelText('Miktar, 1. satır')).toHaveValue('10')
   })
+
+  it('says the quote left draft when it was sent meanwhile (409 DOCUMENT_LOCKED)', async () => {
+    const db = setupSales()
+    const user = userEvent.setup()
+    renderSales(`/sales/quotes/${QUOTE_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    const stored = db.quotes.find((q) => q.id === QUOTE_DRAFT)
+    // Sent elsewhere: the lock is reported even though the version is stale too.
+    if (stored) Object.assign(stored, { status: 'sent', version: 7 })
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}12')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    const alert = await screen.findByText('Belge artık taslak değil')
+    expect(alert.closest('[role="alert"]')).toHaveTextContent('kaydedilemez')
+    expect(screen.queryByText('Belge başka biri tarafından değiştirildi')).not.toBeInTheDocument()
+    expect(screen.queryByText('Yalnızca taslak belgeler düzenlenebilir.')).not.toBeInTheDocument()
+    expect(db.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Güncel hâlini yükle' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Belge artık taslak değil')).not.toBeInTheDocument(),
+    )
+  })
 })
 
 describe('quote lifecycle', () => {

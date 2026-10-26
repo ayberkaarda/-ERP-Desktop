@@ -167,6 +167,25 @@ describe('stock document editor', () => {
     )
   })
 
+  it('says the document left draft when it was posted meanwhile (409 DOCUMENT_LOCKED)', async () => {
+    const db = setupInvDocs()
+    const user = userEvent.setup()
+    renderInvDocs(`/inventory/documents/${DOC_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    // Posted elsewhere (new version too): the lock is what the user learns.
+    const stored = db.documents.find((d) => d.id === DOC_DRAFT)
+    if (stored) Object.assign(stored, { status: 'posted', version: 5 })
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}12')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    expect(await screen.findByText('Fiş artık taslak değil')).toBeInTheDocument()
+    expect(screen.queryByText('Fiş başka biri tarafından değiştirildi')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Yeniden yükle' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Fiş artık taslak değil')).not.toBeInTheDocument(),
+    )
+  })
+
   it('requires a different target warehouse on transfers', async () => {
     const db = setupInvDocs()
     const user = userEvent.setup()

@@ -11,7 +11,11 @@ import { DateInput, Form, FormErrorSummary, FormField } from '@/components/share
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { errorMessage, isVersionConflict } from '@/features/sales/shared/lib/errors'
+import {
+  errorMessage,
+  isDocumentLocked,
+  isVersionConflict,
+} from '@/features/sales/shared/lib/errors'
 import { usePayloadKeys } from '@/features/sales/shared/lib/idempotency'
 import { WarehouseSelect } from '@/features/reference'
 import { toIsoDate, useIntlLocale } from '@/lib/datetime'
@@ -69,6 +73,8 @@ export function RequestEditor({ document, onReload, actions }: RequestEditorProp
   const currency = document?.currency_code ?? companyCurrency
   const [base, setBase] = useState<PurchaseRequest | null>(document)
   const [conflict, setConflict] = useState(false)
+  // 409 DOCUMENT_LOCKED: the request was submitted or approved while it was being edited.
+  const [locked, setLocked] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastValues, setLastValues] = useState<RequestValues | null>(null)
 
@@ -126,7 +132,9 @@ export function RequestEditor({ document, onReload, actions }: RequestEditorProp
       form.reset(requestToValues(saved))
     },
     onError: (error, { company: started }) => {
-      if (sameCompany(started) && isVersionConflict(error)) setConflict(true)
+      if (!sameCompany(started)) return
+      if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
     },
   })
 
@@ -142,6 +150,7 @@ export function RequestEditor({ document, onReload, actions }: RequestEditorProp
     onError: (error, { company: started }) => {
       if (!sameCompany(started)) return
       if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
       else platform.notify.error(errorMessage(error, t('errors.generic')))
     },
   })
@@ -177,6 +186,7 @@ export function RequestEditor({ document, onReload, actions }: RequestEditorProp
       form.reset(requestToValues(fresh))
     }
     setConflict(false)
+    setLocked(false)
     save.reset()
   }
 
@@ -234,14 +244,18 @@ export function RequestEditor({ document, onReload, actions }: RequestEditorProp
         }
       />
       <Form form={form} onSubmit={() => void submitSave()} className="space-y-4">
-        {(conflict || changedElsewhere) && <VersionConflictAlert onReload={() => void reload()} />}
+        {locked ? (
+          <VersionConflictAlert locked onReload={() => void reload()} />
+        ) : (
+          (conflict || changedElsewhere) && <VersionConflictAlert onReload={() => void reload()} />
+        )}
         {!canEdit && (
           <p role="status" className="text-sm text-muted-foreground">
             {t('editor.readOnly')}
           </p>
         )}
         <FormErrorSummary
-          error={conflict ? null : save.error}
+          error={conflict || locked ? null : save.error}
           mapField={requestFieldMapper(lastValues ?? form.getValues())}
           fieldLabels={{
             documentDate: t('fields.documentDate'),

@@ -9,6 +9,13 @@ export function isVersionConflict(error: unknown): boolean {
   return isApiError(error) && error.code === VERSION_CONFLICT
 }
 
+export const DOCUMENT_LOCKED = 'DOCUMENT_LOCKED'
+
+/** The document left draft, so it can no longer be edited or deleted (409 DOCUMENT_LOCKED). */
+export function isDocumentLocked(error: unknown): boolean {
+  return isApiError(error) && error.code === DOCUMENT_LOCKED
+}
+
 export function isCreditLimitExceeded(error: unknown): boolean {
   return isApiError(error) && error.code === CREDIT_LIMIT_EXCEEDED
 }

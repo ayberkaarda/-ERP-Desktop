@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Sales\Sync\DraftSyncWriter;
+use App\Modules\Sync\Services\ManifestService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -315,10 +316,7 @@ it('re-derives line tax rates and totals when only the document date changes', f
 it('declares the document_date derivation of lines and totals in the manifest', function (): void {
     expect(salesEffectiveWriteSet('sales-quotes', ['document_date']))->toContain('lines', 'tax_total', 'total', 'tax_total_local', 'total_local')
         ->and(salesEffectiveWriteSet('sales-orders', ['document_date']))->toContain('lines', 'tax_total', 'total', 'tax_total_local', 'total_local');
-})->skip(
-    fn (): bool => ! in_array('tax_total', salesEffectiveWriteSet('sales-quotes', ['document_date']), true),
-    'contracts/offline-manifest.json (P0) lacks {when: [document_date], derives: [lines]} for sales-quotes/sales-orders; until then a stale merge touching document_date conflicts (undeclared derivation).',
-);
+});
 
 /**
  * changed_fields closed over the manifest's derived_fields (SYNC-PROTOCOL "Etkin yazma kümesi").
@@ -328,21 +326,11 @@ it('declares the document_date derivation of lines and totals in the manifest', 
  */
 function salesEffectiveWriteSet(string $resource, array $changed): array
 {
-    $manifest = json_decode((string) file_get_contents((string) config('sync.manifest_path')), true, flags: JSON_THROW_ON_ERROR);
-    $entry = collect($manifest['resources'])->firstWhere('resource', $resource);
-    $set = $changed;
+    // The push service's own parser and closure over the shipped manifest.
+    $write = app(ManifestService::class)->manifest()->find($resource)?->write;
+    expect($write)->not->toBeNull();
 
-    do {
-        $before = count($set);
-
-        foreach ($entry['write']['derived_fields'] as $rule) {
-            if ($rule['when'] === ['*'] || array_intersect($rule['when'], $set) !== []) {
-                $set = array_values(array_unique([...$set, ...$rule['derives']]));
-            }
-        }
-    } while (count($set) !== $before);
-
-    return $set;
+    return $write->effectiveFields($changed, $changed);
 }
 
 it('accepts a client UUIDv7 on REST quote and order creates and ignores an id elsewhere', function (): void {

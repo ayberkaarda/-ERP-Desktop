@@ -181,6 +181,10 @@
     "body": "Kaydetmeden önce son halini yükleyin; değişiklikleriniz birleştirilmez.",
     "reload": "Yeniden yükle"
   },
+  "locked": {
+    "title": "Fiş artık taslak değil",
+    "body": "Fiş bu arada kaydedildi veya iptal edildi; bu değişiklikler kaydedilemez. Son halini yükleyin; değişiklikleriniz birleştirilmez."
+  },
   "errors": {
     "generic": "İşlem tamamlanamadı.",
     "loadFailed": "Yüklenemedi.",

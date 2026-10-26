@@ -50,12 +50,17 @@ export function SalesStatusBadge({ kind, status }: { kind: SalesKind; status: st
   return <StatusBadge status={status} definitions={definitions} />
 }
 
-/** Shown on 409 VERSION_CONFLICT: the user decides to reload; unsaved edits are not merged. */
+/**
+ * Shown on 409 VERSION_CONFLICT: the user decides to reload; unsaved edits are not merged.
+ * With `locked` (409 DOCUMENT_LOCKED) it says the document left draft and can no longer be edited.
+ */
 export function VersionConflictAlert({
   onReload,
+  locked = false,
   className,
 }: {
   onReload: () => void
+  locked?: boolean
   className?: string
 }) {
   const { t } = useTranslation('sales-shared')
@@ -69,8 +74,8 @@ export function VersionConflictAlert({
     >
       <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="font-semibold">{t('conflict.title')}</p>
-        <p>{t('conflict.body')}</p>
+        <p className="font-semibold">{t(locked ? 'locked.title' : 'conflict.title')}</p>
+        <p>{t(locked ? 'locked.body' : 'conflict.body')}</p>
       </div>
       <Button type="button" size="sm" variant="secondary" onClick={onReload}>
         <RefreshCw aria-hidden="true" />

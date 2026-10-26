@@ -24,7 +24,12 @@ import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { ordersApi, quotesApi, type ActionResult, type SalesOrder, type SalesQuote } from '../api'
 import { useCompanyCurrency, usePreviewTotals } from '../hooks/queries'
-import { errorMessage, isCreditLimitExceeded, isVersionConflict } from '../lib/errors'
+import {
+  errorMessage,
+  isCreditLimitExceeded,
+  isDocumentLocked,
+  isVersionConflict,
+} from '../lib/errors'
 import { usePayloadKeys } from '../lib/idempotency'
 import { notifyWarnings } from '../lib/notify'
 import { SALES_PATHS } from '../lib/insights'
@@ -99,6 +104,8 @@ export function SalesDocumentEditor<T extends SalesDoc>({
   const canEdit = revising ? canApprove : document ? canUpdate : canCreate
   const [base, setBase] = useState<T | null>(document)
   const [conflict, setConflict] = useState(false)
+  // 409 DOCUMENT_LOCKED: the document left draft (confirmed, sent) while it was being edited.
+  const [locked, setLocked] = useState(false)
   const [creditError, setCreditError] = useState<unknown>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastValues, setLastValues] = useState<DocValues | null>(null)
@@ -219,6 +226,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
     onError: (error, { company: started }) => {
       if (!sameCompany(started)) return
       if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
       else if (revising && isCreditLimitExceeded(error)) setCreditError(error)
     },
   })
@@ -237,6 +245,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
     onError: (error, { company: started }) => {
       if (!sameCompany(started)) return
       if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
       else platform.notify.error(errorMessage(error, t('errors.generic')))
     },
   })
@@ -283,6 +292,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
       form.reset(toValues(fresh))
     }
     setConflict(false)
+    setLocked(false)
     save.reset()
   }
 
@@ -295,7 +305,7 @@ export function SalesDocumentEditor<T extends SalesDoc>({
 
   const disabled = !canEdit || save.isPending
   const busy = save.isPending || remove.isPending
-  const actionError = conflict || creditError ? null : save.error
+  const actionError = conflict || locked || creditError ? null : save.error
   const kindLabel = t(`kind.${kind}`)
   const warnings = pristine ? (base.warnings ?? []) : (preview.data?.warnings ?? [])
   const totals = pristine ? base : (preview.data ?? null)
@@ -365,7 +375,11 @@ export function SalesDocumentEditor<T extends SalesDoc>({
         }
       />
       <Form form={form} onSubmit={() => void submitSave()} className="space-y-4">
-        {(conflict || changedElsewhere) && <VersionConflictAlert onReload={() => void reload()} />}
+        {locked ? (
+          <VersionConflictAlert locked onReload={() => void reload()} />
+        ) : (
+          (conflict || changedElsewhere) && <VersionConflictAlert onReload={() => void reload()} />
+        )}
         {!canEdit && (
           <p role="status" className="text-sm text-muted-foreground">
             {t('editor.readOnly')}
