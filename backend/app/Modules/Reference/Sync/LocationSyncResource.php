@@ -59,7 +59,7 @@ final class LocationSyncResource implements SyncResource
         return null;
     }
 
-    public function parentKey(): ?string
+    public function parentKey(): string
     {
         return 'warehouse_id';
     }

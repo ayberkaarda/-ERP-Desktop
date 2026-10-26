@@ -53,7 +53,7 @@ final class ExchangeRateSyncResource implements SyncResource
         return [];
     }
 
-    public function windowField(): ?string
+    public function windowField(): string
     {
         return 'rate_date';
     }
