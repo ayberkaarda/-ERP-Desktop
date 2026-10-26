@@ -154,6 +154,7 @@ fn readers_see_only_whole_pages() {
                     txid: Xid8(p + 1),
                     after_id: None,
                     generation: 1,
+                    session: None,
                 },
                 has_more: p + 1 < PAGES,
                 reset: false,

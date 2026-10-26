@@ -5,7 +5,7 @@
 pub const SCHEMA_DIGESTS: &[(&str, &str)] = &[
     (
         "common.schema.json",
-        "65b049bdfd172d8206b862063dc5870ee2061da0894c046c0b2677edb6e27522",
+        "4fc319105583e067fbdcc9a70185f3476c2a0d21bf67f481c97f9b8aef37140a",
     ),
     (
         "device-login.request.schema.json",
@@ -37,7 +37,7 @@ pub const SCHEMA_DIGESTS: &[(&str, &str)] = &[
     ),
     (
         "pull.response.schema.json",
-        "088b5a466569901f2637a3dc73518f8c579262f79463f49883ad641cc3243ada",
+        "13bd6461d9149790a2c96c0831904562cfee37d922abdd22e12676a850ab6b70",
     ),
     (
         "push.request.schema.json",

@@ -38,6 +38,7 @@ fn page(n: u128, txid: u64, has_more: bool) -> PullResourceResult {
             txid: Xid8(txid),
             after_id: None,
             generation: 1,
+            session: None,
         },
         has_more,
         reset: false,

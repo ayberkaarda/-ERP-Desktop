@@ -40,6 +40,7 @@ fn cursor(txid: u64) -> Cursor {
         txid: Xid8(txid),
         after_id: None,
         generation: 1,
+        session: None,
     }
 }
 

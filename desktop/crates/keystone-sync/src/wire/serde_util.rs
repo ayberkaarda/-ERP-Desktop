@@ -47,3 +47,23 @@ pub(crate) fn parse_decimal_u64<'de, D: Deserializer<'de>>(
     }
     text.parse().map_err(serde::de::Error::custom)
 }
+
+/// `cursorSession`: required, `null` or `^[A-Za-z0-9_-]{1,64}$`. Use with
+/// `deserialize_with` (no `default`), so a missing key is an error.
+pub(crate) fn cursor_session<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    let value = Option::<String>::deserialize(deserializer)?;
+    if let Some(session) = &value {
+        let valid = (1..=64).contains(&session.len())
+            && session
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+        if !valid {
+            return Err(serde::de::Error::custom(
+                "cursor session must match ^[A-Za-z0-9_-]{1,64}$",
+            ));
+        }
+    }
+    Ok(value)
+}
