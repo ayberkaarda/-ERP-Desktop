@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Core\Documents\VersionConflictException;
 use App\Core\Sync\Contracts\SyncResource;
 use App\Modules\Purchasing\Models\PurchaseInvoice;
 use App\Modules\Purchasing\Models\PurchaseReturn;
@@ -304,3 +305,144 @@ it('waits on a held source before it holds the document', function (string $path
         ->and($failed?->getBindings())->toContain($held)
         ->and($unchanged())->toBeTrue();
 })->with(['invoice cancel', 'return cancel', 'return update']);
+
+/**
+ * The source-change race: right after $path read the draft invoice's sources (R1) without a lock,
+ * another transaction moves its line to R2 and commits. With $hold, a third connection then holds
+ * R2 (as a path locking R2 before the invoice does).
+ *
+ * @return array{locks: list<string>, invoiceHeldAtR2: bool, failed: ?QueryException, chain: array<string, array<string, mixed>>}
+ */
+function sourceRace(object $w, string $path, bool $hold): array
+{
+    $c = purchasingLockChain($w);
+    $draft = $c['draft']['id'];
+    $r1 = $c['second']['id'];
+    $r2 = $c['receipt']['id'];
+    $r2Line = $c['receipt']['lines'][0]['id'];
+    $names = [$r1 => 'R1', $r2 => 'R2', $draft => 'invoice'];
+    $default = config('database.default');
+    config(['database.connections.purchasing_race' => config("database.connections.{$default}"), 'database.connections.purchasing_peek' => config("database.connections.{$default}")]);
+    $race = DB::connection('purchasing_race');
+    $peek = DB::connection('purchasing_peek');
+    $state = ['moved' => false, 'locks' => [], 'invoiceHeldAtR2' => false];
+
+    DB::connection()->beforeExecuting(static function (string $sql, array $bindings) use (&$state, $names, $draft, $r2, $r2Line, $race, $peek, $hold): void {
+        if (! str_contains($sql, 'for update')) {
+            return;
+        }
+
+        $name = null;
+        foreach ($bindings as $binding) {
+            $name ??= is_string($binding) ? ($names[$binding] ?? null) : null;
+        }
+
+        if ($name === null) {
+            return;
+        }
+
+        if (! $state['moved']) {
+            // B: the draft's line now bills R2 (committed). C: holds R2.
+            $state['moved'] = true;
+            $race->table('purchase_invoice_lines')->where('document_id', $draft)->update(['receipt_line_id' => $r2Line]);
+            if ($hold) {
+                $race->beginTransaction();
+                $race->select('select id from purchase_receipts where id = ? for update', [$r2]);
+            }
+        }
+
+        if ($name === 'R2') {
+            // Does this transaction hold the invoice while it asks for R2?
+            try {
+                $peek->select('select id from purchase_invoices where id = ? for update nowait', [$draft]);
+            } catch (QueryException) {
+                $state['invoiceHeldAtR2'] = true;
+            }
+        }
+
+        // Consecutive locks of the same row (a transition re-reading the invoice) count once.
+        if (end($state['locks']) !== $name) {
+            $state['locks'][] = $name;
+        }
+    });
+
+    $run = fn () => PurchKit::in($w->company, fn () => match ($path) {
+        'cancel' => app(InvoiceService::class)->cancel(PurchaseInvoice::query()->findOrFail($draft), null, $w->user),
+        'delete' => app(InvoiceService::class)->delete(PurchaseInvoice::query()->findOrFail($draft), null),
+    });
+    $failed = null;
+    DB::statement("SET lock_timeout = '300ms'");
+
+    try {
+        $run();
+    } catch (Throwable $e) {
+        $query = $e;
+        while (! $query instanceof QueryException && $query->getPrevious() !== null) {
+            $query = $query->getPrevious();
+        }
+        $failed = $query instanceof QueryException ? $query : throw $e;
+    } finally {
+        DB::statement('SET lock_timeout = 0');
+        if ($race->transactionLevel() > 0) {
+            $race->rollBack();
+        }
+        DB::disconnect('purchasing_race');
+        DB::disconnect('purchasing_peek');
+    }
+
+    return ['locks' => $state['locks'], 'invoiceHeldAtR2' => $state['invoiceHeldAtR2'], 'failed' => $failed, 'chain' => $c];
+}
+
+it('retries when the invoice sources change under it, and locks the new source before the invoice', function (string $path): void {
+    $race = sourceRace($this->w, $path, false);
+    $draft = $race['chain']['draft']['id'];
+
+    // First attempt: R1 then the invoice, which now bills R2: rolled back. Second attempt: R2 first.
+    expect($race['failed'])->toBeNull()
+        ->and($race['locks'])->toBe(['R1', 'invoice', 'R2', 'invoice'])
+        ->and($race['invoiceHeldAtR2'])->toBeFalse()
+        ->and(DB::table('purchase_invoices')->where('id', $draft)->value('status'))->toBe($path === 'cancel' ? 'cancelled' : null);
+})->with(['cancel', 'delete']);
+
+it('never waits on a moved source while it holds the invoice', function (string $path): void {
+    $race = sourceRace($this->w, $path, true);
+    $draft = $race['chain']['draft']['id'];
+
+    // R2 is held: the retry times out on its explicit lock of R2, holding nothing of the invoice.
+    // Locking R2 under the invoice (or touching it from the trigger) is the deadlock the review found.
+    expect($race['invoiceHeldAtR2'])->toBeFalse()
+        ->and($race['failed'])->not->toBeNull()
+        ->and($race['failed']?->errorInfo[0] ?? null)->toBe('55P03')
+        ->and($race['failed']?->getSql())->toContain('from "purchase_receipts"')->toContain('for update')
+        ->and($race['failed']?->getBindings())->toContain($race['chain']['receipt']['id'])
+        ->and(DB::table('purchase_invoices')->where('id', $draft)->value('status'))->toBe('draft');
+})->with(['cancel', 'delete']);
+
+it('gives up with VERSION_CONFLICT when the sources keep changing', function (): void {
+    $w = $this->w;
+    $c = purchasingLockChain($w);
+    $draft = $c['draft']['id'];
+    $lines = [$c['second']['lines'][0]['id'], $c['receipt']['lines'][0]['id']];
+    config(['database.connections.purchasing_race' => config('database.connections.'.config('database.default'))]);
+    $race = DB::connection('purchasing_race');
+    $flips = 0;
+
+    // Every attempt: after the unlocked read, the line moves to the other receipt.
+    DB::connection()->beforeExecuting(static function (string $sql, array $bindings) use (&$flips, $race, $draft, $lines): void {
+        if (str_contains($sql, 'for update') && str_contains($sql, 'purchase_receipts')) {
+            $race->table('purchase_invoice_lines')->where('document_id', $draft)->update(['receipt_line_id' => $lines[++$flips % 2]]);
+        }
+    });
+
+    $failed = null;
+    try {
+        PurchKit::in($w->company, fn () => app(InvoiceService::class)->cancel(PurchaseInvoice::query()->findOrFail($draft), null, $w->user));
+    } catch (VersionConflictException $e) {
+        $failed = $e;
+    } finally {
+        DB::disconnect('purchasing_race');
+    }
+
+    expect($failed)->not->toBeNull()->and($flips)->toBe(3)
+        ->and(DB::table('purchase_invoices')->where('id', $draft)->value('status'))->toBe('draft');
+});
