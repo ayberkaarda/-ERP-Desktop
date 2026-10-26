@@ -202,8 +202,7 @@ final class InvoiceService extends DocumentService
         return Sales::transaction(function () use ($invoice, $data, $lines, $version, $actor, $canOverridePrice): SalesInvoice {
             $lines ??= $this->linesAsInput($invoice);
             $this->lockSources($lines);
-            $invoice = $this->lock($invoice, $version);
-            $this->assertDraft($invoice);
+            $invoice = $this->lockDraft($invoice, $version);
 
             if ($invoice->isCreditNote()) {
                 Messages::fail('document', 'credit_note_not_editable');
@@ -225,8 +224,7 @@ final class InvoiceService extends DocumentService
     public function delete(SalesInvoice $invoice, ?int $version): void
     {
         Sales::transaction(function () use ($invoice, $version): void {
-            $invoice = $this->lock($invoice, $version);
-            $this->assertDraft($invoice);
+            $invoice = $this->lockDraft($invoice, $version);
             $invoice->delete();
         });
     }

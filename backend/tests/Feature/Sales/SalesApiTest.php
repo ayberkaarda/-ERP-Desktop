@@ -110,7 +110,7 @@ it('rounds documents per total when the company says so', function (): void {
 it('deletes drafts only, with an optional version check', function (): void {
     SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-orders/{$this->a['id']}?version=9")->assertStatus(409);
     SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-orders/{$this->a['id']}")->assertNoContent();
-    SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-orders/{$this->c['id']}")->assertStatus(422);
+    SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-orders/{$this->c['id']}")->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
     expect(DB::table('sales_orders')->count())->toBe(2);
 });
 

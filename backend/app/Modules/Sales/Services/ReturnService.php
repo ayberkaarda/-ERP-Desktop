@@ -91,8 +91,7 @@ final class ReturnService extends DocumentService
     {
         return Sales::transaction(function () use ($return, $data, $lines, $version): SalesReturn {
             $invoice = $this->lockInvoice($return->invoice_id);
-            $return = $this->lock($return, $version);
-            $this->assertDraft($return);
+            $return = $this->lockDraft($return, $version);
             $lines ??= $return->lines->map(fn (SalesReturnLine $l): array => [
                 'invoice_line_id' => $l->invoice_line_id, 'quantity' => (string) $l->quantity, 'lot_no' => $l->lot_no, 'serial_numbers' => $l->serial_numbers,
             ])->values()->all();
@@ -112,8 +111,7 @@ final class ReturnService extends DocumentService
     public function delete(SalesReturn $return, ?int $version): void
     {
         Sales::transaction(function () use ($return, $version): void {
-            $return = $this->lock($return, $version);
-            $this->assertDraft($return);
+            $return = $this->lockDraft($return, $version);
             $return->delete();
         });
     }
