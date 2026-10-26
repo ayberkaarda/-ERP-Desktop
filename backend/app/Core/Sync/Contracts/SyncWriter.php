@@ -37,8 +37,11 @@ interface SyncWriter
     public function isDraft(Model $target): bool;
 
     /**
-     * Whether the stored record satisfies the manifest's payload_constraints
-     * (e.g. ['doc_type' => 'count']), so offline writes cannot widen what may be edited.
+     * Whether the stored record satisfies constraints shaped like the manifest's
+     * target_constraints / payload_constraints: field => allowed values, a list as in the
+     * manifest (['doc_type' => ['count']]) or a single scalar (['doc_type' => 'count']), so
+     * offline writes cannot widen what may be edited. Implementations use
+     * App\Core\Sync\TargetConstraints::satisfiedBy() so both forms mean the same.
      *
      * @param  array<string, mixed>  $constraints
      */

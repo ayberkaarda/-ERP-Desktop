@@ -57,6 +57,8 @@ final class CoreServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Syncable::register();
+        // Messages of Core rules, e.g. __('core::sync.client_key_unusable').
+        $this->loadTranslationsFrom(__DIR__.'/lang', 'core');
     }
 
     private static function string(Application $app, string $key, string $default): string

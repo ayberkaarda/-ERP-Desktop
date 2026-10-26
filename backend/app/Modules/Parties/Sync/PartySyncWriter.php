@@ -10,6 +10,7 @@ use App\Core\Sync\ConflictChoice;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
+use App\Core\Sync\TargetConstraints;
 use App\Core\Sync\WriteOutcome;
 use App\Modules\Parties\Http\Requests\PartyRequest;
 use App\Modules\Parties\Http\Resources\PartyResource;
@@ -67,13 +68,7 @@ final class PartySyncWriter implements SyncWriter
 
     public function targetSatisfies(Model $target, array $constraints): bool
     {
-        foreach ($constraints as $field => $value) {
-            if ($target->getAttribute($field) !== $value) {
-                return false;
-            }
-        }
-
-        return true;
+        return TargetConstraints::satisfiedBy($target, $constraints);
     }
 
     public function create(Authenticatable $user, Mutation $mutation): WriteOutcome

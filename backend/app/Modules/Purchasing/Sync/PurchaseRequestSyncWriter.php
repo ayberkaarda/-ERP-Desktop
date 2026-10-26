@@ -10,6 +10,7 @@ use App\Core\Http\ErrorCode;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
+use App\Core\Sync\TargetConstraints;
 use App\Core\Sync\WriteOutcome;
 use App\Modules\Purchasing\Enums\RequestStatus;
 use App\Modules\Purchasing\Http\Requests\DocumentRequest;
@@ -64,15 +65,11 @@ final class PurchaseRequestSyncWriter implements SyncWriter
 
     public function targetSatisfies(Model $target, array $constraints): bool
     {
-        foreach ($constraints as $field => $value) {
-            $actual = $field === 'status' && $target instanceof PurchaseRequest ? $target->currentStatus() : $target->getAttribute($field);
-
-            if ($actual !== $value) {
-                return false;
-            }
-        }
-
-        return true;
+        return TargetConstraints::satisfiedBy(
+            $target,
+            $constraints,
+            static fn (Model $row, string $field): mixed => $field === 'status' && $row instanceof PurchaseRequest ? $row->currentStatus() : $row->getAttribute($field),
+        );
     }
 
     public function create(Authenticatable $user, Mutation $mutation): WriteOutcome

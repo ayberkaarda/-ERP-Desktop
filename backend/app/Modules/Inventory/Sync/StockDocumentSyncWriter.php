@@ -10,6 +10,7 @@ use App\Core\Http\ErrorCode;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
+use App\Core\Sync\TargetConstraints;
 use App\Core\Sync\WriteOutcome;
 use App\Modules\Inventory\Enums\DocumentType;
 use App\Modules\Inventory\Http\Requests\CountsRequest;
@@ -17,7 +18,6 @@ use App\Modules\Inventory\Http\Requests\StockDocumentRequest;
 use App\Modules\Inventory\Http\Resources\StockDocumentResource;
 use App\Modules\Inventory\Models\StockDocument;
 use App\Modules\Inventory\Services\StockDocuments;
-use BackedEnum;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
@@ -71,16 +71,7 @@ final class StockDocumentSyncWriter implements SyncWriter
      */
     public function targetSatisfies(Model $target, array $constraints): bool
     {
-        foreach ($constraints as $field => $allowed) {
-            $actual = $target->getAttribute($field);
-            $actual = $actual instanceof BackedEnum ? $actual->value : $actual;
-
-            if (! in_array($actual, is_array($allowed) ? $allowed : [$allowed], true)) {
-                return false;
-            }
-        }
-
-        return true;
+        return TargetConstraints::satisfiedBy($target, $constraints);
     }
 
     public function create(Authenticatable $user, Mutation $mutation): WriteOutcome

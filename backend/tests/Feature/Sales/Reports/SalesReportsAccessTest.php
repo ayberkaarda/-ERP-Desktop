@@ -107,6 +107,8 @@ it('keeps every report inside the active company', function (): void {
 });
 
 it('exports exact decimal text with formulas guarded and enforces the row cap', function (): void {
+    // Fixture only: the order is already delivered, so its guard (KS005) is off for this edit.
+    DB::statement('ALTER TABLE sales_orders DISABLE TRIGGER sales_orders_guard');
     DB::table('sales_orders')->where('id', $this->h->o2['id'])->update(['party_name' => '=HYPERLINK("http://x")']);
 
     $csv = ($this->get)('by-customer/export?date_from=2027-06-01&date_to=2027-06-30')->assertOk()->streamedContent();
@@ -166,6 +168,7 @@ it('ignores rows of another company attached to this company documents', functio
     };
     DB::statement('ALTER TABLE sales_invoice_lines DISABLE TRIGGER sales_invoice_lines_guard');
     DB::statement('ALTER TABLE sales_delivery_lines DISABLE TRIGGER sales_delivery_lines_guard');
+    DB::statement('ALTER TABLE sales_order_lines DISABLE TRIGGER sales_order_lines_guard');
     $copy('sales_invoice_lines', $this->h->inv1['lines'][0]['id'], ['line_no' => 99]);
     $copy('sales_invoice_lines', $this->h->inv2['lines'][0]['id'], ['line_no' => 98, 'delivery_line_id' => $this->h->d2['lines'][0]['id'], 'item_id' => $this->w->item->id, 'quantity' => '2']);
     $copy('sales_delivery_lines', $this->h->d2['lines'][0]['id'], ['line_no' => 99]);

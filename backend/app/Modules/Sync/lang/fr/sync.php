@@ -15,5 +15,4 @@ return [
     'changed_fields_required' => 'changed_fields et payload sont requis pour update et action.',
     'action_mismatch' => 'action n’est autorisé et requis que pour op action.',
     'payload_version' => 'Le payload ne doit pas contenir version.',
-    'id_taken' => 'Cet id est déjà utilisé.',
 ];

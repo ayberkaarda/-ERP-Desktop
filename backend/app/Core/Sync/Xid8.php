@@ -33,12 +33,13 @@ final readonly class Xid8 implements JsonSerializable, Stringable
         return new self($value);
     }
 
+    /**
+     * Parses an untrusted value (wire cursor, database text). Only the decimal string form is
+     * accepted: a JSON number has lost precision past 2^53 before it reaches PHP, so an int is
+     * refused rather than trusted. Xid8::of() still takes ints the caller owns.
+     */
     public static function tryOf(mixed $value): ?self
     {
-        if (is_int($value) && $value >= 0) {
-            $value = (string) $value;
-        }
-
         return is_string($value) && self::isValid($value) ? new self($value) : null;
     }
 

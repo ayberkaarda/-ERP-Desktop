@@ -82,6 +82,7 @@ return [
     'violation_delivery_immutable' => 'Un bon de livraison comptabilisé ne peut pas être modifié.',
     'violation_invoice_immutable' => 'Une facture émise ne peut pas être modifiée.',
     'violation_invoice_lines_immutable' => 'Les lignes d\'une facture émise ne peuvent pas être modifiées.',
+    'violation_order_immutable' => 'Cette commande client ne peut plus être modifiée.',
     'warehouse_required' => 'Un entrepôt est requis.',
     'warehouse_unavailable' => 'L\'entrepôt n\'existe pas ou est inactif.',
     'settlement_date_order' => 'La date d?affectation ne peut pas pr?c?der la derni?re affectation ou annulation de cette facture.',

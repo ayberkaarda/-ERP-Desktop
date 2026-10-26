@@ -142,6 +142,8 @@ it('measures return rates by value and quantity', function (): void {
 });
 
 it('lists the open order backlog by line, order, customer and item', function (): void {
+    // Fixture only: the order is already invoiced, so its guard (KS005) is off for this edit.
+    DB::statement('ALTER TABLE sales_orders DISABLE TRIGGER sales_orders_guard');
     DB::table('sales_orders')->where('id', $this->h->o1['id'])->update(['requested_delivery_date' => '2027-06-05']);
     $json = ($this->get)('open-orders')->assertOk()->json();
 

@@ -15,5 +15,4 @@ return [
     'changed_fields_required' => 'update ve action için changed_fields ve payload zorunludur.',
     'action_mismatch' => 'action yalnızca op action iken verilir ve o zaman zorunludur.',
     'payload_version' => 'payload version içeremez.',
-    'id_taken' => 'Bu id zaten kullanılıyor.',
 ];

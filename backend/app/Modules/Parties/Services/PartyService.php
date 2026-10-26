@@ -7,6 +7,7 @@ namespace App\Modules\Parties\Services;
 use App\Core\Company\CompanyContext;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Parties\Contracts\PartyUsageChecker;
 use App\Modules\Parties\Enums\PartyRole;
 use App\Modules\Parties\Events\PartyCreated;
@@ -130,7 +131,7 @@ final class PartyService
             // A client-supplied id can pass the unique rule and still lose the insert race.
             [$field, $message] = match (true) {
                 str_contains($e->getMessage(), 'parties_company_tax_number_unique') => ['tax_number', Messages::get('tax_number_taken')],
-                str_contains($e->getMessage(), 'parties_pkey') => ['id', (string) __('validation.unique', ['attribute' => 'id'])],
+                str_contains($e->getMessage(), 'parties_pkey') => ['id', ClientKey::message()],
                 default => throw $e,
             };
 

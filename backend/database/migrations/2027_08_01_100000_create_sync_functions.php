@@ -19,9 +19,10 @@ use Illuminate\Support\Facades\DB;
  *   updated_at stay untouched, so optimistic locking on the parent is not disturbed.
  *   The UPDATE itself writes sync_txid = sync_txid; the parent's own zz_sync_touch trigger
  *   stamps the value, and the statement runs with sync_touching() = true.
- * - sync_touching(): true only inside such a parent touch. Row guards that refuse any change
- *   to a closed record (posted documents, ledgers) can `IF sync_touching() THEN RETURN NEW;`
- *   because that statement changes nothing but the sync position.
+ * - sync_touching(): true inside such a parent touch. The flag alone proves nothing (any session
+ *   can set it): row guards that refuse any change to a closed record (posted documents, ledgers)
+ *   let the touch through only with sync_touch_only(OLD, NEW) from 2027_08_01_100300 (flag AND no
+ *   column but sync_txid changed), i.e. App\Core\Sync\Schema\Syncable::GUARD_EXEMPTION.
  *
  * Guard compatibility: the macro names its stamping trigger zz_sync_touch, and PostgreSQL
  * runs BEFORE triggers in name order, so existing guards that compare to_jsonb(OLD) and
