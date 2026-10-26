@@ -22,7 +22,7 @@
             "default_currency_code": "TRY",
             "payment_term_id": null,
             "price_list_id": null,
-            "risk_limit": "250000.00",
+            "risk_limit": "250000.0000",
             "risk_currency_code": "TRY",
             "is_active": true,
             "notes": null,
