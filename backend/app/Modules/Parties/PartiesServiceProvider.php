@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Parties;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Core\Sync\Contracts\SyncResource;
+use App\Core\Sync\Contracts\SyncWriter;
 use App\Modules\Parties\Contracts\IbanValidation;
 use App\Modules\Parties\Contracts\PartyAddressLookup;
 use App\Modules\Parties\Contracts\PartyLookup;
@@ -20,6 +22,8 @@ use App\Modules\Parties\Services\IbanValidationAdapter;
 use App\Modules\Parties\Services\PartyCodeGenerator;
 use App\Modules\Parties\Services\TaggedPartyUsageChecker;
 use App\Modules\Parties\Support\ReferenceGuards;
+use App\Modules\Parties\Sync\PartySyncResource;
+use App\Modules\Parties\Sync\PartySyncWriter;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Gate;
 
@@ -41,6 +45,8 @@ use Illuminate\Support\Facades\Gate;
  * - Deletion: soft delete when no PartyUsageChecker reports the party in use, otherwise the party
  *   is deactivated (is_active = false). Modules that reference parties tag their checker with
  *   PartyUsageChecker::TAG.
+ * - Offline sync: Sync\PartySyncResource (pull) and Sync\PartySyncWriter (create with duplicate check),
+ *   tagged for the Sync module; migration 2027_08_01_200100 binds the syncable triggers.
  * - Contracts for other modules: PartyLookup (readonly PartyData), PartyUsageChecker; events
  *   PartyCreated / PartyUpdated are dispatched after commit.
  */
@@ -55,6 +61,9 @@ final class PartiesServiceProvider extends ModuleServiceProvider
         $this->app->bind(PartyAddressLookup::class, EloquentPartyAddressLookup::class);
         $this->app->bind(PartyUsageChecker::class, TaggedPartyUsageChecker::class);
         $this->app->bind(ReferenceGuards::class, static fn ($app): ReferenceGuards => new ReferenceGuards($app));
+
+        $this->app->tag([PartySyncResource::class], SyncResource::TAG);
+        $this->app->tag([PartySyncWriter::class], SyncWriter::TAG);
 
         $config = $this->app->make('config');
 

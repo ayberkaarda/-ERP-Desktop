@@ -84,7 +84,7 @@ class Party extends Model implements Attachable
 
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logOnly(['code', ...self::FIELDS])->logOnlyDirty()->dontLogEmptyChanges();
+        return LogOptions::defaults()->logOnly(['code', 'version', ...self::FIELDS])->logOnlyDirty()->dontLogEmptyChanges();
     }
 
     /** @return HasMany<PartyAddress, $this> */
