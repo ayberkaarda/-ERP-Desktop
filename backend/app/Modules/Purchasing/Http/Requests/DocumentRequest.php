@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Purchasing\Http\Requests;
 
-use App\Core\Sync\Rules\Uuid7;
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Purchasing\Models\PurchaseDocument;
-use Illuminate\Validation\Rule;
 
 /**
  * Draft create (POST) / update (PATCH with version) of a document, and the conversion payloads.
@@ -116,7 +115,7 @@ final class DocumentRequest extends PurchasingRequest
      */
     private function clientIdRules(bool $patch, string $table): array
     {
-        return $patch ? [] : ['id' => ['sometimes', 'string', new Uuid7, Rule::unique($table, 'id')]];
+        return $patch ? [] : ['id' => ['sometimes', 'bail', new ClientKey($table), 'string']];
     }
 
     /**

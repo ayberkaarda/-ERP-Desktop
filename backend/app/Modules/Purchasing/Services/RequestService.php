@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Purchasing\Services;
 
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Notifications\Contracts\Notifier;
 use App\Modules\Purchasing\Enums\DocumentKind;
 use App\Modules\Purchasing\Enums\RequestStatus;
@@ -58,7 +59,7 @@ final class RequestService extends DocumentService
         } catch (QueryException $e) {
             // Two creates with the same client id both passed the unique rule; the loser hits the primary key.
             if ($id !== null && ($e->errorInfo[0] ?? null) === '23505' && str_contains($e->getMessage(), 'purchase_requests_pkey')) {
-                throw ValidationException::withMessages(['id' => [(string) __('validation.unique', ['attribute' => 'id'])]]);
+                throw ValidationException::withMessages(['id' => [ClientKey::message()]]);
             }
 
             throw $e;

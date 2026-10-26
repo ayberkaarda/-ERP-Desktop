@@ -7,6 +7,7 @@ use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
 use App\Modules\Purchasing\Models\PurchaseRequest;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
 use Tests\Support\Actors;
+use Tests\Support\Companies;
 use Tests\Support\Purchasing\PurchKit;
 
 uses(RefreshDatabase::class);
@@ -86,6 +88,23 @@ it('returns the same shape as the REST detail', function (): void {
 
     $shared = array_intersect_key($rest, $outcome->data);
     expect($outcome->data)->toBe($shared)->and(array_keys($outcome->data))->not->toContain('sync_txid');
+});
+
+it('answers every unusable client id with one message, taken here or in another company', function (): void {
+    $w = $this->w;
+    $post = fn (mixed $id) => PurchKit::post($w->user, $w->company, 'purchase-requests', ['id' => $id, ...requestPayload($w)]);
+    [$own, $foreign] = [(string) Str::uuid7(), (string) Str::uuid7()];
+    $post($own)->assertCreated();
+    $post($foreign)->assertCreated();
+    $other = Companies::make();
+    DB::statement('SET LOCAL session_replication_role = replica');
+    DB::table('purchase_requests')->where('id', $foreign)->update(['company_id' => $other]);
+    DB::statement('SET LOCAL session_replication_role = origin');
+
+    $answers = collect([$own, $foreign, 'not-a-uuid', (string) Str::uuid(), 42])
+        ->map(fn (mixed $id): mixed => $post($id)->assertStatus(422)->assertJsonPath('errors.code', 'VALIDATION_ERROR')->json('errors.fields.id'));
+
+    expect($answers->unique(fn (mixed $m): string => (string) json_encode($m))->values()->all())->toBe([[ClientKey::message()]]);
 });
 
 it('accepts a client id on REST create and refuses a bad or taken one', function (): void {

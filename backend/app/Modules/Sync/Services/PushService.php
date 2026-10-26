@@ -13,6 +13,7 @@ use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\MutationOp;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\SyncConflict;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
@@ -664,7 +665,7 @@ final class PushService
 
     private static function idTaken(): WriteOutcome
     {
-        return WriteOutcome::rejected(ErrorCode::ValidationError, fields: ['id' => [__('sync::sync.id_taken')]]);
+        return WriteOutcome::rejected(ErrorCode::ValidationError, fields: ['id' => [ClientKey::message()]]);
     }
 
     private static function primaryKeyViolation(QueryException $e, string $table): bool

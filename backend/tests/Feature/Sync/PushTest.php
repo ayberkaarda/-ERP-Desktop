@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Company\CompanyContext;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\WriteOutcome;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -319,7 +320,7 @@ it('does not wait on the row lock of another company', function (): void {
     }
 
     expect(array_map(fn (array $r): string => $r['error']['code'], $results))->toBe(['NOT_FOUND', 'NOT_FOUND', 'VALIDATION_ERROR'])
-        ->and(array_keys($results[2]['error']['fields']))->toBe(['id'])
+        ->and($results[2]['error']['fields'])->toBe(['id' => [ClientKey::message()]])
         ->and($results[2])->not->toHaveKey('data');
 });
 

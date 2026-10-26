@@ -7,6 +7,7 @@ use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\MutationOp;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
 use App\Modules\Sales\Models\SalesOrder;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
+use Tests\Support\Companies;
 use Tests\Support\Sales\SalesKit;
 
 uses(RefreshDatabase::class);
@@ -364,6 +366,25 @@ it('accepts a client UUIDv7 on REST quote and order creates and ignores an id el
     SalesKit::patch($this->w->user, $this->w->company, "sales-quotes/{$id}", ['version' => 1, 'id' => (string) Str::uuid7(), 'notes' => 'x'])
         ->assertOk()->assertJsonPath('data.id', $id);
 });
+
+it('answers every unusable client id with one message, taken here or in another company', function (string $resource, string $table): void {
+    $post = fn (mixed $id) => SalesKit::post($this->w->user, $this->w->company, $resource, [...salesDraftPayload($this->w), 'id' => $id]);
+    [$own, $foreign] = [(string) Str::uuid7(), (string) Str::uuid7()];
+    $post($own)->assertCreated();
+    $post($foreign)->assertCreated();
+    $other = Companies::make();
+    DB::statement('SET LOCAL session_replication_role = replica');
+    DB::table($table)->where('id', $foreign)->update(['company_id' => $other]);
+    DB::statement('SET LOCAL session_replication_role = origin');
+
+    $answers = collect([$own, $foreign, 'not-a-uuid', (string) Str::uuid(), 42])
+        ->map(fn (mixed $id): mixed => $post($id)->assertStatus(422)->assertJsonPath('errors.code', 'VALIDATION_ERROR')->json('errors.fields.id'));
+
+    expect($answers->unique(fn (mixed $m): string => (string) json_encode($m))->values()->all())->toBe([[ClientKey::message()]]);
+})->with([
+    'quotes' => ['sales-quotes', 'sales_quotes'],
+    'orders' => ['sales-orders', 'sales_orders'],
+]);
 
 it('turns a lost create race on the client key into VALIDATION_ERROR on id, for sync and REST', function (): void {
     $template = salesCreate($this->w, 'sales-quotes')->data;

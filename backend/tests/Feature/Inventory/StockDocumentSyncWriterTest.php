@@ -8,6 +8,7 @@ use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
 use App\Modules\Inventory\Http\Resources\StockDocumentResource;
@@ -19,6 +20,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
+use Tests\Support\Companies;
 use Tests\Support\Inventory\Inv;
 
 uses(RefreshDatabase::class);
@@ -115,6 +117,22 @@ it('replays the form request: field errors, duplicate id and permission', functi
 
     $viewer = Actors::user(['inventory.documents.view']);
     expect(($this->create)($viewer)->errorCode)->toBe(ErrorCode::Forbidden);
+});
+
+it('answers every unusable client id with one message, taken here or in another company', function (): void {
+    $post = fn (mixed $id) => Inv::postJson($this->user, $this->company, 'stock-documents', ['id' => $id, ...($this->count)()]);
+    [$own, $foreign] = [(string) Str::uuid7(), (string) Str::uuid7()];
+    $post($own)->assertCreated();
+    $post($foreign)->assertCreated();
+    $other = Companies::make();
+    DB::statement('SET LOCAL session_replication_role = replica');
+    DB::table('stock_documents')->where('id', $foreign)->update(['company_id' => $other]);
+    DB::statement('SET LOCAL session_replication_role = origin');
+
+    $answers = collect([$own, $foreign, 'not-a-uuid', (string) Str::uuid(), 42])
+        ->map(fn (mixed $id): mixed => $post($id)->assertStatus(422)->assertJsonPath('errors.code', 'VALIDATION_ERROR')->json('errors.fields.id'));
+
+    expect($answers->unique(fn (mixed $m): string => (string) json_encode($m))->values()->all())->toBe([[ClientKey::message()]]);
 });
 
 it('accepts a client uuid on the REST create only when it is a free uuid v7', function (): void {

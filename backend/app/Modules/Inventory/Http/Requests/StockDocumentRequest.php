@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Http\Requests;
 
-use App\Core\Sync\Rules\Uuid7;
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Inventory\Enums\DocumentType;
 use App\Modules\Inventory\Models\StockDocument;
 use App\Modules\Inventory\Services\Ledger\StockLedger;
@@ -31,7 +31,7 @@ final class StockDocumentRequest extends InventoryRequest
         $qty = ['sometimes', 'nullable', 'string', 'regex:'.self::QTY];
 
         return [
-            ...($this->creating() ? ['id' => ['sometimes', 'string', new Uuid7, Rule::unique('stock_documents', 'id')]] : []),
+            ...($this->creating() ? ['id' => ['sometimes', 'bail', new ClientKey('stock_documents'), 'string']] : []),
             'doc_type' => [$this->required(), Rule::in(DocumentType::values())],
             'document_date' => [$this->required(), 'date_format:Y-m-d'],
             'warehouse_id' => [$this->required(), 'uuid'],

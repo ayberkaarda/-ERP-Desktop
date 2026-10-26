@@ -8,6 +8,7 @@ use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Identity\Models\Activity;
 use App\Modules\Parties\Models\Party;
 use App\Modules\Parties\Sync\PartySyncResource;
@@ -15,7 +16,9 @@ use App\Modules\Parties\Sync\PartySyncWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\Support\Actors;
+use Tests\Support\Companies;
 use Tests\Support\Identity;
 
 uses(RefreshDatabase::class);
@@ -269,6 +272,28 @@ it('accepts a client id on REST POST and keeps PATCH and codes as before', funct
     $notV7->assertUnprocessable();
     expect($notV7->getContent())->toContain('"id"');
     expect(DB::table('parties')->count())->toBe(2);
+});
+
+it('answers every unusable client id with one message, taken here or in another company', function (): void {
+    $post = fn (mixed $id): TestResponse => $this->actingAs($this->manager, 'sanctum')->postJson(
+        '/api/v1/parties',
+        [...$this->payload, 'tax_number' => null, 'name' => 'Party '.Str::random(6), 'id' => $id],
+        ['Accept' => 'application/json', 'X-Company-Id' => $this->company, 'Idempotency-Key' => (string) Str::uuid7()],
+    );
+    [$own, $foreign] = [(string) Str::uuid7(), (string) Str::uuid7()];
+    $post($own)->assertCreated();
+    $post($foreign)->assertCreated();
+    $other = Companies::make();
+    DB::statement('SET LOCAL session_replication_role = replica');
+    DB::table('parties')->where('id', $foreign)->update(['company_id' => $other]);
+    DB::statement('SET LOCAL session_replication_role = origin');
+
+    $answers = collect([$own, $foreign, 'not-a-uuid', (string) Str::uuid(), 42])
+        ->map(fn (mixed $id): mixed => $post($id)->assertUnprocessable()->assertJsonPath('errors.code', 'VALIDATION_ERROR')->json('errors.fields.id'));
+
+    expect($answers->unique(fn (mixed $m): string => (string) json_encode($m))->values()->all())->toBe([[ClientKey::message()]])
+        ->and($this->writer->create($this->manager, partyMutation(['id' => $foreign, 'payload' => [...$this->payload, 'tax_number' => null]]))->errorFields)
+        ->toBe(['id' => [ClientKey::message()]]);
 });
 
 it('never leaks sync_txid into REST or sync party JSON', function (): void {
