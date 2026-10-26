@@ -357,22 +357,13 @@ impl ErrorCode {
     }
 }
 
-/// `SCREAMING_SNAKE_CASE`, at most 64 bytes: safe to show.
-fn is_code_shaped(code: &str) -> bool {
-    code.len() <= 64
-        && code.bytes().next().is_some_and(|b| b.is_ascii_uppercase())
-        && code
-            .bytes()
-            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
-}
-
-/// An unknown code is shown only when it looks like a code: server text
-/// in that position could carry anything.
+/// An unknown code is never shown: server text in that position could
+/// carry anything. Use [`ErrorCode::as_str`] to get it on purpose.
 impl std::fmt::Display for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unknown(code) if !is_code_shaped(code) => f.write_str("<redacted>"),
-            other => f.write_str(other.as_str()),
+            Self::Unknown(_) => f.write_str("<redacted>"),
+            known => f.write_str(known.ui_code()),
         }
     }
 }
@@ -380,7 +371,6 @@ impl std::fmt::Display for ErrorCode {
 impl std::fmt::Debug for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Unknown(code) if is_code_shaped(code) => write!(f, "Unknown({code:?})"),
             Self::Unknown(_) => f.write_str("Unknown(<redacted>)"),
             known => f.write_str(known.ui_code()),
         }

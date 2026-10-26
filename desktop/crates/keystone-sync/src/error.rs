@@ -95,28 +95,44 @@ impl SyncError {
     /// echo a credential, so `message` becomes a fixed text and each field
     /// message becomes the code. Field names are kept when identifier-shaped.
     pub fn from_api(status: u16, error: ApiError, retry_after: Option<Duration>) -> Self {
-        let fields = error.fields.unwrap_or_default();
-        if !(status == 401 || is_auth_code(&error.code) || !error.code.is_known()) {
-            return Self::Api {
+        let redact = status == 401 || is_auth_code(&error.code) || !error.code.is_known();
+        let error = Self::Api {
+            status,
+            code: error.code,
+            message: error.message,
+            fields: error.fields.unwrap_or_default(),
+            retry_after,
+        };
+        if redact { error.redacted() } else { error }
+    }
+
+    /// Same error without server-provided text: for `Api`, `message` becomes
+    /// a fixed text and every field message becomes the code (identifier-shaped
+    /// field names are kept). Used for everything on the sign-in path.
+    pub fn redacted(self) -> Self {
+        match self {
+            Self::Api {
                 status,
-                code: error.code,
-                message: error.message,
+                code,
                 fields,
                 retry_after,
-            };
-        }
-        let ui = error.code.ui_code();
-        let fields = fields
-            .into_keys()
-            .filter(|name| is_field_name(name))
-            .map(|name| (name, vec![ui.to_owned()]))
-            .collect();
-        Self::Api {
-            status,
-            message: format!("{ui} (server message redacted)"),
-            code: error.code,
-            fields,
-            retry_after,
+                ..
+            } => {
+                let ui = code.ui_code();
+                let fields = fields
+                    .into_keys()
+                    .filter(|name| is_field_name(name))
+                    .map(|name| (name, vec![ui.to_owned()]))
+                    .collect();
+                Self::Api {
+                    status,
+                    message: format!("{ui} (server message redacted)"),
+                    code,
+                    fields,
+                    retry_after,
+                }
+            }
+            other => other,
         }
     }
 
@@ -167,12 +183,14 @@ fn is_auth_code(code: &ErrorCode) -> bool {
     )
 }
 
+/// Request field names: lower snake case with dots (`items.0.qty`), at most
+/// 64 bytes. Anything else is dropped, a name could also carry text.
 fn is_field_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= 64
+    name.len() <= 64
+        && name.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
         && name
             .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-'))
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'.'))
 }
 
 #[cfg(test)]

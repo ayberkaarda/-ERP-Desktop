@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use keystone_sync::auth::{MemoryTokenStore, Secret, StoredTokens, TokenStore};
+use keystone_sync::auth::{MemoryTokenStore, Secret, SessionRecord, StoredTokens, TokenStore};
 use keystone_sync::client::{
     ApiConfig, ClientOptions, DeviceAuthApi, HttpClient, ServerUrl, SyncApi,
 };
@@ -271,8 +271,13 @@ async fn deactivation_wins_over_a_refresh_in_flight() {
     };
     let push = pusher.await.expect("join").expect_err("deactivated");
     assert_eq!(push.kind(), Code::Server(ErrorCode::UserDeactivated));
+    // The refresh may finish first (its tokens are cleared right after);
+    // either way the manifest call fails.
     let manifest = syncer.await.expect("join").expect_err("deactivated");
-    assert_eq!(manifest.code(), "USER_DEACTIVATED");
+    assert!(
+        matches!(manifest.code(), "USER_DEACTIVATED" | "UNAUTHENTICATED"),
+        "{manifest:?}"
+    );
     assert_eq!(
         store.load(PROFILE).expect("load"),
         None,
@@ -344,18 +349,33 @@ fn client_for(server: &MockServer, store: &Arc<MemoryTokenStore>) -> HttpClient<
     client(server, store)
 }
 
-/// Store whose `clear` always fails.
+/// Store whose deactivation write always fails.
 #[derive(Default)]
 struct StuckStore(MemoryTokenStore);
 
 impl TokenStore for StuckStore {
+    fn identity(&self) -> String {
+        format!("stuck:{}", self.0.identity())
+    }
+    fn load_record(&self, profile: &str) -> Result<SessionRecord> {
+        self.0.load_record(profile)
+    }
     fn load(&self, profile: &str) -> Result<Option<StoredTokens>> {
         self.0.load(profile)
     }
     fn save(&self, profile: &str, tokens: &StoredTokens) -> Result<()> {
         self.0.save(profile, tokens)
     }
-    fn clear(&self, _profile: &str) -> Result<()> {
+    fn clear(&self, profile: &str) -> Result<()> {
+        self.0.clear(profile)
+    }
+    fn take(&self, profile: &str) -> Result<Option<StoredTokens>> {
+        self.0.take(profile)
+    }
+    fn sign_in(&self, profile: &str, tokens: &StoredTokens) -> Result<u64> {
+        self.0.sign_in(profile, tokens)
+    }
+    fn deactivate(&self, _profile: &str, _expected_generation: u64) -> Result<bool> {
         Err(SyncError::TokenStore("keychain locked".into()))
     }
 }
@@ -374,9 +394,9 @@ async fn failed_cleanup_after_deactivation_is_reported() {
     store.save(PROFILE, &tokens(1)).expect("save");
     let client = client(&server, &store);
     assert_eq!(code_of(client.manifest().await), "TOKEN_STORE_ERROR");
-    // The session still knows: the next call reports the deactivation offline.
-    assert_eq!(code_of(client.manifest().await), "USER_DEACTIVATED");
-    assert_eq!(count(&server, MANIFEST).await, 1);
+    // Nothing was recorded, so the failure stays visible on every attempt.
+    assert_eq!(code_of(client.manifest().await), "TOKEN_STORE_ERROR");
+    assert_eq!(count(&server, MANIFEST).await, 2);
 }
 
 // (7) redaction ---------------------------------------------------------------
@@ -412,7 +432,8 @@ async fn auth_error_text_is_not_carried_into_display_or_debug() {
     let unknown = ErrorCode::from_wire(&format!("weird {leak}"));
     assert!(!format!("{unknown:?} {unknown}").contains(leak));
     let shaped = ErrorCode::from_wire("SYNC_NEW_CODE");
-    assert!(format!("{shaped:?}").contains("SYNC_NEW_CODE"));
+    assert_eq!(format!("{shaped:?}"), "Unknown(<redacted>)");
+    assert_eq!(shaped.as_str(), "SYNC_NEW_CODE");
 }
 
 // (10) raw base path ------------------------------------------------------------
@@ -429,4 +450,246 @@ fn base_url_path_is_checked_before_normalization() {
     }
     assert!(ServerUrl::parse("https://erp.example.com/", false).is_ok());
     assert!(ServerUrl::parse("https://erp.example.com", false).is_ok());
+}
+
+// Round 2 ----------------------------------------------------------------------
+
+/// A second store object over the same medium (like two keychain handles).
+struct Handle(Arc<MemoryTokenStore>);
+
+impl TokenStore for Handle {
+    fn identity(&self) -> String {
+        self.0.identity()
+    }
+    fn load_record(&self, profile: &str) -> Result<SessionRecord> {
+        self.0.load_record(profile)
+    }
+    fn load(&self, profile: &str) -> Result<Option<StoredTokens>> {
+        self.0.load(profile)
+    }
+    fn save(&self, profile: &str, tokens: &StoredTokens) -> Result<()> {
+        self.0.save(profile, tokens)
+    }
+    fn clear(&self, profile: &str) -> Result<()> {
+        self.0.clear(profile)
+    }
+    fn take(&self, profile: &str) -> Result<Option<StoredTokens>> {
+        self.0.take(profile)
+    }
+    fn sign_in(&self, profile: &str, tokens: &StoredTokens) -> Result<u64> {
+        self.0.sign_in(profile, tokens)
+    }
+    fn deactivate(&self, profile: &str, expected_generation: u64) -> Result<bool> {
+        self.0.deactivate(profile, expected_generation)
+    }
+}
+
+#[tokio::test]
+async fn distinct_store_objects_of_one_profile_share_one_refresh() {
+    let server = MockServer::start().await;
+    expired_manifest(&server).await;
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .and(header("authorization", bearer(2)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(REFRESH))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(token_body(2))
+                .set_delay(Duration::from_millis(300)),
+        )
+        .mount(&server)
+        .await;
+    let medium = signed_in(1);
+    let a = Arc::new(client(&server, &Arc::new(Handle(Arc::clone(&medium)))));
+    let b = Arc::new(client(&server, &Arc::new(Handle(Arc::clone(&medium)))));
+    assert!(
+        Arc::ptr_eq(a.session(), b.session()),
+        "one session per profile"
+    );
+    let mut calls = Vec::new();
+    for c in [&a, &b, &a, &b] {
+        let c = Arc::clone(c);
+        calls.push(tokio::spawn(async move { c.manifest().await }));
+    }
+    for call in calls {
+        let _ = call.await.expect("join");
+    }
+    assert_eq!(count(&server, REFRESH).await, 1);
+    assert_eq!(medium.load(PROFILE).expect("load"), Some(tokens(2)));
+}
+
+#[tokio::test]
+async fn deactivation_is_persistent_across_clients() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .respond_with(
+            ResponseTemplate::new(403).set_body_json(error_body("USER_DEACTIVATED", "Disabled.")),
+        )
+        .mount(&server)
+        .await;
+    let store = signed_in(1);
+    {
+        let first = client(&server, &store);
+        assert_eq!(code_of(first.manifest().await), "USER_DEACTIVATED");
+    }
+    assert!(store.load_record(PROFILE).expect("record").deactivated);
+    // A fresh client (new session object) still knows, without a request.
+    let second = client(&server, &store);
+    assert_eq!(code_of(second.manifest().await), "USER_DEACTIVATED");
+    assert_eq!(count(&server, MANIFEST).await, 1);
+}
+
+fn delete_push() -> keystone_sync::wire::PushRequest {
+    serde_json::from_value(json!({
+        "schema_version": 1,
+        "mutations": [{
+            "idempotency_key": "0192f5a0-0000-7000-8000-0000000000a1",
+            "op": "delete",
+            "resource": "parties",
+            "id": "0192f5a0-0000-7000-8000-0000000000b1",
+            "base_version": 3,
+            "changed_fields": [],
+            "occurred_at": "2026-10-26T09:00:00+03:00",
+            "payload": {}
+        }]
+    }))
+    .expect("push request")
+}
+
+#[tokio::test]
+async fn stale_deactivation_after_a_new_login_keeps_the_new_tokens() {
+    let server = MockServer::start().await;
+    // Answered to a request sent with the old session, after the re-login.
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .and(header("authorization", bearer(1)))
+        .respond_with(
+            ResponseTemplate::new(403)
+                .set_body_json(error_body("USER_DEACTIVATED", "Disabled."))
+                .set_delay(Duration::from_millis(400)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(LOGIN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(token_body(3)))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .and(header("authorization", bearer(3)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&server)
+        .await;
+    let store = signed_in(1);
+    let client = Arc::new(client(&server, &store));
+    let pusher = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move { client.push(&delete_push()).await })
+    };
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    client.login(&login_request()).await.expect("login");
+    let push = pusher.await.expect("join").expect_err("403");
+    assert_eq!(push.code(), "USER_DEACTIVATED");
+    let record = store.load_record(PROFILE).expect("record");
+    assert!(
+        !record.deactivated,
+        "old deactivation must not mark the new session"
+    );
+    assert_eq!(record.tokens, Some(tokens(3)));
+    let _ = client.manifest().await;
+    assert_eq!(
+        count(&server, MANIFEST).await,
+        1,
+        "new session keeps working"
+    );
+}
+
+#[tokio::test]
+async fn deactivation_on_a_request_with_the_new_token_applies() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(LOGIN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(token_body(3)))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .and(header("authorization", bearer(3)))
+        .respond_with(
+            ResponseTemplate::new(403).set_body_json(error_body("USER_DEACTIVATED", "Disabled.")),
+        )
+        .mount(&server)
+        .await;
+    let store = signed_in(1);
+    let client = Arc::new(client(&server, &store));
+    // Login and sync calls race; the generation a call reports is always
+    // the one of the token it sent.
+    let syncer = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move {
+            loop {
+                match client.manifest().await {
+                    Err(e) if e.code() == "USER_DEACTIVATED" => return e,
+                    _ => tokio::time::sleep(Duration::from_millis(5)).await,
+                }
+            }
+        })
+    };
+    client.login(&login_request()).await.expect("login");
+    let error = tokio::time::timeout(Duration::from_secs(5), syncer)
+        .await
+        .expect("deactivation seen")
+        .expect("join");
+    assert_eq!(error.code(), "USER_DEACTIVATED");
+    let record = store.load_record(PROFILE).expect("record");
+    assert!(record.deactivated);
+    assert_eq!(record.tokens, None);
+}
+
+#[tokio::test]
+async fn login_errors_are_fully_redacted() {
+    let leak = "LEAKED-SECRET-xyz789";
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(LOGIN))
+        .respond_with(ResponseTemplate::new(422).set_body_json(json!({
+            "errors": {
+                "message": format!("email {leak} invalid"),
+                "code": "VALIDATION_ERROR",
+                "fields": { "email": [format!("{leak} is not valid")], leak: ["x"] }
+            }
+        })))
+        .up_to_n_times(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(LOGIN))
+        .respond_with(ResponseTemplate::new(500).set_body_json(json!({
+            "errors": { "message": format!("stack {leak}"), "code": "SERVER_ERROR" }
+        })))
+        .mount(&server)
+        .await;
+    let store = Arc::new(MemoryTokenStore::default());
+    let client = client(&server, &store);
+    let validation = client.login(&login_request()).await.expect_err("422");
+    assert_eq!(validation.code(), "VALIDATION_ERROR");
+    match &validation {
+        SyncError::Api { fields, .. } => {
+            assert!(fields.contains_key("email"), "field names are kept");
+        }
+        other => panic!("{other:?}"),
+    }
+    let server_error = client.login(&login_request()).await.expect_err("500");
+    assert_eq!(server_error.code(), "SERVER_ERROR");
+    for error in [&validation, &server_error] {
+        for text in [format!("{error}"), format!("{error:?}")] {
+            assert!(!text.contains(leak), "{text}");
+        }
+    }
 }
