@@ -176,10 +176,12 @@ it('deletes a draft and refuses actions offline', function (): void {
 });
 
 it('tags one writer and the six read adapters under the core tags', function (): void {
-    $writers = array_map(static fn (SyncWriter $x): string => $x->resource(), iterator_to_array(app()->tagged(SyncWriter::TAG)));
-    $names = array_map(static fn (SyncResource $x): string => $x->name(), iterator_to_array(app()->tagged(SyncResource::TAG)));
+    // Other modules tag their own adapters too: look only at the Purchasing ones.
+    $ours = static fn (object $x): bool => str_starts_with($x::class, 'App\\Modules\\Purchasing\\');
+    $writers = array_values(array_map(static fn (SyncWriter $x): string => $x->resource(), array_filter(iterator_to_array(app()->tagged(SyncWriter::TAG)), $ours)));
+    $names = array_values(array_map(static fn (SyncResource $x): string => $x->name(), array_filter(iterator_to_array(app()->tagged(SyncResource::TAG)), $ours)));
 
-    expect($writers)->toContain('purchase-requests')
+    expect($writers)->toBe(['purchase-requests'])
         ->and($names)->toEqualCanonicalizing(['purchase-requests', 'purchase-rfqs', 'purchase-orders', 'purchase-receipts', 'purchase-invoices', 'purchase-returns']);
 });
 
