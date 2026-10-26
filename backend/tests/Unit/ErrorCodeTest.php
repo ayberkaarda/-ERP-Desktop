@@ -49,6 +49,23 @@ it('uses the statuses promised by the phase 1 contract', function (ErrorCode $co
     [ErrorCode::UnsupportedFileType, 422],
 ]);
 
+it('uses the statuses of the sync protocol table', function (ErrorCode $code, int $status): void {
+    expect($code->status())->toBe($status);
+})->with([
+    [ErrorCode::DocumentLocked, 409],
+    [ErrorCode::DuplicateRecord, 409],
+    [ErrorCode::SyncSchemaMismatch, 409],
+    [ErrorCode::SyncCursorInvalid, 422],
+    [ErrorCode::SyncResourceUnsupported, 422],
+    [ErrorCode::SyncOfflineWriteNotAllowed, 422],
+    [ErrorCode::SyncBatchTooLarge, 413],
+    // Push-result-only codes still map to a status of their own.
+    [ErrorCode::SyncDependencyFailed, 422],
+    [ErrorCode::SyncBaseVersionAhead, 422],
+    [ErrorCode::SyncChangedFieldsMismatch, 422],
+    [ErrorCode::SyncResolutionInvalid, 422],
+]);
+
 it('has a message for every code in every supported locale', function (string $locale): void {
     /** @var array<string, string> $messages */
     $messages = require dirname(__DIR__, 2)."/lang/{$locale}/errors.php";

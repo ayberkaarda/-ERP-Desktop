@@ -11,8 +11,6 @@ use Closure;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response;
 use Throwable;
 
@@ -31,6 +29,8 @@ use Throwable;
  *   request is fenced by its claim id, so a late original rolls back instead of overwriting.
  * - Not covered: side effects outside the default connection (files, mail, other connections).
  *   Handlers must defer those until after commit (afterCommit jobs/events).
+ *
+ * Storage, fencing and expiry live in IdempotencyStore.
  */
 final class EnsureIdempotency
 {
@@ -46,8 +46,8 @@ final class EnsureIdempotency
     public function __construct(
         private readonly ConnectionInterface $db,
         private readonly CompanyContext $company,
+        private readonly IdempotencyStore $store,
         private readonly int $ttlHours = 24,
-        private readonly int $leaseSeconds = 300,
     ) {}
 
     /**
@@ -77,36 +77,19 @@ final class EnsureIdempotency
             ]);
         }
 
-        $userId = $this->userId($request);
-        $companyId = $this->company->idOrNull();
-        $scopeHash = hash('sha256', implode("\0", [$userId ?? '', $companyId ?? '', $key]));
-        $requestHash = self::fingerprint($request);
+        $claim = $this->store->claim(
+            new IdempotencyScope($key, $this->userId($request), $this->company->idOrNull()),
+            self::fingerprint($request),
+            $this->ttlHours * 3600,
+            $method,
+            '/'.ltrim($request->path(), '/'),
+        );
 
-        $this->purgeExpired($scopeHash);
-
-        $claimId = (string) Str::uuid7();
-        $now = Carbon::now();
-
-        $inserted = $this->db->table('idempotency_keys')->insertOrIgnore([
-            'id' => $claimId,
-            'scope_hash' => $scopeHash,
-            'key' => $key,
-            'user_id' => $userId,
-            'company_id' => $companyId,
-            'method' => $method,
-            'path' => '/'.ltrim($request->path(), '/'),
-            'request_hash' => $requestHash,
-            'status' => 'processing',
-            'lease_expires_at' => $now->copy()->addSeconds($this->leaseSeconds),
-            'expires_at' => $now->copy()->addHours($this->ttlHours),
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
-
-        if ($inserted === 0) {
-            return $this->existing($scopeHash, $requestHash);
+        if ($claim->status !== ClaimStatus::Claimed || $claim->claimId === null) {
+            return self::existing($claim);
         }
 
+        $claimId = $claim->claimId;
         $this->db->beginTransaction();
 
         try {
@@ -123,7 +106,7 @@ final class EnsureIdempotency
             return $response;
         }
 
-        if ($this->remember($claimId, $response) === 0) {
+        if (! $this->store->complete($claimId, self::stored($response))) {
             // Our lease expired and a retry took the key over; it owns the outcome now.
             $this->db->rollBack();
 
@@ -176,42 +159,28 @@ final class EnsureIdempotency
             $this->db->rollBack();
         }
 
-        $this->db->table('idempotency_keys')
-            ->where('id', $claimId)
-            ->where('status', 'processing')
-            ->delete();
+        $this->store->release($claimId);
     }
 
-    private function existing(string $scopeHash, string $requestHash): Response
+    private static function existing(Claim $claim): Response
     {
-        $row = $this->db->table('idempotency_keys')->where('scope_hash', $scopeHash)->first();
-
-        if (! is_object($row)) {
-            // Lost a race with expiry cleanup; the client may simply retry.
-            throw new ApiException(ErrorCode::IdempotencyInProgress);
-        }
-
-        /** @var object{request_hash: string, status: string, response_status: int|null, response_headers: string|null, response_body: string|null} $row */
-        if (! hash_equals($row->request_hash, $requestHash)) {
+        if ($claim->status === ClaimStatus::Reused) {
             throw new ApiException(ErrorCode::IdempotencyKeyReused);
         }
 
-        if ($row->status !== 'completed') {
+        $stored = $claim->response;
+
+        if ($claim->status !== ClaimStatus::Completed || $stored === null) {
             throw new ApiException(ErrorCode::IdempotencyInProgress);
         }
 
-        $headers = json_decode($row->response_headers ?? '[]', true);
-        $headers = is_array($headers) ? $headers : [];
+        $headers = $stored->headers;
         $headers[self::REPLAY_HEADER] = 'true';
 
-        /** @var array<string, string> $headers */
-        return new Response($row->response_body ?? '', (int) $row->response_status, $headers);
+        return new Response($stored->body, $stored->status, $headers);
     }
 
-    /**
-     * @return int affected rows; 0 when the claim is no longer ours
-     */
-    private function remember(string $claimId, Response $response): int
+    private static function stored(Response $response): StoredResponse
     {
         $headers = [];
 
@@ -225,33 +194,7 @@ final class EnsureIdempotency
 
         $body = $response->getContent();
 
-        return $this->db->table('idempotency_keys')
-            ->where('id', $claimId)
-            ->where('status', 'processing')
-            ->update([
-                'status' => 'completed',
-                'response_status' => $response->getStatusCode(),
-                'response_headers' => json_encode($headers, JSON_THROW_ON_ERROR),
-                'response_body' => $body === false ? '' : $body,
-                'lease_expires_at' => null,
-                'updated_at' => Carbon::now(),
-            ]);
-    }
-
-    /**
-     * Completed records live for the TTL; processing claims only for their lease.
-     */
-    private function purgeExpired(string $scopeHash): void
-    {
-        $now = Carbon::now();
-
-        $this->db->table('idempotency_keys')
-            ->where('scope_hash', $scopeHash)
-            ->where(function ($q) use ($now): void {
-                $q->where(fn ($c) => $c->where('status', 'completed')->where('expires_at', '<', $now))
-                    ->orWhere(fn ($p) => $p->where('status', 'processing')->where('lease_expires_at', '<', $now));
-            })
-            ->delete();
+        return new StoredResponse($response->getStatusCode(), $body === false ? '' : $body, $headers);
     }
 
     private function userId(Request $request): ?string
