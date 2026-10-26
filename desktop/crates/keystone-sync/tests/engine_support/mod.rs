@@ -78,8 +78,7 @@ pub async fn env_on<T: TokenStore + 'static>(
         },
     )
     .unwrap();
-    let session = client.session().clone();
-    let engine = Arc::new(SyncEngine::new(client, store.clone(), session));
+    let engine = Arc::new(SyncEngine::new(client, store.clone()));
     EnvOf {
         server,
         dir,

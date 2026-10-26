@@ -351,6 +351,10 @@ impl HttpClient {
 }
 
 impl SyncApi for HttpClient {
+    fn session(&self) -> &Arc<Session> {
+        &self.session
+    }
+
     async fn manifest(&self) -> Result<ManifestResponse> {
         self.authorized::<(), _>(Method::GET, paths::MANIFEST, None, None)
             .await

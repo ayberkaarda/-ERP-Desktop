@@ -9,9 +9,11 @@
 //! Nothing here logs; tokens and bodies never appear in error messages.
 
 use std::future::Future;
+use std::sync::Arc;
 
 use uuid::Uuid;
 
+use crate::auth::Session;
 use crate::error::Result;
 use crate::wire::{
     DeviceLoginRequest, DeviceRefreshRequest, DeviceTokenResponse, ManifestResponse, PullRequest,
@@ -50,8 +52,9 @@ pub struct ApiConfig {
 /// Sync endpoints. Calls need a valid access token; the implementation gets
 /// it from [`crate::auth`] and refreshes once on 401 before failing.
 ///
-/// The generation-bound calls (`*_in`) have no default: an implementation
-/// must decide how it keeps a call to its sign-in generation.
+/// The generation-bound calls (`*_in`) and [`SyncApi::session`] have no
+/// default: an implementation must decide how it keeps a call to its
+/// sign-in generation, and name the session it works in.
 ///
 /// ```compile_fail
 /// use keystone_sync::client::SyncApi;
@@ -65,12 +68,30 @@ pub struct ApiConfig {
 /// }
 /// ```
 ///
-/// ```no_run
+/// ```compile_fail
 /// use keystone_sync::client::SyncApi;
 /// use keystone_sync::error::Result;
 /// use keystone_sync::wire::{ManifestResponse, PullRequest, PullResponse, PushRequest, PushResponse};
-/// struct Bound;
+/// struct NoSession;
+/// impl SyncApi for NoSession {
+///     async fn manifest(&self) -> Result<ManifestResponse> { unimplemented!() }
+///     async fn pull(&self, _: &PullRequest) -> Result<PullResponse> { unimplemented!() }
+///     async fn push(&self, _: &PushRequest) -> Result<PushResponse> { unimplemented!() }
+///     async fn manifest_in(&self, _: u64) -> Result<ManifestResponse> { unimplemented!() }
+///     async fn pull_in(&self, _: &PullRequest, _: u64) -> Result<PullResponse> { unimplemented!() }
+///     async fn push_in(&self, _: &PushRequest, _: u64) -> Result<PushResponse> { unimplemented!() }
+/// }
+/// ```
+///
+/// ```no_run
+/// use std::sync::Arc;
+/// use keystone_sync::auth::Session;
+/// use keystone_sync::client::SyncApi;
+/// use keystone_sync::error::Result;
+/// use keystone_sync::wire::{ManifestResponse, PullRequest, PullResponse, PushRequest, PushResponse};
+/// struct Bound(Arc<Session>);
 /// impl SyncApi for Bound {
+///     fn session(&self) -> &Arc<Session> { &self.0 }
 ///     async fn manifest(&self) -> Result<ManifestResponse> { unimplemented!() }
 ///     async fn pull(&self, _: &PullRequest) -> Result<PullResponse> { unimplemented!() }
 ///     async fn push(&self, _: &PushRequest) -> Result<PushResponse> { unimplemented!() }
@@ -80,6 +101,11 @@ pub struct ApiConfig {
 /// }
 /// ```
 pub trait SyncApi: Send + Sync {
+    /// The profile session the client works in (its token store handle,
+    /// profile id, token lock and sign-in gate). The engine of the client
+    /// is built over this same session ([`crate::engine::SyncEngine::new`]).
+    fn session(&self) -> &Arc<Session>;
+
     fn manifest(&self) -> impl Future<Output = Result<ManifestResponse>> + Send;
 
     fn pull(&self, request: &PullRequest) -> impl Future<Output = Result<PullResponse>> + Send;

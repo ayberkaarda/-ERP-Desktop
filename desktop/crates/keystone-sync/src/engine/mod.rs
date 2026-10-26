@@ -306,6 +306,32 @@ type HookFn = dyn Fn(Hook) + Send + Sync;
 ///     let _ = e.status();
 /// }
 /// ```
+///
+/// The engine works in the session of its API client and in no other: the
+/// constructor takes no session, it is derived from the client
+/// ([`SyncApi::session`]).
+///
+/// ```compile_fail
+/// use std::sync::Arc;
+/// use keystone_sync::auth::{MemoryTokenStore, Session};
+/// use keystone_sync::client::HttpClient;
+/// use keystone_sync::engine::SyncEngine;
+/// use keystone_sync::store::Store;
+/// fn build(client: HttpClient, db: Arc<Store>) {
+///     let other = Session::shared("other", Arc::new(MemoryTokenStore::default()));
+///     let _ = SyncEngine::new(client, db, other);
+/// }
+/// ```
+///
+/// ```no_run
+/// use std::sync::Arc;
+/// use keystone_sync::client::HttpClient;
+/// use keystone_sync::engine::SyncEngine;
+/// use keystone_sync::store::Store;
+/// fn build(client: HttpClient, db: Arc<Store>) {
+///     let _ = SyncEngine::new(client, db);
+/// }
+/// ```
 pub struct SyncEngine<A> {
     api: A,
     store: Arc<Store>,
@@ -347,12 +373,12 @@ impl<A> std::fmt::Debug for SyncEngine<A> {
 }
 
 impl<A: SyncApi> SyncEngine<A> {
-    /// `session` is the profile's session the API client works in
-    /// ([`crate::client::HttpClient::session`]): the engine reads the
-    /// sign-in generation and the deactivation mark through it and revokes
-    /// the tokens on sign-out through it, so engine and client cannot be
-    /// over different stores or profiles.
-    pub fn new(api: A, store: Arc<Store>, session: Arc<Session>) -> Self {
+    /// The engine works in the session of `api` ([`SyncApi::session`]): it
+    /// reads the sign-in generation and the deactivation mark through it
+    /// and revokes the tokens on sign-out through it, so engine and client
+    /// are never over different stores or profiles.
+    pub fn new(api: A, store: Arc<Store>) -> Self {
+        let session = api.session().clone();
         Self {
             api,
             outbox: Outbox::new(store.clone()),

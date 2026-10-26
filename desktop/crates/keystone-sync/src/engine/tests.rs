@@ -28,10 +28,21 @@ const PUSH_LOST: u8 = 0;
 const PUSH_APPLY: u8 = 1;
 const PUSH_NOT_SENT: u8 = 2;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct FakeApi {
+    session: Arc<Session>,
     manifests: AtomicUsize,
     push_mode: AtomicU8,
+}
+
+impl FakeApi {
+    fn new(session: Arc<Session>) -> Self {
+        Self {
+            session,
+            manifests: AtomicUsize::new(0),
+            push_mode: AtomicU8::new(PUSH_LOST),
+        }
+    }
 }
 
 fn manifest() -> ManifestResponse {
@@ -63,6 +74,10 @@ fn manifest() -> ManifestResponse {
 }
 
 impl SyncApi for FakeApi {
+    fn session(&self) -> &Arc<Session> {
+        &self.session
+    }
+
     async fn manifest(&self) -> Result<ManifestResponse> {
         self.manifests.fetch_add(1, Ordering::SeqCst);
         Ok(manifest())
@@ -142,7 +157,7 @@ fn fixture() -> Fixture {
         Arc::new(Store::open(dir.path().join("unit.db"), &DbKey::from_bytes([7; 32])).unwrap());
     let tokens = Arc::new(MemoryTokenStore::signed_in(PROFILE, &self::tokens(1)));
     let session = Session::shared(PROFILE, tokens.clone());
-    let engine = Arc::new(SyncEngine::new(FakeApi::default(), store, session));
+    let engine = Arc::new(SyncEngine::new(FakeApi::new(session), store));
     Fixture {
         _dir: dir,
         tokens,
