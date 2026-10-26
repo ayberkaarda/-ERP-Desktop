@@ -14,9 +14,10 @@ Masaüstü istemci çevrimdışıyken taslak oluşturur ve düzenler; değişikl
 - İstemcinin ürettiği UUIDv7 sunucuda doğrudan birincil anahtar olur.
 - Her mutasyon kendi `idempotency_key`'ini taşır; anahtar (kullanıcı, şirket, `sync.push`) kapsamıyla, istek özeti ve sonucun tamamıyla 7 gün saklanır. Tekrar gönderimde saklanan sonuç döner: `applied` ise `duplicate`, `conflict`/`rejected` ise aynı statü ve gövde (`replayed: true`).
 - Yetkilendirme (güncel izin, şirket kapsamlı hedef yükleme, satır Policy'si) her mutasyonda, saklanan sonucun tekrarı ve her `conflict`/`server_data` üretiminden önce yapılır.
-- İstemci push sonucunu sürüm karşılaştırmasıyla uygular: daha yeni yerel satır geriletilmez, delete tekrarında yerel satır yalnızca `base_version`'dan yeni değilse silinir.
+- İstemci push sonucunu sürüm karşılaştırmasıyla uygular: daha yeni yerel satır geriletilmez, yerelde olmayan satıra push verisi uygulanmaz (güncel durum detay ucundan doğrulanır), delete tekrarında yerel satır yalnızca `base_version`'dan yeni değilse silinir.
 - Sonuç dört değerden biridir: `applied`, `duplicate`, `conflict`, `rejected`.
 - `changed_fields`, payload'ın üst düzey anahtar kümesine eşit olmak zorundadır; sunucu doğrular ve yalnızca bu kümeyi uygular. Payload `version` taşımaz; sunucu REST `version` parametresini satır kilidi altında kendisi üretir.
+- Çakışma, servisin yeniden hesapladığı alanları da içeren etkin yazma kümesiyle değerlendirilir; türetmeler manifestte `derived_fields` olarak beyan edilir. Eski sürüm üzerine birleştirmede beyan dışı bir kolon değişirse yazma geri alınır ve `VERSION_CONFLICT` döner.
 - Sürüm kontrolü işlem bazındadır: `update` alan bazlı birleştirir, `delete` ve `action` (ör. sayım girişi) sunucu sürümüne kesin eşitlik ister. Sunucudan büyük `base_version` her zaman reddedilir.
 - Hedef kayıt kısıtları (`target_constraints`, ör. yalnızca `doc_type = count` stok belgesi) payload kısıtlarından ayrı olarak, kilit altında hedef satır üzerinde denetlenir.
 - Sessiz üzerine yazma yasaktır:

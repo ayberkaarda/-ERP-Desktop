@@ -102,12 +102,46 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["mode", "ops", "conflict"],
+      "if": {
+        "properties": {
+          "ops": { "type": "array", "contains": { "type": "object", "properties": { "op": { "const": "update" }, "version_check": { "const": "field-merge" } }, "required": ["op", "version_check"] } }
+        }
+      },
+      "then": { "required": ["derived_fields"] },
       "properties": {
         "mode": { "const": "draft-outbox" },
         "ops": {
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/writeOp" }
+        },
+        "derived_fields": {
+          "description": "Servisin yazma sırasında yeniden hesapladığı alanlar. Bir kuralın when alanlarından biri etkin yazma kümesindeyse ve derives alanı payload'da yoksa, derives alanları etkin yazma/çakışma kümesine eklenir (zincirleme, sabit noktaya kadar). always: her update'te yeniden hesaplanan alanlar. field-merge update tanımlı her write bu listeyi taşımak zorundadır (boş olabilir).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["when", "derives"],
+            "properties": {
+              "when": {
+                "description": "Tetikleyen üst düzey alanlar; '*' her update'i ifade eder.",
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^([a-z][a-z0-9_]*|\\*)$" }
+              },
+              "derives": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+              },
+              "source": {
+                "description": "Türetmenin backend'deki yeri (dosya:satır veya sınıf::metot).",
+                "type": "string"
+              }
+            }
+          }
         },
         "draft_only": {
           "description": "Yalnızca bu alan bu değerdeyken update/delete/action uygulanır; değilse DOCUMENT_LOCKED.",

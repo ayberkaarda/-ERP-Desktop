@@ -59,8 +59,47 @@
           "server_data": {
             "id": "0193b1e9-1200-7e40-9444-8b9c0d1e2f71",
             "document_type": "request",
+            "number": "PRQ2026000000015",
             "status": "draft",
-            "version": 3
+            "document_date": "2026-10-22",
+            "needed_by": "2026-11-05",
+            "requested_by": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
+            "warehouse_id": "0193a000-0000-7000-8000-0000000000d1",
+            "cost_center_id": null,
+            "project_id": null,
+            "currency_code": "TRY",
+            "notes": "Depo rafları için",
+            "internal_notes": null,
+            "estimated_total": "3750.00",
+            "approval_request_id": null,
+            "approval_comment": null,
+            "submitted_at": null,
+            "approved_at": null,
+            "rejected_at": null,
+            "cancelled_at": null,
+            "version": 3,
+            "created_by": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
+            "created_at": "2026-10-22T10:00:00+03:00",
+            "updated_at": "2026-10-25T16:40:00+03:00",
+            "lines": [
+              {
+                "id": "0193b2a0-0003-7b00-8a00-0000000000a3",
+                "line_no": 1,
+                "item_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b33",
+                "variant_id": null,
+                "item_type": "stock",
+                "description": "Raf ayağı 200 cm",
+                "quantity": "25.0000",
+                "unit_id": "0193a000-0000-7000-8000-0000000000b1",
+                "base_quantity": "25.0000",
+                "estimated_price": "150.000000",
+                "estimated_total": "3750.00",
+                "suggested_supplier_id": null,
+                "needed_by": "2026-11-05",
+                "warehouse_id": "0193a000-0000-7000-8000-0000000000d1",
+                "ordered_quantity": "0.0000"
+              }
+            ]
           },
           "choices": [
             "keep_mine",

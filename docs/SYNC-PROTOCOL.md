@@ -184,6 +184,22 @@ Outbox'tan partilenmiş mutasyonlar. Şemalar: `push.request.schema.json`, `push
 
 - `update` ve `action`: `changed_fields` **payload'ın üst düzey anahtar kümesine birebir eşit** olmalıdır. Sunucu bunu doğrular; eşit değilse `rejected` / `SYNC_CHANGED_FIELDS_MISMATCH`. Çakışma kontrolü ve uygulanan alanlar her zaman bu doğrulanmış kümedir; payload'da bildirilmemiş alan uygulanamaz.
 - Dizi alanları (`lines`, `counts`, `billing_address`) tek alan sayılır ve bütün olarak yazılır.
+- **Etkin yazma kümesi.** Servisler bazı alanları yazma sırasında yeniden hesaplar (ör. `document_date` değişince `due_date`). Çakışma kontrolü `changed_fields` ile değil, **etkin yazma kümesiyle** yapılır: `changed_fields` ∪ manifestteki `write.derived_fields` kurallarının, tetikleyicisi kümede olan ve payload'da açıkça verilmemiş `derives` alanları; kurallar sabit noktaya kadar zincirlenir, `when: ["*"]` her update'te uygulanır. `field-merge` update tanımlı her kaynak bu listeyi taşımak zorundadır (şema denetler).
+- **Beyan edilmemiş türetme çakışmadır.** `base_version` eskiyken birleştirme uygulanırsa sunucu, servis yazdıktan sonra ve commit'ten önce gerçekten değişen kolonları (ön görüntü ile karşılaştırarak; `version`, `updated_at`, `sync_txid` hariç) etkin yazma kümesiyle karşılaştırır. Küme dışında bir kolon değişmişse transaction geri alınır ve sonuç `conflict` / `VERSION_CONFLICT` olur (`conflicting_fields` = beyan dışı kolonlar). Yani türetme hesaplanamıyorsa birleştirme reddedilir; `base_version` güncelse bu kontrol gerekmez.
+
+Bilinen türetmeler (backend kaynağı manifestte `source` olarak):
+
+| Kaynak | Tetikleyen | Türetilen |
+|---|---|---|
+| `sales-quotes`, `sales-orders` | `party_id` | `payment_term_id`, `price_list_id`, `billing_address`, `due_date`, `party_name`, `party_tax_office`, `party_tax_number` (`Sales/Services/DocumentService.php:93`) |
+| | `currency_code` | `fx_rate` (`DocumentService.php:97`) |
+| | `document_date`, `payment_term_id` | `due_date` (`DocumentService.php:101`, `Composer/DocumentComposer.php:107`) |
+| | `lines`, `fx_rate` | `subtotal`, `discount_total`, `tax_total`, `total` ve `*_local` karşılıkları (`DocumentComposer`) |
+| | her update | `party_name`, `party_tax_office`, `party_tax_number` (cari anlık görüntüsü her yazmada yenilenir, `DocumentComposer.php:147`) |
+| `purchase-requests` | `lines` | `estimated_total` (`Purchasing/Services/RequestService.php:345`) |
+| `stock-documents` | — | Yok; sayım satırları yalnızca `counts` işlemiyle (`exact`) yazılır, `doc_type` ve sayım deposu değiştirilemez (`Inventory/Services/StockDocuments.php:70-77`). |
+
+Not: `RequestService::update` satırları her update'te silip yeniden yazar; satır `id`'leri bu yüzden değişir. İstemci satırları kimlikle değil, dönen `data.lines` ile bütün olarak değiştirir.
 - `create` ve `delete`: `changed_fields` boştur; `delete` payload'ı boş nesnedir (şema denetler).
 
 ### Sürüm kontrolü
@@ -211,11 +227,14 @@ Adımlar bu sırayla uygulanır. **Yetkilendirme, hiçbir saklanan sonuç, `conf
 1. İstek düzeyi kontroller: token, şirket üyeliği, `schema_version`, parti boyutu (`limits.push_batch_max`). Hata varsa tüm istek `error.response.schema.json` biçiminde döner.
 2. Mutasyonlar **sırayla** ve her biri **kendi transaction'ında** işlenir. Parti atomik değildir.
 3. **Manifest ve izin.** Kaynak, `op`/`action` manifestteki `write` tanımında olmalı ve kullanıcının **şu anki** izinleri işlemin `requires` koşulunu sağlamalı. Tanım dışıysa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`; izin yoksa `rejected` / `FORBIDDEN`. Varsayılan kural reddir; manifestte tanımlı olmayan her yazma ONLINE_ONLY'dir.
-4. **Hedef yükleme ve Policy.** Hedef satır (update/delete/action'da `id`; create'te aynı `id` ile var olan satır) **şirket kapsamlı** sorguyla (`company` middleware'i + `BelongsToCompany`) ve `SELECT … FOR UPDATE` ile yüklenir. Başka şirketin veya hiç olmayan satır `rejected` / `NOT_FOUND` olur; varlığı sızdırılmaz. Ardından Policy, işlemin yeteneğiyle (`update`, `delete`, `create`) **ve** `view` ile satır üzerinde çalışır; biri reddederse `rejected` / `FORBIDDEN`. `server_data` ve `data` yalnızca bu adımı geçmiş satırlar için üretilir.
+4. **Hedef yükleme ve Policy.** Önce **sınıf düzeyinde** yetki: create için `Gate::authorize('create', Model::class)`, diğer işlemler için `viewAny`; reddedilirse `rejected` / `FORBIDDEN`. Ardından hedef satır `id` ile **şirket kapsamlı** sorguyla (`company` middleware'i + `BelongsToCompany`) ve `SELECT … FOR UPDATE` ile yüklenir:
+   - **update, delete, action:** satır yoksa veya başka şirketinse `rejected` / `NOT_FOUND`; varlığı sızdırılmaz. Delete tekrarı istisnadır (5. adım). Satır varsa Policy işlemin yeteneğiyle (`update`, `delete`) **ve** `view` ile satır üzerinde çalışır; biri reddederse `rejected` / `FORBIDDEN`.
+   - **create:** satırın **olmaması** normal durumdur ve `NOT_FOUND` üretmez; mutasyon sınıf düzeyi `create` yetkisiyle devam eder. Aynı `id` ile satır varsa: aynı kullanıcı-şirket için saklanan bir sonucu varsa 5. adım (tekrar) uygulanır ve satır üzerinde `view` Policy'si çalışır; yoksa `rejected` / `VALIDATION_ERROR` (`fields.id`), başka şirketin satırı da aynı cevabı alır (varlık sızdırılmaz).
+   `server_data` ve `data` yalnızca bu adımı geçmiş satırlar için üretilir.
 5. **Idempotency.** `(kullanıcı, şirket, 'sync.push', idempotency_key)` için saklanan bir sonuç varsa mutasyon yeniden çalıştırılmaz. 3. ve 4. adımlar replay için de çalışmıştır; yetkisini yitiren kullanıcı saklanan veriyi geri alamaz (sonuç `rejected` / `FORBIDDEN` veya `NOT_FOUND`, `replayed: false`, saklanmaz).
    - İstek özeti farklıysa `rejected` / `IDEMPOTENCY_KEY_REUSED`.
    - Saklanan sonuç `applied` ise `duplicate` döner; ilk sonucun `version` ve `data`'sı aynen, `replayed: true`. Delete'in tekrarında hedef satır artık yoktur; 4. adım bu durumda `NOT_FOUND` üretmez, saklanan `data: null` sonucu döner.
-   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`; `server_data` güncel satırdan yeniden üretilir.
+   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`. İstisna: conflict'te `server_version` ve `server_data` ikisi birlikte, 4. adımda kilitlenen **aynı güncel satır görüntüsünden** yeniden üretilir (`server_version = server_data.version`); `code`, `conflicting_fields`, `base_version` ve `choices` saklanan değerdir.
    Sonucun tamamı 7 gün saklanır. Geçici hatalar ve yetkilendirme retleri saklanmaz.
 6. **Bağımlılık.** Aynı partide aynı `id`'ye ait daha önceki mutasyonlar ve `depends_on` ile bildirilenler `applied` veya `duplicate` olmalıdır; değilse `rejected` / `SYNC_DEPENDENCY_FAILED` ve mutasyon denenmez. `depends_on` yalnızca aynı partide **daha önce** gelen ya da önceki bir partide gönderilmiş (sonucu saklı) anahtarlara işaret edebilir; ileri veya bilinmeyen referans `rejected` / `VALIDATION_ERROR` (`fields.depends_on`) olur. Referanslar yalnızca geriye baktığı için döngü oluşamaz. `resolution` taşıyan mutasyon için istisna aşağıda (Çakışma çözümü).
 7. **Payload kısıtları.** `payload_constraints` (create ve update payload'ı) sağlanmıyorsa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
@@ -238,7 +257,9 @@ Geçici hatalarda (ağ, 5xx, `TOO_MANY_ATTEMPTS`, `IDEMPOTENCY_IN_PROGRESS`) son
 
 **Sürüm kuralı (istemci).** Push sonucu yerel satırı asla geriletmez:
 
-- `data` doluysa: yerel satır yoksa ya da yerel `version < data.version` ise `data` uygulanır; yerel `version >= data.version` ise (arada daha yeni bir pull uygulanmış) yerel satır korunur, yalnızca outbox kaydı kapanır.
+- **Yerel satır yoksa push `data`'sı hiçbir zaman uygulanmaz** (`applied` ve `duplicate` için aynı kural). Satır arada tombstone, `out_of_scope` veya reset ile kaldırılmış olabilir ve `data` o kaldırmadan eski olabilir. İstemci outbox kaydını kapatır ve kaynağın `detail_path` ucundan güncel durumu ister: 200 dönerse yanıt, kaynağın pencere ve kapsam kuralından geçiyorsa uygulanır; 404/403 dönerse veya pencere dışındaysa satır yerelde yok kalır. Çevrimdışıysa doğrulama bir sonraki bağlantıya ertelenir; o zamana kadar satır eklenmez.
+- Yerel satır varsa: yerel `version < data.version` ise `data` uygulanır; yerel `version >= data.version` ise (arada daha yeni bir pull uygulanmış) yerel satır korunur, yalnızca outbox kaydı kapanır.
+- Çevrimdışı oluşturulan taslağın yerel satırı outbox ile birlikte vardır; ilk `create` sonucu bu yüzden normal yoldan uygulanır.
 - `data: null` (delete): yerel satır yoksa bir şey yapılmaz. Yerel `version` delete mutasyonunun `base_version` değerine eşit ya da küçükse satır silinir. Büyükse satır silinmez; kaynak bir sonraki pull'da yeniden doğrulanır (tombstone gelirse silinir, canlı satır gelirse kalır).
 - Cursor bu kuraldan etkilenmez; pull ile gelen olaylar her zaman uygulanır.
 
@@ -247,7 +268,7 @@ Geçici hatalarda (ağ, 5xx, `TOO_MANY_ATTEMPTS`, `IDEMPOTENCY_IN_PROGRESS`) son
 Sessiz üzerine yazma yasaktır.
 
 1. **Belge kilitli.** `write.draft_only` alanı (`status`) artık `draft` değilse sonuç `conflict` / `DOCUMENT_LOCKED` olur. Aynı kural REST'te de geçerlidir: taslak olmayan belgeyi `PATCH`/`DELETE` ile düzenleme girişimi HTTP 409 `DOCUMENT_LOCKED` döner (bugünkü 422 `INVALID_STATE_TRANSITION` yerine); push bu REST hatasını conflict sonucuna çevirir. Seçenekler yalnızca `save_as_new_draft` (istemci yeni UUIDv7 ve yeni anahtarla `create` üretir) veya `discard` (şema denetler).
-2. **Eski sürüm, kesişim yok** (`field-merge`). `base_version` güncel değilse, doğrulanmış `changed_fields` ile `base_version`'dan beri sunucuda değişen alanlar (audit diff) karşılaştırılır. Kesişim yoksa değişiklik uygulanır: `applied` ve `merged_fields`.
+2. **Eski sürüm, kesişim yok** (`field-merge`). `base_version` güncel değilse, **etkin yazma kümesi** (`changed_fields` + türetilen alanlar) ile `base_version`'dan beri sunucuda değişen alanlar (audit diff) karşılaştırılır. Kesişim yoksa değişiklik uygulanır: `applied` ve `merged_fields`.
 3. **Eski sürüm, kesişim var.** Sonuç `conflict` / `VERSION_CONFLICT`; `conflicting_fields` ve `server_data` döner. Seçenekler `keep_mine`, `take_server`, `merge` içinden. `delete`/`action` için `exact` kuralı gereği kesişim aranmaz; seçenekler `keep_mine` ve `take_server`.
 4. **Belirsizlik çakışmadır.** Aradaki değişikliği audit kaydından kesin çıkarılamayan alan (ör. activitylog'un izlemediği `lines`) kesişiyor sayılır.
 5. **Mükerrer cari.** `parties` create'i öncesinde sunucu `GET /api/v1/parties/duplicates` ile aynı aramayı yapar. Aday varsa `conflict` / `DUPLICATE_RECORD` ve `candidates` döner. Seçenekler `use_existing` (istemci yerel taslağı aday kayda bağlar; sunucuya yazma yok), `keep_mine`, `discard`.
