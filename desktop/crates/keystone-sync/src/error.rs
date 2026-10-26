@@ -1,0 +1,168 @@
+//! Crate error. Server failures carry the wire `ErrorCode` unchanged; local
+//! failures get a `LocalCode`. `code()` gives the string the UI translates
+//! as `desktop.errors.<code>`.
+
+use std::collections::BTreeMap;
+use std::time::Duration;
+
+use crate::wire::{ApiError, ErrorCode};
+
+pub type Result<T, E = SyncError> = std::result::Result<T, E>;
+
+/// Codes for failures that never come from the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LocalCode {
+    /// Offline and the request has no local answer.
+    OfflineUnavailable,
+    /// Connection, TLS or timeout failure before an HTTP response.
+    NetworkError,
+    /// The database key is wrong or the file is not a SQLCipher database.
+    StoreKeyInvalid,
+    /// Any other SQLite failure.
+    StoreError,
+    /// Migration registry or ledger is inconsistent.
+    StoreMigrationInvalid,
+    /// A body could not be encoded or decoded.
+    DecodeError,
+    /// The token store (OS keychain) failed.
+    TokenStoreError,
+    /// The scaffold has no implementation for this operation yet.
+    NotImplemented,
+}
+
+impl LocalCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OfflineUnavailable => "OFFLINE_UNAVAILABLE",
+            Self::NetworkError => "NETWORK_ERROR",
+            Self::StoreKeyInvalid => "STORE_KEY_INVALID",
+            Self::StoreError => "STORE_ERROR",
+            Self::StoreMigrationInvalid => "STORE_MIGRATION_INVALID",
+            Self::DecodeError => "DECODE_ERROR",
+            Self::TokenStoreError => "TOKEN_STORE_ERROR",
+            Self::NotImplemented => "NOT_IMPLEMENTED",
+        }
+    }
+}
+
+/// Either side of `SyncError::kind`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Code {
+    Server(ErrorCode),
+    Local(LocalCode),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum SyncError {
+    /// Request-level error body from the server.
+    #[error("{code}: {message}")]
+    Api {
+        status: u16,
+        code: ErrorCode,
+        message: String,
+        fields: BTreeMap<String, Vec<String>>,
+        /// From `Retry-After`, when the server sent one.
+        retry_after: Option<Duration>,
+    },
+    #[error("offline: {0}")]
+    OfflineUnavailable(String),
+    #[error("network: {0}")]
+    Network(String),
+    #[error("database key rejected")]
+    StoreKeyInvalid,
+    #[error("store: {0}")]
+    Store(#[from] rusqlite::Error),
+    #[error("migration: {0}")]
+    Migration(String),
+    #[error("decode: {0}")]
+    Decode(#[from] serde_json::Error),
+    #[error("token store: {0}")]
+    TokenStore(String),
+    #[error("not implemented: {0}")]
+    NotImplemented(&'static str),
+}
+
+impl SyncError {
+    /// Builds `Api` from an error body.
+    pub fn from_api(status: u16, error: ApiError, retry_after: Option<Duration>) -> Self {
+        Self::Api {
+            status,
+            code: error.code,
+            message: error.message,
+            fields: error.fields.unwrap_or_default(),
+            retry_after,
+        }
+    }
+
+    /// Server or local code of this error.
+    pub fn kind(&self) -> Code {
+        let local = match self {
+            Self::Api { code, .. } => return Code::Server(*code),
+            Self::OfflineUnavailable(_) => LocalCode::OfflineUnavailable,
+            Self::Network(_) => LocalCode::NetworkError,
+            Self::StoreKeyInvalid => LocalCode::StoreKeyInvalid,
+            Self::Store(_) => LocalCode::StoreError,
+            Self::Migration(_) => LocalCode::StoreMigrationInvalid,
+            Self::Decode(_) => LocalCode::DecodeError,
+            Self::TokenStore(_) => LocalCode::TokenStoreError,
+            Self::NotImplemented(_) => LocalCode::NotImplemented,
+        };
+        Code::Local(local)
+    }
+
+    /// Stable code string: the `ErrorCode` wire value or the `LocalCode`.
+    pub fn code(&self) -> &'static str {
+        match self.kind() {
+            Code::Server(code) => code.as_str(),
+            Code::Local(code) => code.as_str(),
+        }
+    }
+
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            Self::Api { retry_after, .. } => *retry_after,
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn local_codes_never_collide_with_server_codes() {
+        let locals = [
+            LocalCode::OfflineUnavailable,
+            LocalCode::NetworkError,
+            LocalCode::StoreKeyInvalid,
+            LocalCode::StoreError,
+            LocalCode::StoreMigrationInvalid,
+            LocalCode::DecodeError,
+            LocalCode::TokenStoreError,
+            LocalCode::NotImplemented,
+        ];
+        for local in locals {
+            assert!(
+                ErrorCode::ALL.iter().all(|c| c.as_str() != local.as_str()),
+                "{} is also a server code",
+                local.as_str()
+            );
+        }
+    }
+
+    #[test]
+    fn api_error_keeps_the_wire_code() {
+        let error = SyncError::from_api(
+            409,
+            ApiError {
+                message: "locked".into(),
+                code: ErrorCode::DocumentLocked,
+                fields: None,
+            },
+            None,
+        );
+        assert_eq!(error.code(), "DOCUMENT_LOCKED");
+        assert_eq!(error.kind(), Code::Server(ErrorCode::DocumentLocked));
+    }
+}
