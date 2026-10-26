@@ -61,9 +61,14 @@ return new class extends Migration
                     SELECT i.id, i.company_id FROM items i JOIN changed c ON i.company_id = c.company_id AND i.base_unit_id = c.id
                     UNION
                     SELECT iu.item_id, iu.company_id FROM item_units iu JOIN changed c ON iu.company_id = c.company_id AND iu.unit_id = c.id
+                ), locked AS MATERIALIZED (
+                    -- Lock the narrowed target set in the same order for every embed touch.
+                    SELECT i.id, i.company_id FROM items i
+                    JOIN affected a ON i.id = a.id AND i.company_id = a.company_id
+                    ORDER BY i.id FOR NO KEY UPDATE OF i
                 )
                 UPDATE items i SET sync_txid = sync_txid
-                FROM affected a
+                FROM locked a
                 WHERE i.id = a.id AND i.company_id = a.company_id AND i.sync_txid <> pg_current_xact_id();
 
                 WITH changed AS (
@@ -75,9 +80,13 @@ return new class extends Migration
                     SELECT uc.id FROM unit_conversions uc JOIN changed c ON uc.company_id = c.company_id AND uc.from_unit_id = c.id
                     UNION
                     SELECT uc.id FROM unit_conversions uc JOIN changed c ON uc.company_id = c.company_id AND uc.to_unit_id = c.id
+                ), locked AS MATERIALIZED (
+                    SELECT uc.id FROM unit_conversions uc
+                    WHERE uc.id IN (SELECT id FROM affected)
+                    ORDER BY uc.id FOR NO KEY UPDATE OF uc
                 )
                 UPDATE unit_conversions uc SET sync_txid = sync_txid
-                FROM affected a
+                FROM locked a
                 WHERE uc.id = a.id AND uc.sync_txid <> pg_current_xact_id();
 
                 PERFORM set_config('keystone.sync_touch', coalesce(previous, ''), true);
@@ -100,9 +109,13 @@ return new class extends Migration
                     WHERE (n.company_id, n.code, n.name, n.deleted_at) IS DISTINCT FROM (o.company_id, o.code, o.name, o.deleted_at)
                 ), affected AS (
                     SELECT i.id FROM items i JOIN changed c ON i.company_id = c.company_id AND i.category_id = c.id
+                ), locked AS MATERIALIZED (
+                    SELECT i.id FROM items i
+                    WHERE i.id IN (SELECT id FROM affected)
+                    ORDER BY i.id FOR NO KEY UPDATE OF i
                 )
                 UPDATE items i SET sync_txid = sync_txid
-                FROM affected a
+                FROM locked a
                 WHERE i.id = a.id AND i.sync_txid <> pg_current_xact_id();
 
                 PERFORM set_config('keystone.sync_touch', coalesce(previous, ''), true);
