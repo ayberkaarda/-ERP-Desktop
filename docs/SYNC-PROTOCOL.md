@@ -122,8 +122,9 @@ ORDER BY pos_txid, id
 LIMIT :limit + 1
 ```
 
-- İlk indirmede `cursor: null` gönderilir; sunucu `{txid: "0", after_id: null, gen: <güncel nesil>}` kabul eder.
-- `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null}`.
+- İlk indirmede `cursor: null` gönderilir; sunucu `{txid: "0", after_id: null, gen: <güncel nesil>, session: null}` kabul eder.
+- `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null, session: null}`.
+- Cursor her zaman dört alan taşır: `txid`, `after_id`, `gen`, `session`. İstemci aldığı `next_cursor`'ı bütün olarak, değiştirmeden geri gönderir; `session` alanı eksik olan cursor `SYNC_CURSOR_INVALID` alır.
 - `next_cursor.gen` her zaman kaynağın güncel görünürlük neslidir.
 - İstemci sayfaları sırayla uygular ve `next_cursor`'ı sayfayı yerel depoya yazdığı transaction içinde saklar.
 - Satırlar policy ve şirket kapsamından geçer. Kullanıcının göremediği satır dönmez.
@@ -136,6 +137,15 @@ Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir 
 - Nesil tüketilen bir bayrak değildir. Her cihaz kendi cursor'ındaki `gen` değerini sunucunun güncel nesliyle karşılaştırır; bir cihazın reset alması diğer cihazların durumunu değiştirmez.
 - `cursor.gen` güncel nesilden farklıysa sunucu o kaynak için `reset: true, reset_reason: visibility_changed` döner. `rows`, yeni tam indirmenin ilk sayfasıdır ve `next_cursor.gen` güncel nesildir.
 - Tam indirme sayfalanırken nesil yeniden değişirse, eski `gen` taşıyan sonraki sayfa tekrar reset alır. Böylece hiçbir cihaz eski görünürlükle başlamış bir indirmeyi yeni görünürlükle tamamlamaz.
+
+### Tam indirme oturumu
+
+İlk indirme (`cursor: null`) ve her reset bir **tam indirme** başlatır. Tam indirmenin sayfaları, konumlarına göre değil indirmenin başladığı horizon'a göre tombstone tabanıyla karşılaştırılır: tabanın altındaki satırlar indirmenin kendisidir; ancak tabandan eski bir indirme silme kaçırmış olabilir.
+
+- Sunucu her tam indirme için opak bir **oturum kimliği** üretir ve indirmenin `has_more = true` sayfalarında `next_cursor.session` alanına yazar. Değer opak bir stringdir (`^[A-Za-z0-9_-]{1,64}$`; bugün UUIDv7). İstemci onu yorumlamaz, karşılaştırmaz, üretmez; yalnızca cursor ile birlikte aynen geri gönderir.
+- İndirmenin son sayfasında (`has_more = false`) `next_cursor.session = null` olur: bundan sonraki cursor **artımlıdır**. Artımlı akışın sayfalarında da (`has_more = true`, artımlı cursor'dan devam) `session` null kalır; artımlı cursor kendi konumuyla (`cursor.txid`) tabana göre denetlenir.
+- Dolu `session` taşıyan cursor yalnızca o oturumun devamıdır. Oturum bitmişse, aynı cihazın yeni bir tam indirmesiyle değişmişse ya da bu konumu o oturum vermemişse, `txid/after_id/gen` yeni oturumun bir cursor'ıyla aynı olsa bile devam ettirilmez; kaynak `reset: true, reset_reason: cursor_expired` alır ve yeni bir oturum başlar. Böylece kaybolan bir reset yanıtından sonra eski cursor ile yapılan tekrar deneme yeniden reset alır.
+- Oturumlar cihaz (`user_devices`), kullanıcı, şirket ve kaynak başına tektir; access token yenilemesinden etkilenmez, cihaz iptal edilince silinir. Oturuma yapılan her yazma okunan duruma göre karşılaştır-ve-değiştir ile yapılır: geciken bir istek yeni bir oturumu değiştirmez veya silmez. Bir sayfa isteğinin tekrarı (aynı cursor, aynı `limit`) aynı oturumun devamı olarak kabul edilir; farklı `limit` ile tekrarlanan eski bir sayfanın yanıtındaki cursor bir sonraki istekte reset alabilir.
 
 ### Reset
 
