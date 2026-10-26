@@ -1,0 +1,649 @@
+{
+  "$schema": "./offline-manifest.schema.json",
+  "manifest_version": 1,
+  "sync_schema_version": 1,
+  "api_prefix": "/api/v1",
+  "defaults": {
+    "recent_window_days": 30,
+    "snapshot_refresh_minutes": 15
+  },
+  "resources": [
+    {
+      "resource": "parties",
+      "module": "Parties",
+      "description": "Cari kartları; adres, ilgili kişi ve banka hesapları gömülü gelir.",
+      "path": "/api/v1/parties",
+      "detail_path": "/api/v1/parties/{party}",
+      "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+      "requires": { "all_of": ["parties.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "embeds": ["addresses", "contacts", "bank_accounts"],
+      "write": {
+        "mode": "draft-outbox",
+        "ops": [
+          { "op": "create", "route": "POST /api/v1/parties", "requires": { "all_of": ["parties.create"] } }
+        ],
+        "conflict": "field-merge",
+        "duplicate_check": "GET /api/v1/parties/duplicates"
+      }
+    },
+    {
+      "resource": "items",
+      "module": "Catalog",
+      "description": "Stok/hizmet kartları; temel birim, kategori ve birim dönüşümleri gömülü gelir.",
+      "path": "/api/v1/items",
+      "detail_path": "/api/v1/items/{id}",
+      "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\ItemResource",
+      "requires": { "all_of": ["items.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "embeds": ["base_unit", "category", "units"],
+      "children": [
+        {
+          "resource": "items.variants",
+          "path": "/api/v1/items/{item}/variants",
+          "detail_path": "/api/v1/items/{item}/variants/{id}",
+          "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\ItemVariantResource"
+        },
+        {
+          "resource": "items.barcodes",
+          "path": "/api/v1/items/{item}/barcodes",
+          "detail_path": "/api/v1/items/{item}/barcodes/{id}",
+          "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\ItemBarcodeResource"
+        }
+      ]
+    },
+    {
+      "resource": "item-categories",
+      "module": "Catalog",
+      "path": "/api/v1/item-categories",
+      "detail_path": "/api/v1/item-categories/{id}",
+      "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\ItemCategoryResource",
+      "requires": { "any_of": ["item_categories.manage", "items.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "units",
+      "module": "Catalog",
+      "path": "/api/v1/units",
+      "detail_path": "/api/v1/units/{id}",
+      "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\UnitResource",
+      "requires": { "any_of": ["units.manage", "items.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "unit-conversions",
+      "module": "Catalog",
+      "path": "/api/v1/unit-conversions",
+      "detail_path": "/api/v1/unit-conversions/{id}",
+      "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\UnitConversionResource",
+      "requires": { "any_of": ["units.manage", "items.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "price-lists",
+      "module": "Catalog",
+      "path": "/api/v1/price-lists",
+      "detail_path": "/api/v1/price-lists/{id}",
+      "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\PriceListResource",
+      "requires": { "all_of": ["price_lists.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "children": [
+        {
+          "resource": "price-lists.lines",
+          "path": "/api/v1/price-lists/{priceList}/lines",
+          "detail_path": "/api/v1/price-lists/{priceList}/lines/{id}",
+          "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\PriceListLineResource"
+        }
+      ]
+    },
+    {
+      "resource": "currencies",
+      "module": "Reference",
+      "path": "/api/v1/currencies",
+      "detail_path": "/api/v1/currencies/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["currencies.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "exchange-rates",
+      "module": "Reference",
+      "description": "Kurlar. Belge tarihindeki kur çevrimdışıyken yerel tablodan seçilir; sunucu push'ta yeniden doğrular.",
+      "path": "/api/v1/exchange-rates",
+      "detail_path": "/api/v1/exchange-rates/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["exchange_rates.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "rate_date"
+    },
+    {
+      "resource": "tax-codes",
+      "module": "Reference",
+      "path": "/api/v1/tax-codes",
+      "detail_path": "/api/v1/tax-codes/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["tax_codes.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "payment-terms",
+      "module": "Reference",
+      "path": "/api/v1/payment-terms",
+      "detail_path": "/api/v1/payment-terms/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["payment_terms.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "warehouses",
+      "module": "Reference",
+      "path": "/api/v1/warehouses",
+      "detail_path": "/api/v1/warehouses/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["warehouses.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "children": [
+        {
+          "resource": "warehouses.locations",
+          "path": "/api/v1/warehouses/{warehouse}/locations",
+          "detail_path": "/api/v1/warehouses/{warehouse}/locations/{id}",
+          "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource"
+        }
+      ]
+    },
+    {
+      "resource": "cost-centers",
+      "module": "Reference",
+      "path": "/api/v1/cost-centers",
+      "detail_path": "/api/v1/cost-centers/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["cost_centers.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "projects",
+      "module": "Reference",
+      "path": "/api/v1/projects",
+      "detail_path": "/api/v1/projects/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": { "all_of": ["projects.view"] },
+      "read": "local-first",
+      "source": "pull"
+    },
+    {
+      "resource": "sales-quotes",
+      "module": "Sales",
+      "description": "Satış teklifleri; taslaklar çevrimdışı oluşturulup düzenlenebilir.",
+      "path": "/api/v1/sales-quotes",
+      "detail_path": "/api/v1/sales-quotes/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["sales.quotes.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"],
+      "write": {
+        "mode": "draft-outbox",
+        "ops": [
+          { "op": "create", "route": "POST /api/v1/sales-quotes", "requires": { "all_of": ["sales.quotes.create"] } },
+          { "op": "update", "route": "PATCH /api/v1/sales-quotes/{id}", "requires": { "all_of": ["sales.quotes.update"] } },
+          { "op": "delete", "route": "DELETE /api/v1/sales-quotes/{id}", "requires": { "all_of": ["sales.quotes.delete"] } }
+        ],
+        "draft_only": { "field": "status", "value": "draft" },
+        "conflict": "field-merge"
+      }
+    },
+    {
+      "resource": "sales-orders",
+      "module": "Sales",
+      "description": "Satış siparişleri; taslaklar çevrimdışı oluşturulup düzenlenebilir, onay çevrimiçidir.",
+      "path": "/api/v1/sales-orders",
+      "detail_path": "/api/v1/sales-orders/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["sales.orders.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"],
+      "write": {
+        "mode": "draft-outbox",
+        "ops": [
+          { "op": "create", "route": "POST /api/v1/sales-orders", "requires": { "all_of": ["sales.orders.create"] } },
+          { "op": "update", "route": "PATCH /api/v1/sales-orders/{id}", "requires": { "all_of": ["sales.orders.update"] } },
+          { "op": "delete", "route": "DELETE /api/v1/sales-orders/{id}", "requires": { "all_of": ["sales.orders.delete"] } }
+        ],
+        "draft_only": { "field": "status", "value": "draft" },
+        "conflict": "field-merge"
+      }
+    },
+    {
+      "resource": "sales-deliveries",
+      "module": "Sales",
+      "path": "/api/v1/sales-deliveries",
+      "detail_path": "/api/v1/sales-deliveries/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["sales.deliveries.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "sales-invoices",
+      "module": "Sales",
+      "path": "/api/v1/sales-invoices",
+      "detail_path": "/api/v1/sales-invoices/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["sales.invoices.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "sales-returns",
+      "module": "Sales",
+      "path": "/api/v1/sales-returns",
+      "detail_path": "/api/v1/sales-returns/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["sales.returns.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "purchase-requests",
+      "module": "Purchasing",
+      "description": "Satınalma talepleri; taslaklar çevrimdışı oluşturulup düzenlenebilir, gönderim çevrimiçidir.",
+      "path": "/api/v1/purchase-requests",
+      "detail_path": "/api/v1/purchase-requests/{id}",
+      "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\RequestResource",
+      "requires": { "all_of": ["purchasing.requests.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"],
+      "write": {
+        "mode": "draft-outbox",
+        "ops": [
+          { "op": "create", "route": "POST /api/v1/purchase-requests", "requires": { "all_of": ["purchasing.requests.create"] } },
+          { "op": "update", "route": "PATCH /api/v1/purchase-requests/{id}", "requires": { "all_of": ["purchasing.requests.update"] } },
+          { "op": "delete", "route": "DELETE /api/v1/purchase-requests/{id}", "requires": { "all_of": ["purchasing.requests.delete"] } }
+        ],
+        "draft_only": { "field": "status", "value": "draft" },
+        "conflict": "field-merge"
+      }
+    },
+    {
+      "resource": "purchase-rfqs",
+      "module": "Purchasing",
+      "path": "/api/v1/purchase-rfqs",
+      "detail_path": "/api/v1/purchase-rfqs/{id}",
+      "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\RfqResource",
+      "requires": { "all_of": ["purchasing.rfqs.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "purchase-orders",
+      "module": "Purchasing",
+      "path": "/api/v1/purchase-orders",
+      "detail_path": "/api/v1/purchase-orders/{id}",
+      "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["purchasing.orders.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "purchase-receipts",
+      "module": "Purchasing",
+      "path": "/api/v1/purchase-receipts",
+      "detail_path": "/api/v1/purchase-receipts/{id}",
+      "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["purchasing.receipts.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "purchase-invoices",
+      "module": "Purchasing",
+      "path": "/api/v1/purchase-invoices",
+      "detail_path": "/api/v1/purchase-invoices/{id}",
+      "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["purchasing.invoices.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "purchase-returns",
+      "module": "Purchasing",
+      "path": "/api/v1/purchase-returns",
+      "detail_path": "/api/v1/purchase-returns/{id}",
+      "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
+      "requires": { "all_of": ["purchasing.returns.view"] },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"]
+    },
+    {
+      "resource": "stock-documents",
+      "module": "Inventory",
+      "description": "Stok belgeleri. Çevrimdışı yalnızca sayım (doc_type=count) taslağı oluşturulur ve sayım miktarları girilir; kaydetme (post) çevrimiçidir.",
+      "path": "/api/v1/stock-documents",
+      "detail_path": "/api/v1/stock-documents/{id}",
+      "api_resource": "App\\Modules\\Inventory\\Http\\Resources\\StockDocumentResource",
+      "requires": { "all_of": ["inventory.documents.view"] },
+      "read": "local-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "embeds": ["lines"],
+      "write": {
+        "mode": "draft-outbox",
+        "ops": [
+          { "op": "create", "route": "POST /api/v1/stock-documents", "requires": { "all_of": ["inventory.documents.create"] } },
+          { "op": "update", "route": "PATCH /api/v1/stock-documents/{id}", "requires": { "all_of": ["inventory.documents.create"] } },
+          { "op": "delete", "route": "DELETE /api/v1/stock-documents/{id}", "requires": { "all_of": ["inventory.documents.create"] } },
+          { "op": "action", "action": "counts", "route": "PATCH /api/v1/stock-documents/{id}/counts", "requires": { "all_of": ["inventory.documents.create"] } }
+        ],
+        "draft_only": { "field": "status", "value": "draft" },
+        "payload_constraints": { "doc_type": ["count"] },
+        "conflict": "field-merge"
+      }
+    },
+    {
+      "resource": "stock-balances",
+      "module": "Inventory",
+      "description": "Depo bazında stok bakiyeleri; 'şu tarih itibarıyla' anlık görüntü.",
+      "path": "/api/v1/stock-balances",
+      "requires": { "all_of": ["inventory.stock.view"] },
+      "read": "offline-fallback",
+      "source": "snapshot"
+    },
+    {
+      "resource": "treasury-reports.receivables-ageing",
+      "module": "Treasury",
+      "description": "Cari alacak bakiyeleri (yaşlandırma); 'şu tarih itibarıyla' anlık görüntü.",
+      "path": "/api/v1/treasury-reports/receivables-ageing",
+      "requires": { "all_of": ["treasury.reports.view", "sales.invoices.view"] },
+      "read": "offline-fallback",
+      "source": "snapshot"
+    },
+    {
+      "resource": "treasury-reports.payables-ageing",
+      "module": "Treasury",
+      "description": "Cari borç bakiyeleri (yaşlandırma); 'şu tarih itibarıyla' anlık görüntü.",
+      "path": "/api/v1/treasury-reports/payables-ageing",
+      "requires": { "all_of": ["treasury.reports.view", "purchasing.invoices.view"] },
+      "read": "offline-fallback",
+      "source": "snapshot"
+    }
+  ],
+  "online_only": [
+    {
+      "action": "finalizeSalesQuote",
+      "i18n_key": "desktop.onlineOnly.finalizeSalesQuote",
+      "category": "finalize",
+      "routes": [
+        "POST /api/v1/sales-quotes/{id}/send",
+        "POST /api/v1/sales-quotes/{id}/accept",
+        "POST /api/v1/sales-quotes/{id}/reject",
+        "POST /api/v1/sales-quotes/{id}/cancel",
+        "POST /api/v1/sales-quotes/{id}/revise",
+        "POST /api/v1/sales-quotes/{id}/convert"
+      ]
+    },
+    {
+      "action": "confirmSalesOrder",
+      "i18n_key": "desktop.onlineOnly.confirmSalesOrder",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/sales-orders/{id}/confirm",
+        "POST /api/v1/sales-orders/{id}/revise",
+        "POST /api/v1/sales-orders/{id}/cancel",
+        "POST /api/v1/sales-orders/{id}/close",
+        "POST /api/v1/sales-orders/{id}/deliveries",
+        "POST /api/v1/sales-orders/{id}/invoices"
+      ]
+    },
+    {
+      "action": "postSalesDelivery",
+      "i18n_key": "desktop.onlineOnly.postSalesDelivery",
+      "category": "stock",
+      "routes": [
+        "POST /api/v1/sales-deliveries",
+        "POST /api/v1/sales-deliveries/{id}/post",
+        "POST /api/v1/sales-deliveries/{id}/cancel",
+        "POST /api/v1/sales-deliveries/{id}/invoice"
+      ]
+    },
+    {
+      "action": "issueSalesInvoice",
+      "i18n_key": "desktop.onlineOnly.issueSalesInvoice",
+      "category": "finalize",
+      "routes": [
+        "POST /api/v1/sales-invoices",
+        "POST /api/v1/sales-invoices/{id}/issue",
+        "POST /api/v1/sales-invoices/{id}/reverse",
+        "POST /api/v1/sales-invoices/{id}/cancel",
+        "POST /api/v1/sales-invoices/{id}/returns"
+      ]
+    },
+    {
+      "action": "processSalesReturn",
+      "i18n_key": "desktop.onlineOnly.processSalesReturn",
+      "category": "stock",
+      "routes": [
+        "POST /api/v1/sales-returns/{id}/approve",
+        "POST /api/v1/sales-returns/{id}/receive",
+        "POST /api/v1/sales-returns/{id}/credit",
+        "POST /api/v1/sales-returns/{id}/cancel"
+      ]
+    },
+    {
+      "action": "submitPurchaseRequest",
+      "i18n_key": "desktop.onlineOnly.submitPurchaseRequest",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/purchase-requests/{id}/submit",
+        "POST /api/v1/purchase-requests/{id}/cancel",
+        "POST /api/v1/purchase-requests/{id}/rfq",
+        "POST /api/v1/purchase-requests/{id}/orders"
+      ]
+    },
+    {
+      "action": "processPurchaseRfq",
+      "i18n_key": "desktop.onlineOnly.processPurchaseRfq",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/purchase-rfqs",
+        "POST /api/v1/purchase-rfqs/{id}/send",
+        "POST /api/v1/purchase-rfqs/{id}/cancel",
+        "POST /api/v1/purchase-rfqs/{id}/quotes",
+        "POST /api/v1/purchase-rfqs/{id}/award"
+      ]
+    },
+    {
+      "action": "approvePurchaseOrder",
+      "i18n_key": "desktop.onlineOnly.approvePurchaseOrder",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/purchase-orders",
+        "POST /api/v1/purchase-orders/{id}/submit",
+        "POST /api/v1/purchase-orders/{id}/revise",
+        "POST /api/v1/purchase-orders/{id}/send",
+        "POST /api/v1/purchase-orders/{id}/cancel",
+        "POST /api/v1/purchase-orders/{id}/close",
+        "POST /api/v1/purchase-orders/{id}/receipts",
+        "POST /api/v1/purchase-orders/{id}/invoices"
+      ]
+    },
+    {
+      "action": "postPurchaseReceipt",
+      "i18n_key": "desktop.onlineOnly.postPurchaseReceipt",
+      "category": "stock",
+      "routes": [
+        "POST /api/v1/purchase-receipts",
+        "POST /api/v1/purchase-receipts/{id}/post",
+        "POST /api/v1/purchase-receipts/{id}/cancel",
+        "POST /api/v1/purchase-receipts/{id}/invoice",
+        "POST /api/v1/purchase-receipts/{id}/returns"
+      ]
+    },
+    {
+      "action": "bookPurchaseInvoice",
+      "i18n_key": "desktop.onlineOnly.bookPurchaseInvoice",
+      "category": "finalize",
+      "routes": [
+        "POST /api/v1/purchase-invoices",
+        "POST /api/v1/purchase-invoices/{id}/book",
+        "POST /api/v1/purchase-invoices/{id}/reverse",
+        "POST /api/v1/purchase-invoices/{id}/cancel",
+        "POST /api/v1/purchase-invoices/{id}/returns"
+      ]
+    },
+    {
+      "action": "processPurchaseReturn",
+      "i18n_key": "desktop.onlineOnly.processPurchaseReturn",
+      "category": "stock",
+      "routes": [
+        "POST /api/v1/purchase-returns/{id}/approve",
+        "POST /api/v1/purchase-returns/{id}/ship",
+        "POST /api/v1/purchase-returns/{id}/debit",
+        "POST /api/v1/purchase-returns/{id}/cancel"
+      ]
+    },
+    {
+      "action": "postStockDocument",
+      "i18n_key": "desktop.onlineOnly.postStockDocument",
+      "category": "stock",
+      "routes": [
+        "POST /api/v1/stock-documents/{id}/import",
+        "POST /api/v1/stock-documents/{id}/post",
+        "POST /api/v1/stock-documents/{id}/reverse",
+        "POST /api/v1/stock-reservations",
+        "POST /api/v1/stock-reservations/{id}/release"
+      ]
+    },
+    {
+      "action": "decideApproval",
+      "i18n_key": "desktop.onlineOnly.decideApproval",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/approvals/{id}/decisions"
+      ]
+    },
+    {
+      "action": "treasuryPayment",
+      "i18n_key": "desktop.onlineOnly.treasuryPayment",
+      "category": "payment",
+      "routes": [
+        "POST /api/v1/treasury-payments",
+        "POST /api/v1/treasury-payments/{id}/submit",
+        "POST /api/v1/treasury-payments/{id}/post",
+        "POST /api/v1/treasury-payments/{id}/reverse",
+        "POST /api/v1/treasury-payments/{id}/cancel",
+        "POST /api/v1/treasury-transfers",
+        "POST /api/v1/treasury-transfers/{id}/post",
+        "POST /api/v1/treasury-transfers/{id}/reverse",
+        "POST /api/v1/treasury-transfers/{id}/cancel",
+        "POST /api/v1/treasury-payment-plans/{id}/fulfil"
+      ]
+    },
+    {
+      "action": "sendEDocument",
+      "i18n_key": "desktop.onlineOnly.sendEDocument",
+      "category": "edocument",
+      "routes": [
+        "POST /api/v1/e-documents/documents",
+        "POST /api/v1/e-documents/documents/{id}/validate",
+        "POST /api/v1/e-documents/documents/{id}/send",
+        "POST /api/v1/e-documents/documents/{id}/retry",
+        "POST /api/v1/e-documents/documents/{id}/poll",
+        "POST /api/v1/e-documents/documents/{id}/respond",
+        "POST /api/v1/e-documents/documents/{id}/cancel"
+      ]
+    },
+    {
+      "action": "postJournalEntry",
+      "i18n_key": "desktop.onlineOnly.postJournalEntry",
+      "category": "finalize",
+      "routes": [
+        "POST /api/v1/journal-entries/{id}/post",
+        "POST /api/v1/journal-entries/{id}/reverse"
+      ]
+    },
+    {
+      "action": "closePeriod",
+      "i18n_key": "desktop.onlineOnly.closePeriod",
+      "category": "period-close",
+      "routes": [
+        "POST /api/v1/accounting-periods/{id}/soft-close",
+        "POST /api/v1/accounting-periods/{id}/close",
+        "POST /api/v1/accounting-periods/{id}/reopen",
+        "POST /api/v1/fiscal-years/{id}/close",
+        "POST /api/v1/fiscal-years/{id}/reopen"
+      ]
+    },
+    {
+      "action": "serverCalculation",
+      "i18n_key": "desktop.onlineOnly.serverCalculation",
+      "category": "server-calculation",
+      "routes": [
+        "POST /api/v1/sales-documents/preview-totals",
+        "POST /api/v1/purchase-documents/preview-totals",
+        "GET /api/v1/pricing/resolve",
+        "GET /api/v1/customers/{id}/exposure",
+        "GET /api/v1/suppliers/{id}/exposure"
+      ]
+    },
+    {
+      "action": "liveReports",
+      "i18n_key": "desktop.onlineOnly.liveReports",
+      "category": "live-report",
+      "routes": [
+        "GET /api/v1/reports/trial-balance",
+        "GET /api/v1/reports/general-ledger",
+        "GET /api/v1/inventory-reports/stock-status",
+        "GET /api/v1/inventory-reports/valuation",
+        "GET /api/v1/sales-reports/sales-by-period",
+        "GET /api/v1/purchase-reports/purchases-by-period",
+        "GET /api/v1/treasury-reports/cash-flow"
+      ]
+    }
+  ]
+}

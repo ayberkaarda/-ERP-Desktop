@@ -1,0 +1,8 @@
+{
+  "resource": "parties",
+  "id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d11",
+  "parent_id": null,
+  "sync_txid": "48213950",
+  "deleted_at": "2026-10-25T16:42:10+03:00",
+  "reason": "soft_deleted"
+}

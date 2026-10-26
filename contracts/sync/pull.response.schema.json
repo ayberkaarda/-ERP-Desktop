@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/pull.response.schema.json",
+  "title": "POST /api/v1/sync/pull yanıtı",
+  "description": "İstekteki her kaynak için, isteğe göre aynı sırada bir sonuç. Satırlar REST API Resource JSON'udur. Bir sayfada aynı id en fazla bir kez (rows veya tombstones içinde) geçer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["data", "meta"],
+  "properties": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["horizon", "server_time", "resources"],
+      "properties": {
+        "horizon": {
+          "description": "pg_snapshot_xmin(pg_current_snapshot()). Bu yanıttaki tüm satırlar sync_txid < horizon koşulunu sağlar.",
+          "$ref": "common.schema.json#/$defs/xid8"
+        },
+        "server_time": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "resources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resourceResult" }
+        }
+      }
+    },
+    "meta": { "$ref": "common.schema.json#/$defs/meta" }
+  },
+  "$defs": {
+    "resourceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "rows", "tombstones", "next_cursor", "has_more", "reset"],
+      "properties": {
+        "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
+        "rows": {
+          "type": "array",
+          "items": { "$ref": "common.schema.json#/$defs/resourceRow" }
+        },
+        "tombstones": {
+          "type": "array",
+          "items": { "$ref": "tombstone.schema.json" }
+        },
+        "next_cursor": {
+          "description": "Bir sonraki istekte gönderilecek cursor. has_more=false ise {txid: horizon, after_id: null}.",
+          "$ref": "common.schema.json#/$defs/cursor"
+        },
+        "has_more": { "type": "boolean" },
+        "reset": {
+          "description": "true ise istemci bu kaynağın yerel kopyasını siler ve rows'u yeni tam indirmenin ilk sayfası olarak uygular.",
+          "type": "boolean"
+        },
+        "reset_reason": {
+          "enum": ["cursor_expired", "visibility_changed", "schema_changed"]
+        }
+      },
+      "if": {
+        "properties": { "reset": { "const": true } }
+      },
+      "then": {
+        "required": ["reset_reason"]
+      },
+      "else": {
+        "not": { "required": ["reset_reason"] }
+      }
+    }
+  }
+}

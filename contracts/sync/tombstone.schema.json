@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/tombstone.schema.json",
+  "title": "Tombstone",
+  "description": "Senkronlanan bir satırın istemciden kaldırılması gerektiğini bildirir. sync_tombstones tablosundaki bir satırın tel biçimidir; 90 gün saklanır.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["resource", "id", "sync_txid", "deleted_at", "reason"],
+  "properties": {
+    "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
+    "id": { "$ref": "common.schema.json#/$defs/uuid" },
+    "parent_id": {
+      "description": "Alt kaynaklarda (ör. items.variants) üst kaydın kimliği.",
+      "anyOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }]
+    },
+    "sync_txid": { "$ref": "common.schema.json#/$defs/xid8" },
+    "deleted_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "reason": {
+      "description": "deleted: satır fiziksel olarak silindi. soft_deleted: deleted_at dolduruldu (SoftDeletes). Pencere dışına düşen belgeler tombstone üretmez; istemci onları window_days'e göre kendisi budar.",
+      "enum": ["deleted", "soft_deleted"]
+    }
+  }
+}

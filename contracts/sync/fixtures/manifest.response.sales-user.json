@@ -1,0 +1,43 @@
+{
+  "data": {
+    "schema_version": 1,
+    "min_schema_version": 1,
+    "offline_manifest_version": 1,
+    "server_time": "2026-10-26T09:15:00+03:00",
+    "company_id": "01937a2c-5b10-7a3e-9f21-6c0d4e8b1a01",
+    "user_id": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
+    "device_id": "01937a2c-6f22-7e04-a1b3-9c8d7e6f5a03",
+    "permissions": [
+      "items.view",
+      "parties.create",
+      "parties.view",
+      "price_lists.view",
+      "sales.orders.create",
+      "sales.orders.update",
+      "sales.orders.view",
+      "sales.quotes.create",
+      "sales.quotes.update",
+      "sales.quotes.view"
+    ],
+    "resources": [
+      { "resource": "parties", "read": "local-first", "source": "pull", "window_days": null, "writable": ["create"] },
+      { "resource": "items", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
+      { "resource": "items.variants", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
+      { "resource": "items.barcodes", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
+      { "resource": "price-lists", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
+      { "resource": "price-lists.lines", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
+      { "resource": "sales-quotes", "read": "local-first", "source": "pull", "window_days": 30, "writable": ["create", "update"] },
+      { "resource": "sales-orders", "read": "local-first", "source": "pull", "window_days": 30, "writable": ["create", "update"] }
+    ],
+    "online_only": ["finalizeSalesQuote", "confirmSalesOrder", "serverCalculation"],
+    "limits": {
+      "pull_resources_max": 20,
+      "pull_page_default": 200,
+      "pull_page_max": 1000,
+      "push_batch_max": 100,
+      "tombstone_retention_days": 90,
+      "idempotency_retention_days": 7
+    }
+  },
+  "meta": {}
+}

@@ -1,0 +1,17 @@
+{
+  "data": {
+    "horizon": "48214001",
+    "server_time": "2026-10-26T09:15:02+03:00",
+    "resources": [
+      {
+        "resource": "parties",
+        "rows": [],
+        "tombstones": [],
+        "next_cursor": { "txid": "48214001", "after_id": null },
+        "has_more": false,
+        "reset": true
+      }
+    ]
+  },
+  "meta": {}
+}

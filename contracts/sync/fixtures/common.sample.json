@@ -1,0 +1,16 @@
+{
+  "uuid": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+  "uuidv7": "0193b1f0-1111-7aaa-8bbb-000000000001",
+  "xid8": "48213907",
+  "cursor": { "txid": "48213907", "after_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10" },
+  "resource_name": "price-lists.lines",
+  "timestamp": "2026-10-26T09:15:00+03:00",
+  "schema_version": 1,
+  "permission": "sales.quotes.create",
+  "requires": { "any_of": ["units.manage", "items.view"] },
+  "api_error": {
+    "message": "Belge artık taslak değil.",
+    "code": "DOCUMENT_LOCKED"
+  },
+  "meta": {}
+}

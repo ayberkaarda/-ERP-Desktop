@@ -1,0 +1,37 @@
+{
+  "data": {
+    "results": [
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000005",
+        "resource": "sales-quotes",
+        "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a22",
+        "status": "rejected",
+        "error": {
+          "message": "Gönderilen veri geçersiz.",
+          "code": "VALIDATION_ERROR",
+          "fields": { "lines.0.quantity": ["Miktar sıfırdan büyük olmalıdır."] }
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000006",
+        "resource": "sales-quotes",
+        "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a22",
+        "status": "rejected",
+        "error": {
+          "message": "Aynı kaydın önceki değişikliği uygulanamadı.",
+          "code": "SYNC_DEPENDENCY_FAILED"
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000007",
+        "resource": "sales-orders",
+        "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c41",
+        "status": "applied",
+        "version": 8,
+        "merged_fields": ["notes"],
+        "data": { "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c41", "status": "draft", "version": 8 }
+      }
+    ]
+  },
+  "meta": {}
+}

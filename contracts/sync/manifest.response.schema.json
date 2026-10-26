@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/manifest.response.schema.json",
+  "title": "GET /api/v1/sync/manifest yanıtı",
+  "description": "Etkin şirket (X-Company-Id) ve kullanıcı için senkron kapsamı. resources, contracts/offline-manifest.json içeriğinin kullanıcının izinleriyle süzülmüş hâlidir; listede olmayan kaynak istemcide tutulmaz.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["data", "meta"],
+  "properties": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "min_schema_version",
+        "offline_manifest_version",
+        "server_time",
+        "company_id",
+        "user_id",
+        "device_id",
+        "permissions",
+        "resources",
+        "online_only",
+        "limits"
+      ],
+      "properties": {
+        "schema_version": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+        "min_schema_version": {
+          "description": "Sunucunun hâlâ kabul ettiği en eski istemci schema_version değeri.",
+          "$ref": "common.schema.json#/$defs/schemaVersion"
+        },
+        "offline_manifest_version": {
+          "description": "contracts/offline-manifest.json içindeki manifest_version.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "server_time": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "company_id": { "$ref": "common.schema.json#/$defs/uuid" },
+        "user_id": { "$ref": "common.schema.json#/$defs/uuid" },
+        "device_id": {
+          "description": "Token bir cihaz token'ı ise user_devices kimliği; tarayıcı oturumunda null.",
+          "anyOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }]
+        },
+        "permissions": {
+          "description": "Etkin şirketteki etkin izinler, alfabetik.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/permission" }
+        },
+        "resources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resource" }
+        },
+        "online_only": {
+          "description": "Kullanıcının yetkili olduğu ama çevrimdışıyken devre dışı kalacak işlemlerin anahtarları (offline-manifest online_only[].action).",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" }
+        },
+        "limits": { "$ref": "#/$defs/limits" }
+      }
+    },
+    "meta": { "$ref": "common.schema.json#/$defs/meta" }
+  },
+  "$defs": {
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "read", "source", "window_days", "writable"],
+      "properties": {
+        "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
+        "read": { "enum": ["local-first", "online-first", "offline-fallback"] },
+        "source": {
+          "description": "pull: /sync/pull ile artımlı. snapshot: REST ucundan tümüyle alınan, 'şu tarih itibarıyla' etiketli anlık görüntü.",
+          "enum": ["pull", "snapshot"]
+        },
+        "window_days": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "writable": {
+          "description": "Kullanıcının bu kaynakta draft-outbox ile yapabileceği işlemler (izin süzgecinden sonra). Boşsa salt okunur.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^(create|update|delete|action:[a-z][a-z-]*)$"
+          }
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pull_resources_max",
+        "pull_page_default",
+        "pull_page_max",
+        "push_batch_max",
+        "tombstone_retention_days",
+        "idempotency_retention_days"
+      ],
+      "properties": {
+        "pull_resources_max": { "type": "integer", "minimum": 1 },
+        "pull_page_default": { "type": "integer", "minimum": 1 },
+        "pull_page_max": { "type": "integer", "minimum": 1 },
+        "push_batch_max": { "type": "integer", "minimum": 1 },
+        "tombstone_retention_days": { "type": "integer", "minimum": 1 },
+        "idempotency_retention_days": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

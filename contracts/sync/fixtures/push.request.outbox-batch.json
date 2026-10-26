@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "mutations": [
+    {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000001",
+      "op": "create",
+      "resource": "sales-quotes",
+      "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20",
+      "base_version": null,
+      "changed_fields": [],
+      "occurred_at": "2026-10-25T18:02:11+03:00",
+      "payload": {
+        "document_date": "2026-10-25",
+        "party_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+        "currency_code": "TRY",
+        "lines": [
+          { "item_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b30", "quantity": "12", "unit_price": "149.90" }
+        ]
+      }
+    },
+    {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000002",
+      "op": "update",
+      "resource": "sales-orders",
+      "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c40",
+      "base_version": 4,
+      "changed_fields": ["notes"],
+      "occurred_at": "2026-10-25T18:05:40+03:00",
+      "payload": { "notes": "Teslimat cuma öğleden sonra." }
+    },
+    {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000003",
+      "op": "action",
+      "action": "counts",
+      "resource": "stock-documents",
+      "id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d50",
+      "base_version": 2,
+      "changed_fields": ["lines"],
+      "occurred_at": "2026-10-25T18:10:00+03:00",
+      "payload": {
+        "lines": [
+          { "id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d51", "counted_quantity": "38" }
+        ]
+      }
+    },
+    {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000004",
+      "op": "create",
+      "resource": "parties",
+      "id": "0193b1e8-0000-7d30-8333-7a8b9c0d1e60",
+      "base_version": null,
+      "changed_fields": [],
+      "occurred_at": "2026-10-25T18:12:30+03:00",
+      "payload": { "name": "Anadolu Yapi Market", "type": "company", "roles": ["customer"], "tax_number": "1234567890", "country": "TR" }
+    }
+  ]
+}

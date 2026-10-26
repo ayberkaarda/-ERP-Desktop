@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/push.request.schema.json",
+  "title": "POST /api/v1/sync/push isteği",
+  "description": "Outbox'tan partilenmiş mutasyonlar, oluşma sırasıyla. Her mutasyon kendi transaction'ında, FormRequest → Policy → Service zincirinden geçirilir; parti atomik değildir.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mutations"],
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/$defs/schemaVersion" },
+    "mutations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": { "$ref": "#/$defs/mutation" }
+    }
+  },
+  "$defs": {
+    "mutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "idempotency_key",
+        "op",
+        "resource",
+        "id",
+        "base_version",
+        "changed_fields",
+        "occurred_at",
+        "payload"
+      ],
+      "properties": {
+        "idempotency_key": {
+          "description": "Outbox kaydıyla birlikte üretilir, yeniden denemelerde değişmez. Sunucuda (kullanıcı, şirket, 'sync.push') kapsamıyla 7 gün saklanır.",
+          "$ref": "common.schema.json#/$defs/uuidv7"
+        },
+        "op": { "enum": ["create", "update", "delete", "action"] },
+        "action": {
+          "description": "op=action iken offline-manifest'teki write.ops[].action adı (ör. 'counts').",
+          "type": "string",
+          "pattern": "^[a-z][a-z-]*$"
+        },
+        "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
+        "id": { "$ref": "common.schema.json#/$defs/uuidv7" },
+        "parent_id": {
+          "description": "Alt kaynak mutasyonlarında üst kaydın kimliği (ör. parties.addresses için party id).",
+          "$ref": "common.schema.json#/$defs/uuid"
+        },
+        "base_version": {
+          "description": "Değişikliğin dayandığı sunucu sürümü. create için null.",
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "changed_fields": {
+          "description": "update/action için kullanıcının değiştirdiği üst düzey alanlar (çakışma karşılaştırmasının girdisi). create/delete için boş olabilir.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+        },
+        "occurred_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "payload": {
+          "description": "İlgili REST ucunun gövdesiyle aynı (POST/PATCH için FormRequest girdisi). delete için boş nesne.",
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "create" } } },
+          "then": { "properties": { "base_version": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "op": { "enum": ["update", "delete", "action"] } } },
+          "then": { "properties": { "base_version": { "type": "integer" } } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "update" } } },
+          "then": { "properties": { "changed_fields": { "type": "array", "minItems": 1 } } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "action" } } },
+          "then": { "required": ["action"] },
+          "else": { "not": { "required": ["action"] } }
+        }
+      ]
+    }
+  }
+}

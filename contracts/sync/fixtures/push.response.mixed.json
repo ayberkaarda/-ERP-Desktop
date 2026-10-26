@@ -1,0 +1,69 @@
+{
+  "data": {
+    "results": [
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000001",
+        "resource": "sales-quotes",
+        "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20",
+        "status": "applied",
+        "version": 1,
+        "data": {
+          "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20",
+          "document_type": "quote",
+          "number": "QUO2026000000118",
+          "status": "draft",
+          "document_date": "2026-10-25",
+          "version": 1
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000002",
+        "resource": "sales-orders",
+        "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c40",
+        "status": "conflict",
+        "conflict": {
+          "code": "DOCUMENT_LOCKED",
+          "message": "Sipariş onaylandığı için değiştirilemez.",
+          "base_version": 4,
+          "server_version": 6,
+          "conflicting_fields": [],
+          "server_data": {
+            "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c40",
+            "status": "confirmed",
+            "version": 6
+          },
+          "choices": ["save_as_new_draft", "discard"]
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000003",
+        "resource": "stock-documents",
+        "id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d50",
+        "status": "duplicate",
+        "version": 3,
+        "data": {
+          "id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d50",
+          "doc_type": "count",
+          "status": "draft",
+          "version": 3
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000004",
+        "resource": "parties",
+        "id": "0193b1e8-0000-7d30-8333-7a8b9c0d1e60",
+        "status": "conflict",
+        "conflict": {
+          "code": "DUPLICATE_RECORD",
+          "base_version": null,
+          "server_version": null,
+          "conflicting_fields": ["tax_number"],
+          "server_data": null,
+          "candidates": ["0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10"],
+          "choices": ["use_existing", "keep_mine", "discard"]
+        }
+      }
+    ]
+  },
+  "meta": {}
+}
