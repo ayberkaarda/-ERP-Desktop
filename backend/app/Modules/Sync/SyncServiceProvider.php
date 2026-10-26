@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Modules\Sync;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Modules\Identity\Events\AccessChanged;
 use App\Modules\Identity\Events\MembershipRevoked;
 use App\Modules\Sync\Console\PruneCommand;
 use App\Modules\Sync\Services\Visibility;
+use App\Modules\Sync\Services\VisibilityRefresh;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Event;
 
@@ -22,8 +24,13 @@ final class SyncServiceProvider extends ModuleServiceProvider
     {
         parent::boot();
 
-        // Identity has no event for role or permission changes yet (P8); membership loss is
-        // the one visibility change it announces.
+        // Role, permission and super admin changes, inside their transaction: re-observe the
+        // visibility of the users' resources with the new permissions.
+        Event::listen(AccessChanged::class, static function (AccessChanged $event): void {
+            app(VisibilityRefresh::class)->handle($event);
+        });
+
+        // Membership loss (after commit): every cursor of the user in that company is reset.
         Event::listen(MembershipRevoked::class, static function (MembershipRevoked $event): void {
             app(Visibility::class)->invalidate($event->userId, $event->companyId);
         });
