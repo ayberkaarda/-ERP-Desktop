@@ -1,0 +1,6 @@
+{
+  "errors": {
+    "message": "İstemci sürümü desteklenmiyor; lütfen güncelleyin.",
+    "code": "SYNC_SCHEMA_MISMATCH"
+  }
+}

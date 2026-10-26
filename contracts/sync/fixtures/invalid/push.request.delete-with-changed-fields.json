@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "mutations": [
+    {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-0000000000f1",
+      "resource": "sales-quotes",
+      "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a30",
+      "occurred_at": "2026-10-25T18:02:11+03:00",
+      "op": "delete",
+      "base_version": 3,
+      "changed_fields": [
+        "notes"
+      ],
+      "payload": {}
+    }
+  ]
+}

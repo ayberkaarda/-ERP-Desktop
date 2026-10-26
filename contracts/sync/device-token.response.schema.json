@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/device-token.response.schema.json",
+  "title": "Cihaz token yanıtı",
+  "description": "POST /api/v1/auth/device (ilk giriş) ve POST /api/v1/auth/device/refresh (yenileme) başarılı yanıtı; ikisi aynı şekli döner. Bugünkü {token, expires_at} yanıtı refresh_token ve refresh_expires_at ile genişletilir. Identity uç sözleşmesidir; D1'de OpenAPI'ye taşınır. Bkz. ADR 0007.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["data"],
+  "properties": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "expires_at", "refresh_token", "refresh_expires_at"],
+      "properties": {
+        "token": {
+          "description": "desktop yetenekli Sanctum erişim token'ı (Bearer). Ömrü 60 dakika.",
+          "type": "string",
+          "minLength": 20
+        },
+        "expires_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+        "refresh_token": {
+          "description": "Opak, tek kullanımlık refresh token. Sunucu yalnızca özetini saklar (device_refresh_tokens.token_hash). Her yenilemede aynı ailede yenisi verilir ve kullanılan işaretlenir (used_at).",
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 512
+        },
+        "refresh_expires_at": {
+          "description": "Kayan süre: verildiği andan itibaren 30 gün; her başarılı yenileme yeniden 30 gün verir.",
+          "$ref": "common.schema.json#/$defs/timestamp"
+        }
+      }
+    },
+    "meta": { "$ref": "common.schema.json#/$defs/meta" }
+  }
+}

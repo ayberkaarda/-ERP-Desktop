@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/push.response.schema.json",
+  "title": "POST /api/v1/sync/push yanıtı",
+  "description": "Parti işlendiyse HTTP 200 ve isteğe göre aynı sırada, mutasyon başına bir sonuç. İstek düzeyindeki hatalar (kimlik, şirket, şema, parti boyutu) error.response.schema.json biçiminde döner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["data", "meta"],
+  "properties": {
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["results"],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/result" }
+        }
+      }
+    },
+    "meta": { "$ref": "common.schema.json#/$defs/meta" }
+  },
+  "$defs": {
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotency_key", "resource", "id", "status", "replayed"],
+      "properties": {
+        "idempotency_key": { "$ref": "common.schema.json#/$defs/uuidv7" },
+        "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
+        "id": { "$ref": "common.schema.json#/$defs/uuidv7" },
+        "status": {
+          "description": "applied: uygulandı. duplicate: aynı idempotency_key ile daha önce applied olmuş bir mutasyonun tekrarı; ilk sonucun version/data'sı aynen döner. conflict: kullanıcı kararı gerekir (Conflict Inbox). rejected: kalıcı hata. Daha önce conflict veya rejected olmuş bir anahtar tekrar gelirse saklanan sonuç aynı statüyle ve replayed=true ile döner; duplicate yalnızca başarılı tekrarlar içindir.",
+          "enum": ["applied", "duplicate", "conflict", "rejected"]
+        },
+        "replayed": {
+          "description": "Sonuç bu istekte üretilmedi, saklanan sonuçtan döndü. duplicate için her zaman true, applied için her zaman false.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Yazma sonrası sürüm. delete dışında applied/duplicate için zorunlu.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "data": {
+          "description": "Yazma sonrası REST API Resource JSON'u, manifestteki embeds yüklenmiş olarak (ör. lines). İstemci yerel satırı bununla tümüyle değiştirir. delete için null.",
+          "anyOf": [{ "$ref": "common.schema.json#/$defs/resourceRow" }, { "type": "null" }]
+        },
+        "merged_fields": {
+          "description": "base_version eskiydi ama kesişim yoktu; sunucunun aradaki değişiklikleri korunarak uygulanan alanlar.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "conflict": { "$ref": "#/$defs/conflict" },
+        "error": { "$ref": "common.schema.json#/$defs/apiError" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "enum": ["applied", "duplicate"] } } },
+          "then": {
+            "required": ["data"],
+            "not": { "anyOf": [{ "required": ["conflict"] }, { "required": ["error"] }] },
+            "anyOf": [
+              { "properties": { "data": { "type": "null" } }, "not": { "required": ["version"] } },
+              { "properties": { "data": { "type": "object" } }, "required": ["version"] }
+            ]
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "applied" } } },
+          "then": { "properties": { "replayed": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "duplicate" } } },
+          "then": { "properties": { "replayed": { "const": true } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "conflict" } } },
+          "then": {
+            "required": ["conflict"],
+            "not": { "anyOf": [{ "required": ["error"] }, { "required": ["merged_fields"] }, { "required": ["version"] }, { "required": ["data"] }] }
+          }
+        },
+        {
+          "if": { "properties": { "status": { "const": "rejected" } } },
+          "then": {
+            "required": ["error"],
+            "not": { "anyOf": [{ "required": ["conflict"] }, { "required": ["merged_fields"] }, { "required": ["version"] }, { "required": ["data"] }] }
+          }
+        }
+      ]
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "base_version", "server_version", "conflicting_fields", "server_data", "choices"],
+      "properties": {
+        "code": { "enum": ["VERSION_CONFLICT", "DOCUMENT_LOCKED", "DUPLICATE_RECORD"] },
+        "message": { "type": "string" },
+        "base_version": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "server_version": {
+          "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
+        },
+        "conflicting_fields": {
+          "description": "VERSION_CONFLICT: changed_fields ile base_version'dan beri sunucuda değişen alanların kesişimi; delete ve action için sürüm farkı yeterlidir ve liste boş olabilir.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "server_data": {
+          "description": "Kaydın sunucudaki güncel REST Resource JSON'u (DUPLICATE_RECORD için null).",
+          "anyOf": [{ "$ref": "common.schema.json#/$defs/resourceRow" }, { "type": "null" }]
+        },
+        "candidates": {
+          "description": "DUPLICATE_RECORD: mükerrer aday kayıtların kimlikleri (GET /parties/duplicates sonucu).",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "common.schema.json#/$defs/uuid" }
+        },
+        "choices": {
+          "description": "İstemcinin sunacağı çözüm seçenekleri; çakışma türüne göre sınırlıdır.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["keep_mine", "take_server", "merge", "save_as_new_draft", "discard", "use_existing"] }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "code": { "const": "VERSION_CONFLICT" } } },
+          "then": {
+            "properties": {
+              "base_version": { "type": "integer" },
+              "server_version": { "type": "integer" },
+              "server_data": { "type": "object" },
+              "choices": { "type": "array", "items": { "enum": ["keep_mine", "take_server", "merge"] } }
+            },
+            "not": { "required": ["candidates"] }
+          }
+        },
+        {
+          "if": { "properties": { "code": { "const": "DOCUMENT_LOCKED" } } },
+          "then": {
+            "properties": {
+              "server_version": { "type": "integer" },
+              "server_data": { "type": "object" },
+              "choices": { "type": "array", "items": { "enum": ["save_as_new_draft", "discard"] } }
+            },
+            "not": { "required": ["candidates"] }
+          }
+        },
+        {
+          "if": { "properties": { "code": { "const": "DUPLICATE_RECORD" } } },
+          "then": {
+            "required": ["candidates"],
+            "properties": {
+              "base_version": { "type": "null" },
+              "server_version": { "type": "null" },
+              "server_data": { "type": "null" },
+              "choices": { "type": "array", "items": { "enum": ["use_existing", "keep_mine", "discard"] } }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

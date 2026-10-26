@@ -8,8 +8,11 @@ use App\Core\Company\CompanyContext;
 use App\Core\Company\DenyAllMembershipChecker;
 use App\Core\Company\MembershipChecker;
 use App\Core\Idempotency\EnsureIdempotency;
+use App\Core\Idempotency\IdempotencyStore;
 use App\Core\Modules\ModuleLoader;
 use App\Core\Numbering\NumberSequenceService;
+use App\Core\Sync\Schema\Syncable;
+use App\Core\Sync\SyncConfig;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\ServiceProvider;
@@ -32,14 +35,28 @@ final class CoreServiceProvider extends ServiceProvider
             self::stringMap($app, 'numbering.formats'),
         ));
 
-        $this->app->bind(EnsureIdempotency::class, static fn (Application $app): EnsureIdempotency => new EnsureIdempotency(
+        $this->app->bind(IdempotencyStore::class, static fn (Application $app): IdempotencyStore => new IdempotencyStore(
             $app->make(ConnectionInterface::class),
-            $app->make(CompanyContext::class),
-            self::int($app, 'idempotency.ttl_hours', 24),
             self::int($app, 'idempotency.lease_seconds', 300),
         ));
 
+        $this->app->bind(EnsureIdempotency::class, static fn (Application $app): EnsureIdempotency => new EnsureIdempotency(
+            $app->make(ConnectionInterface::class),
+            $app->make(CompanyContext::class),
+            $app->make(IdempotencyStore::class),
+            self::int($app, 'idempotency.ttl_hours', 24),
+        ));
+
+        $this->app->bind(SyncConfig::class, static fn (Application $app): SyncConfig => SyncConfig::fromConfig(
+            $app->make('config'),
+        ));
+
         (new ModuleLoader($this->app->path('Modules')))->register($this->app);
+    }
+
+    public function boot(): void
+    {
+        Syncable::register();
     }
 
     private static function string(Application $app, string $key, string $default): string
