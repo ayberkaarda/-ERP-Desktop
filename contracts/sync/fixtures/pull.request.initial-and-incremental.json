@@ -10,7 +10,8 @@
       "cursor": {
         "txid": "48213907",
         "after_id": null,
-        "gen": 2
+        "gen": 2,
+        "session": null
       },
       "limit": 200
     },
@@ -19,7 +20,8 @@
       "cursor": {
         "txid": "48210002",
         "after_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b31",
-        "gen": 3
+        "gen": 3,
+        "session": null
       }
     }
   ]
