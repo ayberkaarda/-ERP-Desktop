@@ -2,15 +2,15 @@
 //! the manifest `read` mode.
 
 use rusqlite::types::Value as SqlValue;
-use rusqlite::{Connection, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, params_from_iter};
 use serde_json::Value;
 
 use super::Store;
 use super::fold::match_expression;
-use super::mirror::{Registered, decode_row, lookup};
+use super::mirror::{Registered, decode_row, lookup, read_snapshot};
 use super::spec::{column_name, invalid, json_path, validate_field};
 use crate::error::Result;
-use crate::wire::{ReadMode, ResourceName, ResourceRow};
+use crate::wire::{ReadMode, ResourceName, ResourceRow, Source};
 
 pub const LIST_LIMIT_DEFAULT: u32 = 50;
 pub const LIST_LIMIT_MAX: u32 = 1000;
@@ -97,45 +97,118 @@ pub struct ListPage {
     pub total: u64,
 }
 
-/// Where a GET for a resource with this `read` mode is answered.
+/// What the store holds for a resource.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalCopy {
+    /// Fully downloaded (pull) or a stored snapshot.
+    Complete,
+    /// A full download is still paging (`has_more`): rows are a subset.
+    Partial,
+    /// Never downloaded (or reset), or not registered.
+    Missing,
+}
+
+/// Where a GET for a resource is answered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReadRoute {
-    /// From the mirror (or the stored snapshot).
-    Local,
+    /// From the mirror (or the stored snapshot). `partial`: label the answer
+    /// as incomplete.
+    Local { partial: bool },
     /// From the server only.
     Remote,
     /// From the server; from the mirror if the request fails for network.
-    RemoteThenLocal,
+    RemoteThenLocal { partial: bool },
+    /// Offline and nothing local: `OFFLINE_UNAVAILABLE`.
+    Unavailable,
 }
 
-/// `local-first`: always local. `online-first`: server first while online.
-/// `offline-fallback` (snapshots): server while online, local copy (shown
-/// "as of" its `fetched_at`) only when offline.
-pub fn read_route(mode: ReadMode, online: bool) -> ReadRoute {
-    match (mode, online) {
-        (ReadMode::LocalFirst, _) | (_, false) => ReadRoute::Local,
-        (ReadMode::OnlineFirst, true) => ReadRoute::RemoteThenLocal,
-        (ReadMode::OfflineFallback, true) => ReadRoute::Remote,
+/// - nothing local: server while online, else unavailable;
+/// - `local-first`: local when complete; while a full download is paging,
+///   server first when online, partial local copy when offline;
+/// - `online-first`: server first while online, local copy offline;
+/// - `offline-fallback` (snapshots): server while online, local copy (shown
+///   "as of" its `fetched_at`) only offline.
+pub fn read_route(mode: ReadMode, online: bool, copy: LocalCopy) -> ReadRoute {
+    let partial = copy == LocalCopy::Partial;
+    match (mode, online, copy) {
+        (_, true, LocalCopy::Missing) => ReadRoute::Remote,
+        (_, false, LocalCopy::Missing) => ReadRoute::Unavailable,
+        (ReadMode::LocalFirst, _, LocalCopy::Complete) => ReadRoute::Local { partial: false },
+        (ReadMode::LocalFirst | ReadMode::OnlineFirst, true, _) => {
+            ReadRoute::RemoteThenLocal { partial }
+        }
+        (ReadMode::OfflineFallback, true, _) => ReadRoute::Remote,
+        (_, false, _) => ReadRoute::Local { partial },
     }
 }
 
 impl Store {
     /// Lists local rows of `resource`; empty when it is not registered.
-    /// Count and rows come from one read transaction.
+    /// Registry lookup, count and rows come from one read transaction.
     pub fn list(&self, resource: &ResourceName, query: &ListQuery) -> Result<ListPage> {
-        self.read(|conn| {
-            let Some(reg) = lookup(conn, resource)? else {
-                return Ok(ListPage {
-                    rows: Vec::new(),
-                    total: 0,
-                });
-            };
-            let tx = conn.unchecked_transaction()?;
-            let page = list_in(&tx, &reg, query)?;
-            tx.commit()?;
-            Ok(page)
+        self.read(|conn| Store::list_on(conn, resource, query))
+    }
+
+    /// [`Store::list`] on a connection the caller already holds.
+    pub fn list_on(
+        conn: &Connection,
+        resource: &ResourceName,
+        query: &ListQuery,
+    ) -> Result<ListPage> {
+        read_snapshot(conn, |conn| match lookup(conn, resource)? {
+            Some(reg) => list_in(conn, &reg, query),
+            None => Ok(ListPage {
+                rows: Vec::new(),
+                total: 0,
+            }),
         })
     }
+
+    /// State of the local copy of `resource`.
+    pub fn local_copy(&self, resource: &ResourceName) -> Result<LocalCopy> {
+        self.read(|conn| read_snapshot(conn, |conn| local_copy_in(conn, resource)))
+    }
+
+    /// [`read_route`] for `resource` with its registered read mode and its
+    /// current local copy.
+    pub fn route(&self, resource: &ResourceName, online: bool) -> Result<ReadRoute> {
+        self.read(|conn| {
+            read_snapshot(conn, |conn| {
+                let mode = lookup(conn, resource)?.map_or(ReadMode::LocalFirst, |r| r.spec.read);
+                Ok(read_route(mode, online, local_copy_in(conn, resource)?))
+            })
+        })
+    }
+}
+
+fn local_copy_in(conn: &Connection, resource: &ResourceName) -> Result<LocalCopy> {
+    let Some(reg) = lookup(conn, resource)? else {
+        return Ok(LocalCopy::Missing);
+    };
+    if reg.spec.source == Source::Snapshot || reg.spec.read == ReadMode::OfflineFallback {
+        let has: bool = conn.query_row(
+            "SELECT count(*) > 0 FROM store_snapshots WHERE resource = ?1",
+            [resource.as_str()],
+            |r| r.get(0),
+        )?;
+        return Ok(if has {
+            LocalCopy::Complete
+        } else {
+            LocalCopy::Missing
+        });
+    }
+    let complete: Option<bool> = conn
+        .query_row(
+            "SELECT complete FROM store_cursors WHERE resource = ?1",
+            [resource.as_str()],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(match complete {
+        None => LocalCopy::Missing,
+        Some(true) => LocalCopy::Complete,
+        Some(false) => LocalCopy::Partial,
+    })
 }
 
 fn list_in(conn: &Connection, reg: &Registered, query: &ListQuery) -> Result<ListPage> {
@@ -272,27 +345,4 @@ fn sql_value(value: &Value) -> Result<SqlValue> {
             return Err(invalid("filter value must be a scalar"));
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn routes_by_read_mode() {
-        assert_eq!(read_route(ReadMode::LocalFirst, true), ReadRoute::Local);
-        assert_eq!(
-            read_route(ReadMode::OnlineFirst, true),
-            ReadRoute::RemoteThenLocal
-        );
-        assert_eq!(read_route(ReadMode::OnlineFirst, false), ReadRoute::Local);
-        assert_eq!(
-            read_route(ReadMode::OfflineFallback, true),
-            ReadRoute::Remote
-        );
-        assert_eq!(
-            read_route(ReadMode::OfflineFallback, false),
-            ReadRoute::Local
-        );
-    }
 }

@@ -1,12 +1,13 @@
 //! Generic mirror: one table per resource, `data` holds the API Resource JSON.
 //!
-//! Layout of a resource registered as `parties`:
+//! Layout of a resource registered as `parties` (all names used quoted):
 //! - `m_parties(k INTEGER PRIMARY KEY, id TEXT UNIQUE, version, data)`, plus
 //!   one `f_<field>` `GENERATED ALWAYS AS (json_extract(data, '$.<field>'))
-//!   VIRTUAL` column and `i_parties__f_<field>` index per indexed field;
-//! - `s_parties`, FTS5 (`unicode61 remove_diacritics 2`) over the folded
+//!   VIRTUAL` column and `m_parties#f_<field>` index per indexed field;
+//! - `m_parties#fts`, FTS5 (`unicode61 remove_diacritics 2`) over the folded
 //!   search fields, `rowid` = `m_parties.k`;
-//! - its row in `store_resources` (spec JSON) and `store_cursors`.
+//! - its rows in `store_resources` (spec JSON), `store_cursors` and
+//!   `store_epochs` (bumped by every local reset).
 
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::Value;
@@ -28,8 +29,29 @@ pub struct AppliedPage {
     pub upserted: usize,
     pub removed: usize,
     /// The local copy was dropped first: `reset` from the server, or the
-    /// first page of a full download (no stored cursor).
+    /// first page of a full download (base without a cursor).
     pub reset: bool,
+}
+
+/// What a pull request for one resource was built from. Take it with
+/// [`MirrorStore::pull_base`] right before building the request and hand it
+/// back to [`MirrorStore::apply_page`] with the response.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PullBase {
+    /// Cursor sent in the request; `None` asks for a full download.
+    pub cursor: Option<Cursor>,
+    /// Local reset counter of the resource.
+    pub epoch: u64,
+}
+
+/// Result of [`MirrorStore::apply_page`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageApply {
+    Applied(AppliedPage),
+    /// The resource moved since the request was built (another page was
+    /// applied, or it was reset locally). Nothing was written; pull again
+    /// from a fresh [`PullBase`].
+    Stale,
 }
 
 /// Sync position of one resource.
@@ -37,7 +59,7 @@ pub struct AppliedPage {
 pub struct ResourceState {
     pub cursor: Cursor,
     /// `false` while a full download is still paging (`has_more`): the local
-    /// copy is partial and a `local-first` read should not trust it yet.
+    /// copy is partial (see [`super::LocalCopy`]).
     pub complete: bool,
     /// UTC time of the last applied page, `YYYY-MM-DDTHH:MM:SS.SSSZ`.
     pub synced_at: String,
@@ -56,9 +78,14 @@ pub trait MirrorStore {
     /// Stored cursor of `resource`; `None` before its first page.
     fn cursor(&self, resource: &ResourceName) -> Result<Option<Cursor>>;
 
-    /// Applies one page in a single transaction: drops the local copy when
-    /// `reset`, upserts `rows`, removes `tombstones`, stores `next_cursor`.
-    fn apply_page(&self, page: &PullResourceResult) -> Result<AppliedPage>;
+    /// Cursor and reset epoch to build the next pull request from.
+    fn pull_base(&self, resource: &ResourceName) -> Result<PullBase>;
+
+    /// Applies one page in a single transaction, only if the resource is
+    /// still at `base` (checked in the same transaction): drops the local
+    /// copy when `reset` or `base.cursor` is `None`, upserts `rows`, removes
+    /// `tombstones`, stores `next_cursor`. Otherwise returns `Stale`.
+    fn apply_page(&self, page: &PullResourceResult, base: &PullBase) -> Result<PageApply>;
 
     /// Replaces one row, e.g. with `data` of an applied push result.
     fn put_row(&self, resource: &ResourceName, row: &ResourceRow) -> Result<()>;
@@ -73,15 +100,20 @@ impl MirrorStore for Store {
         Ok(self.resource_state(resource)?.map(|s| s.cursor))
     }
 
-    /// A page with no stored cursor is page one of a full download, so it
-    /// clears the table like `reset` does: rows from before never survive.
+    fn pull_base(&self, resource: &ResourceName) -> Result<PullBase> {
+        self.read(|conn| read_snapshot(conn, |c| base_in(c, resource)))
+    }
+
     /// Rows are applied before tombstones.
-    fn apply_page(&self, page: &PullResourceResult) -> Result<AppliedPage> {
+    fn apply_page(&self, page: &PullResourceResult, base: &PullBase) -> Result<PageApply> {
         let policy = self.retention();
         self.write(|tx| {
+            if base_in(tx, &page.resource)? != *base {
+                return Ok(PageApply::Stale);
+            }
             let reg = ensure(tx, &page.resource)?;
             let prior = state_in(tx, &page.resource)?;
-            let full_start = page.reset || prior.is_none();
+            let full_start = page.reset || base.cursor.is_none();
             if full_start {
                 clear(tx, &reg)?;
             }
@@ -108,11 +140,11 @@ impl MirrorStore for Store {
             };
             save_cursor(tx, &page.resource, &page.next_cursor, complete)?;
             retention::count_writes(tx, page.rows.len() + page.tombstones.len(), &policy)?;
-            Ok(AppliedPage {
+            Ok(PageApply::Applied(AppliedPage {
                 upserted: page.rows.len(),
                 removed,
                 reset: full_start,
-            })
+            }))
         })
     }
 
@@ -126,19 +158,7 @@ impl MirrorStore for Store {
     }
 
     fn get_row(&self, resource: &ResourceName, id: Uuid) -> Result<Option<ResourceRow>> {
-        self.read(|conn| {
-            let Some(reg) = lookup(conn, resource)? else {
-                return Ok(None);
-            };
-            let data: Option<String> = conn
-                .query_row(
-                    &format!("SELECT data FROM \"{}\" WHERE id = ?1", reg.table),
-                    [id.to_string()],
-                    |r| r.get(0),
-                )
-                .optional()?;
-            data.map(|d| decode_row(&d)).transpose()
-        })
+        self.read(|conn| Store::get_row_on(conn, resource, id))
     }
 
     fn remove_row(&self, resource: &ResourceName, id: Uuid) -> Result<bool> {
@@ -157,6 +177,29 @@ impl MirrorStore for Store {
 /// Mirror administration and snapshots (internal API for the engine and the
 /// D3 offline router).
 impl Store {
+    /// [`MirrorStore::get_row`] on a connection the caller already holds
+    /// (inside a [`Store::read`] or [`Store::write`] callback, where calling
+    /// back into the store is rejected).
+    pub fn get_row_on(
+        conn: &Connection,
+        resource: &ResourceName,
+        id: Uuid,
+    ) -> Result<Option<ResourceRow>> {
+        read_snapshot(conn, |conn| {
+            let Some(reg) = lookup(conn, resource)? else {
+                return Ok(None);
+            };
+            let data: Option<String> = conn
+                .query_row(
+                    &format!("SELECT data FROM \"{}\" WHERE id = ?1", reg.table),
+                    [id.to_string()],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            data.map(|d| decode_row(&d)).transpose()
+        })
+    }
+
     /// Creates or updates the tables of `spec`: adds missing generated
     /// columns and indexes, drops those no longer listed, (re)builds the FTS
     /// table when the search fields change. Rows are kept.
@@ -200,10 +243,16 @@ impl Store {
 
     /// Drops the rows and the cursor of `resource`, so the next pull is a
     /// full download. Returns the number of rows removed.
+    /// Pages requested before this call come back `Stale` (the epoch moves).
     pub fn reset_resource(&self, resource: &ResourceName) -> Result<usize> {
         self.write(|tx| {
             tx.execute(
                 "DELETE FROM store_cursors WHERE resource = ?1",
+                [resource.as_str()],
+            )?;
+            tx.execute(
+                "INSERT INTO store_epochs (resource, epoch) VALUES (?1, 1)
+                 ON CONFLICT(resource) DO UPDATE SET epoch = epoch + 1",
                 [resource.as_str()],
             )?;
             match lookup(tx, resource)? {
@@ -215,13 +264,18 @@ impl Store {
 
     /// Number of local rows of `resource`.
     pub fn row_count(&self, resource: &ResourceName) -> Result<u64> {
-        self.read(|conn| match lookup(conn, resource)? {
-            Some(reg) => Ok(conn.query_row(
-                &format!("SELECT count(*) FROM \"{}\"", reg.table),
-                [],
-                |r| r.get::<_, i64>(0),
-            )? as u64),
-            None => Ok(0),
+        self.read(|conn| {
+            read_snapshot(conn, |conn| match lookup(conn, resource)? {
+                Some(reg) => {
+                    let n: i64 = conn.query_row(
+                        &format!("SELECT count(*) FROM \"{}\"", reg.table),
+                        [],
+                        |r| r.get(0),
+                    )?;
+                    Ok(u64::try_from(n).unwrap_or(0))
+                }
+                None => Ok(0),
+            })
         })
     }
 
@@ -370,6 +424,7 @@ fn register_in(tx: &Connection, spec: &ResourceSpec) -> Result<Registered> {
         }
     }
     for (column, field) in &wanted {
+        check_owner(tx, &index_name(&table, column), &table)?;
         if !existing.contains(column) {
             tx.execute_batch(&format!(
                 "ALTER TABLE \"{table}\" ADD COLUMN \"{column}\"
@@ -384,6 +439,7 @@ fn register_in(tx: &Connection, spec: &ResourceSpec) -> Result<Registered> {
     }
 
     let fts = fts_name(&table);
+    check_owner(tx, &fts, &fts)?;
     let fts_exists: bool = tx.query_row(
         "SELECT count(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = ?1",
         [&fts],
@@ -559,4 +615,49 @@ fn save_cursor(
 
 pub(crate) fn decode_row(data: &str) -> Result<ResourceRow> {
     Ok(serde_json::from_str(data)?)
+}
+
+fn base_in(conn: &Connection, resource: &ResourceName) -> Result<PullBase> {
+    let epoch: Option<i64> = conn
+        .query_row(
+            "SELECT epoch FROM store_epochs WHERE resource = ?1",
+            [resource.as_str()],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(PullBase {
+        cursor: state_in(conn, resource)?.map(|s| s.cursor),
+        epoch: epoch.and_then(|e| u64::try_from(e).ok()).unwrap_or(0),
+    })
+}
+
+/// Runs `f` inside a savepoint, so several statements read one snapshot.
+/// Works on a bare reader (starts a read transaction) and nested inside a
+/// caller's transaction.
+pub(crate) fn read_snapshot<T>(
+    conn: &Connection,
+    f: impl FnOnce(&Connection) -> Result<T>,
+) -> Result<T> {
+    conn.execute_batch("SAVEPOINT keystone_read;")?;
+    let value = f(conn);
+    // Read-only work: releasing is enough, also after an error.
+    conn.execute_batch("RELEASE keystone_read;")?;
+    value
+}
+
+/// Fails when `name` already exists in the schema for another table.
+fn check_owner(tx: &Connection, name: &str, owner: &str) -> Result<()> {
+    let found: Option<String> = tx
+        .query_row(
+            "SELECT tbl_name FROM sqlite_master WHERE name = ?1",
+            [name],
+            |r| r.get(0),
+        )
+        .optional()?;
+    match found {
+        Some(other) if other != owner => Err(invalid(format!(
+            "schema name {name:?} belongs to {other:?}, not {owner:?}"
+        ))),
+        _ => Ok(()),
+    }
 }

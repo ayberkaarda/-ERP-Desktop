@@ -144,8 +144,9 @@ fn readers_see_only_whole_pages() {
         let rows = (0..PER_PAGE)
             .map(|i| row(u128::from(p) * PER_PAGE + i + 1))
             .collect();
-        store
-            .apply_page(&PullResourceResult {
+        apply(
+            &store,
+            &PullResourceResult {
                 resource: res(),
                 rows,
                 tombstones: Vec::new(),
@@ -157,12 +158,25 @@ fn readers_see_only_whole_pages() {
                 has_more: p + 1 < PAGES,
                 reset: false,
                 reset_reason: None,
-            })
-            .unwrap();
+            },
+        )
+        .unwrap();
     }
     stop.store(true, Ordering::Relaxed);
     let reads: u32 = readers.into_iter().map(|h| h.join().unwrap()).sum();
     assert!(reads > 0);
     assert_eq!(store.row_count(&res()).unwrap(), PAGES * PER_PAGE as u64);
     assert!(store.resource_state(&res()).unwrap().unwrap().complete);
+}
+
+/// Applies `page` against the current base, as the engine does.
+fn apply(
+    store: &Store,
+    page: &PullResourceResult,
+) -> keystone_sync::Result<keystone_sync::store::AppliedPage> {
+    let base = store.pull_base(&page.resource)?;
+    match store.apply_page(page, &base)? {
+        keystone_sync::store::PageApply::Applied(applied) => Ok(applied),
+        keystone_sync::store::PageApply::Stale => panic!("page unexpectedly stale"),
+    }
 }

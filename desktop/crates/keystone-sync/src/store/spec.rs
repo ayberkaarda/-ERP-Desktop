@@ -214,9 +214,12 @@ pub(crate) fn table_name(resource: &ResourceName) -> String {
     format!("m_{}", ident_part(resource.as_str()))
 }
 
-/// FTS5 table paired with a mirror table.
+/// FTS5 table paired with a mirror table: `<table>#fts`. Mirror tables and
+/// columns only use `[a-z0-9_]`, so a name with one `#` maps back to exactly
+/// one table, and FTS5 shadow tables (`<fts>_data`, ...) cannot meet another
+/// resource's names. Always used quoted.
 pub(crate) fn fts_name(table: &str) -> String {
-    format!("s_{}", table.trim_start_matches("m_"))
+    format!("{table}#fts")
 }
 
 /// Generated column of a field path.
@@ -224,8 +227,10 @@ pub(crate) fn column_name(field: &str) -> String {
     format!("f_{}", field.replace('.', "__"))
 }
 
+/// Index of a generated column: `<table>#<column>` (columns start with `f_`,
+/// so this never equals [`fts_name`]).
 pub(crate) fn index_name(table: &str, column: &str) -> String {
-    format!("i_{}__{}", table.trim_start_matches("m_"), column)
+    format!("{table}#{column}")
 }
 
 /// `$.a.b` for a validated field path.

@@ -113,10 +113,12 @@ fn cursor_is_stored_per_resource_and_survives_reopen() {
         let mut first = page("parties", vec![row(1, json!({"name": "A"}))], 10);
         first.has_more = true;
         first.next_cursor.after_id = Some(id(1));
-        store.apply_page(&first).unwrap();
-        store
-            .apply_page(&page("units", vec![row(9, json!({"code": "KG"}))], 77))
-            .unwrap();
+        apply(&store, &first).unwrap();
+        apply(
+            &store,
+            &page("units", vec![row(9, json!({"code": "KG"}))], 77),
+        )
+        .unwrap();
 
         let state = store.resource_state(&res("parties")).unwrap().unwrap();
         assert_eq!(state.cursor, first.next_cursor);
@@ -129,9 +131,11 @@ fn cursor_is_stored_per_resource_and_survives_reopen() {
     assert_eq!(store.cursor(&res("units")).unwrap(), Some(cursor(77)));
 
     // The next page continues the download: no reset, cursor advances.
-    let applied = store
-        .apply_page(&page("parties", vec![row(2, json!({"name": "B"}))], 11))
-        .unwrap();
+    let applied = apply(
+        &store,
+        &page("parties", vec![row(2, json!({"name": "B"}))], 11),
+    )
+    .unwrap();
     assert!(!applied.reset);
     assert_eq!(ids(&store, "parties"), [id(1), id(2)]);
     let state = store.resource_state(&res("parties")).unwrap().unwrap();
@@ -148,16 +152,18 @@ fn apply_page_rolls_back_entirely_when_a_row_fails() {
     let dir = tempfile::tempdir().unwrap();
     let store = open(&dir);
     store.register(&parties_spec()).unwrap();
-    store
-        .apply_page(&page(
+    apply(
+        &store,
+        &page(
             "parties",
             vec![
                 row(1, json!({"name": "Alfa"})),
                 row(2, json!({"name": "Beta"})),
             ],
             10,
-        ))
-        .unwrap();
+        ),
+    )
+    .unwrap();
 
     let table = store.mirror_table(&res("parties")).unwrap().unwrap();
     let poison = id(3).to_string();
@@ -183,7 +189,7 @@ fn apply_page_rolls_back_entirely_when_a_row_fails() {
         20,
     );
     bad.tombstones = vec![tombstone("parties", 2)];
-    assert!(store.apply_page(&bad).is_err());
+    assert!(apply(&store, &bad).is_err());
 
     assert_eq!(ids(&store, "parties"), [id(1), id(2)]);
     assert_eq!(store.cursor(&res("parties")).unwrap(), Some(cursor(10)));
@@ -197,7 +203,7 @@ fn apply_page_rolls_back_entirely_when_a_row_fails() {
     let mut bad_reset = page("parties", vec![row(3, json!({"name": "Gama"}))], 30);
     bad_reset.reset = true;
     bad_reset.reset_reason = Some(ResetReason::CursorExpired);
-    assert!(store.apply_page(&bad_reset).is_err());
+    assert!(apply(&store, &bad_reset).is_err());
     assert_eq!(ids(&store, "parties"), [id(1), id(2)]);
     assert_eq!(store.cursor(&res("parties")).unwrap(), Some(cursor(10)));
 }
@@ -213,8 +219,9 @@ fn reset_and_tombstones_leave_no_stale_rows() {
     store
         .put_row(&res("parties"), &row(99, json!({"name": "Eski"})))
         .unwrap();
-    let applied = store
-        .apply_page(&page(
+    let applied = apply(
+        &store,
+        &page(
             "parties",
             vec![
                 row(1, json!({"name": "A"})),
@@ -222,15 +229,16 @@ fn reset_and_tombstones_leave_no_stale_rows() {
                 row(3, json!({"name": "C"})),
             ],
             10,
-        ))
-        .unwrap();
+        ),
+    )
+    .unwrap();
     assert!(applied.reset);
     assert_eq!(ids(&store, "parties"), [id(1), id(2), id(3)]);
 
     // Incremental: tombstones (one unknown) and an update.
     let mut inc = page("parties", vec![row(3, json!({"name": "C2"}))], 11);
     inc.tombstones = vec![tombstone("parties", 2), tombstone("parties", 42)];
-    let applied = store.apply_page(&inc).unwrap();
+    let applied = apply(&store, &inc).unwrap();
     assert_eq!(
         (applied.upserted, applied.removed, applied.reset),
         (1, 1, false)
@@ -244,7 +252,7 @@ fn reset_and_tombstones_leave_no_stale_rows() {
     reset.reset = true;
     reset.reset_reason = Some(ResetReason::VisibilityChanged);
     reset.has_more = true;
-    let applied = store.apply_page(&reset).unwrap();
+    let applied = apply(&store, &reset).unwrap();
     assert!(applied.reset);
     assert_eq!(ids(&store, "parties"), [id(5)]);
     assert!(
@@ -256,9 +264,11 @@ fn reset_and_tombstones_leave_no_stale_rows() {
     );
     assert!(search(&store, "parties", "a").is_empty());
 
-    store
-        .apply_page(&page("parties", vec![row(6, json!({"name": "F"}))], 51))
-        .unwrap();
+    apply(
+        &store,
+        &page("parties", vec![row(6, json!({"name": "F"}))], 51),
+    )
+    .unwrap();
     assert_eq!(ids(&store, "parties"), [id(5), id(6)]);
     assert!(
         store
@@ -318,7 +328,7 @@ fn quotes_store(dir: &tempfile::TempDir) -> Store {
             json!({"status": "draft", "total": 50.5, "document_date": "2026-09-20", "party": {"name": "Alfa"}, "currency_code": "EUR"}),
         ),
     ];
-    store.apply_page(&page("sales-quotes", rows, 5)).unwrap();
+    apply(&store, &page("sales-quotes", rows, 5)).unwrap();
     store
 }
 
@@ -347,7 +357,7 @@ fn generated_columns_filter_and_sort() {
                 .query_map([&table], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             let mut stmt = conn.prepare(
-                "SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = ?1 AND name LIKE 'i\\_%' ESCAPE '\\'",
+                "SELECT count(*) FROM sqlite_master WHERE type = 'index' AND tbl_name = ?1 AND name GLOB '*#f_*'",
             )?;
             let indexes: i64 = stmt.query_row([&table], |r| r.get(0))?;
             let mut stmt = conn.prepare(&format!(
@@ -500,8 +510,9 @@ fn turkish_search_folds_dotted_and_dotless_i() {
     let dir = tempfile::tempdir().unwrap();
     let store = open(&dir);
     store.register(&parties_spec()).unwrap();
-    store
-        .apply_page(&page(
+    apply(
+        &store,
+        &page(
             "parties",
             vec![
                 row(1, json!({"name": "İSTANBUL Ticaret A.Ş.", "code": "C-001"})),
@@ -511,8 +522,9 @@ fn turkish_search_folds_dotted_and_dotless_i() {
                 row(5, json!({"name": "Kadıköy Istanbul Şube"})),
             ],
             1,
-        ))
-        .unwrap();
+        ),
+    )
+    .unwrap();
 
     let sorted = |text: &str| {
         let mut out = search(&store, "parties", text);
@@ -537,7 +549,7 @@ fn turkish_search_folds_dotted_and_dotless_i() {
     // Updates and tombstones keep the index in step.
     let mut next = page("parties", vec![row(1, json!({"name": "İzmir Ticaret"}))], 2);
     next.tombstones = vec![tombstone("parties", 5)];
-    store.apply_page(&next).unwrap();
+    apply(&store, &next).unwrap();
     assert!(sorted("istanbul").is_empty());
     assert_eq!(sorted("İZMİR"), [id(1)]);
 
@@ -555,9 +567,11 @@ fn turkish_search_folds_dotted_and_dotless_i() {
     assert_eq!(combined.total, 0);
 
     // A resource without search fields rejects a search.
-    store
-        .apply_page(&page("units", vec![row(9, json!({"code": "KG"}))], 1))
-        .unwrap();
+    apply(
+        &store,
+        &page("units", vec![row(9, json!({"code": "KG"}))], 1),
+    )
+    .unwrap();
     assert!(
         store
             .list(
@@ -638,7 +652,19 @@ fn unsafe_resource_names_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
     let store = open(&dir);
     let bad = page("parties\"; DROP TABLE store_meta; --", vec![], 1);
-    assert!(store.apply_page(&bad).is_err());
+    assert!(apply(&store, &bad).is_err());
     assert!(store.put_row(&res("Parties"), &row(1, json!({}))).is_err());
     assert!(store.resource_specs().unwrap().is_empty());
+}
+
+/// Applies `page` against the current base, as the engine does.
+fn apply(
+    store: &Store,
+    page: &PullResourceResult,
+) -> keystone_sync::Result<keystone_sync::store::AppliedPage> {
+    let base = store.pull_base(&page.resource)?;
+    match store.apply_page(page, &base)? {
+        keystone_sync::store::PageApply::Applied(applied) => Ok(applied),
+        keystone_sync::store::PageApply::Stale => panic!("page unexpectedly stale"),
+    }
 }

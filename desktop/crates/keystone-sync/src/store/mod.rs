@@ -15,19 +15,21 @@ mod query;
 mod retention;
 mod spec;
 
+use std::cell::RefCell;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
-use rusqlite::{Connection, ErrorCode as SqliteCode, Transaction, TransactionBehavior};
+use rusqlite::{Connection, ErrorCode as SqliteCode, OpenFlags, Transaction, TransactionBehavior};
 
 use crate::error::{Result, SyncError};
 pub use fold::{fold, match_expression};
 pub use migrations::{Migration, RANGES};
-pub use mirror::{AppliedPage, MirrorStore, ResourceState, Snapshot};
+pub use mirror::{AppliedPage, MirrorStore, PageApply, PullBase, ResourceState, Snapshot};
 pub use query::{
-    Filter, FilterOp, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, ListPage, ListQuery, ReadRoute, SortKey,
-    read_route,
+    Filter, FilterOp, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, ListPage, ListQuery, LocalCopy,
+    ReadRoute, SortKey, read_route,
 };
 pub use retention::{PruneReport, RetentionPolicy};
 pub use spec::{DEFAULT_SEARCH_FIELDS, ResourceSpec, Window, specs_from_offline_manifest};
@@ -45,13 +47,14 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 
 /// Generic mirror bookkeeping (store range, part of [`migrations::registry`]).
 /// Kept apart from [`MIGRATIONS`] so the base list stays `store_meta` only.
-/// Per-resource row tables (`m_*`) and FTS tables (`s_*`) are created by
+/// Per-resource row tables (`m_*`) and FTS tables (`m_*#fts`) are created by
 /// [`Store::register`], not by migrations: their shape follows the spec.
-pub const MIRROR_MIGRATIONS: &[Migration] = &[Migration {
-    id: 10,
-    module: "store",
-    name: "mirror_registry",
-    sql: "CREATE TABLE store_resources (
+pub const MIRROR_MIGRATIONS: &[Migration] = &[
+    Migration {
+        id: 10,
+        module: "store",
+        name: "mirror_registry",
+        sql: "CREATE TABLE store_resources (
         resource TEXT PRIMARY KEY,
         table_name TEXT NOT NULL UNIQUE,
         spec TEXT NOT NULL
@@ -67,7 +70,17 @@ pub const MIRROR_MIGRATIONS: &[Migration] = &[Migration {
         data TEXT NOT NULL,
         fetched_at TEXT NOT NULL
     ) STRICT;",
-}];
+    },
+    Migration {
+        id: 11,
+        module: "store",
+        name: "mirror_epochs",
+        sql: "CREATE TABLE store_epochs (
+        resource TEXT PRIMARY KEY,
+        epoch INTEGER NOT NULL
+    ) STRICT;",
+    },
+];
 
 /// Readers opened next to the writer.
 pub const READER_POOL_SIZE: usize = 3;
@@ -142,7 +155,12 @@ impl Store {
         };
         let mut idle = Vec::with_capacity(size);
         for _ in 0..size {
-            let reader = Connection::open(&path)?;
+            let reader = Connection::open_with_flags(
+                &path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY
+                    | OpenFlags::SQLITE_OPEN_URI
+                    | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )?;
             unlock(&reader, key)?;
             reader.execute_batch(
                 "PRAGMA query_only = ON;
@@ -168,12 +186,16 @@ impl Store {
     }
 
     /// Runs `f` on a pooled read-only connection, without a transaction.
-    /// Waits when every reader is busy; never waits for the writer.
+    /// Waits up to [`POOL_WAIT`] when every reader is busy; never waits for
+    /// the writer. Calling back into this store from inside `f` (or from
+    /// inside a [`Store::write`] callback) on the same thread is rejected
+    /// with `STORE_ERROR`; use the `*_on(conn, ..)` functions instead.
     pub fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+        let _entry = Entry::enter(self)?;
         if self.readers.size == 0 {
             return f(&self.lock_writer());
         }
-        let lease = self.readers.take();
+        let lease = self.readers.take()?;
         match &lease.conn {
             Some(conn) => f(conn),
             None => Err(SyncError::Store(rusqlite::Error::InvalidQuery)),
@@ -181,8 +203,9 @@ impl Store {
     }
 
     /// Runs `f` in an IMMEDIATE transaction on the single writer; commits on
-    /// `Ok`, rolls back on `Err`.
+    /// `Ok`, rolls back on `Err`. Same re-entrancy rule as [`Store::read`].
     pub fn write<T>(&self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
+        let _entry = Entry::enter(self)?;
         let mut conn = self.lock_writer();
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let value = f(&tx)?;
@@ -229,21 +252,72 @@ struct ReaderPool {
 }
 
 impl ReaderPool {
-    fn take(&self) -> Lease<'_> {
+    fn take(&self) -> Result<Lease<'_>> {
+        let deadline = Instant::now() + POOL_WAIT;
         let mut idle = self.idle.lock().unwrap_or_else(PoisonError::into_inner);
         loop {
             if let Some(conn) = idle.pop() {
-                return Lease {
+                return Ok(Lease {
                     pool: self,
                     conn: Some(conn),
-                };
+                });
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(sqlite_failure(
+                    rusqlite::ffi::SQLITE_BUSY,
+                    "no reader became free in time",
+                ));
             }
             idle = self
                 .ready
-                .wait(idle)
-                .unwrap_or_else(PoisonError::into_inner);
+                .wait_timeout(idle, left)
+                .unwrap_or_else(PoisonError::into_inner)
+                .0;
         }
     }
+}
+
+/// Longest wait for a free reader.
+pub const POOL_WAIT: Duration = Duration::from_secs(30);
+
+thread_local! {
+    /// Stores this thread is inside a `read`/`write` callback of.
+    static ACTIVE: RefCell<Vec<usize>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Marks this thread as inside a callback of one store; rejects nesting,
+/// which could otherwise wait forever on the pool or the writer mutex.
+struct Entry(usize);
+
+impl Entry {
+    fn enter(store: &Store) -> Result<Self> {
+        let id = std::ptr::from_ref(store) as usize;
+        ACTIVE.with(|active| {
+            let mut active = active.borrow_mut();
+            if active.contains(&id) {
+                return Err(sqlite_failure(
+                    rusqlite::ffi::SQLITE_MISUSE,
+                    "re-entrant store call; use the *_on(conn, ..) functions",
+                ));
+            }
+            active.push(id);
+            Ok(Entry(id))
+        })
+    }
+}
+
+impl Drop for Entry {
+    fn drop(&mut self) {
+        ACTIVE.with(|active| active.borrow_mut().retain(|id| *id != self.0));
+    }
+}
+
+fn sqlite_failure(code: std::ffi::c_int, message: &str) -> SyncError {
+    SyncError::Store(rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(code),
+        Some(message.to_owned()),
+    ))
 }
 
 /// A borrowed reader; goes back to the pool on drop, also on panic.
