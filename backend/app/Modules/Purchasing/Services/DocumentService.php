@@ -67,10 +67,19 @@ abstract class DocumentService
         throw new InvalidStateTransition($status, $to);
     }
 
+    /** A document past draft is locked: 409 DOCUMENT_LOCKED, on REST and in sync push alike. */
     protected function assertDraft(HasStatus $doc): void
     {
-        if ($doc->currentStatus() !== 'draft') {
-            throw new ApiException(ErrorCode::InvalidStateTransition, Messages::get('document_not_editable'));
+        $this->assertEditable($doc, ['draft']);
+    }
+
+    /**
+     * @param  list<string>  $statuses  statuses in which the document may still be edited or deleted
+     */
+    protected function assertEditable(HasStatus $doc, array $statuses): void
+    {
+        if (! in_array($doc->currentStatus(), $statuses, true)) {
+            throw new ApiException(ErrorCode::DocumentLocked, Messages::get('document_not_editable'));
         }
     }
 

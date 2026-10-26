@@ -20,8 +20,10 @@ use App\Modules\Workflow\Contracts\ApprovalEngine;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Purchase requests: drafts, submission (approval above purchasing.request_approval_over through
@@ -49,10 +51,34 @@ final class RequestService extends DocumentService
      * @param  array<string, mixed>  $data
      * @param  list<array<string, mixed>>  $lines
      */
-    public function create(array $data, array $lines, ?Authenticatable $actor): PurchaseRequest
+    public function create(array $data, array $lines, ?Authenticatable $actor, ?string $id = null): PurchaseRequest
     {
-        return Purchasing::transaction(function () use ($data, $lines, $actor): PurchaseRequest {
+        try {
+            return $this->createWithId($data, $lines, $actor, $id);
+        } catch (QueryException $e) {
+            // Two creates with the same client id both passed the unique rule; the loser hits the primary key.
+            if ($id !== null && ($e->errorInfo[0] ?? null) === '23505' && str_contains($e->getMessage(), 'purchase_requests_pkey')) {
+                throw ValidationException::withMessages(['id' => [(string) __('validation.unique', ['attribute' => 'id'])]]);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  list<array<string, mixed>>  $lines
+     */
+    private function createWithId(array $data, array $lines, ?Authenticatable $actor, ?string $id): PurchaseRequest
+    {
+        return Purchasing::transaction(function () use ($data, $lines, $actor, $id): PurchaseRequest {
             $request = new PurchaseRequest;
+
+            // A client-generated key (offline create) becomes the primary key; the form request has checked it.
+            if ($id !== null) {
+                $request->id = $id;
+            }
+
             $request->created_by = self::actorId($actor);
             $request->requested_by = self::actorId($actor);
             $this->write($request, $data, $lines);
@@ -70,8 +96,9 @@ final class RequestService extends DocumentService
     public function update(PurchaseRequest $request, array $data, ?array $lines, int $version): PurchaseRequest
     {
         return Purchasing::transaction(function () use ($request, $data, $lines, $version): PurchaseRequest {
-            $request = $this->lock($request, $version);
-            $this->assertStatus($request, [RequestStatus::Draft, RequestStatus::Rejected], RequestStatus::Draft->value);
+            $request = $this->lock($request);
+            $this->assertEditable($request, [RequestStatus::Draft->value, RequestStatus::Rejected->value]);
+            $request->assertVersion($version);
 
             if ($request->status === RequestStatus::Rejected) {
                 $this->machine->transition($request, RequestStatus::Draft);
@@ -92,8 +119,13 @@ final class RequestService extends DocumentService
     public function delete(PurchaseRequest $request, ?int $version): void
     {
         Purchasing::transaction(function () use ($request, $version): void {
-            $request = $this->lock($request, $version);
-            $this->assertStatus($request, [RequestStatus::Draft, RequestStatus::Rejected], 'deleted');
+            $request = $this->lock($request);
+            $this->assertEditable($request, [RequestStatus::Draft->value, RequestStatus::Rejected->value]);
+
+            if ($version !== null) {
+                $request->assertVersion($version);
+            }
+
             $request->delete();
         });
     }
@@ -344,6 +376,7 @@ final class RequestService extends DocumentService
         }
 
         $request->setAttribute('estimated_total', (string) $total);
+        $this->auditLines($request, $rows);
         $request->save();
         PurchaseRequestLine::query()->where('document_id', $request->id)->delete();
 
@@ -354,6 +387,54 @@ final class RequestService extends DocumentService
         }
 
         $request->unsetRelation('lines');
+    }
+
+    /**
+     * The lines are not columns of the header, so the activity log would not see an edit that only
+     * touches them. Their digest goes into the entry of the header save (attributes.lines), which
+     * lets the sync conflict check tell that a version step changed the embedded lines.
+     *
+     * @param  array<array<string, mixed>>  $rows  the lines about to be stored
+     */
+    private function auditLines(PurchaseRequest $request, array $rows): void
+    {
+        $new = self::digest($rows);
+        $old = null;
+
+        if ($request->exists) {
+            $old = self::digest(PurchaseRequestLine::query()->where('document_id', $request->id)->orderBy('line_no')->get()->map(
+                static fn (PurchaseRequestLine $l): array => [
+                    'item_id' => $l->item_id, 'variant_id' => $l->variant_id, 'unit_id' => $l->unit_id, 'quantity' => (string) $l->quantity,
+                    'estimated_price' => (string) $l->estimated_price, 'suggested_supplier_id' => $l->suggested_supplier_id,
+                    'needed_by' => $l->needed_by?->format('Y-m-d'), 'warehouse_id' => $l->warehouse_id, 'description' => $l->description,
+                ],
+            )->all());
+        }
+
+        if ($old !== $new) {
+            $request->recordLineChange($old, $new);
+        }
+    }
+
+    /**
+     * @param  array<array<string, mixed>>  $rows
+     */
+    private static function digest(array $rows): string
+    {
+        $out = [];
+
+        foreach ($rows as $row) {
+            $out[] = [
+                'item_id' => $row['item_id'] ?? null, 'variant_id' => $row['variant_id'] ?? null, 'unit_id' => $row['unit_id'] ?? null,
+                'quantity' => (string) BigDecimal::of(is_string($row['quantity'] ?? null) ? $row['quantity'] : '0')->toScale(6, RoundingMode::HalfUp),
+                'estimated_price' => (string) BigDecimal::of(is_string($row['estimated_price'] ?? null) ? $row['estimated_price'] : '0')->toScale(6, RoundingMode::HalfUp),
+                'suggested_supplier_id' => $row['suggested_supplier_id'] ?? null,
+                'needed_by' => is_string($row['needed_by'] ?? null) ? substr($row['needed_by'], 0, 10) : null,
+                'warehouse_id' => $row['warehouse_id'] ?? null, 'description' => $row['description'] ?? null,
+            ];
+        }
+
+        return hash('sha256', json_encode($out, JSON_THROW_ON_ERROR));
     }
 
     private function notifyCreator(PurchaseRequest $request, string $key): void

@@ -64,8 +64,8 @@ final class OrderService extends DocumentService
     {
         return Purchasing::transaction(function () use ($order, $data, $lines, $version, $actor, $canOverridePrice): PurchaseOrder {
             $order = $this->lockWithRequest($order);
-            $order->assertVersion($version);
             $this->assertDraft($order);
+            $order->assertVersion($version);
             $this->write($order, $data, $lines, $actor, $canOverridePrice);
 
             return $order;
@@ -77,11 +77,11 @@ final class OrderService extends DocumentService
         Purchasing::transaction(function () use ($order, $version): void {
             $order = $this->lockWithRequest($order);
 
+            $this->assertDraft($order);
+
             if ($version !== null) {
                 $order->assertVersion($version);
             }
-
-            $this->assertDraft($order);
             $this->assertNoDocuments($order);
             $requestId = $order->request_id;
             $order->delete();

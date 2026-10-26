@@ -37,13 +37,15 @@ final class Quantities
             return [];
         }
 
+        // The document's own company, not the ambient context: the sync pull serialises documents outside it.
+        $company = (string) $document->getAttribute('company_id');
         $column = $document instanceof PurchaseReceipt ? 'receipt_line_id' : 'invoice_line_id';
-        $returned = $this->returnLines(null)->whereIn("l.{$column}", $ids)
+        $returned = $this->returnLines(null, $company)->whereIn("l.{$column}", $ids)
             ->when($document instanceof PurchaseReceipt, fn (Builder $q) => $q->whereNull('l.invoice_line_id'))
             ->groupBy("l.{$column}")->selectRaw("l.{$column} AS source_id, sum(l.quantity) AS quantity")
             ->pluck('quantity', 'source_id');
         $invoiced = $document instanceof PurchaseReceipt
-            ? $this->invoiceLines(null)->whereIn('l.receipt_line_id', $ids)->groupBy('l.receipt_line_id')
+            ? $this->invoiceLines(null, $company)->whereIn('l.receipt_line_id', $ids)->groupBy('l.receipt_line_id')
                 ->selectRaw('l.receipt_line_id AS source_id, sum(l.quantity) AS quantity')->pluck('quantity', 'source_id')
             : collect();
         $eligible = $document instanceof PurchaseReceipt
@@ -109,18 +111,22 @@ final class Quantities
         return $received->minus($this->invoicedOnReceipt($receiptLineId, $exceptInvoiceId))->minus($this->returnedOnReceipt($receiptLineId, $exceptReturnId));
     }
 
-    private function invoiceLines(?string $exceptInvoiceId): Builder
+    private function invoiceLines(?string $exceptInvoiceId, ?string $company = null): Builder
     {
+        $company ??= app(CompanyContext::class)->id();
+
         return DB::table('purchase_invoice_lines as l')->join('purchase_invoices as i', 'i.id', '=', 'l.document_id')
-            ->where('l.company_id', app(CompanyContext::class)->id())->where('i.company_id', app(CompanyContext::class)->id())
+            ->where('l.company_id', $company)->where('i.company_id', $company)
             ->where('i.invoice_type', 'purchase')->whereIn('i.status', InvoiceStatus::holding())
             ->when($exceptInvoiceId !== null, fn ($q) => $q->where('i.id', '<>', $exceptInvoiceId));
     }
 
-    private function returnLines(?string $exceptReturnId): Builder
+    private function returnLines(?string $exceptReturnId, ?string $company = null): Builder
     {
+        $company ??= app(CompanyContext::class)->id();
+
         return DB::table('purchase_return_lines as l')->join('purchase_returns as r', 'r.id', '=', 'l.document_id')
-            ->where('l.company_id', app(CompanyContext::class)->id())->where('r.company_id', app(CompanyContext::class)->id())
+            ->where('l.company_id', $company)->where('r.company_id', $company)
             ->where('r.status', '<>', 'cancelled')
             ->when($exceptReturnId !== null, fn ($q) => $q->where('r.id', '<>', $exceptReturnId));
     }

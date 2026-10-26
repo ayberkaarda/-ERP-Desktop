@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Purchasing;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Core\Sync\Contracts\SyncResource;
+use App\Core\Sync\Contracts\SyncWriter;
 use App\Models\User;
 use App\Modules\Purchasing\Contracts\PayableSettlement;
 use App\Modules\Purchasing\Contracts\PurchaseInvoiceLookup;
@@ -32,6 +34,8 @@ use App\Modules\Purchasing\Services\InvoiceDirectory;
 use App\Modules\Purchasing\Services\PerformanceCalculator;
 use App\Modules\Purchasing\Services\Settlement;
 use App\Modules\Purchasing\Support\PurchasingSettings;
+use App\Modules\Purchasing\Sync\PurchaseRequestSyncWriter;
+use App\Modules\Purchasing\Sync\PurchasingSyncResource;
 use App\Modules\Settings\Contracts\SettingsRegistrar;
 use App\Modules\Workflow\Events\ApprovalCompleted;
 use App\Modules\Workflow\Events\ApprovalRejected;
@@ -56,6 +60,22 @@ final class PurchasingServiceProvider extends ModuleServiceProvider
         $this->app->bind(PayableSettlement::class, Settlement::class);
         $this->app->bind(SupplierPerformance::class, PerformanceCalculator::class);
         $this->app->register(ReportsServiceProvider::class);
+        $this->registerSync();
+    }
+
+    /** Offline adapters: the Sync module collects them by tag and never sees our models. */
+    private function registerSync(): void
+    {
+        $ids = [];
+
+        foreach (PurchasingSyncResource::all() as $resource) {
+            $id = 'purchasing.sync.'.$resource->name();
+            $this->app->singleton($id, static fn (): PurchasingSyncResource => $resource);
+            $ids[] = $id;
+        }
+
+        $this->app->tag($ids, SyncResource::TAG);
+        $this->app->tag([PurchaseRequestSyncWriter::class], SyncWriter::TAG);
     }
 
     public function boot(): void
