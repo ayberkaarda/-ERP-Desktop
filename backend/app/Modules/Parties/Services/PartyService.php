@@ -127,13 +127,14 @@ final class PartyService
         try {
             return DB::transaction($callback);
         } catch (UniqueConstraintViolationException $e) {
-            if (! str_contains($e->getMessage(), 'parties_company_tax_number_unique')) {
-                throw $e;
-            }
+            // A client-supplied id can pass the unique rule and still lose the insert race.
+            [$field, $message] = match (true) {
+                str_contains($e->getMessage(), 'parties_company_tax_number_unique') => ['tax_number', Messages::get('tax_number_taken')],
+                str_contains($e->getMessage(), 'parties_pkey') => ['id', (string) __('validation.unique', ['attribute' => 'id'])],
+                default => throw $e,
+            };
 
-            $message = Messages::get('tax_number_taken');
-
-            throw new ApiException(ErrorCode::ValidationError, $message, ['tax_number' => [$message]], previous: $e);
+            throw new ApiException(ErrorCode::ValidationError, $message, [$field => [$message]], previous: $e);
         }
     }
 }

@@ -172,6 +172,40 @@ it('logs the version in the activity log', function (): void {
         ->and($this->writer->auditFields())->toContain('version', 'name');
 });
 
+/**
+ * Simulates a concurrent request that inserts the same id after validation has passed.
+ */
+function raceInsertSameId(): void
+{
+    $raced = false;
+    Party::creating(function (Party $party) use (&$raced): void {
+        if ($raced) {
+            return;
+        }
+        $raced = true;
+        $party->replicate()->forceFill(['id' => $party->id, 'company_id' => app(CompanyContext::class)->id(), 'code' => 'RACE-1', 'tax_number' => null, 'is_active' => false])->saveQuietly();
+    });
+}
+
+it('maps a lost client id insert race to a validation error on id', function (): void {
+    raceInsertSameId();
+    $outcome = $this->writer->create($this->manager, partyMutation());
+
+    expect($outcome->status)->toBe(OutcomeStatus::Rejected)
+        ->and($outcome->errorCode)->toBe(ErrorCode::ValidationError)
+        ->and($outcome->errorFields)->toHaveKey('id')
+        ->and(Party::query()->count())->toBe(0);
+
+    raceInsertSameId();
+    $headers = ['Accept' => 'application/json', 'X-Company-Id' => $this->company, 'Idempotency-Key' => (string) Str::uuid7()];
+    $this->actingAs($this->manager, 'sanctum')
+        ->postJson('/api/v1/parties', [...$this->payload, 'id' => (string) Str::uuid7()], $headers)
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.code', 'VALIDATION_ERROR')
+        ->assertJsonStructure(['errors' => ['fields' => ['id']]]);
+    expect(Party::query()->count())->toBe(0);
+});
+
 it('accepts a client id on REST POST and keeps PATCH and codes as before', function (): void {
     $id = (string) Str::uuid7();
     $headers = ['Accept' => 'application/json', 'X-Company-Id' => $this->company, 'Idempotency-Key' => (string) Str::uuid7()];
