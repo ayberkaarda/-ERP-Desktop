@@ -234,7 +234,7 @@ final class InvoiceService extends DocumentService
     {
         return Purchasing::transaction(function () use ($invoice, $data, $lines, $version, $actor, $canOverridePrice): PurchaseInvoice {
             $lines ??= $this->linesAsInput($invoice);
-            $this->lockSources($lines);
+            $this->lockSources(array_merge($this->linesAsInput($invoice), $lines));
             $invoice = $this->lock($invoice);
             $this->assertDraft($invoice);
             $invoice->assertVersion($version);
@@ -262,6 +262,7 @@ final class InvoiceService extends DocumentService
     public function delete(PurchaseInvoice $invoice, ?int $version): void
     {
         Purchasing::transaction(function () use ($invoice, $version): void {
+            $this->lockSources($this->linesAsInput($invoice));
             $invoice = $this->lock($invoice);
             $this->assertDraft($invoice);
             if ($version !== null) {
@@ -275,6 +276,7 @@ final class InvoiceService extends DocumentService
     public function cancel(PurchaseInvoice $invoice, ?int $version, ?Authenticatable $actor): PurchaseInvoice
     {
         return Purchasing::transaction(function () use ($invoice, $version, $actor): PurchaseInvoice {
+            $this->lockSources($this->linesAsInput($invoice));
             $invoice = $this->lock($invoice, $version);
             $this->assertStatus($invoice, [InvoiceStatus::Draft, InvoiceStatus::PendingApproval], InvoiceStatus::Cancelled->value);
 
@@ -467,6 +469,12 @@ final class InvoiceService extends DocumentService
             // The invoice can no longer be booked (period closed, sources changed, match block): back to draft.
             Log::info('purchase invoice approval could not book', ['invoice' => $invoiceId, 'error' => $e->getMessage()]);
             $invoice = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
+                $source = PurchaseInvoice::query()->whereKey($invoiceId)->first();
+
+                if ($source !== null) {
+                    $this->lockSources($this->linesAsInput($source));
+                }
+
                 $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->lockForUpdate()->first();
 
                 if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
@@ -494,6 +502,12 @@ final class InvoiceService extends DocumentService
     public function approvalRejected(string $invoiceId, string $approvalRequestId): void
     {
         $invoice = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
+            $source = PurchaseInvoice::query()->whereKey($invoiceId)->first();
+
+            if ($source !== null) {
+                $this->lockSources($this->linesAsInput($source));
+            }
+
             $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->lockForUpdate()->first();
 
             if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
@@ -919,14 +933,22 @@ final class InvoiceService extends DocumentService
     }
 
     /**
-     * Locks the sources the stored lines name, then the invoice, then again the sources of the
-     * lines as they are once the invoice is locked.
+     * Locks the sources the stored lines name, then the original invoice (for a debit note),
+     * then the invoice, then again the sources of the lines as they are once it is locked.
+     * Also used by returns, which must lock receipts before their source invoice.
      *
      * @return array{0: PurchaseInvoice, 1: array<string, PurchaseOrder>}
      */
-    private function lockWithSources(PurchaseInvoice $invoice): array
+    public function lockWithSources(PurchaseInvoice $invoice): array
     {
-        $orders = $this->lockSources($this->linesAsInput($invoice));
+        $original = $invoice->original_invoice_id === null ? null : PurchaseInvoice::query()->whereKey($invoice->original_invoice_id)->first();
+        $lines = $this->linesAsInput($invoice);
+        $orders = $this->lockSources($original === null ? $lines : array_merge($this->linesAsInput($original), $lines));
+
+        if ($original !== null) {
+            $this->lock($original);
+        }
+
         $locked = $this->lock($invoice);
 
         return [$locked, $orders + $this->lockSources($this->linesAsInput($locked))];

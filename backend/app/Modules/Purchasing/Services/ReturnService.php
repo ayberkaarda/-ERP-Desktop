@@ -172,6 +172,7 @@ final class ReturnService extends DocumentService
     public function delete(PurchaseReturn $return, ?int $version): void
     {
         Purchasing::transaction(function () use ($return, $version): void {
+            $this->lockSource($return);
             $return = $this->lock($return);
             $this->assertDraft($return);
             if ($version !== null) {
@@ -206,6 +207,7 @@ final class ReturnService extends DocumentService
     public function cancel(PurchaseReturn $return, ?int $version, ?Authenticatable $actor): PurchaseReturn
     {
         return Purchasing::transaction(function () use ($return, $version, $actor): PurchaseReturn {
+            $this->lockSource($return);
             $return = $this->lock($return, $version);
             $this->assertStatus($return, [ReturnStatus::Draft, ReturnStatus::Approved], ReturnStatus::Cancelled->value);
             $return->cancelled_at = now();
@@ -560,7 +562,10 @@ final class ReturnService extends DocumentService
 
     private function lockInvoice(string $id): PurchaseInvoice
     {
-        return PurchaseInvoice::query()->whereKey($id)->lockForUpdate()->firstOrFail();
+        // Receipt locks must precede the source invoice and the return.
+        [$invoice] = $this->invoices->lockWithSources(PurchaseInvoice::query()->whereKey($id)->firstOrFail());
+
+        return $invoice;
     }
 
     private function lockReceipt(string $id): PurchaseReceipt

@@ -41,7 +41,11 @@ return new class extends Migration
             changed text;
             invoice_lines text;
             receipt_lines text;
-            status_changed text := 'SELECT n.id FROM sync_new n JOIN sync_old o ON o.id = n.id WHERE n.status IS DISTINCT FROM o.status';
+            -- Only a status change that adds or removes the document from what Quantities counts
+            -- (returns: all but cancelled; invoices: all but cancelled/reversed). Payment status moves
+            -- (booked/partially_paid/paid) touch nothing, so they take no source lock while holding the invoice.
+            return_crossed text := 'SELECT n.id FROM sync_new n JOIN sync_old o ON o.id = n.id WHERE (n.status = ''cancelled'') IS DISTINCT FROM (o.status = ''cancelled'')';
+            invoice_crossed text := 'SELECT n.id FROM sync_new n JOIN sync_old o ON o.id = n.id WHERE (n.status IN (''cancelled'', ''reversed'')) IS DISTINCT FROM (o.status IN (''cancelled'', ''reversed''))';
             previous text;
         BEGIN
             -- Rows of this statement: the transition tables differ per operation.
@@ -52,12 +56,12 @@ return new class extends Migration
                 invoice_lines := format('SELECT invoice_line_id FROM (%s) c', changed);
                 receipt_lines := format('SELECT receipt_line_id FROM (%s) c', changed);
             ELSIF TG_TABLE_NAME = 'purchase_returns' THEN
-                invoice_lines := format('SELECT invoice_line_id FROM purchase_return_lines WHERE document_id IN (%s)', status_changed);
-                receipt_lines := format('SELECT receipt_line_id FROM purchase_return_lines WHERE document_id IN (%s)', status_changed);
+                invoice_lines := format('SELECT invoice_line_id FROM purchase_return_lines WHERE document_id IN (%s)', return_crossed);
+                receipt_lines := format('SELECT receipt_line_id FROM purchase_return_lines WHERE document_id IN (%s)', return_crossed);
             ELSIF TG_TABLE_NAME = 'purchase_invoice_lines' THEN
                 receipt_lines := format('SELECT receipt_line_id FROM (%s) c', changed);
             ELSIF TG_TABLE_NAME = 'purchase_invoices' THEN
-                receipt_lines := format('SELECT receipt_line_id FROM purchase_invoice_lines WHERE document_id IN (%s)', status_changed);
+                receipt_lines := format('SELECT receipt_line_id FROM purchase_invoice_lines WHERE document_id IN (%s)', invoice_crossed);
             END IF;
 
             previous := current_setting('keystone.sync_touch', true);

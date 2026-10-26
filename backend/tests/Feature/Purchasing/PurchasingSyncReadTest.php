@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
 use App\Core\Sync\Contracts\SyncResource;
+use App\Modules\Purchasing\Models\PurchaseInvoice;
+use App\Modules\Purchasing\Models\PurchaseReturn;
+use App\Modules\Purchasing\Services\InvoiceService;
+use App\Modules\Purchasing\Services\ReturnService;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Fixtures\Sync\SyncDatabase;
@@ -181,3 +186,121 @@ it('moves the source invoice and receipt forward when a return or invoice change
         PurchKit::as($w->user, $w->company)->deleteJson("/api/v1/purchase-returns/{$draft['id']}?version={$draft['version']}")->assertNoContent();
     }, '5.000000');
 });
+
+/**
+ * A posted receipt R, its booked invoice I and a draft return T on I (its lines name I's line
+ * and R's line); a draft invoice D on a second posted receipt R2.
+ *
+ * @return array<string, array<string, mixed>>
+ */
+function purchasingLockChain(object $w): array
+{
+    $order = PurchKit::approvedOrder($w, [[$w->item->id, '5', '10'], [$w->item->id, '3', '10']]);
+    $receipt = PurchKit::receive($w, $order['id'], [$order['lines'][0]['id'] => '5']);
+    $invoice = PurchKit::invoiceReceipt($w, $receipt['id']);
+    $return = PurchKit::post($w->user, $w->company, "purchase-invoices/{$invoice['id']}/returns", ['lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '2']]])->assertCreated()->json('data');
+    $second = PurchKit::receive($w, $order['id'], [$order['lines'][1]['id'] => '3']);
+    $draft = PurchKit::post($w->user, $w->company, "purchase-receipts/{$second['id']}/invoice", ['document_date' => '2027-06-13', 'supplier_invoice_no' => 'SUP-'.Str::upper(Str::random(6))])->assertCreated()->json('data');
+
+    return ['receipt' => $receipt, 'invoice' => $invoice, 'return' => $return, 'second' => $second, 'draft' => $draft];
+}
+
+/**
+ * Names of the rows the SELECT ... FOR UPDATE statements of $fn lock, in first-lock order.
+ *
+ * @param  array<string, string>  $names  row id => name
+ * @return list<string>
+ */
+function lockOrder(array $names, Closure $fn): array
+{
+    $locks = [];
+    DB::listen(static function ($query) use (&$locks, $names): void {
+        if (str_contains($query->sql, 'for update')) {
+            foreach ($query->bindings as $binding) {
+                if (is_string($binding) && isset($names[$binding])) {
+                    $locks[] = $names[$binding];
+                }
+            }
+        }
+    });
+    $fn();
+
+    return array_values(array_unique($locks));
+}
+
+// purchasing_sync_touch_sources locks receipts and invoices from inside the invoice/return
+// statement, so every path that may fire it locks receipt -> invoice -> return up front.
+it('locks the sources before the document on every path that touches them', function (string $path): void {
+    $w = $this->w;
+    $c = purchasingLockChain($w);
+    $names = [$c['receipt']['id'] => 'receipt', $c['invoice']['id'] => 'invoice', $c['return']['id'] => 'return', $c['second']['id'] => 'receipt', $c['draft']['id'] => 'invoice'];
+    $as = PurchKit::as($w->user, $w->company);
+
+    $order = lockOrder($names, fn () => match ($path) {
+        'invoice cancel' => PurchKit::post($w->user, $w->company, "purchase-invoices/{$c['draft']['id']}/cancel")->assertOk(),
+        'invoice delete' => $as->deleteJson("/api/v1/purchase-invoices/{$c['draft']['id']}?version={$c['draft']['version']}")->assertNoContent(),
+        'return cancel' => PurchKit::post($w->user, $w->company, "purchase-returns/{$c['return']['id']}/cancel")->assertOk(),
+        'return delete' => $as->deleteJson("/api/v1/purchase-returns/{$c['return']['id']}?version={$c['return']['version']}")->assertNoContent(),
+        'return update' => PurchKit::patch($w->user, $w->company, "purchase-returns/{$c['return']['id']}", ['version' => $c['return']['version'], 'lines' => [['invoice_line_id' => $c['invoice']['lines'][0]['id'], 'quantity' => '1']]])->assertOk(),
+    });
+
+    expect($order)->toBe(str_starts_with($path, 'invoice') ? ['receipt', 'invoice'] : ['receipt', 'invoice', 'return']);
+})->with(['invoice cancel', 'invoice delete', 'return cancel', 'return delete', 'return update']);
+
+/**
+ * Runs $fn while a second connection holds the row, under a short lock_timeout; returns the error.
+ */
+function whileHeld(string $table, string $id, Closure $fn): ?QueryException
+{
+    config(['database.connections.purchasing_lock_probe' => config('database.connections.'.config('database.default'))]);
+    $other = DB::connection('purchasing_lock_probe');
+    $other->beginTransaction();
+    $other->select("select id from {$table} where id = ? for update", [$id]);
+    DB::statement("SET lock_timeout = '300ms'");
+
+    try {
+        $fn();
+
+        return null;
+    } catch (Throwable $e) {
+        $query = $e;
+        while (! $query instanceof QueryException && $query->getPrevious() !== null) {
+            $query = $query->getPrevious();
+        }
+
+        return $query instanceof QueryException ? $query : throw $e;
+    } finally {
+        DB::statement('SET lock_timeout = 0');
+        $other->rollBack();
+        DB::disconnect('purchasing_lock_probe');
+    }
+}
+
+it('waits on a held source before it holds the document', function (string $path): void {
+    $w = $this->w;
+    $c = purchasingLockChain($w);
+    [$table, $held, $run, $unchanged] = match ($path) {
+        // Invoice update/book/reverse hold the receipt first.
+        'invoice cancel' => ['purchase_receipts', $c['second']['id'],
+            fn () => app(InvoiceService::class)->cancel(PurchaseInvoice::query()->findOrFail($c['draft']['id']), null, $w->user),
+            fn (): bool => DB::table('purchase_invoices')->where('id', $c['draft']['id'])->value('status') === 'draft'],
+        // A path holding the source invoice first (return approve/ship, invoice update).
+        'return cancel' => ['purchase_invoices', $c['invoice']['id'],
+            fn () => app(ReturnService::class)->cancel(PurchaseReturn::query()->findOrFail($c['return']['id']), null, $w->user),
+            fn (): bool => DB::table('purchase_returns')->where('id', $c['return']['id'])->value('status') === 'draft'],
+        // Invoice reverse holds the receipt before the invoice.
+        'return update' => ['purchase_receipts', $c['receipt']['id'],
+            fn () => app(ReturnService::class)->update(PurchaseReturn::query()->findOrFail($c['return']['id']), [], [['invoice_line_id' => $c['invoice']['lines'][0]['id'], 'quantity' => '1']], $c['return']['version']),
+            fn (): bool => DB::table('purchase_returns')->where('id', $c['return']['id'])->value('version') === $c['return']['version']],
+    };
+
+    $failed = whileHeld($table, $held, fn () => PurchKit::in($w->company, $run));
+
+    // The path's first lock is the held source: its explicit SELECT ... FOR UPDATE times out. The
+    // document-first order would time out later, in the trigger's UPDATE of the source.
+    expect($failed)->not->toBeNull()
+        ->and($failed?->errorInfo[0] ?? null)->toBe('55P03')
+        ->and($failed?->getSql())->toContain("from \"{$table}\"")->toContain('for update')
+        ->and($failed?->getBindings())->toContain($held)
+        ->and($unchanged())->toBeTrue();
+})->with(['invoice cancel', 'return cancel', 'return update']);
