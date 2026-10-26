@@ -335,3 +335,21 @@ it('hashes large integral numbers by value', function (string $a, string $b): vo
     '-4.0e15' => ['{"q":-4.0e15}', '{"q":-4000000000000000}'],
     '1e19 (beyond int64)' => ['{"q":1e19}', '{"q":10000000000000000000}'],
 ]);
+
+it('does not end a session when a retry from the previous cursor reaches the end', function (): void {
+    raiseFloor($this);
+    $first = sessionPage($this, null, 1);
+
+    // A gives the short page B; A is then retried with a larger limit and reaches the end.
+    $short = sessionPage($this, $first['next_cursor'], 1);
+    expect($short['has_more'])->toBeTrue();
+    $retry = sessionPage($this, $first['next_cursor'], 10);
+    expect($retry['has_more'])->toBeFalse()
+        ->and(sessionRow($this))->not->toBeNull();
+
+    // Continuing from B is still the same session.
+    $after = sessionPage($this, $short['next_cursor'], 10);
+    expect($after['reset'])->toBeFalse()
+        ->and($after['has_more'])->toBeFalse()
+        ->and(sessionRow($this))->toBeNull();
+});

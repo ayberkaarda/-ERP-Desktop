@@ -141,11 +141,16 @@ final readonly class FullDownloads
     }
 
     /**
-     * The session the request continued is complete.
+     * The session the request continued from its latest cursor is complete. A retry from the
+     * previous cursor reads but never writes, so it leaves the session to its latest cursor.
      */
     public function finish(DownloadSession $session): void
     {
-        $this->current($session)->delete();
+        if (! $session->atLatest) {
+            return;
+        }
+
+        $this->current($session)->where('cursor_hash', $session->presentedHash)->delete();
     }
 
     private function current(DownloadSession $session): Builder
