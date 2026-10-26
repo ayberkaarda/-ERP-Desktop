@@ -202,8 +202,7 @@ final class InvoiceService extends DocumentService
         return Sales::transaction(function () use ($invoice, $data, $lines, $version, $actor, $canOverridePrice): SalesInvoice {
             $lines ??= $this->linesAsInput($invoice);
             $this->lockSources($lines);
-            $invoice = $this->lock($invoice, $version);
-            $this->assertDraft($invoice);
+            $invoice = $this->lockDraft($invoice, $version);
 
             if ($invoice->isCreditNote()) {
                 Messages::fail('document', 'credit_note_not_editable');
@@ -225,8 +224,7 @@ final class InvoiceService extends DocumentService
     public function delete(SalesInvoice $invoice, ?int $version): void
     {
         Sales::transaction(function () use ($invoice, $version): void {
-            $invoice = $this->lock($invoice, $version);
-            $this->assertDraft($invoice);
+            $invoice = $this->lockDraft($invoice, $version);
             $invoice->delete();
         });
     }
@@ -312,6 +310,14 @@ final class InvoiceService extends DocumentService
             $this->applyToOrders($lines, $orders, -1, $actor);
 
             if ($invoice->return_id !== null) {
+                // Original invoice before the return, as on every ReturnService path: the return's
+                // transition touches that invoice (sales_returns_touch_invoice_*).
+                $original = SalesReturn::query()->whereKey($invoice->return_id)->value('invoice_id');
+
+                if (is_string($original)) {
+                    SalesInvoice::query()->whereKey($original)->lockForUpdate()->value('id');
+                }
+
                 $return = SalesReturn::query()->whereKey($invoice->return_id)->lockForUpdate()->first();
 
                 if ($return !== null && $return->status === ReturnStatus::Credited) {

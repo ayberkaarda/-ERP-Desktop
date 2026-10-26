@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Http\Requests;
 
+use App\Core\Sync\Rules\Uuid7;
 use App\Modules\Sales\Models\SalesDocument;
+use Illuminate\Validation\Rule;
 
 /**
  * Draft create (POST) / update (PATCH with version) of a document, and the conversion payloads.
@@ -12,6 +14,7 @@ use App\Modules\Sales\Models\SalesDocument;
  *   quote | order | delivery | invoice | return | preview  - header + lines
  *   delivery_from_order | invoice_from_delivery | invoice_from_order | return_from_invoice | quote_convert
  * Amounts are decimal strings. Business rules (prices, bounds, tax) are checked by the services.
+ * A quote or order POST may carry the client's own UUIDv7 `id` (offline drafts keep their key).
  */
 final class DocumentRequest extends SalesRequest
 {
@@ -55,8 +58,26 @@ final class DocumentRequest extends SalesRequest
                 'lines.*.invoice_line_id' => ['required', 'uuid'], 'lines.*.quantity' => ['required', 'string', 'regex:'.self::QTY],
                 ...$this->trackingRules(), ...$this->versionRules(true),
             ],
-            default => [...$this->headerRules($patch, $form), ...$this->lineRules($patch, $form, $max), ...($form === 'preview' ? [] : $this->versionRules($patch))],
+            default => [...$this->idRules($patch, $form), ...$this->headerRules($patch, $form), ...$this->lineRules($patch, $form, $max), ...($form === 'preview' ? [] : $this->versionRules($patch))],
         };
+    }
+
+    /**
+     * Client key of a new quote or order draft: canonical UUIDv7, unused in every company
+     * (the key is global, so the check is not company scoped).
+     *
+     * @return array<string, list<mixed>>
+     */
+    private function idRules(bool $patch, string $form): array
+    {
+        $model = $this->route()?->defaults['model'] ?? null;
+
+        if ($patch || ! in_array($form, ['quote', 'order'], true) || ! is_string($model) || ! is_subclass_of($model, SalesDocument::class)) {
+            // Not validated, so never part of validated(): edits and other forms ignore an id.
+            return [];
+        }
+
+        return ['id' => ['sometimes', 'string', new Uuid7, Rule::unique((new $model)->getTable(), 'id')]];
     }
 
     /**

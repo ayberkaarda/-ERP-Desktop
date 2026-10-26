@@ -50,13 +50,20 @@ function fixtureMutation(array $overrides = []): Mutation
 }
 
 it('registers the fixture adapters under the core tags', function (): void {
-    $resources = iterator_to_array(app()->tagged(SyncResource::TAG));
-    $writers = iterator_to_array(app()->tagged(SyncWriter::TAG));
+    // Module adapters share the tags, so only the fixture adapters are counted.
+    $resources = array_values(array_filter(
+        iterator_to_array(app()->tagged(SyncResource::TAG), false),
+        fn (SyncResource $resource): bool => $resource instanceof FixtureNoteSyncResource,
+    ));
+    $writers = array_values(array_filter(
+        iterator_to_array(app()->tagged(SyncWriter::TAG), false),
+        fn (SyncWriter $writer): bool => $writer instanceof FixtureNoteSyncWriter,
+    ));
 
     expect($resources)->toHaveCount(1)
-        ->and($resources[0])->toBeInstanceOf(FixtureNoteSyncResource::class)
-        ->and($writers[0])->toBeInstanceOf(FixtureNoteSyncWriter::class)
-        ->and($writers[0]->resource())->toBe($resources[0]->name());
+        ->and($writers)->toHaveCount(1)
+        ->and($writers[0]->resource())->toBe($resources[0]->name())
+        ->and($resources[0]->name())->toBe(FixtureNoteSyncResource::NAME);
 });
 
 it('creates with the client id, updates, closes and deletes through the writer', function (): void {

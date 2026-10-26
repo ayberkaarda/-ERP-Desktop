@@ -52,7 +52,7 @@ class StockDocument extends InventoryModel
 
     public const string MORPH = 'stock_document';
 
-    public const array FIELDS = ['doc_type', 'number', 'status', 'document_date', 'warehouse_id', 'target_warehouse_id', 'reason', 'notes', 'offset_event', 'journal_entry_id', 'reversal_reason', 'reversal_journal_entry_id'];
+    public const array FIELDS = ['doc_type', 'number', 'status', 'document_date', 'warehouse_id', 'target_warehouse_id', 'reason', 'notes', 'offset_event', 'journal_entry_id', 'reversal_reason', 'reversal_journal_entry_id', 'version'];
 
     /** @var list<string> */
     protected $fillable = ['doc_type', 'document_date', 'warehouse_id', 'target_warehouse_id', 'reason', 'notes', 'offset_event', 'allow_expired'];

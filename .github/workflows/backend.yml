@@ -65,6 +65,9 @@ jobs:
       - name: PHPStan
         working-directory: backend
         run: composer analyse
+      - name: Check offline manifest routes
+        working-directory: backend
+        run: php scripts/check-offline-manifest.php
       - name: Pest
         working-directory: backend
         run: composer test

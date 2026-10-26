@@ -16,8 +16,11 @@ use App\Modules\Sales\Support\Messages;
 use App\Modules\Sales\Support\Sales;
 use BackedEnum;
 use Brick\Math\RoundingMode;
+use Closure;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\QueryException;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Shared steps of the document services: row locks, status guards, draft edits and line inputs.
@@ -65,10 +68,58 @@ abstract class DocumentService
         throw new InvalidStateTransition($status, $to);
     }
 
+    /**
+     * Row lock for a draft edit or delete: a document that left draft is DOCUMENT_LOCKED whatever
+     * version the caller holds (a stale client must learn the document is locked, not that it is
+     * stale); the version is checked after that.
+     *
+     * @template T of SalesDocument
+     *
+     * @param  T  $doc
+     * @return T
+     */
+    protected function lockDraft(SalesDocument $doc, ?int $version): SalesDocument
+    {
+        $locked = $this->lock($doc);
+        $this->assertDraft($locked);
+
+        if ($version !== null) {
+            $locked->assertVersion($version);
+        }
+
+        return $locked;
+    }
+
+    /**
+     * Creates a draft under a client key. The request's unique rule cannot see a concurrent
+     * create of the same key; the losing INSERT hits the primary key, and once the transaction
+     * (or savepoint) is rolled back that becomes the validation error the rule would have given.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $create
+     * @return T
+     *
+     * @throws ValidationException
+     */
+    protected function createKeyed(string $table, ?string $id, Closure $create): mixed
+    {
+        try {
+            return Sales::transaction($create);
+        } catch (QueryException $e) {
+            if ($id !== null && ($e->errorInfo[0] ?? null) === '23505' && str_contains($e->getMessage(), "\"{$table}_pkey\"")) {
+                throw ValidationException::withMessages(['id' => [(string) __('validation.unique', ['attribute' => 'id'])]]);
+            }
+
+            throw $e;
+        }
+    }
+
+    /** Edits and deletes are for drafts only; any other status is locked (409 DOCUMENT_LOCKED, REST and sync alike). */
     protected function assertDraft(SalesDocument $doc): void
     {
         if ($doc->currentStatus() !== 'draft') {
-            throw new ApiException(ErrorCode::InvalidStateTransition, Messages::get('document_not_editable'));
+            throw new ApiException(ErrorCode::DocumentLocked, Messages::get('document_not_editable'));
         }
     }
 
@@ -257,6 +308,16 @@ abstract class DocumentService
     protected static function causer(?Authenticatable $actor): ?Model
     {
         return $actor instanceof Model ? $actor : null;
+    }
+
+    /**
+     * Client key of a new draft (validated by DocumentRequest), or null to generate one.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected static function clientId(array $data): ?string
+    {
+        return is_string($data['id'] ?? null) ? $data['id'] : null;
     }
 
     protected static function actorId(?Authenticatable $actor): ?string

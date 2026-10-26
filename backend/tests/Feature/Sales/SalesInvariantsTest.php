@@ -104,7 +104,7 @@ it('requires positive line quantities and unique numbers per document type', fun
 
 it('turns trigger violations into 422 for the application', function (): void {
     SalesKit::patch($this->w->user, $this->w->company, "sales-invoices/{$this->invoice['id']}", ['version' => $this->invoice['version'], 'notes' => 'x'])
-        ->assertStatus(422)->assertJsonPath('errors.code', 'INVALID_STATE_TRANSITION');
+        ->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
 
     $e = null;
     try {

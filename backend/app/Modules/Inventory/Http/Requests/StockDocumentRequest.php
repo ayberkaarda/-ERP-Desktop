@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Http\Requests;
 
+use App\Core\Sync\Rules\Uuid7;
 use App\Modules\Inventory\Enums\DocumentType;
 use App\Modules\Inventory\Models\StockDocument;
 use App\Modules\Inventory\Services\Ledger\StockLedger;
@@ -13,7 +14,9 @@ use Illuminate\Validation\Rule;
  * Draft create/update. Quantities and costs are decimal strings; stock rules (availability, lots,
  * serials, expiry) are checked when the document is posted. Count documents take a snapshot of the
  * warehouse when created (freeze, default true; item_ids narrows it) and their counted quantities
- * change through PATCH /stock-documents/{id}/counts.
+ * change through PATCH /stock-documents/{id}/counts. A create may carry the
+ * document's own `id` (lowercase UUIDv7), which is how offline drafts keep the key the client chose;
+ * an update ignores it.
  */
 final class StockDocumentRequest extends InventoryRequest
 {
@@ -28,6 +31,7 @@ final class StockDocumentRequest extends InventoryRequest
         $qty = ['sometimes', 'nullable', 'string', 'regex:'.self::QTY];
 
         return [
+            ...($this->creating() ? ['id' => ['sometimes', 'string', new Uuid7, Rule::unique('stock_documents', 'id')]] : []),
             'doc_type' => [$this->required(), Rule::in(DocumentType::values())],
             'document_date' => [$this->required(), 'date_format:Y-m-d'],
             'warehouse_id' => [$this->required(), 'uuid'],

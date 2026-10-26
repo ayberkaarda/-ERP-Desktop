@@ -220,7 +220,7 @@ it('updates with optimistic locking and validates against the stored state', fun
     Event::assertDispatchedTimes(PartyUpdated::class, 2);
 
     $log = Activity::withoutCompanyScope()->where('subject_id', $party['id'])->where('event', 'updated')->oldest('id')->firstOrFail();
-    expect($log->attribute_changes?->get('old'))->toBe(['name' => 'Acme Teknoloji']);
+    expect($log->attribute_changes?->get('old'))->toBe(['name' => 'Acme Teknoloji', 'version' => 1]);
 });
 
 it('lists with search, role and status filters inside the active company only', function (): void {

@@ -55,8 +55,8 @@ it('creates, edits and posts a receipt draft with unit conversion and a gapless 
     Event::assertDispatched(StockPosted::class);
 
     // Posted documents are immutable through the API too.
-    Inv::as($this->user, $this->company)->patchJson("/api/v1/stock-documents/{$draft['id']}", ['version' => $posted['version'], 'reason' => 'x'])->assertStatus(422);
-    Inv::as($this->user, $this->company)->deleteJson("/api/v1/stock-documents/{$draft['id']}")->assertStatus(422);
+    Inv::as($this->user, $this->company)->patchJson("/api/v1/stock-documents/{$draft['id']}", ['version' => $posted['version'], 'reason' => 'x'])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    Inv::as($this->user, $this->company)->deleteJson("/api/v1/stock-documents/{$draft['id']}")->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
 
     $second = Inv::receive($this->company, $this->wh->id, $this->item, '1', '1');
     expect($second->number)->toBe('REC2027000000002');
