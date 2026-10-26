@@ -4,6 +4,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::PoisonError;
 
 use serde_json::Value;
+use uuid::Uuid;
 
 use super::{
     MAX_IDLE_PAGES, MAX_PULL_REQUESTS, MAX_PUSH_BATCHES, MAX_SERVER_RESETS, MAX_STALE_PAGES,
@@ -36,6 +37,11 @@ impl<A: SyncApi> SyncEngine<A> {
         // Runs are serialized: anything still in flight was cut off by a
         // crash or a dropped run, not sent by a concurrent one.
         self.outbox.requeue_in_flight()?;
+        // Finish a sign-out whose cleanup failed.
+        if local::session(&self.store)?.wipe_pending {
+            let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+            self.wipe()?;
+        }
         let manifest = self.api.manifest_in(generation).await?.data;
         self.apply_session(&manifest, generation, report)?;
         // A push answer with invalid rows stops pushing for this run but
@@ -178,19 +184,40 @@ impl<A: SyncApi> SyncEngine<A> {
                 return Err(error);
             }
             self.hook(super::Hook::CommitChecked);
-            // A result whose row lies outside the request is not applied; its
-            // mutation counts an attempt (quarantine after the limit, then the
-            // user decides) while the valid results of the batch settle.
+            // The whole answer is checked before anything is written. A result
+            // that breaks the protocol (row outside the request, repeated key,
+            // other target, missing conflict or rejection body) is not
+            // applied; its mutation counts an attempt (quarantine after the
+            // limit, then the user decides) while the valid results settle.
             let company = manifest.company_id.to_string();
+            let mut seen: HashMap<Uuid, usize> = HashMap::new();
+            for result in results {
+                *seen.entry(result.idempotency_key).or_default() += 1;
+            }
             let mut invalid: Option<SyncError> = None;
-            let mut bad = Vec::new();
+            let mut bad: Vec<Uuid> = Vec::new();
             let mut valid = Vec::with_capacity(results.len());
             for result in results {
-                if let Err(error) = check_push_result(&request, result, manifest, &company) {
-                    bad.push(result.idempotency_key);
-                    invalid.get_or_insert(error);
+                let key = result.idempotency_key;
+                let sent = request.mutations.iter().any(|m| m.idempotency_key == key);
+                let check = if !sent {
+                    Err(invalid_answer(
+                        "a push result answers a mutation that was not sent",
+                    ))
+                } else if seen.get(&key).copied().unwrap_or(0) > 1 {
+                    Err(invalid_answer("the push answer repeats a result key"))
                 } else {
-                    valid.push(result.clone());
+                    check_push_result(&request, result, manifest, &company)
+                };
+                match check {
+                    Ok(()) => valid.push(result.clone()),
+                    Err(error) => {
+                        // An unknown key has no mutation to charge.
+                        if sent && !bad.contains(&key) {
+                            bad.push(key);
+                        }
+                        invalid.get_or_insert(error);
+                    }
                 }
             }
             let results = &valid;
@@ -447,11 +474,27 @@ fn check_push_result(
     manifest: &Manifest,
     company: &str,
 ) -> Result<()> {
+    if !was_sent(request, result) {
+        return Err(invalid_answer(
+            "a push result targets another row than its mutation",
+        ));
+    }
+    match result.status {
+        PushStatus::Conflict if result.conflict.is_none() => {
+            return Err(invalid_answer(
+                "a conflict result without its conflict body",
+            ));
+        }
+        PushStatus::Rejected if result.error.is_none() => {
+            return Err(invalid_answer("a rejected result without its error body"));
+        }
+        _ => {}
+    }
     {
         let Some(Some(row)) = &result.data else {
             return Ok(());
         };
-        if !is_settled(result) || !was_sent(request, result) {
+        if !is_settled(result) {
             return Ok(());
         }
         if row.id != result.id {

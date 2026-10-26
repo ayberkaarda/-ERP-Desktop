@@ -18,7 +18,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, RwLock, RwLockReadGuard, Weak};
 
-use super::{StoredTokens, TokenStore};
+use super::{StoredTokens, TokenStore, TokenWrite};
 use crate::error::Result;
 
 type Registry = Mutex<HashMap<(String, String), Weak<Session>>>;
@@ -73,15 +73,23 @@ impl Session {
         self.gate.lock().await
     }
 
-    /// Successful sign-in of this profile: [`TokenStore::sign_in`] under the
-    /// sign-in gate. Never call it while holding [`Session::hold`] on the
-    /// same thread.
-    pub fn sign_in<T: TokenStore + ?Sized>(&self, store: &T, tokens: &StoredTokens) -> Result<u64> {
+    /// Successful sign-in of this profile, the only way to start a new
+    /// generation: [`TokenStore::sign_in`] under the session lock (so a
+    /// refresh or sign-out in flight finishes first and cannot write over
+    /// it) and then the sign-in gate (so no guarded engine section is
+    /// between its check and its work). Never call it while holding
+    /// [`Session::hold`] or [`Session::lock`].
+    pub async fn sign_in<T: TokenStore + ?Sized>(
+        &self,
+        store: &T,
+        tokens: &StoredTokens,
+    ) -> Result<u64> {
+        let _tokens = self.gate.lock().await;
         let _gate = self
             .sign_ins
             .write()
             .unwrap_or_else(PoisonError::into_inner);
-        store.sign_in(&self.profile, tokens)
+        store.sign_in(&TokenWrite::new(), &self.profile, tokens)
     }
 
     /// While the guard lives, no [`Session::sign_in`] of this profile

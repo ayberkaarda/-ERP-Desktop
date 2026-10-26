@@ -279,3 +279,78 @@ async fn a_follow_up_promised_to_a_coalesced_caller_survives_cancellation() {
         "the promised follow-up run was dropped with the cancelled run"
     );
 }
+
+#[tokio::test]
+async fn unreadable_push_answers_end_in_quarantine() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    mount_empty_pull(&env.server).await;
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        // Applied on the server, but the answer cannot be read.
+        .respond_with(ResponseTemplate::new(200).set_body_string("{\"data\": {\"resu"))
+        .mount(&env.server)
+        .await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    env.engine
+        .enqueue(draft(
+            MutationOp::Create,
+            "parties",
+            Uuid::now_v7(),
+            json!({"name": "X"}),
+        ))
+        .unwrap();
+    for _ in 0..5 {
+        let error = env.engine.run_once(Trigger::Manual).await.unwrap_err();
+        assert_eq!(error.code(), "DECODE_ERROR");
+    }
+    assert_eq!(outbox_list(&env.store)[0].state, OutboxState::Quarantined);
+    env.engine.run_once(Trigger::Manual).await.unwrap();
+    assert_eq!(hits(&env.server, PUSH).await, 5);
+}
+
+#[tokio::test]
+async fn a_follow_up_survives_cancellation_of_the_follow_up_run() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    let pulls = Arc::new(AtomicUsize::new(0));
+    Mock::given(method("POST"))
+        .and(path(PULL))
+        .respond_with(move |request: &Request| {
+            // The first run's pull is slow, the follow-up's slower.
+            let delay = if pulls.fetch_add(1, Ordering::SeqCst) == 0 {
+                600
+            } else {
+                5000
+            };
+            empty_pull(request).set_delay(Duration::from_millis(delay))
+        })
+        .mount(&env.server)
+        .await;
+    let mut running = Box::pin(env.engine.run_once(Trigger::Manual));
+    tokio::select! {
+        _ = &mut running => panic!("the pull answers late"),
+        () = tokio::time::sleep(Duration::from_millis(200)) => {}
+    }
+    let second = env.engine.run_once(Trigger::Manual).await.unwrap();
+    assert!(second.coalesced);
+    // Drive the run into its follow-up pass, then cancel it there.
+    let server = &env.server;
+    let in_follow_up = async {
+        while hits(server, PULL).await < 2 {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    };
+    tokio::select! {
+        _ = &mut running => panic!("the follow-up pull answers late"),
+        () = in_follow_up => {}
+    }
+    drop(running);
+
+    let requested =
+        tokio::time::timeout(Duration::from_secs(2), env.engine.follow_up_requested()).await;
+    assert!(
+        requested.is_ok(),
+        "the follow-up owed to the coalesced caller was lost"
+    );
+}

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use engine_support::*;
-use keystone_sync::auth::{MemoryTokenStore, SessionRecord, StoredTokens, TokenStore};
+use keystone_sync::auth::{MemoryTokenStore, SessionRecord, StoredTokens, TokenStore, TokenWrite};
 use keystone_sync::engine::{SignOut, Trigger};
 use keystone_sync::outbox::OutboxState;
 use keystone_sync::store::{ListQuery, MirrorStore};
@@ -77,7 +77,7 @@ async fn a_run_never_sends_with_the_tokens_of_a_later_sign_in() {
                 0 => USER_A,
                 1 => {
                     // User B signs in while A's manifest answer is on its way.
-                    tokens.sign_in(PROFILE, &self::tokens(2)).unwrap();
+                    sign_in_blocking(tokens.clone(), 2);
                     USER_A
                 }
                 _ => USER_B,
@@ -127,7 +127,7 @@ async fn a_late_push_answer_after_a_new_sign_in_is_not_committed() {
     Mock::given(method("POST"))
         .and(path(PUSH))
         .respond_with(move |request: &Request| {
-            tokens.sign_in(PROFILE, &self::tokens(2)).unwrap();
+            sign_in_blocking(tokens.clone(), 2);
             apply_all(request)
         })
         .mount(&env.server)
@@ -170,7 +170,7 @@ async fn local_reads_and_writes_close_until_the_new_sign_in_is_verified() {
         2
     );
 
-    env.tokens.sign_in(PROFILE, &tokens(2)).unwrap();
+    sign_in_as(env.tokens.as_ref(), 2).await;
     assert!(env.engine.list(&parties, &ListQuery::default()).is_err());
     assert!(env.engine.get(&parties, draft_id).is_err());
     assert!(
@@ -199,8 +199,9 @@ async fn local_reads_and_writes_close_until_the_new_sign_in_is_verified() {
 /// check and its wipe.
 #[derive(Debug, Default)]
 struct SignInAfterDeactivated {
-    inner: MemoryTokenStore,
-    next: Mutex<Option<StoredTokens>>,
+    inner: Arc<MemoryTokenStore>,
+    /// `tokens(n)` to sign in.
+    next: Mutex<Option<u8>>,
 }
 
 impl TokenStore for SignInAfterDeactivated {
@@ -211,8 +212,9 @@ impl TokenStore for SignInAfterDeactivated {
         let record = self.inner.load_record(profile)?;
         if record.deactivated {
             let next = self.next.lock().unwrap().take();
-            if let Some(tokens) = next {
-                self.inner.sign_in(profile, &tokens)?;
+            if let Some(n) = next {
+                // Through the session, as any sign-in; done before returning.
+                sign_in_blocking(self.inner.clone(), n);
             }
         }
         Ok(record)
@@ -220,20 +222,39 @@ impl TokenStore for SignInAfterDeactivated {
     fn load(&self, profile: &str) -> keystone_sync::error::Result<Option<StoredTokens>> {
         self.inner.load(profile)
     }
-    fn save(&self, profile: &str, tokens: &StoredTokens) -> keystone_sync::error::Result<()> {
-        self.inner.save(profile, tokens)
+    fn save(
+        &self,
+        w: &TokenWrite,
+        profile: &str,
+        tokens: &StoredTokens,
+    ) -> keystone_sync::error::Result<()> {
+        self.inner.save(w, profile, tokens)
     }
-    fn clear(&self, profile: &str) -> keystone_sync::error::Result<()> {
-        self.inner.clear(profile)
+    fn clear(&self, w: &TokenWrite, profile: &str) -> keystone_sync::error::Result<()> {
+        self.inner.clear(w, profile)
     }
-    fn take(&self, profile: &str) -> keystone_sync::error::Result<Option<StoredTokens>> {
-        self.inner.take(profile)
+    fn take(
+        &self,
+        w: &TokenWrite,
+        profile: &str,
+    ) -> keystone_sync::error::Result<Option<StoredTokens>> {
+        self.inner.take(w, profile)
     }
-    fn sign_in(&self, profile: &str, tokens: &StoredTokens) -> keystone_sync::error::Result<u64> {
-        self.inner.sign_in(profile, tokens)
+    fn sign_in(
+        &self,
+        w: &TokenWrite,
+        profile: &str,
+        tokens: &StoredTokens,
+    ) -> keystone_sync::error::Result<u64> {
+        self.inner.sign_in(w, profile, tokens)
     }
-    fn deactivate(&self, profile: &str, expected: u64) -> keystone_sync::error::Result<bool> {
-        self.inner.deactivate(profile, expected)
+    fn deactivate(
+        &self,
+        w: &TokenWrite,
+        profile: &str,
+        expected: u64,
+    ) -> keystone_sync::error::Result<bool> {
+        self.inner.deactivate(w, profile, expected)
     }
 }
 
@@ -262,7 +283,7 @@ async fn a_deactivation_wipe_keeps_a_sign_in_that_happened_after_the_check() {
     mount_empty_pull(&env.server).await;
     env.engine.run_once(Trigger::Startup).await.unwrap();
     put_row(&env.store, "parties", P1, json!({"name": "A Ltd"}));
-    *store.next.lock().unwrap() = Some(tokens(2));
+    *store.next.lock().unwrap() = Some(2);
 
     let _ = env.engine.run_once(Trigger::Timer).await;
     let record = store.inner.load_record(PROFILE).unwrap();
@@ -304,7 +325,7 @@ async fn a_draft_queued_after_sign_out_never_reaches_the_next_user() {
         "nothing may be queued without a verified sign-in"
     );
 
-    env.tokens.sign_in(PROFILE, &tokens(2)).unwrap();
+    sign_in_as(env.tokens.as_ref(), 2).await;
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert_eq!(hits(&env.server, PUSH).await, 0);
     assert!(outbox_list(&env.store).is_empty());

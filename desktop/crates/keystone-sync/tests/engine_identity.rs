@@ -109,7 +109,7 @@ async fn unauthenticated_keeps_the_outbox_and_the_same_user_continues() {
     assert_eq!(env.engine.status().pending, 1);
 
     // The same user signs in again: the queued draft goes out.
-    env.tokens.sign_in(PROFILE, &tokens(2)).unwrap();
+    sign_in_as(env.tokens.as_ref(), 2).await;
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert_eq!(hits(&env.server, PUSH).await, 1);
     let status = env.engine.status();
@@ -153,7 +153,7 @@ async fn another_user_signing_in_wipes_local_data_before_pushing() {
     seed(&env).await;
     assert_eq!(env.engine.status().pending, 1);
 
-    env.tokens.sign_in(PROFILE, &tokens(3)).unwrap();
+    sign_in_as(env.tokens.as_ref(), 3).await;
     let report = env.engine.run_once(Trigger::Manual).await.unwrap();
     assert!(report.changed.contains(&name("parties")));
     assert_eq!(
@@ -246,7 +246,7 @@ async fn a_stale_deactivation_deletes_nothing() {
     let engine = env.engine.clone();
     let run = tokio::spawn(async move { engine.run_once(Trigger::Timer).await });
     tokio::time::sleep(Duration::from_millis(200)).await;
-    let generation = env.tokens.sign_in(PROFILE, &tokens(4)).unwrap();
+    let generation = sign_in_as(env.tokens.as_ref(), 4).await;
     // The stale 403 changed nothing; the run cut short by the sign-in is
     // followed by one under the new sign-in.
     let error = run.await.unwrap().unwrap_err();

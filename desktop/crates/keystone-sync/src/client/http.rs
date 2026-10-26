@@ -35,7 +35,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use zeroize::Zeroizing;
 
-use crate::auth::{Secret, Session, SessionRecord, StoredTokens, TokenStore};
+use crate::auth::{Secret, Session, SessionRecord, StoredTokens, TokenStore, TokenWrite};
 use crate::error::{Result, SyncError};
 use crate::wire::{
     ApiError, DeviceLoginRequest, DeviceRefreshRequest, DeviceTokenResponse, ErrorCode,
@@ -261,7 +261,10 @@ impl<T: TokenStore> HttpClient<T> {
             other => return other,
         };
         let _gate = self.session.lock().await;
-        match self.store().deactivate(self.profile(), generation) {
+        match self
+            .store()
+            .deactivate(&TokenWrite::new(), self.profile(), generation)
+        {
             Ok(_) => Err(error),
             Err(store) => Err(SyncError::TokenStore(format!(
                 "recording USER_DEACTIVATED failed: {store}"
@@ -285,7 +288,7 @@ impl<T: TokenStore> HttpClient<T> {
         }
         let taken = self
             .store()
-            .take(self.profile())?
+            .take(&TokenWrite::new(), self.profile())?
             .ok_or_else(|| sign_in_required("not signed in"))?;
         let response = self.rotate_locked(taken).await?;
         // A refresh keeps the generation; the lock rules out a sign-in.
@@ -307,7 +310,8 @@ impl<T: TokenStore> HttpClient<T> {
         let raw = match send(&self.http, Method::POST, url, Some(body), None, None).await {
             Ok(raw) => raw,
             Err(Transport::NotSent(e)) => {
-                self.store().save(self.profile(), &taken)?;
+                self.store()
+                    .save(&TokenWrite::new(), self.profile(), &taken)?;
                 return Err(SyncError::NotSent(e.to_string()));
             }
             Err(Transport::Lost(_)) => {
@@ -338,8 +342,11 @@ impl<T: TokenStore> HttpClient<T> {
         let response = decode_token(&raw).map_err(|_| {
             sign_in_required("refresh answer unreadable; the refresh token is spent, sign in again")
         })?;
-        self.store()
-            .save(self.profile(), &StoredTokens::from(response.data.clone()))?;
+        self.store().save(
+            &TokenWrite::new(),
+            self.profile(),
+            &StoredTokens::from(response.data.clone()),
+        )?;
         Ok(response)
     }
 }
@@ -393,9 +400,10 @@ impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
                 return decode(&raw).map_err(SyncError::redacted);
             }
             let response = decode_token(&raw)?;
-            let _gate = self.session.lock().await;
+            // Session lock, then the sign-in gate, inside.
             self.session
-                .sign_in(self.store(), &StoredTokens::from(response.data.clone()))?;
+                .sign_in(self.store(), &StoredTokens::from(response.data.clone()))
+                .await?;
             Ok(response)
         }
         .await;
@@ -421,7 +429,7 @@ impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
                     "refresh token is not the current one; it was not sent",
                 ))
             } else {
-                match self.store().take(self.profile())? {
+                match self.store().take(&TokenWrite::new(), self.profile())? {
                     Some(taken) => self.rotate_locked(taken).await,
                     None => Err(sign_in_required("not signed in")),
                 }

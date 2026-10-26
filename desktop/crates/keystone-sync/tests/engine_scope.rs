@@ -280,3 +280,108 @@ async fn one_bad_push_row_neither_blocks_its_batch_nor_the_pull() {
     assert_eq!(env.engine.status().quarantined, 1);
     env.engine.run_once(Trigger::Manual).await.unwrap();
 }
+
+/// Batch of two creates (`first`, `second`), answered by `answer`.
+async fn two_in_one_batch(
+    answer: impl Fn(&[Value]) -> Vec<Value> + Send + Sync + 'static,
+) -> (Env, Uuid, Uuid) {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    mount_empty_pull(&env.server).await;
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .respond_with(move |request: &Request| {
+            let mutations = body(request)["mutations"].as_array().cloned().unwrap();
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"data": {"results": answer(&mutations)}, "meta": {}}))
+        })
+        .mount(&env.server)
+        .await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    let (first, second) = (Uuid::now_v7(), Uuid::now_v7());
+    for id in [first, second] {
+        env.engine
+            .enqueue(draft(
+                MutationOp::Create,
+                "parties",
+                id,
+                json!({"name": "X"}),
+            ))
+            .unwrap();
+    }
+    (env, first, second)
+}
+
+fn applied(m: &Value) -> Value {
+    json!({"idempotency_key": m["idempotency_key"], "resource": m["resource"],
+           "id": m["id"], "status": "applied", "replayed": false, "version": 1,
+           "data": row(m["id"].as_str().unwrap(), 1, m["payload"].clone())})
+}
+
+/// After one run: the valid result settled, the broken one counted one
+/// attempt, the pull ran; after the limit the broken one is quarantined.
+async fn assert_budgeted(env: &Env, settled: Uuid, broken: Uuid) {
+    let pulls = hits(&env.server, "/api/v1/sync/pull").await;
+    let error = env.engine.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "DECODE_ERROR");
+    assert!(
+        env.store
+            .get_row(&name("parties"), settled)
+            .unwrap()
+            .is_some()
+    );
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries.len(), 1, "{entries:?}");
+    assert_eq!((entries[0].mutation.id, entries[0].attempts), (broken, 1));
+    assert!(
+        hits(&env.server, "/api/v1/sync/pull").await > pulls,
+        "the pull still runs"
+    );
+    for _ in 1..5 {
+        let _ = env.engine.run_once(Trigger::Manual).await;
+    }
+    assert_eq!(outbox_list(&env.store)[0].state, OutboxState::Quarantined);
+}
+
+#[tokio::test]
+async fn a_conflict_answer_without_its_body_does_not_hold_the_batch() {
+    // The last mutation of every batch gets a conflict without its body.
+    let (env, first, second) = two_in_one_batch(|mutations| {
+        let last = mutations.len() - 1;
+        mutations
+            .iter()
+            .enumerate()
+            .map(|(n, m)| {
+                if n < last {
+                    applied(m)
+                } else {
+                    json!({"idempotency_key": m["idempotency_key"], "resource": m["resource"],
+                           "id": m["id"], "status": "conflict", "replayed": false})
+                }
+            })
+            .collect()
+    })
+    .await;
+    assert_budgeted(&env, first, second).await;
+}
+
+#[tokio::test]
+async fn a_duplicate_result_key_does_not_hold_the_batch() {
+    // The last mutation of every batch is answered twice.
+    let (env, first, second) = two_in_one_batch(|mutations| {
+        let mut results: Vec<Value> = mutations.iter().map(applied).collect();
+        if let Some(last) = mutations.last() {
+            results.push(applied(last));
+        }
+        results
+    })
+    .await;
+    assert_budgeted(&env, first, second).await;
+    assert!(
+        env.store
+            .get_row(&name("parties"), second)
+            .unwrap()
+            .is_none(),
+        "nothing of a protocol-broken result reaches the mirror"
+    );
+}

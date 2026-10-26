@@ -62,7 +62,7 @@ pub async fn env_on<T: TokenStore + 'static>(
     let dir = tempfile::tempdir().expect("tempdir");
     let store =
         Arc::new(Store::open(dir.path().join("engine.db"), &DbKey::from_bytes([42; 32])).unwrap());
-    tokens.sign_in(PROFILE, &self::tokens(1)).unwrap();
+    sign_in_as(tokens.as_ref(), 1).await;
     let client = HttpClient::new(
         &ApiConfig {
             base_url: server.uri(),
@@ -335,4 +335,25 @@ pub fn outbox_list(store: &Arc<Store>) -> Vec<keystone_sync::outbox::OutboxEntry
 /// Conflict Inbox straight on the store.
 pub fn inbox(store: &Arc<Store>) -> keystone_sync::conflicts::ConflictStore {
     keystone_sync::conflicts::ConflictStore::new(store.clone())
+}
+
+/// Signs `tokens(n)` in through the session (the only way in).
+pub async fn sign_in_as<T: TokenStore + ?Sized>(store: &T, n: u8) -> u64 {
+    keystone_sync::auth::Session::shared(PROFILE, store)
+        .sign_in(store, &tokens(n))
+        .await
+        .expect("sign in")
+}
+
+/// Same from synchronous code (a wiremock responder): on its own thread
+/// and runtime, waiting for it.
+pub fn sign_in_blocking<T: TokenStore + 'static>(store: Arc<T>, n: u8) -> u64 {
+    std::thread::spawn(move || {
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("runtime")
+            .block_on(sign_in_as(store.as_ref(), n))
+    })
+    .join()
+    .expect("sign-in thread")
 }

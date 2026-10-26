@@ -16,6 +16,9 @@ use crate::wire::{ResourceName, ResourceRow};
 const IDENTITY: &str = "identity";
 const GENERATION: &str = "generation";
 const RESOURCES: &str = "resources";
+/// Set while a sign-out has revoked (or is revoking) the tokens and the
+/// local data still has to go; access stays closed meanwhile.
+const WIPE_PENDING: &str = "wipe_pending";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct Counts {
@@ -144,6 +147,8 @@ pub(super) struct LocalSession {
     /// Sign-in generation of that manifest.
     pub generation: Option<u64>,
     pub resources: Vec<ResourceName>,
+    /// A sign-out still has to remove the local data.
+    pub wipe_pending: bool,
 }
 
 pub(super) fn session(store: &Store) -> Result<LocalSession> {
@@ -163,6 +168,7 @@ pub(super) fn session(store: &Store) -> Result<LocalSession> {
             identity: get(IDENTITY)?,
             generation: get(GENERATION)?.and_then(|g| g.parse().ok()),
             resources,
+            wipe_pending: get(WIPE_PENDING)?.is_some(),
         })
     })
 }
@@ -199,5 +205,21 @@ pub(super) fn drop_bases(store: &Store, resource: &ResourceName) -> Result<usize
             "DELETE FROM engine_draft_bases WHERE resource = ?1",
             [resource.as_str()],
         )?)
+    })
+}
+
+/// Sets or clears the sign-out cleanup mark (a wipe removes it too).
+pub(super) fn set_wipe_pending(store: &Store, pending: bool) -> Result<()> {
+    store.write(|tx| {
+        if pending {
+            tx.execute(
+                "INSERT INTO engine_meta (key, value) VALUES (?1, '1')
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                [WIPE_PENDING],
+            )?;
+        } else {
+            tx.execute("DELETE FROM engine_meta WHERE key = ?1", [WIPE_PENDING])?;
+        }
+        Ok(())
     })
 }

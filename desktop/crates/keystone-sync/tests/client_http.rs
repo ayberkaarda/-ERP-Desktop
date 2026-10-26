@@ -136,9 +136,7 @@ fn client_with(
 }
 
 fn signed_in(n: u8) -> Arc<MemoryTokenStore> {
-    let store = Arc::new(MemoryTokenStore::default());
-    store.save(PROFILE, &tokens(n)).expect("save");
-    store
+    Arc::new(MemoryTokenStore::signed_in(PROFILE, &tokens(n)))
 }
 
 async fn requests_to(server: &MockServer, endpoint: &str) -> Vec<Request> {

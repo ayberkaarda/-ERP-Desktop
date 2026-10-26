@@ -53,7 +53,7 @@ use serde_json::{Map, Value};
 use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 
-use crate::auth::{Session, TokenStore};
+use crate::auth::{Session, TokenStore, TokenWrite};
 use crate::backoff::Backoff;
 use crate::client::SyncApi;
 use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
@@ -211,6 +211,9 @@ struct Running<'a> {
     gate: &'a Mutex<Gate>,
     follow_up: &'a tokio::sync::Notify,
     armed: bool,
+    /// The pass in progress is a follow-up promised to a coalesced caller:
+    /// the debt stays until that pass completes.
+    owed: bool,
 }
 
 impl Drop for Running<'_> {
@@ -218,7 +221,7 @@ impl Drop for Running<'_> {
         if self.armed {
             let mut gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
             gate.running = false;
-            if std::mem::take(&mut gate.queued) {
+            if std::mem::take(&mut gate.queued) || self.owed {
                 self.follow_up.notify_one();
             }
         }
@@ -410,6 +413,7 @@ impl<A: SyncApi> SyncEngine<A> {
             gate: &self.gate,
             follow_up: &self.follow_up,
             armed: true,
+            owed: false,
         };
         let mut trigger = trigger;
         loop {
@@ -426,6 +430,8 @@ impl<A: SyncApi> SyncEngine<A> {
                     false
                 }
             };
+            // The pass just finished paid any earlier debt; a new one starts now.
+            running.owed = again;
             self.hook(Hook::GateDecided);
             if !again {
                 running.armed = false;
@@ -525,19 +531,33 @@ impl<A: SyncApi> SyncEngine<A> {
         let _work = self.work.lock().await;
         let _tokens = self.session.lock().await;
         let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+        // A sign-out whose cleanup failed earlier is only finished here.
+        let retry = local::session(&self.store)?.wipe_pending;
         let counts = local::counts(&self.store)?;
         self.hook(Hook::SignOutCounted);
         let outbox = counts.pending + counts.rejected + counts.quarantined + counts.in_conflict;
-        if !force && (outbox > 0 || counts.conflicts > 0) {
+        if !retry && !force && (outbox > 0 || counts.conflicts > 0) {
             return Ok(SignOut::PendingWork {
                 outbox,
                 conflicts: counts.conflicts,
             });
         }
+        // Access closes first; the tokens go next; local data last. A failed
+        // revoke changes nothing; a failed cleanup leaves the data closed
+        // and is retried by the next sign-out or run.
+        local::set_wipe_pending(&self.store, true)?;
+        if let Err(error) = self
+            .tokens
+            .sign_out(&TokenWrite::new(), &self.profile, generation)
+        {
+            if !retry {
+                let _ = local::set_wipe_pending(&self.store, false);
+            }
+            return Err(error);
+        }
         // The local data is the signing-out user's (a later sign-in is not
         // verified yet, so it has none).
         self.wipe()?;
-        self.tokens.sign_out(&self.profile, generation)?;
         self.set_state(SyncState::AuthRequired, None)?;
         Ok(SignOut::Done)
     }
@@ -695,7 +715,8 @@ impl<A: SyncApi> SyncEngine<A> {
         self.wipe()?;
         // Compare-and-set: tokens of a sign-in made after the mark was read
         // stay (the client already removed the deactivated ones).
-        self.tokens.deactivate(&self.profile, record.generation)?;
+        self.tokens
+            .deactivate(&TokenWrite::new(), &self.profile, record.generation)?;
         Ok(SyncState::AuthRequired)
     }
 
@@ -720,7 +741,10 @@ impl<A: SyncApi> SyncEngine<A> {
     fn check_verified(&self) -> Result<local::LocalSession> {
         let record = self.tokens.load_record(&self.profile)?;
         let session = local::session(&self.store)?;
-        if record.deactivated || session.generation != Some(record.generation) {
+        if record.deactivated
+            || session.wipe_pending
+            || session.generation != Some(record.generation)
+        {
             return Err(SyncError::OfflineUnavailable(
                 "local data is not verified for the current sign-in yet; sync first".to_owned(),
             ));
@@ -862,11 +886,14 @@ pub fn state_after_error(error: &SyncError) -> SyncState {
 /// Counts towards the outbox quarantine: the server answered with a
 /// failure that resending later is expected to fix, or the answer was lost
 /// (`Network`: the batch may have been applied; after the attempt limit
-/// the user decides instead of the batch holding the queue forever). A
-/// request that was never sent (`NotSent`) does not count.
+/// the user decides instead of the batch holding the queue forever), and so
+/// was an unreadable answer (`Decode`). A request that was never sent
+/// (`NotSent`) does not count.
 fn is_transient(error: &SyncError) -> bool {
     match error {
         SyncError::Network(_) => true,
+        // A 2xx answer that cannot be read: the batch may have been applied.
+        SyncError::Decode(_) => true,
         SyncError::Api { status, code, .. } => {
             *status >= 500 || *status == 429 || *code == ErrorCode::IdempotencyInProgress
         }

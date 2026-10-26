@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::{Hook, SignOut, SyncEngine, Trigger};
-use crate::auth::{MemoryTokenStore, Secret, Session, StoredTokens, TokenStore};
+use crate::auth::{MemoryTokenStore, Secret, Session, StoredTokens, TokenStore, TokenWrite};
 use crate::client::SyncApi;
 use crate::error::{Result, SyncError};
 use crate::outbox::{NewMutation, OutboxState};
@@ -140,8 +140,7 @@ fn fixture() -> Fixture {
     let dir = tempfile::tempdir().expect("tempdir");
     let store =
         Arc::new(Store::open(dir.path().join("unit.db"), &DbKey::from_bytes([7; 32])).unwrap());
-    let tokens = Arc::new(MemoryTokenStore::default());
-    tokens.sign_in(PROFILE, &self::tokens(1)).unwrap();
+    let tokens = Arc::new(MemoryTokenStore::signed_in(PROFILE, &self::tokens(1)));
     let dyn_tokens: Arc<dyn TokenStore> = tokens.clone();
     let engine = Arc::new(SyncEngine::new(
         FakeApi::default(),
@@ -266,7 +265,11 @@ impl SignInProbe {
         let (tx, rx) = mpsc::channel();
         let worker = std::thread::spawn(move || {
             let session = Session::shared(PROFILE, store.as_ref());
-            session.sign_in(store.as_ref(), &tokens(2)).unwrap();
+            tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap()
+                .block_on(session.sign_in(store.as_ref(), &tokens(2)))
+                .unwrap();
             let _ = tx.send(());
         });
         let landed = rx.recv_timeout(Duration::from_millis(300)).is_ok();
@@ -337,7 +340,11 @@ async fn sign_out_keeps_a_sign_in_made_while_it_runs() {
     let fired = AtomicBool::new(false);
     f.engine.set_hook(move |point| {
         if point == Hook::SignOutCounted && !fired.swap(true, Ordering::SeqCst) {
-            store.sign_in(PROFILE, &tokens(2)).unwrap();
+            // A write the session lock would keep out; made directly so the
+            // compare-and-set itself is what is tested.
+            store
+                .sign_in(&TokenWrite::new(), PROFILE, &tokens(2))
+                .unwrap();
         }
     });
 
