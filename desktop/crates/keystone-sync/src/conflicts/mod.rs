@@ -217,6 +217,14 @@ impl ConflictStore {
     }
 }
 
+/// Inside the caller's write transaction: removes every conflict record
+/// and reserved draft id (sign-out and account wipes). Returns the number
+/// of records removed.
+pub fn clear_on(tx: &Connection) -> Result<usize> {
+    tx.execute("DELETE FROM conflict_draft_resolutions", [])?;
+    Ok(tx.execute("DELETE FROM conflict_records", [])?)
+}
+
 pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &Mutation) -> Result<()> {
     let old: Option<String> = tx
         .query_row(

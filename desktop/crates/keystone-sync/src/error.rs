@@ -76,8 +76,14 @@ pub enum SyncError {
     },
     #[error("offline: {0}")]
     OfflineUnavailable(String),
+    /// The request may have reached the server (timeout, dropped
+    /// connection, unreadable answer): its outcome is unknown.
     #[error("network: {0}")]
     Network(String),
+    /// No connection was made (DNS, TCP or TLS handshake failed): the
+    /// request was certainly not sent. Same `NETWORK_ERROR` code.
+    #[error("network (not sent): {0}")]
+    NotSent(String),
     #[error("database key rejected")]
     StoreKeyInvalid,
     #[error("store: {0}")]
@@ -150,7 +156,7 @@ impl SyncError {
         let local = match self {
             Self::Api { code, .. } => return Code::Server(code.clone()),
             Self::OfflineUnavailable(_) => LocalCode::OfflineUnavailable,
-            Self::Network(_) => LocalCode::NetworkError,
+            Self::Network(_) | Self::NotSent(_) => LocalCode::NetworkError,
             Self::StoreKeyInvalid => LocalCode::StoreKeyInvalid,
             Self::Store(_) => LocalCode::StoreError,
             Self::Migration(_) => LocalCode::StoreMigrationInvalid,

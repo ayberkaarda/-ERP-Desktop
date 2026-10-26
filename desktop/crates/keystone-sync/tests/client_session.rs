@@ -6,7 +6,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use keystone_sync::auth::{MemoryTokenStore, Secret, SessionRecord, StoredTokens, TokenStore};
+use keystone_sync::auth::{
+    MemoryTokenStore, Secret, SessionRecord, StoredTokens, TokenStore, TokenWrite,
+};
 use keystone_sync::client::{
     ApiConfig, ClientOptions, DeviceAuthApi, HttpClient, ServerUrl, SyncApi,
 };
@@ -75,14 +77,12 @@ fn config(server: &MockServer) -> ApiConfig {
     }
 }
 
-fn client<T: TokenStore + 'static>(server: &MockServer, store: &Arc<T>) -> HttpClient<T> {
+fn client<T: TokenStore + 'static>(server: &MockServer, store: &Arc<T>) -> HttpClient {
     HttpClient::new(&config(server), PROFILE, Arc::clone(store), &options()).expect("client")
 }
 
 fn signed_in(n: u8) -> Arc<MemoryTokenStore> {
-    let store = Arc::new(MemoryTokenStore::default());
-    store.save(PROFILE, &tokens(n)).expect("save");
-    store
+    Arc::new(MemoryTokenStore::signed_in(PROFILE, &tokens(n)))
 }
 
 async fn count(server: &MockServer, endpoint: &str) -> usize {
@@ -345,7 +345,7 @@ async fn deactivation_on_login_and_meta_clears_tokens_until_next_login() {
     assert_eq!(meta_store.load(PROFILE).expect("load"), None);
 }
 
-fn client_for(server: &MockServer, store: &Arc<MemoryTokenStore>) -> HttpClient<MemoryTokenStore> {
+fn client_for(server: &MockServer, store: &Arc<MemoryTokenStore>) -> HttpClient {
     client(server, store)
 }
 
@@ -363,19 +363,24 @@ impl TokenStore for StuckStore {
     fn load(&self, profile: &str) -> Result<Option<StoredTokens>> {
         self.0.load(profile)
     }
-    fn save(&self, profile: &str, tokens: &StoredTokens) -> Result<()> {
-        self.0.save(profile, tokens)
+    fn save(&self, w: &TokenWrite, profile: &str, tokens: &StoredTokens) -> Result<()> {
+        self.0.save(w, profile, tokens)
     }
-    fn clear(&self, profile: &str) -> Result<()> {
-        self.0.clear(profile)
+    fn clear(&self, w: &TokenWrite, profile: &str) -> Result<()> {
+        self.0.clear(w, profile)
     }
-    fn take(&self, profile: &str) -> Result<Option<StoredTokens>> {
-        self.0.take(profile)
+    fn take(&self, w: &TokenWrite, profile: &str) -> Result<Option<StoredTokens>> {
+        self.0.take(w, profile)
     }
-    fn sign_in(&self, profile: &str, tokens: &StoredTokens) -> Result<u64> {
-        self.0.sign_in(profile, tokens)
+    fn sign_in(&self, w: &TokenWrite, profile: &str, tokens: &StoredTokens) -> Result<u64> {
+        self.0.sign_in(w, profile, tokens)
     }
-    fn deactivate(&self, _profile: &str, _expected_generation: u64) -> Result<bool> {
+    fn deactivate(
+        &self,
+        _w: &TokenWrite,
+        _profile: &str,
+        _expected_generation: u64,
+    ) -> Result<bool> {
         Err(SyncError::TokenStore("keychain locked".into()))
     }
 }
@@ -390,8 +395,7 @@ async fn failed_cleanup_after_deactivation_is_reported() {
         )
         .mount(&server)
         .await;
-    let store = Arc::new(StuckStore::default());
-    store.save(PROFILE, &tokens(1)).expect("save");
+    let store = Arc::new(StuckStore(MemoryTokenStore::signed_in(PROFILE, &tokens(1))));
     let client = client(&server, &store);
     assert_eq!(code_of(client.manifest().await), "TOKEN_STORE_ERROR");
     // Nothing was recorded, so the failure stays visible on every attempt.
@@ -467,20 +471,20 @@ impl TokenStore for Handle {
     fn load(&self, profile: &str) -> Result<Option<StoredTokens>> {
         self.0.load(profile)
     }
-    fn save(&self, profile: &str, tokens: &StoredTokens) -> Result<()> {
-        self.0.save(profile, tokens)
+    fn save(&self, w: &TokenWrite, profile: &str, tokens: &StoredTokens) -> Result<()> {
+        self.0.save(w, profile, tokens)
     }
-    fn clear(&self, profile: &str) -> Result<()> {
-        self.0.clear(profile)
+    fn clear(&self, w: &TokenWrite, profile: &str) -> Result<()> {
+        self.0.clear(w, profile)
     }
-    fn take(&self, profile: &str) -> Result<Option<StoredTokens>> {
-        self.0.take(profile)
+    fn take(&self, w: &TokenWrite, profile: &str) -> Result<Option<StoredTokens>> {
+        self.0.take(w, profile)
     }
-    fn sign_in(&self, profile: &str, tokens: &StoredTokens) -> Result<u64> {
-        self.0.sign_in(profile, tokens)
+    fn sign_in(&self, w: &TokenWrite, profile: &str, tokens: &StoredTokens) -> Result<u64> {
+        self.0.sign_in(w, profile, tokens)
     }
-    fn deactivate(&self, profile: &str, expected_generation: u64) -> Result<bool> {
-        self.0.deactivate(profile, expected_generation)
+    fn deactivate(&self, w: &TokenWrite, profile: &str, expected_generation: u64) -> Result<bool> {
+        self.0.deactivate(w, profile, expected_generation)
     }
 }
 

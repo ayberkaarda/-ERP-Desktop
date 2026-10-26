@@ -3,9 +3,10 @@
 //! Refresh rules (the server revokes the whole device when a used refresh
 //! token comes back):
 //! - Single flight per profile: all clients of one store medium + profile
-//!   share one [`Session`] lock ([`TokenStore::identity`]). Every token read
-//!   is a snapshot of the whole [`SessionRecord`] (tokens, generation,
-//!   deactivation) taken under that lock. A caller whose 401 came with an
+//!   share one [`Session`] ([`TokenStore::identity`]), which carries the
+//!   store handle and the lock; the client has no store of its own. Every
+//!   token read is a snapshot of the whole [`SessionRecord`] (tokens,
+//!   generation, deactivation) taken under that lock. A caller whose 401 came with an
 //!   access token that is no longer current reuses the new one.
 //! - The refresh token is taken out of the store atomically
 //!   ([`TokenStore::take`]) before it is sent. It is put back only when the
@@ -35,7 +36,7 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use zeroize::Zeroizing;
 
-use crate::auth::{Secret, Session, SessionRecord, StoredTokens, TokenStore};
+use crate::auth::{Secret, Session, SessionRecord, StoredTokens, TokenStore, TokenWrite};
 use crate::error::{Result, SyncError};
 use crate::wire::{
     ApiError, DeviceLoginRequest, DeviceRefreshRequest, DeviceTokenResponse, ErrorCode,
@@ -68,17 +69,16 @@ impl Default for ClientOptions {
     }
 }
 
-/// HTTP client of one server profile.
-pub struct HttpClient<T> {
+/// HTTP client of one server profile. Tokens are read and written only
+/// through the profile's [`Session`], which carries the store handle.
+pub struct HttpClient {
     http: reqwest::Client,
     server: ServerUrl,
     company_id: HeaderValue,
-    store: Arc<T>,
-    profile: String,
     session: Arc<Session>,
 }
 
-impl<T> std::fmt::Debug for HttpClient<T> {
+impl std::fmt::Debug for HttpClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpClient")
             .field("server", &self.server.origin())
@@ -110,15 +110,16 @@ enum Transport {
 impl From<Transport> for SyncError {
     fn from(error: Transport) -> Self {
         match error {
-            Transport::NotSent(e) | Transport::Lost(e) => SyncError::Network(e.to_string()),
+            Transport::NotSent(e) => SyncError::NotSent(e.to_string()),
+            Transport::Lost(e) => SyncError::Network(e.to_string()),
         }
     }
 }
 
-impl<T: TokenStore> HttpClient<T> {
+impl HttpClient {
     /// `profile` is the [`TokenStore`] key of this server profile. All
     /// clients of the same store medium and profile share a session.
-    pub fn new(
+    pub fn new<T: TokenStore + 'static>(
         config: &ApiConfig,
         profile: impl Into<String>,
         tokens: Arc<T>,
@@ -127,14 +128,11 @@ impl<T: TokenStore> HttpClient<T> {
         let server = ServerUrl::parse(&config.base_url, options.allow_http_localhost)?;
         let company_id = HeaderValue::from_str(&config.company_id.to_string())
             .map_err(|e| SyncError::InvalidServerUrl(e.to_string()))?;
-        let profile = profile.into();
         Ok(Self {
             http: build_http(&config.user_agent, options)?,
             server,
             company_id,
-            session: Session::shared(&profile, tokens.as_ref()),
-            store: tokens,
-            profile,
+            session: Session::shared(&profile.into(), tokens),
         })
     }
 
@@ -142,16 +140,18 @@ impl<T: TokenStore> HttpClient<T> {
         &self.server
     }
 
+    /// The session the client works in; the engine of the profile is built
+    /// over the same one ([`crate::engine::SyncEngine::new`]).
     pub fn session(&self) -> &Arc<Session> {
         &self.session
     }
 
-    fn store(&self) -> &T {
-        &self.store
+    fn store(&self) -> &dyn TokenStore {
+        self.session.store()
     }
 
     fn profile(&self) -> &str {
-        &self.profile
+        self.session.profile()
     }
 
     /// The whole record, read under the session lock.
@@ -172,12 +172,14 @@ impl<T: TokenStore> HttpClient<T> {
         self.settle(result, generation).await
     }
 
-    /// Sync call with bearer token, one refresh + retry on 401.
+    /// Sync call with bearer token, one refresh + retry on 401. With
+    /// `expected`, a token of another sign-in generation is never sent.
     async fn authorized<Req, Resp>(
         &self,
         method: Method,
         path: &str,
         body: Option<&Req>,
+        expected: Option<u64>,
     ) -> Result<Resp>
     where
         Req: Serialize + Sync,
@@ -189,6 +191,9 @@ impl<T: TokenStore> HttpClient<T> {
         let record = self.snapshot().await?;
         if record.deactivated {
             return Err(deactivated());
+        }
+        if expected.is_some_and(|g| g != record.generation) {
+            return Err(session_changed());
         }
         let mut generation = record.generation;
         let access = record
@@ -202,6 +207,10 @@ impl<T: TokenStore> HttpClient<T> {
                 .await?;
             if raw.status == 401 {
                 let (fresh, fresh_generation) = self.refresh_after_unauthorized(&access).await?;
+                if expected.is_some_and(|g| g != fresh_generation) {
+                    // A sign-in happened meanwhile: its token is not ours.
+                    return Err(session_changed());
+                }
                 generation = fresh_generation;
                 raw = self.send_authorized(method, url, body, &fresh).await?;
             }
@@ -251,7 +260,10 @@ impl<T: TokenStore> HttpClient<T> {
             other => return other,
         };
         let _gate = self.session.lock().await;
-        match self.store().deactivate(self.profile(), generation) {
+        match self
+            .store()
+            .deactivate(&TokenWrite::new(), self.profile(), generation)
+        {
             Ok(_) => Err(error),
             Err(store) => Err(SyncError::TokenStore(format!(
                 "recording USER_DEACTIVATED failed: {store}"
@@ -275,7 +287,7 @@ impl<T: TokenStore> HttpClient<T> {
         }
         let taken = self
             .store()
-            .take(self.profile())?
+            .take(&TokenWrite::new(), self.profile())?
             .ok_or_else(|| sign_in_required("not signed in"))?;
         let response = self.rotate_locked(taken).await?;
         // A refresh keeps the generation; the lock rules out a sign-in.
@@ -297,8 +309,9 @@ impl<T: TokenStore> HttpClient<T> {
         let raw = match send(&self.http, Method::POST, url, Some(body), None, None).await {
             Ok(raw) => raw,
             Err(Transport::NotSent(e)) => {
-                self.store().save(self.profile(), &taken)?;
-                return Err(SyncError::Network(e.to_string()));
+                self.store()
+                    .save(&TokenWrite::new(), self.profile(), &taken)?;
+                return Err(SyncError::NotSent(e.to_string()));
             }
             Err(Transport::Lost(_)) => {
                 return Err(sign_in_required(
@@ -328,30 +341,54 @@ impl<T: TokenStore> HttpClient<T> {
         let response = decode_token(&raw).map_err(|_| {
             sign_in_required("refresh answer unreadable; the refresh token is spent, sign in again")
         })?;
-        self.store()
-            .save(self.profile(), &StoredTokens::from(response.data.clone()))?;
+        self.store().save(
+            &TokenWrite::new(),
+            self.profile(),
+            &StoredTokens::from(response.data.clone()),
+        )?;
         Ok(response)
     }
 }
 
-impl<T: TokenStore> SyncApi for HttpClient<T> {
+impl super::sealed::Sealed for HttpClient {}
+
+impl SyncApi for HttpClient {
+    fn session(&self) -> &Arc<Session> {
+        &self.session
+    }
+
     async fn manifest(&self) -> Result<ManifestResponse> {
-        self.authorized::<(), _>(Method::GET, paths::MANIFEST, None)
+        self.authorized::<(), _>(Method::GET, paths::MANIFEST, None, None)
             .await
     }
 
     async fn pull(&self, request: &PullRequest) -> Result<PullResponse> {
-        self.authorized(Method::POST, paths::PULL, Some(request))
+        self.authorized(Method::POST, paths::PULL, Some(request), None)
             .await
     }
 
     async fn push(&self, request: &PushRequest) -> Result<PushResponse> {
-        self.authorized(Method::POST, paths::PUSH, Some(request))
+        self.authorized(Method::POST, paths::PUSH, Some(request), None)
+            .await
+    }
+
+    async fn manifest_in(&self, generation: u64) -> Result<ManifestResponse> {
+        self.authorized::<(), _>(Method::GET, paths::MANIFEST, None, Some(generation))
+            .await
+    }
+
+    async fn pull_in(&self, request: &PullRequest, generation: u64) -> Result<PullResponse> {
+        self.authorized(Method::POST, paths::PULL, Some(request), Some(generation))
+            .await
+    }
+
+    async fn push_in(&self, request: &PushRequest, generation: u64) -> Result<PushResponse> {
+        self.authorized(Method::POST, paths::PUSH, Some(request), Some(generation))
             .await
     }
 }
 
-impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
+impl DeviceAuthApi for HttpClient {
     /// On success [`TokenStore::sign_in`] stores the tokens, starts a new
     /// generation and clears a deactivation mark. 401 `TWO_FACTOR_REQUIRED`
     /// and 422 `INVALID_TWO_FACTOR_CODE` come back as `SyncError::Api`
@@ -368,9 +405,10 @@ impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
                 return decode(&raw).map_err(SyncError::redacted);
             }
             let response = decode_token(&raw)?;
-            let _gate = self.session.lock().await;
-            self.store()
-                .sign_in(self.profile(), &StoredTokens::from(response.data.clone()))?;
+            // Session lock, then the sign-in gate, inside.
+            self.session
+                .sign_in(&StoredTokens::from(response.data.clone()))
+                .await?;
             Ok(response)
         }
         .await;
@@ -396,7 +434,7 @@ impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
                     "refresh token is not the current one; it was not sent",
                 ))
             } else {
-                match self.store().take(self.profile())? {
+                match self.store().take(&TokenWrite::new(), self.profile())? {
                     Some(taken) => self.rotate_locked(taken).await,
                     None => Err(sign_in_required("not signed in")),
                 }
@@ -538,6 +576,11 @@ fn sign_in_required(message: &str) -> SyncError {
         retry_after: None,
         redacted: None,
     }
+}
+
+/// A generation-bound call found another sign-in: nothing was sent.
+fn session_changed() -> SyncError {
+    sign_in_required("another sign-in happened since the call was prepared; it was not sent")
 }
 
 /// Local stand-in for 403 `USER_DEACTIVATED` once the session is marked.
