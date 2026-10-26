@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Sales\Sync\DraftSyncWriter;
+use App\Modules\Sync\Services\ManifestService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -325,21 +326,11 @@ it('declares the document_date derivation of lines and totals in the manifest', 
  */
 function salesEffectiveWriteSet(string $resource, array $changed): array
 {
-    $manifest = json_decode((string) file_get_contents((string) config('sync.manifest_path')), true, flags: JSON_THROW_ON_ERROR);
-    $entry = collect($manifest['resources'])->firstWhere('resource', $resource);
-    $set = $changed;
+    // The push service's own parser and closure over the shipped manifest.
+    $write = app(ManifestService::class)->manifest()->find($resource)?->write;
+    expect($write)->not->toBeNull();
 
-    do {
-        $before = count($set);
-
-        foreach ($entry['write']['derived_fields'] as $rule) {
-            if ($rule['when'] === ['*'] || array_intersect($rule['when'], $set) !== []) {
-                $set = array_values(array_unique([...$set, ...$rule['derives']]));
-            }
-        }
-    } while (count($set) !== $before);
-
-    return $set;
+    return $write->effectiveFields($changed, $changed);
 }
 
 it('accepts a client UUIDv7 on REST quote and order creates and ignores an id elsewhere', function (): void {

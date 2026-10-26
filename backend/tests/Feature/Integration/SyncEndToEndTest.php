@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Feature\Sync\Support\SyncKit;
 use Tests\Fixtures\Sync\SyncDatabase;
+use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
 use Tests\Support\Identity;
 use Tests\Support\Sales\SalesKit;
@@ -236,9 +237,7 @@ it('walks login, manifest, full download, incremental pull, push outcomes and a 
 });
 
 it('keeps a full download across a token refresh and drops it when the device is revoked', function (): void {
-    foreach (['one', 'two', 'three'] as $notes) {
-        e2eWebQuote($this, $notes);
-    }
+    $ids = array_map(fn (string $notes): string => e2eWebQuote($this, $notes)['id'], ['one', 'two', 'three']);
     SyncKit::waitVisible();
 
     $login = e2eLogin($this, $this->fingerprint);
@@ -274,7 +273,7 @@ it('keeps a full download across a token refresh and drops it when the device is
 
     $otherRest = e2eDrain($this, $other['token'], 'sales-quotes', $otherFirst['next_cursor'], 1);
     expect($otherRest['pages'][0]['reset'])->toBeFalse()
-        ->and(count($otherFirst['rows']) + count($otherRest['ids']))->toBe(3);
+        ->and([...array_column($otherFirst['rows'], 'id'), ...$otherRest['ids']])->toEqualCanonicalizing($ids);
 });
 
 it('never moves the cursor past a transaction that is still open on another connection', function (): void {
@@ -320,6 +319,49 @@ it('never moves the cursor past a transaction that is still open on another conn
     expect(array_keys($rows))->toEqualCanonicalizing([$early['id'], $late['id']])
         ->and($rows[$early['id']]['notes'])->toBe('written by the open transaction')
         ->and($rows[$late['id']]['notes'])->toBe('late, committed');
+});
+
+it('conflicts a stale document_date push with a web lines edit through the declared derivation', function (): void {
+    $quote = e2eWebQuote($this, 'base');
+    $login = e2eLogin($this, $this->fingerprint);
+
+    // The web changes only the lines; the device moves only the document date.
+    $web = SalesKit::patch($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}", [
+        'version' => $quote['version'], 'lines' => [['item_id' => $this->w->item->id, 'quantity' => '5']],
+    ])->assertOk()->json('data');
+    $result = e2ePush($this, $login['token'], [e2eMutation('sales-quotes', 'update', $quote['id'], ['document_date' => '2027-06-12'], $quote['version'])])[0];
+
+    // document_date re-derives every line (tax looked up at the date), so it meets the web edit.
+    expect($result['conflict'])->toMatchArray(['code' => 'VERSION_CONFLICT', 'server_version' => $web['version']])
+        ->and($result['conflict']['conflicting_fields'])->toContain('lines')
+        ->and($result['conflict']['server_data']['lines'][0]['quantity'])->toBe($web['lines'][0]['quantity'])
+        ->and(DB::table('sales_quotes')->where('id', $quote['id'])->value('document_date'))->toStartWith('2027-06-10');
+});
+
+it('never resolves a conflict of one company from another company of the same user', function (): void {
+    $companyB = Actors::companyFor($this->w->user, ['parties.view', 'parties.create']);
+    $login = e2eLogin($this, $this->fingerprint);
+    $id = (string) Str::uuid7();
+    $payload = ['name' => $this->w->party->name, 'type' => 'company', 'roles' => ['customer']];
+    $create = e2eMutation('parties', 'create', $id, $payload);
+    expect(e2ePush($this, $login['token'], [$create])[0]['conflict']['code'])->toBe('DUPLICATE_RECORD');
+
+    $parties = fn (string $company): int => Party::withoutGlobalScopes()->where('company_id', $company)->count();
+    [$beforeA, $beforeB] = [$parties($this->w->company), $parties($companyB)];
+    $resolution = ['resolves' => $create['idempotency_key'], 'code' => 'DUPLICATE_RECORD', 'choice' => 'keep_mine'];
+    $inB = SyncKit::push($this, [e2eMutation('parties', 'create', $id, $payload, overrides: ['resolution' => $resolution])], [
+        ...e2eHeaders($this, $login['token']), 'X-Company-Id' => $companyB,
+    ])->assertOk();
+
+    expect(SyncKit::wire($inB, 'sync/push.response.schema.json')['data']['results'][0]['error']['code'])->toBe('SYNC_RESOLUTION_INVALID')
+        ->and(Party::withoutGlobalScopes()->whereKey($id)->exists())->toBeFalse()
+        ->and([$parties($this->w->company), $parties($companyB)])->toBe([$beforeA, $beforeB])
+        ->and(DB::table('sync_push_resolutions')->where('resolved_key', $create['idempotency_key'])->exists())->toBeFalse();
+
+    // The conflict is still open in its own company.
+    $kept = e2ePush($this, $login['token'], [e2eMutation('parties', 'create', $id, $payload, overrides: ['resolution' => $resolution])])[0];
+    expect($kept['status'])->toBe('applied')
+        ->and(Party::withoutGlobalScopes()->whereKey($id)->value('company_id'))->toBe($this->w->company);
 });
 
 it('binds a parties keep_mine resolution to the stored DUPLICATE_RECORD conflict only', function (): void {
