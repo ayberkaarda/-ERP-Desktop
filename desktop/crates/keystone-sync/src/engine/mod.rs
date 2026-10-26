@@ -29,6 +29,12 @@
 //!   resources of that manifest. After another sign-in they fail with
 //!   `OFFLINE_UNAVAILABLE` until a run has checked who signed in. Enqueue,
 //!   sign-out and every wipe exclude each other.
+//! - Sign-out is persisted in stages bound to its generation: tokens of
+//!   that generation are revoked before any local data goes, and a
+//!   sign-out cut short is finished for that generation only (a later
+//!   sign-in keeps its tokens).
+//! - Tokens: the engine reads and writes them only through the profile's
+//!   [`Session`], the same one its API client works in.
 //! - State is published through [`SyncEngine::subscribe`]; changed resources
 //!   through [`SyncEngine::subscribe_changes`], also for a run that is
 //!   cancelled midway.
@@ -53,7 +59,7 @@ use serde_json::{Map, Value};
 use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 
-use crate::auth::{Session, TokenStore, TokenWrite};
+use crate::auth::{Session, TokenWrite};
 use crate::backoff::Backoff;
 use crate::client::SyncApi;
 use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
@@ -305,8 +311,6 @@ pub struct SyncEngine<A> {
     store: Arc<Store>,
     outbox: Outbox,
     conflicts: ConflictStore,
-    tokens: Arc<dyn TokenStore>,
-    profile: String,
     specs: Vec<ResourceSpec>,
     pull_limit: Option<u32>,
     backoff: Backoff,
@@ -326,7 +330,8 @@ pub struct SyncEngine<A> {
     changes: broadcast::Sender<ResourcesChanged>,
     /// Signalled when a cancelled run leaves a promised follow-up behind.
     follow_up: tokio::sync::Notify,
-    /// Process-wide session of the profile (sign-in gate).
+    /// Process-wide session of the profile: its token store handle, the
+    /// profile id, the token lock and the sign-in gate.
     session: Arc<Session>,
     #[cfg(test)]
     hook: Mutex<Option<Arc<HookFn>>>,
@@ -336,30 +341,23 @@ impl<A> std::fmt::Debug for SyncEngine<A> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SyncEngine")
             .field("store", &self.store)
-            .field("profile", &self.profile)
+            .field("session", &self.session)
             .finish_non_exhaustive()
     }
 }
 
 impl<A: SyncApi> SyncEngine<A> {
-    /// `tokens` and `profile` must be the token store and profile id the API
-    /// client uses: the engine reads the sign-in generation and the
-    /// deactivation mark from there and clears the tokens on sign-out.
-    pub fn new(
-        api: A,
-        store: Arc<Store>,
-        tokens: Arc<dyn TokenStore>,
-        profile: impl Into<String>,
-    ) -> Self {
-        let profile = profile.into();
-        let session = Session::shared(&profile, tokens.as_ref());
+    /// `session` is the profile's session the API client works in
+    /// ([`crate::client::HttpClient::session`]): the engine reads the
+    /// sign-in generation and the deactivation mark through it and revokes
+    /// the tokens on sign-out through it, so engine and client cannot be
+    /// over different stores or profiles.
+    pub fn new(api: A, store: Arc<Store>, session: Arc<Session>) -> Self {
         Self {
             api,
             outbox: Outbox::new(store.clone()),
             conflicts: ConflictStore::new(store.clone()),
             store,
-            tokens,
-            profile,
             specs: Vec::new(),
             pull_limit: None,
             backoff: Backoff::default(),
@@ -526,40 +524,74 @@ impl<A: SyncApi> SyncEngine<A> {
     /// write tokens back afterwards); counting and wiping exclude
     /// [`SyncEngine::enqueue`]. Tokens of a sign-in made after the call
     /// stay ([`TokenStore::sign_out`] is a compare-and-set).
+    ///
+    /// The sign-out is persisted in stages bound to the generation it
+    /// began in ([`local::PendingSignOut`]): access closes first, the
+    /// tokens of that generation go next, the local data last. A sign-out
+    /// cut short earlier (failed revoke or cleanup, process gone) is
+    /// finished by the next sign-out or run from the stage it reached, for
+    /// its own generation: a sign-in made since keeps its tokens.
     pub async fn sign_out(&self, force: bool) -> Result<SignOut> {
         let generation = self.generation()?;
         let _work = self.work.lock().await;
         let _tokens = self.session.lock().await;
         let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
-        // A sign-out whose cleanup failed earlier is only finished here.
-        let retry = local::session(&self.store)?.wipe_pending;
+        let unfinished = local::pending_sign_out(&self.store)?;
         let counts = local::counts(&self.store)?;
         self.hook(Hook::SignOutCounted);
         let outbox = counts.pending + counts.rejected + counts.quarantined + counts.in_conflict;
-        if !retry && !force && (outbox > 0 || counts.conflicts > 0) {
+        if unfinished.is_none() && !force && (outbox > 0 || counts.conflicts > 0) {
             return Ok(SignOut::PendingWork {
                 outbox,
                 conflicts: counts.conflicts,
             });
         }
-        // Access closes first; the tokens go next; local data last. A failed
-        // revoke changes nothing; a failed cleanup leaves the data closed
-        // and is retried by the next sign-out or run.
-        local::set_wipe_pending(&self.store, true)?;
-        if let Err(error) = self
-            .tokens
-            .sign_out(&TokenWrite::new(), &self.profile, generation)
-        {
-            if !retry {
-                let _ = local::set_wipe_pending(&self.store, false);
+        let pending = match unfinished {
+            Some(pending) => pending,
+            None => {
+                let pending = local::PendingSignOut {
+                    generation,
+                    stage: local::SignOutStage::Revoke,
+                };
+                local::set_pending_sign_out(&self.store, Some(pending))?;
+                pending
             }
-            return Err(error);
-        }
-        // The local data is the signing-out user's (a later sign-in is not
-        // verified yet, so it has none).
-        self.wipe()?;
+        };
+        self.finish_sign_out(pending, unfinished.is_none())?;
         self.set_state(SyncState::AuthRequired, None)?;
         Ok(SignOut::Done)
+    }
+
+    /// Runs the stages of `pending` that are left: the compare-and-set
+    /// revoke of its generation (a later sign-in keeps its tokens; the
+    /// revoked generation's are gone either way), then the wipe of the
+    /// local data, which is the signing-out user's (no later sign-in was
+    /// verified while the sign-out was open). A `fresh` sign-out whose
+    /// revoke fails changed nothing and is forgotten; any other failure
+    /// leaves the sign-out open, so access stays closed and the next
+    /// sign-out or run finishes it. The caller holds the session lock and
+    /// `local` exclusively.
+    fn finish_sign_out(&self, pending: local::PendingSignOut, fresh: bool) -> Result<()> {
+        if pending.stage == local::SignOutStage::Revoke {
+            if let Err(error) = self.session.store().sign_out(
+                &TokenWrite::new(),
+                self.session.profile(),
+                pending.generation,
+            ) {
+                if fresh {
+                    let _ = local::set_pending_sign_out(&self.store, None);
+                }
+                return Err(error);
+            }
+            local::set_pending_sign_out(
+                &self.store,
+                Some(local::PendingSignOut {
+                    generation: pending.generation,
+                    stage: local::SignOutStage::Wipe,
+                }),
+            )?;
+        }
+        self.wipe()
     }
 
     pub fn backoff(&self) -> &Backoff {
@@ -707,7 +739,7 @@ impl<A: SyncApi> SyncEngine<A> {
         let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
         // The client marks the record only when the 403 answered a call of
         // the current generation; a stale one leaves the mark unset.
-        let record = self.tokens.load_record(&self.profile)?;
+        let record = self.session.record()?;
         if !record.deactivated {
             return Ok(SyncState::Failed(error.code()));
         }
@@ -715,8 +747,11 @@ impl<A: SyncApi> SyncEngine<A> {
         self.wipe()?;
         // Compare-and-set: tokens of a sign-in made after the mark was read
         // stay (the client already removed the deactivated ones).
-        self.tokens
-            .deactivate(&TokenWrite::new(), &self.profile, record.generation)?;
+        self.session.store().deactivate(
+            &TokenWrite::new(),
+            self.session.profile(),
+            record.generation,
+        )?;
         Ok(SyncState::AuthRequired)
     }
 
@@ -739,10 +774,10 @@ impl<A: SyncApi> SyncEngine<A> {
     /// The local data was verified by a manifest of the current sign-in
     /// generation, which is not deactivated. Returns that local session.
     fn check_verified(&self) -> Result<local::LocalSession> {
-        let record = self.tokens.load_record(&self.profile)?;
+        let record = self.session.record()?;
         let session = local::session(&self.store)?;
         if record.deactivated
-            || session.wipe_pending
+            || session.sign_out.is_some()
             || session.generation != Some(record.generation)
         {
             return Err(SyncError::OfflineUnavailable(
@@ -754,7 +789,7 @@ impl<A: SyncApi> SyncEngine<A> {
 
     /// Current sign-in generation of the profile.
     fn generation(&self) -> Result<u64> {
-        Ok(self.tokens.load_record(&self.profile)?.generation)
+        Ok(self.session.record()?.generation)
     }
 
     /// Fails when another sign-in happened since `generation`.

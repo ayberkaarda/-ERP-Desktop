@@ -170,7 +170,7 @@ async fn local_reads_and_writes_close_until_the_new_sign_in_is_verified() {
         2
     );
 
-    sign_in_as(env.tokens.as_ref(), 2).await;
+    sign_in_as(&env.tokens, 2).await;
     assert!(env.engine.list(&parties, &ListQuery::default()).is_err());
     assert!(env.engine.get(&parties, draft_id).is_err());
     assert!(
@@ -325,7 +325,7 @@ async fn a_draft_queued_after_sign_out_never_reaches_the_next_user() {
         "nothing may be queued without a verified sign-in"
     );
 
-    sign_in_as(env.tokens.as_ref(), 2).await;
+    sign_in_as(&env.tokens, 2).await;
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert_eq!(hits(&env.server, PUSH).await, 0);
     assert!(outbox_list(&env.store).is_empty());
@@ -401,7 +401,7 @@ async fn sign_out_waits_for_a_refresh_instead_of_racing_it() {
 }
 
 /// A second client of the same store and profile (it shares the session).
-fn other_client(env: &Env) -> keystone_sync::client::HttpClient<MemoryTokenStore> {
+fn other_client(env: &Env) -> keystone_sync::client::HttpClient {
     keystone_sync::client::HttpClient::new(
         &keystone_sync::client::ApiConfig {
             base_url: env.server.uri(),

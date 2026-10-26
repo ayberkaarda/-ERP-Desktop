@@ -16,9 +16,45 @@ use crate::wire::{ResourceName, ResourceRow};
 const IDENTITY: &str = "identity";
 const GENERATION: &str = "generation";
 const RESOURCES: &str = "resources";
-/// Set while a sign-out has revoked (or is revoking) the tokens and the
-/// local data still has to go; access stays closed meanwhile.
-const WIPE_PENDING: &str = "wipe_pending";
+/// Set while a sign-out is unfinished: the generation it signs out and the
+/// stage it reached ([`SignOutStage`]); access stays closed meanwhile.
+const SIGN_OUT_GENERATION: &str = "sign_out_generation";
+const SIGN_OUT_STAGE: &str = "sign_out_stage";
+
+/// Stages of a sign-out, persisted before the step they name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum SignOutStage {
+    /// The tokens of the generation still have to be revoked; nothing may
+    /// be wiped before that is confirmed.
+    Revoke,
+    /// The tokens are gone (revoked, or replaced by a later sign-in); the
+    /// local data still has to go.
+    Wipe,
+}
+
+impl SignOutStage {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Revoke => "revoke",
+            Self::Wipe => "wipe",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "revoke" => Some(Self::Revoke),
+            "wipe" => Some(Self::Wipe),
+            _ => None,
+        }
+    }
+}
+
+/// A sign-out that has not finished, bound to the generation it began in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct PendingSignOut {
+    pub generation: u64,
+    pub stage: SignOutStage,
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct Counts {
@@ -147,8 +183,8 @@ pub(super) struct LocalSession {
     /// Sign-in generation of that manifest.
     pub generation: Option<u64>,
     pub resources: Vec<ResourceName>,
-    /// A sign-out still has to remove the local data.
-    pub wipe_pending: bool,
+    /// A sign-out still has to revoke the tokens or remove the local data.
+    pub sign_out: Option<PendingSignOut>,
 }
 
 pub(super) fn session(store: &Store) -> Result<LocalSession> {
@@ -168,9 +204,36 @@ pub(super) fn session(store: &Store) -> Result<LocalSession> {
             identity: get(IDENTITY)?,
             generation: get(GENERATION)?.and_then(|g| g.parse().ok()),
             resources,
-            wipe_pending: get(WIPE_PENDING)?.is_some(),
+            sign_out: pending_sign_out_on(conn)?,
         })
     })
+}
+
+fn pending_sign_out_on(conn: &Connection) -> Result<Option<PendingSignOut>> {
+    let get = |key: &str| -> Result<Option<String>> {
+        Ok(conn
+            .query_row("SELECT value FROM engine_meta WHERE key = ?1", [key], |r| {
+                r.get(0)
+            })
+            .optional()?)
+    };
+    let generation = get(SIGN_OUT_GENERATION)?.and_then(|g| g.parse().ok());
+    let stage = get(SIGN_OUT_STAGE)?.and_then(|s| SignOutStage::parse(&s));
+    Ok(match (generation, stage) {
+        (Some(generation), Some(stage)) => Some(PendingSignOut { generation, stage }),
+        // A torn or unknown mark is treated as the earliest stage: nothing
+        // is wiped before the revoke of that generation is confirmed.
+        (Some(generation), None) => Some(PendingSignOut {
+            generation,
+            stage: SignOutStage::Revoke,
+        }),
+        _ => None,
+    })
+}
+
+/// The unfinished sign-out, when there is one.
+pub(super) fn pending_sign_out(store: &Store) -> Result<Option<PendingSignOut>> {
+    store.read(pending_sign_out_on)
 }
 
 /// Records identity, generation and manifest resources together.
@@ -208,17 +271,29 @@ pub(super) fn drop_bases(store: &Store, resource: &ResourceName) -> Result<usize
     })
 }
 
-/// Sets or clears the sign-out cleanup mark (a wipe removes it too).
-pub(super) fn set_wipe_pending(store: &Store, pending: bool) -> Result<()> {
+/// Records or clears the unfinished sign-out in one transaction (a wipe
+/// removes it too).
+pub(super) fn set_pending_sign_out(store: &Store, pending: Option<PendingSignOut>) -> Result<()> {
     store.write(|tx| {
-        if pending {
-            tx.execute(
-                "INSERT INTO engine_meta (key, value) VALUES (?1, '1')
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                [WIPE_PENDING],
-            )?;
-        } else {
-            tx.execute("DELETE FROM engine_meta WHERE key = ?1", [WIPE_PENDING])?;
+        match pending {
+            Some(pending) => {
+                for (key, value) in [
+                    (SIGN_OUT_GENERATION, pending.generation.to_string()),
+                    (SIGN_OUT_STAGE, pending.stage.as_str().to_owned()),
+                ] {
+                    tx.execute(
+                        "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
+                         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        params![key, value],
+                    )?;
+                }
+            }
+            None => {
+                tx.execute(
+                    "DELETE FROM engine_meta WHERE key IN (?1, ?2)",
+                    [SIGN_OUT_GENERATION, SIGN_OUT_STAGE],
+                )?;
+            }
         }
         Ok(())
     })

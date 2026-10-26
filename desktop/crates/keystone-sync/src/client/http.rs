@@ -3,9 +3,10 @@
 //! Refresh rules (the server revokes the whole device when a used refresh
 //! token comes back):
 //! - Single flight per profile: all clients of one store medium + profile
-//!   share one [`Session`] lock ([`TokenStore::identity`]). Every token read
-//!   is a snapshot of the whole [`SessionRecord`] (tokens, generation,
-//!   deactivation) taken under that lock. A caller whose 401 came with an
+//!   share one [`Session`] ([`TokenStore::identity`]), which carries the
+//!   store handle and the lock; the client has no store of its own. Every
+//!   token read is a snapshot of the whole [`SessionRecord`] (tokens,
+//!   generation, deactivation) taken under that lock. A caller whose 401 came with an
 //!   access token that is no longer current reuses the new one.
 //! - The refresh token is taken out of the store atomically
 //!   ([`TokenStore::take`]) before it is sent. It is put back only when the
@@ -68,17 +69,16 @@ impl Default for ClientOptions {
     }
 }
 
-/// HTTP client of one server profile.
-pub struct HttpClient<T> {
+/// HTTP client of one server profile. Tokens are read and written only
+/// through the profile's [`Session`], which carries the store handle.
+pub struct HttpClient {
     http: reqwest::Client,
     server: ServerUrl,
     company_id: HeaderValue,
-    store: Arc<T>,
-    profile: String,
     session: Arc<Session>,
 }
 
-impl<T> std::fmt::Debug for HttpClient<T> {
+impl std::fmt::Debug for HttpClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpClient")
             .field("server", &self.server.origin())
@@ -116,10 +116,10 @@ impl From<Transport> for SyncError {
     }
 }
 
-impl<T: TokenStore> HttpClient<T> {
+impl HttpClient {
     /// `profile` is the [`TokenStore`] key of this server profile. All
     /// clients of the same store medium and profile share a session.
-    pub fn new(
+    pub fn new<T: TokenStore + 'static>(
         config: &ApiConfig,
         profile: impl Into<String>,
         tokens: Arc<T>,
@@ -128,14 +128,11 @@ impl<T: TokenStore> HttpClient<T> {
         let server = ServerUrl::parse(&config.base_url, options.allow_http_localhost)?;
         let company_id = HeaderValue::from_str(&config.company_id.to_string())
             .map_err(|e| SyncError::InvalidServerUrl(e.to_string()))?;
-        let profile = profile.into();
         Ok(Self {
             http: build_http(&config.user_agent, options)?,
             server,
             company_id,
-            session: Session::shared(&profile, tokens.as_ref()),
-            store: tokens,
-            profile,
+            session: Session::shared(&profile.into(), tokens),
         })
     }
 
@@ -143,16 +140,18 @@ impl<T: TokenStore> HttpClient<T> {
         &self.server
     }
 
+    /// The session the client works in; the engine of the profile is built
+    /// over the same one ([`crate::engine::SyncEngine::new`]).
     pub fn session(&self) -> &Arc<Session> {
         &self.session
     }
 
-    fn store(&self) -> &T {
-        &self.store
+    fn store(&self) -> &dyn TokenStore {
+        self.session.store()
     }
 
     fn profile(&self) -> &str {
-        &self.profile
+        self.session.profile()
     }
 
     /// The whole record, read under the session lock.
@@ -351,7 +350,7 @@ impl<T: TokenStore> HttpClient<T> {
     }
 }
 
-impl<T: TokenStore> SyncApi for HttpClient<T> {
+impl SyncApi for HttpClient {
     async fn manifest(&self) -> Result<ManifestResponse> {
         self.authorized::<(), _>(Method::GET, paths::MANIFEST, None, None)
             .await
@@ -383,7 +382,7 @@ impl<T: TokenStore> SyncApi for HttpClient<T> {
     }
 }
 
-impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
+impl DeviceAuthApi for HttpClient {
     /// On success [`TokenStore::sign_in`] stores the tokens, starts a new
     /// generation and clears a deactivation mark. 401 `TWO_FACTOR_REQUIRED`
     /// and 422 `INVALID_TWO_FACTOR_CODE` come back as `SyncError::Api`
@@ -402,7 +401,7 @@ impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
             let response = decode_token(&raw)?;
             // Session lock, then the sign-in gate, inside.
             self.session
-                .sign_in(self.store(), &StoredTokens::from(response.data.clone()))
+                .sign_in(&StoredTokens::from(response.data.clone()))
                 .await?;
             Ok(response)
         }

@@ -131,7 +131,7 @@ fn client_with(
     server: &MockServer,
     store: &Arc<MemoryTokenStore>,
     options: &ClientOptions,
-) -> HttpClient<MemoryTokenStore> {
+) -> HttpClient {
     HttpClient::new(&config(server), PROFILE, Arc::clone(store), options).expect("client")
 }
 

@@ -141,13 +141,8 @@ fn fixture() -> Fixture {
     let store =
         Arc::new(Store::open(dir.path().join("unit.db"), &DbKey::from_bytes([7; 32])).unwrap());
     let tokens = Arc::new(MemoryTokenStore::signed_in(PROFILE, &self::tokens(1)));
-    let dyn_tokens: Arc<dyn TokenStore> = tokens.clone();
-    let engine = Arc::new(SyncEngine::new(
-        FakeApi::default(),
-        store,
-        dyn_tokens,
-        PROFILE,
-    ));
+    let session = Session::shared(PROFILE, tokens.clone());
+    let engine = Arc::new(SyncEngine::new(FakeApi::default(), store, session));
     Fixture {
         _dir: dir,
         tokens,
@@ -264,11 +259,11 @@ impl SignInProbe {
     fn fire(&self, store: Arc<MemoryTokenStore>) {
         let (tx, rx) = mpsc::channel();
         let worker = std::thread::spawn(move || {
-            let session = Session::shared(PROFILE, store.as_ref());
+            let session = Session::shared(PROFILE, store);
             tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap()
-                .block_on(session.sign_in(store.as_ref(), &tokens(2)))
+                .block_on(session.sign_in(&tokens(2)))
                 .unwrap();
             let _ = tx.send(());
         });

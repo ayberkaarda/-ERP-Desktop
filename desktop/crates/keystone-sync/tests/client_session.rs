@@ -77,7 +77,7 @@ fn config(server: &MockServer) -> ApiConfig {
     }
 }
 
-fn client<T: TokenStore + 'static>(server: &MockServer, store: &Arc<T>) -> HttpClient<T> {
+fn client<T: TokenStore + 'static>(server: &MockServer, store: &Arc<T>) -> HttpClient {
     HttpClient::new(&config(server), PROFILE, Arc::clone(store), &options()).expect("client")
 }
 
@@ -345,7 +345,7 @@ async fn deactivation_on_login_and_meta_clears_tokens_until_next_login() {
     assert_eq!(meta_store.load(PROFILE).expect("load"), None);
 }
 
-fn client_for(server: &MockServer, store: &Arc<MemoryTokenStore>) -> HttpClient<MemoryTokenStore> {
+fn client_for(server: &MockServer, store: &Arc<MemoryTokenStore>) -> HttpClient {
     client(server, store)
 }
 

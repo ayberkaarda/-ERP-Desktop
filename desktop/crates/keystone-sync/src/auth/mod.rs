@@ -61,7 +61,7 @@ impl From<DeviceToken> for StoredTokens {
 }
 
 /// Permission to write a [`TokenStore`]. Only this crate makes one (the
-/// client and the engine under the [`Session`] lock, and
+/// client and the engine through the [`Session`] under its lock, and
 /// [`Session::sign_in`]), so code outside the crate can implement the
 /// write methods but cannot call them: there is no way into a profile
 /// around the session.
@@ -109,8 +109,8 @@ pub struct SessionRecord {
 /// One way in: outside this crate a token store can be read, but not
 /// written. Writes need a [`TokenWrite`], which only the crate makes: a
 /// sign-in goes through [`Session::sign_in`] (session lock, then the
-/// sign-in gate); every other write is done by the client and the engine
-/// under the session lock.
+/// sign-in gate, into the session's own store); every other write is done
+/// by the client and the engine through the session, under its lock.
 ///
 /// ```compile_fail
 /// use keystone_sync::auth::{MemoryTokenStore, Secret, StoredTokens, TokenStore};
@@ -156,6 +156,7 @@ pub struct SessionRecord {
 /// The way in (positive control of the blocks above):
 ///
 /// ```no_run
+/// use std::sync::Arc;
 /// use keystone_sync::auth::{MemoryTokenStore, Secret, Session, StoredTokens};
 /// use keystone_sync::wire::Timestamp;
 /// # async fn f() -> keystone_sync::error::Result<()> {
@@ -165,8 +166,8 @@ pub struct SessionRecord {
 ///     refresh_token: Secret::new("r"),
 ///     refresh_expires_at: Timestamp("2026-11-25T09:15:00+03:00".into()),
 /// };
-/// let store = MemoryTokenStore::default();
-/// Session::shared("prod", &store).sign_in(&store, &t).await?;
+/// let store = Arc::new(MemoryTokenStore::default());
+/// Session::shared("prod", store).sign_in(&t).await?;
 /// # Ok(())
 /// # }
 /// ```

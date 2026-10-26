@@ -22,7 +22,7 @@ pub const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
 pub const USER_A: &str = "0192f5a0-0000-7000-8000-00000000000a";
 pub const USER_B: &str = "0192f5a0-0000-7000-8000-00000000000b";
 
-pub type Engine = SyncEngine<HttpClient<MemoryTokenStore>>;
+pub type Engine = SyncEngine<HttpClient>;
 
 /// Test setup over a token store of type `T`.
 pub struct EnvOf<T> {
@@ -30,7 +30,7 @@ pub struct EnvOf<T> {
     pub dir: tempfile::TempDir,
     pub store: Arc<Store>,
     pub tokens: Arc<T>,
-    pub engine: Arc<SyncEngine<HttpClient<T>>>,
+    pub engine: Arc<SyncEngine<HttpClient>>,
 }
 
 pub type Env = EnvOf<MemoryTokenStore>;
@@ -62,7 +62,7 @@ pub async fn env_on<T: TokenStore + 'static>(
     let dir = tempfile::tempdir().expect("tempdir");
     let store =
         Arc::new(Store::open(dir.path().join("engine.db"), &DbKey::from_bytes([42; 32])).unwrap());
-    sign_in_as(tokens.as_ref(), 1).await;
+    sign_in_as(&tokens, 1).await;
     let client = HttpClient::new(
         &ApiConfig {
             base_url: server.uri(),
@@ -78,8 +78,8 @@ pub async fn env_on<T: TokenStore + 'static>(
         },
     )
     .unwrap();
-    let dyn_tokens: Arc<dyn TokenStore> = tokens.clone();
-    let engine = Arc::new(SyncEngine::new(client, store.clone(), dyn_tokens, PROFILE));
+    let session = client.session().clone();
+    let engine = Arc::new(SyncEngine::new(client, store.clone(), session));
     EnvOf {
         server,
         dir,
@@ -337,10 +337,10 @@ pub fn inbox(store: &Arc<Store>) -> keystone_sync::conflicts::ConflictStore {
     keystone_sync::conflicts::ConflictStore::new(store.clone())
 }
 
-/// Signs `tokens(n)` in through the session (the only way in).
-pub async fn sign_in_as<T: TokenStore + ?Sized>(store: &T, n: u8) -> u64 {
-    keystone_sync::auth::Session::shared(PROFILE, store)
-        .sign_in(store, &tokens(n))
+/// Signs `tokens(n)` in through the session of `store` (the only way in).
+pub async fn sign_in_as<T: TokenStore + 'static>(store: &Arc<T>, n: u8) -> u64 {
+    keystone_sync::auth::Session::shared(PROFILE, store.clone())
+        .sign_in(&tokens(n))
         .await
         .expect("sign in")
 }
@@ -352,8 +352,30 @@ pub fn sign_in_blocking<T: TokenStore + 'static>(store: Arc<T>, n: u8) -> u64 {
         tokio::runtime::Builder::new_current_thread()
             .build()
             .expect("runtime")
-            .block_on(sign_in_as(store.as_ref(), n))
+            .block_on(sign_in_as(&store, n))
     })
     .join()
     .expect("sign-in thread")
+}
+
+/// Writes an unfinished sign-out into the engine's persistent state, as a
+/// process that died in the middle of one leaves it: `stage` is `revoke`
+/// (tokens of `generation` still to revoke) or `wipe` (tokens gone, local
+/// data still there).
+pub fn leave_sign_out_unfinished(store: &Store, generation: u64, stage: &str) {
+    store
+        .write(|tx| {
+            for (key, value) in [
+                ("sign_out_generation", generation.to_string()),
+                ("sign_out_stage", stage.to_owned()),
+            ] {
+                tx.execute(
+                    "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    rusqlite::params![key, value],
+                )?;
+            }
+            Ok(())
+        })
+        .expect("engine_meta write");
 }

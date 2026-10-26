@@ -37,10 +37,13 @@ impl<A: SyncApi> SyncEngine<A> {
         // Runs are serialized: anything still in flight was cut off by a
         // crash or a dropped run, not sent by a concurrent one.
         self.outbox.requeue_in_flight()?;
-        // Finish a sign-out whose cleanup failed.
-        if local::session(&self.store)?.wipe_pending {
+        // Finish a sign-out cut short earlier, from the stage it reached
+        // and for its own generation: nothing local goes before the revoke
+        // of that generation is confirmed.
+        if let Some(pending) = local::pending_sign_out(&self.store)? {
+            let _tokens = self.session.lock().await;
             let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
-            self.wipe()?;
+            self.finish_sign_out(pending, false)?;
         }
         let manifest = self.api.manifest_in(generation).await?.data;
         self.apply_session(&manifest, generation, report)?;
@@ -186,9 +189,10 @@ impl<A: SyncApi> SyncEngine<A> {
             self.hook(super::Hook::CommitChecked);
             // The whole answer is checked before anything is written. A result
             // that breaks the protocol (row outside the request, repeated key,
-            // other target, missing conflict or rejection body) is not
-            // applied; its mutation counts an attempt (quarantine after the
-            // limit, then the user decides) while the valid results settle.
+            // other target, missing conflict or rejection body, a mutation
+            // left unanswered) is not applied; its mutation counts an attempt
+            // (quarantine after the limit, then the user decides) while the
+            // valid results settle.
             let company = manifest.company_id.to_string();
             let mut seen: HashMap<Uuid, usize> = HashMap::new();
             for result in results {
@@ -250,10 +254,22 @@ impl<A: SyncApi> SyncEngine<A> {
                     self.touch(report, &result.resource);
                 }
             }
+            // A sent mutation the answer says nothing about breaks the
+            // protocol too: it counts an attempt like an invalid result, so
+            // an answer that keeps leaving mutations out ends in the
+            // quarantine instead of resending them forever.
+            for mutation in &request.mutations {
+                let key = mutation.idempotency_key;
+                if !seen.contains_key(&key) && !bad.contains(&key) {
+                    bad.push(key);
+                    invalid.get_or_insert_with(|| {
+                        invalid_answer("the push answer leaves a sent mutation unanswered")
+                    });
+                }
+            }
             for key in bad {
                 self.outbox.transient_failure(key)?;
             }
-            // A mutation without a result goes back to the queue.
             self.outbox.requeue_in_flight()?;
             if invalid.is_some() {
                 return Ok(invalid);

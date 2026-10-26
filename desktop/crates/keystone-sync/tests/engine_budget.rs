@@ -354,3 +354,40 @@ async fn a_follow_up_survives_cancellation_of_the_follow_up_run() {
         "the follow-up owed to the coalesced caller was lost"
     );
 }
+
+#[tokio::test]
+async fn push_answers_that_leave_a_mutation_unanswered_end_in_quarantine() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    mount_empty_pull(&env.server).await;
+    // A 200 whose result list says nothing about the sent mutation.
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"data": {"results": []}, "meta": {}})),
+        )
+        .mount(&env.server)
+        .await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    env.engine
+        .enqueue(draft(
+            MutationOp::Create,
+            "parties",
+            Uuid::now_v7(),
+            json!({"name": "X"}),
+        ))
+        .unwrap();
+    // Each run sends the mutation again and gets no result for it: a
+    // protocol error that counts an attempt, so after the limit the entry
+    // waits for the user instead of being sent forever.
+    for _ in 0..5 {
+        let error = env.engine.run_once(Trigger::Probe).await.unwrap_err();
+        assert_eq!(error.code(), "DECODE_ERROR");
+    }
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries[0].state, OutboxState::Quarantined);
+    assert_eq!(entries[0].attempts, 5);
+    assert_eq!(env.engine.status().quarantined, 1);
+    env.engine.run_once(Trigger::Probe).await.unwrap();
+    assert_eq!(hits(&env.server, PUSH).await, 5);
+}
