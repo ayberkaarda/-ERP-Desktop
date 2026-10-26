@@ -104,17 +104,54 @@ it('refuses a caller without parties.create and reveals no candidates', function
         ->and($outcome->errorCode)->toBe(ErrorCode::Forbidden);
 });
 
-it('answers DUPLICATE_RECORD with candidates for the same tax number', function (): void {
+it('rejects the tax number of an active party instead of offering an impossible keep_mine', function (): void {
+    $this->writer->create($this->manager, partyMutation());
+    $resolution = ['resolves' => (string) Str::uuid7(), 'code' => 'DUPLICATE_RECORD', 'choice' => 'keep_mine'];
+
+    $plain = $this->writer->create($this->manager, partyMutation(['payload' => [...$this->payload, 'name' => 'Totally Different']]));
+    $kept = $this->writer->create($this->manager, partyMutation(['resolution' => $resolution, 'payload' => [...$this->payload, 'name' => 'Totally Different']]));
+
+    expect($plain->status)->toBe(OutcomeStatus::Rejected)
+        ->and($plain->errorCode)->toBe(ErrorCode::ValidationError)
+        ->and($plain->errorFields)->toHaveKey('tax_number')
+        ->and($plain->conflict)->toBeNull()
+        ->and($kept->status)->toBe(OutcomeStatus::Rejected)
+        ->and($kept->errorFields)->toHaveKey('tax_number')
+        ->and(Party::query()->count())->toBe(1);
+});
+
+it('answers DUPLICATE_RECORD for the tax number of an inactive party and keep_mine then succeeds', function (): void {
     $existing = partyMutation();
     $this->writer->create($this->manager, $existing);
+    DB::table('parties')->update(['is_active' => false]);
+    $mine = partyMutation(['payload' => [...$this->payload, 'name' => 'Totally Different']]);
 
-    $outcome = $this->writer->create($this->manager, partyMutation(['payload' => [...$this->payload, 'name' => 'Totally Different']]));
+    $outcome = $this->writer->create($this->manager, $mine);
+    $kept = $this->writer->create($this->manager, partyMutation([
+        'id' => $mine->id,
+        'payload' => $mine->payload,
+        'resolution' => ['resolves' => $mine->idempotencyKey, 'code' => 'DUPLICATE_RECORD', 'choice' => 'keep_mine'],
+    ]));
 
     expect($outcome->status)->toBe(OutcomeStatus::Conflict)
         ->and($outcome->conflict->code)->toBe(ErrorCode::DuplicateRecord)
         ->and($outcome->conflict->candidates)->toBe([$existing->id])
         ->and(array_map(fn ($c) => $c->value, $outcome->conflict->choices))->toBe(['use_existing', 'keep_mine', 'discard'])
-        ->and(Party::query()->count())->toBe(1);
+        ->and($kept->status)->toBe(OutcomeStatus::Applied)
+        ->and(Party::query()->count())->toBe(2);
+});
+
+it('shows no candidates to a caller without parties.view and creates as REST POST does', function (): void {
+    $existing = partyMutation();
+    $this->writer->create($this->manager, $existing);
+    $creator = Actors::user(['parties.create'], $this->company);
+
+    $outcome = $this->writer->create($creator, partyMutation(['payload' => ['name' => 'Acme Teknoloji', 'type' => 'person', 'roles' => ['customer']]]));
+
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)
+        ->and($outcome->conflict)->toBeNull()
+        ->and(json_encode($outcome->data))->not->toContain($existing->id)
+        ->and(Party::query()->count())->toBe(2);
 });
 
 it('answers DUPLICATE_RECORD for a similar name', function (): void {
@@ -127,15 +164,17 @@ it('answers DUPLICATE_RECORD for a similar name', function (): void {
         ->and($outcome->conflict->candidates)->toContain($existing->id);
 });
 
-it('creates a similar-name party with allow_duplicate and drops the flag', function (): void {
-    $this->writer->create($this->manager, partyMutation());
+it('never skips the duplicate check for an allow_duplicate flag', function (): void {
+    $existing = partyMutation();
+    $this->writer->create($this->manager, $existing);
     $mutation = partyMutation(['payload' => ['name' => 'Acme Teknoloji', 'type' => 'person', 'roles' => ['customer'], 'allow_duplicate' => true]]);
 
     $outcome = $this->writer->create($this->manager, $mutation);
 
-    expect($outcome->status)->toBe(OutcomeStatus::Applied)
-        ->and($outcome->data)->not->toHaveKey('allow_duplicate')
-        ->and(Party::query()->count())->toBe(2);
+    expect($outcome->status)->toBe(OutcomeStatus::Conflict)
+        ->and($outcome->conflict->code)->toBe(ErrorCode::DuplicateRecord)
+        ->and($outcome->conflict->candidates)->toContain($existing->id)
+        ->and(Party::query()->count())->toBe(1);
 });
 
 it('skips the duplicate check for a keep_mine resolution but keeps the other rules', function (): void {

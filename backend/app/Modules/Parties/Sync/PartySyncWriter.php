@@ -22,17 +22,21 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Write side of `parties`: create only (manifest). Replays the REST chain — PartyRequest (rules,
  * policy) then PartyService — and adds the duplicate check the REST create leaves to the web UI.
  *
- * Duplicates: after the permission check and before validation, the same search as
+ * Duplicates: after the permission check and validation, the same search as
  * GET /parties/duplicates. A hit answers `conflict` / DUPLICATE_RECORD with the candidate ids.
- * It is skipped when the client already decided: `payload.allow_duplicate: true`, or a
- * `resolution` {DUPLICATE_RECORD, keep_mine} (the Sync module has verified the resolved
- * conflict). Every other rule, including the unique tax number, still applies.
+ * Validation runs first, so an active party with the same tax number is a VALIDATION_ERROR on
+ * `tax_number`: a DUPLICATE_RECORD there would offer keep_mine, which the unique index blocks.
+ * The search needs `viewAny` like the REST endpoint; without it there is nothing to show and the
+ * contract requires at least one candidate, so the create proceeds as REST POST does.
+ * Only a `resolution` {DUPLICATE_RECORD, keep_mine} (verified by the Sync module) skips the
+ * search; a `payload.allow_duplicate` flag is dropped and never skips it.
  */
 final class PartySyncWriter implements SyncWriter
 {
@@ -75,8 +79,9 @@ final class PartySyncWriter implements SyncWriter
     public function create(Authenticatable $user, Mutation $mutation): WriteOutcome
     {
         $payload = $mutation->payload;
-        $skip = ($payload['allow_duplicate'] ?? false) === true
-            || ($mutation->resolution?->code === ErrorCode::DuplicateRecord && $mutation->resolution->choice === ConflictChoice::KeepMine);
+        $keepMine = $mutation->resolution?->code === ErrorCode::DuplicateRecord
+            && $mutation->resolution->choice === ConflictChoice::KeepMine;
+        // Not a bypass: only a verified keep_mine resolution skips the duplicate search.
         unset($payload['allow_duplicate']);
         $payload['id'] = $mutation->id;
 
@@ -87,7 +92,11 @@ final class PartySyncWriter implements SyncWriter
                 return WriteOutcome::rejected(ErrorCode::Forbidden);
             }
 
-            if (! $skip) {
+            $request->validateResolved();
+            /** @var array<string, mixed> $validated */
+            $validated = $request->validated();
+
+            if (! $keepMine && Gate::forUser($user)->allows('viewAny', Party::class)) {
                 $candidates = $this->candidates($payload);
 
                 if ($candidates !== []) {
@@ -95,9 +104,6 @@ final class PartySyncWriter implements SyncWriter
                 }
             }
 
-            $request->validateResolved();
-            /** @var array<string, mixed> $validated */
-            $validated = $request->validated();
             $party = $this->parties->create($validated);
         } catch (ValidationException $e) {
             return WriteOutcome::rejected(ErrorCode::ValidationError, fields: $this->fields($e->errors()));
