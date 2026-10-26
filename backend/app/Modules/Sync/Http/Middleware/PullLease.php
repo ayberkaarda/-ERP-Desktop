@@ -50,25 +50,16 @@ final class PullLease
         $this->statementMs = $ms;
     }
 
-    public static function begin(Connection $db, int $ms): self
+    /**
+     * @param  float|null  $startedAt  microtime(true) when the request started waiting for its slot;
+     *                                 the deadline counts from there, so slot acquisition and these
+     *                                 setup statements are inside it too
+     */
+    public static function begin(Connection $db, int $ms, ?float $startedAt = null): self
     {
-        $lease = new self($db, microtime(true) + $ms / 1000, $ms);
+        $lease = new self($db, ($startedAt ?? microtime(true)) + $ms / 1000, $ms);
         self::$active ??= new WeakMap;
         self::$hooked ??= new WeakMap;
-
-        try {
-            foreach (self::SETTINGS as $setting) {
-                $before = $db->selectOne('SELECT current_setting(?) AS value', [$setting]);
-                $value = is_object($before) && is_string($before->value ?? null) ? $before->value : '0';
-                $db->select('SELECT set_config(?, ?, false)', [$setting, "{$ms}ms"]);
-                // Tracked only once set: end() restores exactly what was changed.
-                $lease->previous[$setting] = $value;
-            }
-        } catch (Throwable $e) {
-            $lease->end();
-
-            throw $e;
-        }
 
         if (! isset(self::$hooked[$db])) {
             self::$hooked[$db] = true;
@@ -77,7 +68,27 @@ final class PullLease
             });
         }
 
+        // Active before the setup statements, so they are checked against the deadline as well.
         self::$active[$db] = $lease;
+        $lease->adjusting = true;
+
+        try {
+            foreach (self::SETTINGS as $setting) {
+                $before = $db->selectOne('SELECT current_setting(?) AS value', [$setting]);
+                $value = is_object($before) && is_string($before->value ?? null) ? $before->value : '0';
+                $left = $lease->left();
+                $db->select('SELECT set_config(?, ?, false)', [$setting, "{$left}ms"]);
+                // Tracked only once set: end() restores exactly what was changed.
+                $lease->previous[$setting] = $value;
+                $lease->statementMs = $setting === 'statement_timeout' ? $left : $lease->statementMs;
+            }
+        } catch (Throwable $e) {
+            $lease->end();
+
+            throw $e;
+        } finally {
+            $lease->adjusting = false;
+        }
 
         return $lease;
     }
@@ -98,27 +109,33 @@ final class PullLease
         }
     }
 
-    private function check(): void
+    /** Milliseconds left; refuses the statement about to run when none are. */
+    private function left(): int
     {
-        if ($this->adjusting) {
-            return;
-        }
-
         $left = (int) floor(($this->deadline - microtime(true)) * 1000);
 
         if ($left <= 0) {
             throw new ApiException(ErrorCode::ServerError, headers: ['Retry-After' => '1']);
         }
 
-        if ($left < $this->statementMs - self::STEP_MS) {
-            $this->adjusting = true;
+        return $left;
+    }
 
-            try {
-                $this->db->select('SELECT set_config(?, ?, false)', ['statement_timeout', "{$left}ms"]);
-                $this->statementMs = $left;
-            } finally {
-                $this->adjusting = false;
-            }
+    private function check(): void
+    {
+        $left = $this->left();
+
+        if ($this->adjusting || $left >= $this->statementMs - self::STEP_MS) {
+            return;
+        }
+
+        $this->adjusting = true;
+
+        try {
+            $this->db->select('SELECT set_config(?, ?, false)', ['statement_timeout', "{$left}ms"]);
+            $this->statementMs = $left;
+        } finally {
+            $this->adjusting = false;
         }
     }
 }

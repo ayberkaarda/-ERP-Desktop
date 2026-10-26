@@ -141,6 +141,17 @@ final class PushService
             return $this->db->transaction(fn (): array => $this->locked($user, $companyId, $mutation, $index, $resource->write, $op, $adapter, $writer));
         } catch (Interrupt $interrupt) {
             return $interrupt->outcome->toResult($mutation);
+        } catch (QueryException $e) {
+            // A row lock another transaction holds (55P03: NOWAIT refused or lock_timeout, on the
+            // target lock or inside the writer) is no answer to the mutation: transient, like
+            // IDEMPOTENCY_IN_PROGRESS (SYNC-PROTOCOL). Only this mutation's transaction (claim
+            // included) rolls back; mutations before it stay committed with their stored results,
+            // and the client's retry with the same keys replays them and runs this one again.
+            if (ExceptionRenderer::lockNotAvailable($e)) {
+                throw new ApiException(ErrorCode::IdempotencyInProgress, headers: ['Retry-After' => '1']);
+            }
+
+            throw $e;
         }
     }
 
@@ -337,14 +348,7 @@ final class PushService
 
             $outcome = WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
         } catch (QueryException $e) {
-            // A row lock another transaction holds (55P03): not an answer to the mutation, so it
-            // is transient like IDEMPOTENCY_IN_PROGRESS (SYNC-PROTOCOL: the whole push rolls back,
-            // nothing is stored, the client resends the batch with the same keys). A stored
-            // conflict/VERSION_CONFLICT would be replayed for days and needs server data.
-            if (ExceptionRenderer::lockNotAvailable($e)) {
-                throw new ApiException(ErrorCode::IdempotencyInProgress, headers: ['Retry-After' => '1']);
-            }
-
+            // A busy row lock (55P03) is rethrown below and answered in one() as transient.
             // A concurrent create took the client id between the lock and the insert: the
             // savepoint is gone, the answer is the same as for a taken id.
             if ($mutation->op !== MutationOp::Create || ! self::primaryKeyViolation($e, $adapter->table())) {

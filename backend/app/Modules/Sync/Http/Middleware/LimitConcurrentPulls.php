@@ -22,10 +22,13 @@ use Symfony\Component\HttpFoundation\Response;
  * cache locks released when the pull ends, failed or not; pull_slot_seconds frees the slot of a
  * worker that died mid-pull.
  *
- * The lease bounds the whole request (PullLease): from the moment the slot is taken the pull has
- * the slot time minus a margin, across all its statements and transactions; past it, the next
- * statement is refused and a running one is cancelled by the database, so a slow pull fails
- * before its slot can expire and be taken by another pull.
+ * The lease bounds the request (PullLease): the deadline counts from the moment the request
+ * starts waiting for its slots, covers slot acquisition and the setup statements, and ends
+ * MARGIN_MS before the slots can expire (slot TTL = pull_slot_seconds, counted from their later
+ * acquisition, so the margin always holds). Past it the next statement is refused and a running
+ * one is cancelled by the database. Known limit: PHP work between two statements is only checked
+ * at the next statement, so pure CPU work can overrun the deadline (never the margin unless it
+ * takes longer than MARGIN_MS by itself).
  */
 final class LimitConcurrentPulls
 {
@@ -53,6 +56,7 @@ final class LimitConcurrentPulls
             return $next($request);
         }
 
+        $startedAt = microtime(true);
         $seconds = max(1, (int) config('sync.throttle.pull_slot_seconds', 120));
         $held = [];
         $lease = null;
@@ -69,7 +73,7 @@ final class LimitConcurrentPulls
             }
 
             if ($this->db instanceof Connection) {
-                $lease = PullLease::begin($this->db, max(1000, $seconds * 1000 - self::MARGIN_MS));
+                $lease = PullLease::begin($this->db, self::deadlineMs($seconds), $startedAt);
             }
 
             /** @var Response */
@@ -81,6 +85,17 @@ final class LimitConcurrentPulls
                 $lock->release();
             }
         }
+    }
+
+    /**
+     * The request's time: the slot TTL minus MARGIN_MS, or half the TTL for slots shorter than
+     * twice the margin, so the deadline always ends before the slots can expire.
+     */
+    public static function deadlineMs(int $slotSeconds): int
+    {
+        $ttl = $slotSeconds * 1000;
+
+        return $ttl > 2 * self::MARGIN_MS ? $ttl - self::MARGIN_MS : intdiv($ttl, 2);
     }
 
     private static function acquire(LockProvider $store, string $scope, string $id, int $slots, int $seconds): ?Lock

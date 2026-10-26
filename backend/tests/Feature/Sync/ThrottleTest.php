@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\Http\ApiException;
 use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Sync\Http\Middleware\LimitConcurrentPulls;
 use App\Modules\Sync\Http\Middleware\PullLease;
@@ -131,8 +132,10 @@ it('bounds a running pull by its slot lease in the database', function (): void 
 
     throttledPull($this, $this->headers)->assertOk();
 
-    // Inside the pull: the database ends it before the 30 s slot could be taken again.
-    expect($seen)->toBe(['25s', '25s'])
+    // Inside the pull: the time left of the 25 s deadline, before the 30 s slot could be taken again.
+    $ms = fn (string $value): int => str_ends_with($value, 'ms') ? (int) $value : (int) $value * 1000;
+    expect($ms($seen[0]))->toBeLessThanOrEqual(25_000)->toBeGreaterThan(24_000)
+        ->and($ms($seen[1]))->toBeLessThanOrEqual(25_000)->toBeGreaterThan(24_000)
         ->and(DB::selectOne('show transaction_timeout')->transaction_timeout)->toBe('0')
         ->and(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('0');
 });
@@ -152,8 +155,8 @@ function slowPullOnce(Closure $slow): void
 }
 
 it('ends a pull whose work outside one statement outlasts the lease', function (): void {
-    // 6 s slot - 5 s margin: a 1 s lease for the whole request.
-    config(['sync.throttle.pull_slot_seconds' => 6]);
+    // A 2 s slot: a 1 s deadline for the whole request (half the TTL below twice the margin).
+    config(['sync.throttle.pull_slot_seconds' => 2]);
     slowPullOnce(fn () => usleep(1_200_000));
 
     $response = throttledPull($this, $this->headers);
@@ -165,7 +168,7 @@ it('ends a pull whose work outside one statement outlasts the lease', function (
 });
 
 it('cuts a statement at the deadline left, not at the full lease', function (): void {
-    config(['sync.throttle.pull_slot_seconds' => 6]);
+    config(['sync.throttle.pull_slot_seconds' => 2]);
     $started = microtime(true);
     // 0.6 s gone, then a 0.7 s statement: within a fresh 1 s timeout, past the 1 s deadline.
     slowPullOnce(function (): void {
@@ -177,6 +180,32 @@ it('cuts a statement at the deadline left, not at the full lease', function (): 
 
     expect(microtime(true) - $started)->toBeLessThan(1.25);
 });
+
+it('counts the deadline from the wait for the slot and checks the setup statements too', function (): void {
+    // Started 1.2 s ago (waiting for slots) with a 1 s deadline: the setup itself is refused.
+    $db = DB::connection();
+
+    expect(fn () => PullLease::begin($db, 1000, microtime(true) - 1.2))
+        ->toThrow(fn (ApiException $e) => expect($e->errorCode->value)->toBe('SERVER_ERROR'))
+        ->and(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('0')
+        ->and(DB::selectOne('show transaction_timeout')->transaction_timeout)->toBe('0');
+
+    // Started 0.4 s ago: the timeouts get the time left, not the full second.
+    $lease = PullLease::begin($db, 1000, microtime(true) - 0.4);
+    $left = (int) rtrim((string) DB::selectOne('show statement_timeout')->statement_timeout, 'ms');
+    $lease->end();
+
+    expect($left)->toBeLessThanOrEqual(600)->toBeGreaterThan(0);
+});
+
+it('ends the deadline before the slots can expire', function (int $slot, int $deadline): void {
+    expect(LimitConcurrentPulls::deadlineMs($slot))->toBe($deadline)
+        ->and($deadline)->toBeLessThan($slot * 1000);
+})->with([
+    'default' => [120, 115_000],
+    'short' => [6, 3000],
+    'shortest' => [1, 500],
+]);
 
 it('drops the connection when it cannot put the settings back', function (): void {
     $db = DB::connection();
