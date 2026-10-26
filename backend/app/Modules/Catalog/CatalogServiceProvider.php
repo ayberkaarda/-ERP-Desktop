@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Catalog;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Core\Sync\Contracts\SyncResource;
 use App\Modules\Catalog\Contracts\ItemLookup;
 use App\Modules\Catalog\Contracts\ItemUsageChecker;
 use App\Modules\Catalog\Contracts\PriceListLookup;
@@ -33,6 +34,14 @@ use App\Modules\Catalog\Services\DatabasePriceResolver;
 use App\Modules\Catalog\Services\DatabaseUnitLookup;
 use App\Modules\Catalog\Services\ItemService;
 use App\Modules\Catalog\Services\PriceListItemUsage;
+use App\Modules\Catalog\Sync\ItemBarcodeSyncResource;
+use App\Modules\Catalog\Sync\ItemCategorySyncResource;
+use App\Modules\Catalog\Sync\ItemSyncResource;
+use App\Modules\Catalog\Sync\ItemVariantSyncResource;
+use App\Modules\Catalog\Sync\PriceListLineSyncResource;
+use App\Modules\Catalog\Sync\PriceListSyncResource;
+use App\Modules\Catalog\Sync\UnitConversionSyncResource;
+use App\Modules\Catalog\Sync\UnitSyncResource;
 use App\Modules\Organization\Events\CompanyCreated;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Event;
@@ -49,6 +58,17 @@ final class CatalogServiceProvider extends ModuleServiceProvider
         $this->app->bind(PriceResolver::class, DatabasePriceResolver::class);
         $this->app->bind(ItemUsageChecker::class, CompositeItemUsageChecker::class);
         $this->app->tag([PriceListItemUsage::class], ItemUsageChecker::TAG);
+
+        $this->app->tag([
+            UnitSyncResource::class,
+            UnitConversionSyncResource::class,
+            ItemCategorySyncResource::class,
+            ItemSyncResource::class,
+            ItemVariantSyncResource::class,
+            ItemBarcodeSyncResource::class,
+            PriceListSyncResource::class,
+            PriceListLineSyncResource::class,
+        ], SyncResource::TAG);
 
         // Item codes: ITM + year + 6 digits, unless the deployment configured its own format.
         if (config('numbering.formats.'.ItemService::DOC_TYPE) === null) {
