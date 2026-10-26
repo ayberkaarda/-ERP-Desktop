@@ -18,7 +18,7 @@ final class PullRequest extends SyncRequest
     public function rules(): array
     {
         return [
-            'schema_version' => ['required', 'integer', 'min:1'],
+            'schema_version' => ['required', 'integer:strict', 'min:1'],
             'resources' => ['required', 'array', 'list', 'min:1'],
             'resources.*' => ['required', 'array'],
             'resources.*.resource' => ['required', 'string', 'max:80', 'regex:/\A[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*\z/'],

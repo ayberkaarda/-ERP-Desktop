@@ -42,13 +42,14 @@ final class PullService
         private readonly Visibility $visibility,
         private readonly Horizon $horizon,
         private readonly Rows $rows,
+        private readonly FullDownloads $downloads,
     ) {}
 
     /**
      * @param  list<array{resource: string, cursor: array<string, mixed>|null, limit: int|null}>  $requests
      * @return array{horizon: string, server_time: string, resources: list<array<string, mixed>>}
      */
-    public function pull(User $user, string $companyId, array $requests): array
+    public function pull(User $user, string $companyId, array $requests, ?string $device = null): array
     {
         $config = $this->manifests->config();
 
@@ -94,13 +95,33 @@ final class PullService
             }
 
             $limit = min($request['limit'] ?? $config->pullPageDefault, $config->pullPageMax);
-            $plans[] = [$resource, $adapter, $cursor, $generation, max(1, $limit)];
+            $started = $cursor === null ? null : $this->downloads->startedAt($device, $companyId, $resource->name, $cursor);
+            $plans[] = [$resource, $adapter, $cursor, $started, $generation, max(1, $limit)];
         }
 
-        $results = [];
+        // Floor, live rows and tombstones of every resource come from one REPEATABLE READ
+        // snapshot, so a sync:prune committing meanwhile is either wholly seen (floor raised:
+        // the cursor expires) or not at all (its tombstones are still read). The horizon is
+        // read again inside: it can only be at or above the one the cursors were checked against.
+        [$horizon, $results, $continuations] = $this->snapshot(function () use ($plans, $companyId): array {
+            $horizon = $this->horizon->current();
+            $results = [];
+            $continuations = [];
 
-        foreach ($plans as [$resource, $adapter, $cursor, $generation, $limit]) {
-            $results[] = $this->page($resource, $adapter, $companyId, $cursor, $generation, $limit, $horizon);
+            foreach ($plans as [$resource, $adapter, $cursor, $started, $generation, $limit]) {
+                [$page, $continuation] = $this->page($resource, $adapter, $companyId, $cursor, $started, $generation, $limit, $horizon);
+                $results[] = $page;
+
+                if ($continuation !== null) {
+                    $continuations[] = [$resource->name, ...$continuation];
+                }
+            }
+
+            return [$horizon, $results, $continuations];
+        });
+
+        foreach ($continuations as [$name, $next, $started]) {
+            $this->downloads->remember($device, $companyId, $name, $next, $started);
         }
 
         return [
@@ -111,20 +132,50 @@ final class PullService
     }
 
     /**
-     * @return array<string, mixed>
+     * @template T
+     *
+     * @param  callable(): T  $read
+     * @return T
      */
-    private function page(ManifestResource $resource, SyncResource $adapter, string $companyId, ?Cursor $cursor, int $generation, int $limit, Xid8 $horizon): array
+    private function snapshot(callable $read): mixed
+    {
+        if ($this->db->transactionLevel() > 0) {
+            return $read();
+        }
+
+        return $this->db->transaction(function () use ($read): mixed {
+            $this->db->statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+
+            return $read();
+        });
+    }
+
+    /**
+     * One resource page. A full download (no cursor, a reset, or a cursor this server issued
+     * while paging a full download) is checked against the floor by the horizon it started at,
+     * not by its paging position: rows below the floor are the download itself, and only a
+     * download older than the floor can have missed a delete. Incremental cursors are checked
+     * by their position.
+     *
+     * @return array{0: array<string, mixed>, 1: array{0: Cursor, 1: Xid8}|null} page, and the continuation to remember
+     */
+    private function page(ManifestResource $resource, SyncResource $adapter, string $companyId, ?Cursor $cursor, ?Xid8 $started, int $generation, int $limit, Xid8 $horizon): array
     {
         $reset = null;
+        $floor = $cursor !== null ? $this->floor($adapter, $companyId) : null;
 
         if ($cursor !== null && $cursor->gen !== $generation) {
             $reset = ResetReason::VisibilityChanged;
-        } elseif ($cursor !== null && $cursor->expiredBy($this->floor($adapter, $companyId))) {
+        } elseif ($cursor !== null && ($started !== null ? Cursor::atHorizon($started, $generation) : $cursor)->expiredBy($floor)) {
             $reset = ResetReason::CursorExpired;
         }
 
+        $full = $cursor === null || $reset !== null || $started !== null;
+        $started = $cursor === null || $reset !== null ? $horizon : $started;
         $from = $cursor === null || $reset !== null ? Cursor::initial($generation) : $cursor;
-        $initial = $from->afterId === null && $from->txid->equals(Xid8::zero());
+        // Window filter of a first download: the client holds nothing, so out-of-window rows
+        // are left out instead of being sent as out_of_scope tombstones.
+        $initial = $full;
 
         $events = [
             ...$this->liveEvents($resource, $adapter, $companyId, $from, $horizon, $limit, $initial),
@@ -163,7 +214,7 @@ final class PullService
             $out['reset_reason'] = $reset->value;
         }
 
-        return $out;
+        return [$out, $full && $hasMore && $started !== null ? [$next, $started] : null];
     }
 
     /**

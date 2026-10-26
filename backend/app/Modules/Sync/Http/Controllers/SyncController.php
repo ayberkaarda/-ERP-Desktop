@@ -34,7 +34,7 @@ final class SyncController extends Controller
      */
     public function pull(PullRequest $request, PullService $pull): JsonResponse
     {
-        return $this->respond($pull->pull($this->user($request), self::company(), $request->resources()));
+        return $this->respond($pull->pull($this->user($request), self::company(), $request->resources(), self::tokenId($request)));
     }
 
     /**

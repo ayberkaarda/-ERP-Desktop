@@ -22,7 +22,7 @@ final class PushRequest extends SyncRequest
         $uuid7 = 'regex:'.Mutation::UUID7_PATTERN;
 
         return [
-            'schema_version' => ['required', 'integer', 'min:1'],
+            'schema_version' => ['required', 'integer:strict', 'min:1'],
             'mutations' => ['required', 'array', 'list', 'min:1', 'max:500'],
             'mutations.*' => ['required', 'array'],
             'mutations.*.idempotency_key' => ['required', 'string', $uuid7],

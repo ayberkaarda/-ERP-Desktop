@@ -24,6 +24,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -47,6 +48,9 @@ final class PushService
      * @var array<string, array{index: int, id: string, status: OutcomeStatus|null, dependency_failed: bool}>
      */
     private array $batch = [];
+
+    /** @var array<string, bool> */
+    private static array $companyColumn = [];
 
     public function __construct(
         private readonly ConnectionInterface $db,
@@ -154,11 +158,25 @@ final class PushService
             throw Interrupt::unstored(WriteOutcome::rejected(ErrorCode::Forbidden));
         }
 
-        $raw = $this->db->table($table)->where('id', $mutation->id)->lockForUpdate()->first();
+        // The lock only ever reaches rows of the active company: another company's row is
+        // filtered out before it is locked, so its lock holder cannot make this request wait.
+        $lock = $this->db->table($table)->where('id', $mutation->id);
+
+        if ($this->hasCompany($table)) {
+            $lock->where('company_id', $companyId);
+        }
+
+        $raw = $lock->lockForUpdate()->first();
         $target = $raw !== null ? $writer->find($mutation->id) : null;
         $scope = $this->results->scope($user->id, $companyId, $mutation->idempotencyKey);
 
         if ($create) {
+            // The id belongs to another company: an existence probe without lock and without
+            // data, answered like any taken id.
+            if ($raw === null && $this->db->table($table)->where('id', $mutation->id)->exists()) {
+                throw Interrupt::unstored(self::idTaken());
+            }
+
             if ($raw !== null && $target === null) {
                 // Another company's row (or a removed one): same answer as a taken id, nothing leaks.
                 throw Interrupt::unstored(self::idTaken());
@@ -305,6 +323,12 @@ final class PushService
         } catch (ModelNotFoundException) {
             $outcome = WriteOutcome::rejected(ErrorCode::NotFound);
         } catch (ApiException $e) {
+            // Transient failures are not an answer to the mutation: the mutation transaction
+            // rolls back (claim included), nothing is stored and the error keeps its headers.
+            if (self::transient($e->errorCode)) {
+                throw $e;
+            }
+
             $outcome = WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
         } catch (QueryException $e) {
             // A concurrent create took the client id between the lock and the insert: the
@@ -336,6 +360,10 @@ final class PushService
 
         if ($outcome->errorCode === ErrorCode::Forbidden) {
             throw Interrupt::unstored($outcome);
+        }
+
+        if ($outcome->errorCode !== null && self::transient($outcome->errorCode)) {
+            throw new ApiException($outcome->errorCode, $outcome->errorMessage);
         }
 
         $fresh = $mutation->op === MutationOp::Create ? null : $writer->find($mutation->id);
@@ -579,6 +607,16 @@ final class PushService
         }
 
         return $errors === [] ? null : $errors;
+    }
+
+    private static function transient(ErrorCode $code): bool
+    {
+        return in_array($code, [ErrorCode::ServerError, ErrorCode::TooManyAttempts, ErrorCode::IdempotencyInProgress], true);
+    }
+
+    private function hasCompany(string $table): bool
+    {
+        return self::$companyColumn[$table] ??= Schema::hasColumn($table, 'company_id');
     }
 
     private static function idTaken(): WriteOutcome

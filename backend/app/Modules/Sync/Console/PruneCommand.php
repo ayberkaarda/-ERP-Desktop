@@ -56,7 +56,9 @@ final class PruneCommand extends Command
             ->where('created_at', '<', Carbon::now()->subSeconds($config->idempotencyTtlSeconds()))
             ->delete();
 
-        $this->info("Pruned tombstones of {$groups} table/company pairs, {$keys} expired idempotency keys, {$resolutions} resolutions.");
+        $downloads = $db->table('sync_full_downloads')->where('created_at', '<', $cutoff)->delete();
+
+        $this->info("Pruned tombstones of {$groups} table/company pairs, {$keys} expired idempotency keys, {$resolutions} resolutions, {$downloads} full-download cursors.");
 
         return self::SUCCESS;
     }

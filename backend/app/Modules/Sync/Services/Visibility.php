@@ -56,4 +56,17 @@ final readonly class Visibility
 
         return is_numeric($values['generation'] ?? null) ? (int) $values['generation'] : 0;
     }
+
+    /**
+     * Every resource of the user in the company changed visibility (membership revoked): all
+     * cursors issued so far are reset at their next pull, even when access comes back before
+     * that pull observes anything.
+     */
+    public function invalidate(string $userId, string $companyId): void
+    {
+        $this->db->table('sync_visibility_generations')
+            ->where('user_id', $userId)
+            ->where('company_id', $companyId)
+            ->update(['generation' => $this->db->raw('generation + 1'), 'updated_at' => Carbon::now()]);
+    }
 }

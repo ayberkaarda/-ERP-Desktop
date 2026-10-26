@@ -39,4 +39,17 @@ abstract class SyncRequest extends FormRequest
             throw new ApiException(ErrorCode::SyncBatchTooLarge);
         }
     }
+
+    /**
+     * The validated value (a strict integer) must be a supported version, whatever slipped
+     * past the early check.
+     */
+    protected function passedValidation(): void
+    {
+        $version = $this->validated('schema_version');
+
+        if (! is_int($version) || ! SyncConfig::fromConfig(config())->supportsSchema($version)) {
+            throw new ApiException(ErrorCode::SyncSchemaMismatch);
+        }
+    }
 }
