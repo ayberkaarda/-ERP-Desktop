@@ -217,7 +217,7 @@ final class PushService
 
         $this->results->complete((string) $claim->claimId, $mutation, $outcome);
 
-        if ($outcome->status === OutcomeStatus::Applied && $mutation->resolution !== null) {
+        if ($outcome->status === OutcomeStatus::Applied && $mutation->resolution !== null && $this->resolutionApplies($user, $companyId, $mutation)) {
             $this->results->supersede($this->results->scope($user->id, $companyId, $mutation->resolution->resolves), $mutation->idempotencyKey);
         }
 
@@ -238,7 +238,11 @@ final class PushService
         }
 
         if ($target === null) {
-            return $this->write($user, $companyId, $mutation, $adapter, $writer, null, Decision::apply(0), []);
+            // A keep_mine for another body than the one that got DUPLICATE_RECORD does not
+            // apply: the writer sees no resolution and runs its duplicate search again.
+            $create = $this->resolutionApplies($user, $companyId, $mutation) ? $mutation : self::withoutResolution($mutation);
+
+            return $this->write($user, $companyId, $create, $adapter, $writer, null, Decision::apply(0), []);
         }
 
         $before = $raw === null ? [] : (array) $raw;
@@ -607,6 +611,45 @@ final class PushService
         }
 
         return $errors === [] ? null : $errors;
+    }
+
+    /**
+     * A valid resolution applies to this mutation. DUPLICATE_RECORD keep_mine only covers the
+     * payload that got the conflict (same canonical digest); VERSION_CONFLICT choices always
+     * apply, since they are checked against the current version anyway.
+     */
+    private function resolutionApplies(User $user, string $companyId, Mutation $mutation): bool
+    {
+        $resolution = $mutation->resolution;
+
+        if ($resolution === null) {
+            return false;
+        }
+
+        if ($resolution->code !== ErrorCode::DuplicateRecord) {
+            return true;
+        }
+
+        $stored = $this->results->find($this->results->scope($user->id, $companyId, $resolution->resolves));
+
+        return $stored?->payloadHash !== null && hash_equals($stored->payloadHash, PushResults::payloadHash($mutation->payload));
+    }
+
+    private static function withoutResolution(Mutation $mutation): Mutation
+    {
+        return new Mutation(
+            $mutation->idempotencyKey,
+            $mutation->op,
+            $mutation->resource,
+            $mutation->id,
+            $mutation->baseVersion,
+            $mutation->changedFields,
+            $mutation->occurredAt,
+            $mutation->payload,
+            $mutation->action,
+            $mutation->parentId,
+            $mutation->dependsOn,
+        );
     }
 
     private static function transient(ErrorCode $code): bool

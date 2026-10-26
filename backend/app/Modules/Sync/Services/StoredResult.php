@@ -19,6 +19,7 @@ final readonly class StoredResult
         public string $resource,
         public string $id,
         public WriteOutcome $outcome,
+        public ?string $payloadHash = null,
     ) {}
 
     public static function fromResponse(StoredResponse $response): self
@@ -35,6 +36,7 @@ final readonly class StoredResult
             is_string($data['resource'] ?? null) ? $data['resource'] : '',
             is_string($data['id'] ?? null) ? $data['id'] : '',
             WriteOutcome::fromArray($data['outcome']),
+            is_string($data['payload_hash'] ?? null) ? $data['payload_hash'] : null,
         );
     }
 }

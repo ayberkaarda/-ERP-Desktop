@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Identity\Services\UserAdministration;
 use App\Modules\Organization\Models\Company;
 use App\Modules\Sync\Services\Visibility;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Feature\Sync\Support\SyncKit;
@@ -147,7 +149,9 @@ it('removes generations, resolutions and download cursors with their user and co
     [, $other] = SyncKit::actor();
     $resolution($other->id, $bare->id);
     app(Visibility::class)->observe($other->id, $bare->id, 'fixture-notes', true);
-    DB::statement("INSERT INTO sync_full_downloads (cursor_hash, token_id, company_id, resource, started_horizon, created_at) VALUES (?, '1', ?, 'fixture-notes', '5'::xid8, now())", [str_repeat('d', 64), $bare->id]);
+    app(DeviceTokens::class)->issue($other, Request::create('/'), 'FK device', 'fp-fk');
+    $device = DB::table('user_devices')->where('user_id', $other->id)->value('id');
+    DB::statement("INSERT INTO sync_full_downloads (device_id, user_id, company_id, resource, cursor_hash, started_horizon, created_at, updated_at) VALUES (?, ?, ?, 'fixture-notes', ?, '5'::xid8, now(), now())", [$device, $other->id, $bare->id, str_repeat('d', 64)]);
     DB::table('companies')->where('id', $bare->id)->delete();
 
     expect(DB::table('sync_push_resolutions')->where('company_id', $bare->id)->count())->toBe(0)

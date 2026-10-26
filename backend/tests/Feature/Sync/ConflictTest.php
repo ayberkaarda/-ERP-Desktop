@@ -308,3 +308,56 @@ it('reads the server history from real activity log entries (attribute_changes)'
     expect($results[0])->toMatchArray(['status' => 'applied', 'version' => 4, 'merged_fields' => ['title']])
         ->and($results[1]['conflict'])->toMatchArray(['code' => 'VERSION_CONFLICT', 'server_version' => 2, 'conflicting_fields' => ['title']]);
 });
+
+it('does not let a keep_mine resolution carry a different body past the duplicate check', function (): void {
+    $existing = SyncKit::note($this->company, ['title' => 'Twin']);
+    ScriptedNoteWriter::$beforeCreate = static fn (Mutation $m): ?WriteOutcome => $m->resolution === null && ($m->payload['title'] ?? null) === 'Twin'
+        ? WriteOutcome::conflict(SyncConflict::duplicateRecord([$existing->id]))
+        : null;
+
+    $id = (string) Str::uuid7();
+    $create = SyncKit::mutation('create', $id, ['title' => 'Twin', 'lines' => [['body' => 'original']]]);
+    expect(pushSingle($this, $create)['conflict']['code'])->toBe('DUPLICATE_RECORD');
+
+    $resolution = ['resolves' => $create['idempotency_key'], 'code' => 'DUPLICATE_RECORD', 'choice' => 'keep_mine'];
+
+    // Another body under the same resolution: the duplicate check runs again.
+    $other = pushSingle($this, SyncKit::mutation('create', $id, ['title' => 'Twin', 'lines' => [['body' => 'something else']]], overrides: ['resolution' => $resolution]));
+    expect($other['status'])->toBe('conflict')
+        ->and($other['conflict']['code'])->toBe('DUPLICATE_RECORD')
+        ->and(FixtureNote::withoutCompanyScope()->find($id))->toBeNull();
+
+    // The body that got the conflict (keys in any order) is created.
+    $same = pushSingle($this, SyncKit::mutation('create', $id, ['lines' => [['body' => 'original']], 'title' => 'Twin'], overrides: ['resolution' => $resolution]));
+    expect($same['status'])->toBe('applied')
+        ->and(array_column($same['data']['lines'], 'body'))->toBe(['original']);
+});
+
+it('never overwrites a server change silently when a stale update meets two audited fields', function (): void {
+    SyncKit::manifest(function (array $m): array {
+        unset($m['resources'][0]['write']['draft_only']);
+
+        return $m;
+    });
+    $note = SyncKit::note($this->company, ['title' => 'Base']);
+    $edit = fn (array $attributes) => app(CompanyContext::class)->runAs($this->company->id, fn () => LoggedNote::query()->findOrFail($note->id)->update($attributes));
+
+    // v2: the server changes status. A title update on v1 merges and keeps that status.
+    $edit(['status' => 'review']);
+    $merged = pushSingle($this, SyncKit::mutation('update', $note->id, ['title' => 'Mine'], 1));
+    expect($merged)->toMatchArray(['status' => 'applied', 'version' => 3, 'merged_fields' => ['title']])
+        ->and(freshNote($note->id)->only(['title', 'status']))->toBe(['title' => 'Mine', 'status' => 'review']);
+
+    // v4 title, v5 status: a title update on v3 meets the title change, and its replay after
+    // the status change still names title, with the current row.
+    $edit(['title' => 'Server']);
+    $update = SyncKit::mutation('update', $note->id, ['title' => 'Again'], 3);
+    $conflict = pushSingle($this, $update);
+    $edit(['status' => 'draft']);
+    $replay = pushSingle($this, $update);
+
+    expect($conflict['conflict'])->toMatchArray(['server_version' => 4, 'conflicting_fields' => ['title']])
+        ->and($replay['conflict'])->toMatchArray(['server_version' => 5, 'conflicting_fields' => ['title']])
+        ->and($replay['conflict']['server_data'])->toMatchArray(['title' => 'Server', 'status' => 'draft', 'version' => 5])
+        ->and(freshNote($note->id)->only(['title', 'status']))->toBe(['title' => 'Server', 'status' => 'draft']);
+});

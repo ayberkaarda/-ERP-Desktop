@@ -43,8 +43,34 @@ final readonly class PushResults
             'action' => $mutation->action,
             'resource' => $mutation->resource,
             'id' => $mutation->id,
+            'payload_hash' => self::payloadHash($mutation->payload),
             'outcome' => $outcome->toArray(),
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION)));
+    }
+
+    /**
+     * Canonical digest of a payload: object keys sorted, list order kept.
+     *
+     * @param  array<array-key, mixed>  $payload
+     */
+    public static function payloadHash(array $payload): string
+    {
+        $sort = static function (mixed &$value) use (&$sort): void {
+            if (! is_array($value)) {
+                return;
+            }
+
+            if (! array_is_list($value)) {
+                ksort($value, SORT_STRING);
+            }
+
+            foreach ($value as &$item) {
+                $sort($item);
+            }
+        };
+        $sort($payload);
+
+        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
     }
 
     public function find(IdempotencyScope $scope): ?StoredResult

@@ -49,9 +49,11 @@ final class PullService
      * @param  list<array{resource: string, cursor: array<string, mixed>|null, limit: int|null}>  $requests
      * @return array{horizon: string, server_time: string, resources: list<array<string, mixed>>}
      */
-    public function pull(User $user, string $companyId, array $requests, ?string $device = null): array
+    public function pull(User $user, string $companyId, array $requests, ?string $tokenId = null): array
     {
         $config = $this->manifests->config();
+        // Full-download sessions belong to the durable device, not to its rotating access token.
+        $device = $tokenId === null ? null : $this->downloads->deviceFor($tokenId, $user->id);
 
         if (count($requests) > $config->pullResourcesMax) {
             throw new ApiException(ErrorCode::SyncBatchTooLarge);
@@ -95,7 +97,7 @@ final class PullService
             }
 
             $limit = min($request['limit'] ?? $config->pullPageDefault, $config->pullPageMax);
-            $started = $cursor === null ? null : $this->downloads->startedAt($device, $companyId, $resource->name, $cursor);
+            $started = $cursor === null || $device === null ? null : $this->downloads->startedAt($device, $user->id, $companyId, $resource->name, $cursor);
             $plans[] = [$resource, $adapter, $cursor, $started, $generation, max(1, $limit)];
         }
 
@@ -120,8 +122,12 @@ final class PullService
             return [$horizon, $results, $continuations];
         });
 
-        foreach ($continuations as [$name, $next, $started]) {
-            $this->downloads->remember($device, $companyId, $name, $next, $started);
+        if ($device !== null) {
+            foreach ($continuations as [$name, $next, $started, $fresh]) {
+                $next === null
+                    ? $this->downloads->finish($device, $user->id, $companyId, $name)
+                    : $this->downloads->remember($device, $user->id, $companyId, $name, $next, $started, $fresh);
+            }
         }
 
         return [
@@ -157,7 +163,7 @@ final class PullService
      * download older than the floor can have missed a delete. Incremental cursors are checked
      * by their position.
      *
-     * @return array{0: array<string, mixed>, 1: array{0: Cursor, 1: Xid8}|null} page, and the continuation to remember
+     * @return array{0: array<string, mixed>, 1: array{0: Cursor|null, 1: Xid8, 2: bool}|null} page, and for a full download its continuation (null cursor: finished) and whether it began here
      */
     private function page(ManifestResource $resource, SyncResource $adapter, string $companyId, ?Cursor $cursor, ?Xid8 $started, int $generation, int $limit, Xid8 $horizon): array
     {
@@ -214,7 +220,9 @@ final class PullService
             $out['reset_reason'] = $reset->value;
         }
 
-        return [$out, $full && $hasMore && $started !== null ? [$next, $started] : null];
+        $fresh = $cursor === null || $reset !== null;
+
+        return [$out, $full && $started !== null ? [$hasMore ? $next : null, $started, $fresh] : null];
     }
 
     /**
