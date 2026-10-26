@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/device-refresh.request.schema.json",
+  "title": "POST /api/v1/auth/device/refresh isteği",
+  "description": "Erişim token'ını yeniler. Authorization başlığı gerekmez (erişim token'ı süresi dolmuş olabilir); yetki refresh_token'dır. Başarılı yanıt device-token.response.schema.json. Bilinmeyen, süresi dolmuş, iptal edilmiş cihaza ait veya daha önce kullanılmış (used_at dolu) refresh token 401 UNAUTHENTICATED döner; kullanılmış token durumunda sunucu önce cihazın aile kaydını ve tüm token'larını iptal eder. Eşzamanlı yenileme desteklenmez; istemci yenilemeyi sıralar. Hız sınırında 429 TOO_MANY_ATTEMPTS. Identity uç sözleşmesidir; D1'de OpenAPI'ye taşınır.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["refresh_token"],
+  "properties": {
+    "refresh_token": { "type": "string", "minLength": 32, "maxLength": 512 }
+  }
+}

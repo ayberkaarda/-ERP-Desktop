@@ -1,0 +1,36 @@
+{
+  "manifest_version": 1,
+  "sync_schema_version": 1,
+  "api_prefix": "/api/v1",
+  "defaults": {
+    "recent_window_days": 30,
+    "snapshot_refresh_minutes": 15
+  },
+  "resources": [
+    {
+      "resource": "currencies",
+      "module": "Reference",
+      "scope": "global_with_company_activation",
+      "path": "/api/v1/currencies",
+      "detail_path": "/api/v1/currencies/{id}",
+      "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+      "requires": {
+        "all_of": [
+          "currencies.view"
+        ]
+      },
+      "read": "local-first",
+      "source": "pull"
+    }
+  ],
+  "online_only": [
+    {
+      "action": "decideApproval",
+      "i18n_key": "desktop.onlineOnly.decideApproval",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/approvals/{id}/decisions"
+      ]
+    }
+  ]
+}

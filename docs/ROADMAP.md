@@ -22,6 +22,7 @@
 ## Masaüstü
 
 - D0 — Masaüstü temel yapısı
+  - Senkron sözleşmeleri: `docs/SYNC-PROTOCOL.md`, `contracts/sync/`, `contracts/offline-manifest.json`
 - D1 — Pencere ve gezinme
 - D2 — Yerel oturum
 - D3 — Çevrimdışı çalışma
