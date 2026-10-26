@@ -265,9 +265,9 @@ it('keeps each company\'s live rows and tombstones out of the other company\'s p
     foreach ([[$first, $second], [$second, $first]] as [$own, $foreign]) {
         $pull = referencePull($resource, $own, $horizon);
         expect($pull['rows'])->toContain($made[$own]['live'])
-            ->not->toContain($made[$own]['deleted'], $made[$foreign]['live'], $made[$foreign]['deleted'])
+            ->not->toContain($made[$own]['deleted'])->not->toContain($made[$foreign]['live'])->not->toContain($made[$foreign]['deleted'])
             ->and($pull['tombstones'])->toContain($made[$own]['deleted'])
-            ->not->toContain($made[$foreign]['deleted'], $made[$foreign]['live'], $made[$own]['live']);
+            ->not->toContain($made[$foreign]['deleted'])->not->toContain($made[$foreign]['live'])->not->toContain($made[$own]['live']);
     }
 })->with([
     'exchange-rates' => [ExchangeRateSyncResource::class, fn (int $n): Model => ExchangeRate::factory()->create(['source' => 'manual', 'rate_date' => now()->subDays($n)->toDateString()])],
@@ -308,8 +308,8 @@ it('keeps currency activation changes in their own company stream and global tom
     $pullA = referencePull($resource, $first, $horizon, $baseline);
     $pullB = referencePull($resource, $second, $horizon, $baseline);
 
-    expect($pullA['rows'])->toContain($ownA->id)->not->toContain($ownB->id, $retired->id)
-        ->and($pullB['rows'])->toContain($ownB->id)->not->toContain($ownA->id, $retired->id)
+    expect($pullA['rows'])->toContain($ownA->id)->not->toContain($ownB->id)->not->toContain($retired->id)
+        ->and($pullB['rows'])->toContain($ownB->id)->not->toContain($ownA->id)->not->toContain($retired->id)
         ->and($pullA['tombstones'])->toBe([$retired->id])
         ->and($pullB['tombstones'])->toBe([$retired->id]);
 });
