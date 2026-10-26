@@ -6,6 +6,7 @@ namespace App\Modules\Sync\Services;
 
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Http\ExceptionRenderer;
 use App\Core\Idempotency\ClaimStatus;
 use App\Core\Sync\ConflictChoice;
 use App\Core\Sync\Contracts\SyncResource;
@@ -336,6 +337,14 @@ final class PushService
 
             $outcome = WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
         } catch (QueryException $e) {
+            // A row lock another transaction holds (55P03): not an answer to the mutation, so it
+            // is transient like IDEMPOTENCY_IN_PROGRESS (SYNC-PROTOCOL: the whole push rolls back,
+            // nothing is stored, the client resends the batch with the same keys). A stored
+            // conflict/VERSION_CONFLICT would be replayed for days and needs server data.
+            if (ExceptionRenderer::lockNotAvailable($e)) {
+                throw new ApiException(ErrorCode::IdempotencyInProgress, headers: ['Retry-After' => '1']);
+            }
+
             // A concurrent create took the client id between the lock and the insert: the
             // savepoint is gone, the answer is the same as for a taken id.
             if ($mutation->op !== MutationOp::Create || ! self::primaryKeyViolation($e, $adapter->table())) {

@@ -324,6 +324,37 @@ it('does not wait on the row lock of another company', function (): void {
         ->and($results[2])->not->toHaveKey('data');
 });
 
+it('answers a busy row lock (55P03) as a transient push error and stores nothing', function (): void {
+    $note = SyncKit::note($this->company);
+    $busy = SyncKit::note($this->company, ['title' => 'Held elsewhere']);
+    $update = SyncKit::mutation('update', $note->id, ['title' => 'Mine'], 1);
+    config(['database.connections.sync_busy' => config('database.connections.'.config('database.default'))]);
+    $holder = DB::connection('sync_busy');
+    $holder->beginTransaction();
+    $holder->select('select id from sync_fixture_notes where id = ? for update', [$busy->id]);
+    // The writer meets a row another transaction holds and does not wait for it.
+    ScriptedNoteWriter::$replaceUpdate = static function () use ($busy): WriteOutcome {
+        DB::select('select id from sync_fixture_notes where id = ? for update nowait', [$busy->id]);
+
+        return WriteOutcome::rejected(ErrorCode::ServerError);
+    };
+
+    try {
+        $response = SyncKit::push($this, [$update], $this->headers);
+    } finally {
+        $holder->rollBack();
+        DB::disconnect('sync_busy');
+    }
+
+    $response->assertStatus(409)->assertHeader('Retry-After', '1');
+    expect(SyncKit::wire($response, 'sync/error.response.schema.json')['errors']['code'])->toBe('IDEMPOTENCY_IN_PROGRESS')
+        ->and(DB::table('idempotency_keys')->where('key', $update['idempotency_key'])->exists())->toBeFalse();
+
+    // Retried with the same key once the row is free.
+    ScriptedNoteWriter::$replaceUpdate = null;
+    expect(pushOne($this, $update))->toMatchArray(['status' => 'applied', 'replayed' => false, 'version' => 2]);
+});
+
 it('stores nothing for transient writer errors and keeps their headers', function (): void {
     $note = SyncKit::note($this->company);
     $update = SyncKit::mutation('update', $note->id, ['title' => 'Mine'], 1);
