@@ -120,6 +120,19 @@ impl Outbox {
     }
 }
 
+/// Inside the caller's write transaction: removes every outbox entry,
+/// settled key and remap (sign-out and account wipes). Returns the number
+/// of entries removed.
+pub fn clear_on(tx: &Connection) -> Result<usize> {
+    let removed = tx.execute("DELETE FROM outbox_entries", [])?;
+    tx.execute_batch(
+        "DELETE FROM outbox_settled;
+         DELETE FROM outbox_key_remaps;
+         DELETE FROM outbox_id_remaps;",
+    )?;
+    Ok(removed)
+}
+
 pub(crate) fn invalid(message: &str) -> SyncError {
     SyncError::Store(rusqlite::Error::InvalidParameterName(message.to_owned()))
 }

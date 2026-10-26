@@ -304,6 +304,47 @@ impl Store {
         })
     }
 
+    /// Removes the stored snapshot of `resource`; `true` when one existed.
+    pub fn remove_snapshot(&self, resource: &ResourceName) -> Result<bool> {
+        self.write(|tx| {
+            Ok(tx.execute(
+                "DELETE FROM store_snapshots WHERE resource = ?1",
+                [resource.as_str()],
+            )? > 0)
+        })
+    }
+
+    /// Resources that have a stored snapshot, by name.
+    pub fn snapshot_resources(&self) -> Result<Vec<ResourceName>> {
+        self.read(|conn| {
+            let mut stmt =
+                conn.prepare("SELECT resource FROM store_snapshots ORDER BY resource")?;
+            let names = stmt
+                .query_map([], |r| r.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            Ok(names.into_iter().map(ResourceName).collect())
+        })
+    }
+
+    /// Inside the caller's write transaction: drops every mirror row, cursor
+    /// and snapshot, and bumps the epoch of every registered resource (pages
+    /// requested before come back `Stale`). Registered specs stay. Returns
+    /// the registered resources. Used for sign-out and account wipes.
+    pub fn clear_mirror_on(tx: &Connection) -> Result<Vec<ResourceName>> {
+        let registered = all_registered(tx)?;
+        for reg in &registered {
+            clear(tx, reg)?;
+        }
+        tx.execute_batch(
+            "DELETE FROM store_cursors;
+             DELETE FROM store_snapshots;
+             INSERT INTO store_epochs (resource, epoch)
+                 SELECT resource, 1 FROM store_resources WHERE true
+                 ON CONFLICT(resource) DO UPDATE SET epoch = epoch + 1;",
+        )?;
+        Ok(registered.into_iter().map(|r| r.spec.resource).collect())
+    }
+
     pub fn snapshot(&self, resource: &ResourceName) -> Result<Option<Snapshot>> {
         self.read(|conn| {
             let row: Option<(String, String)> = conn
