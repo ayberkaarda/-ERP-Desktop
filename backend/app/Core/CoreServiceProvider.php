@@ -11,6 +11,8 @@ use App\Core\Idempotency\EnsureIdempotency;
 use App\Core\Idempotency\IdempotencyStore;
 use App\Core\Modules\ModuleLoader;
 use App\Core\Numbering\NumberSequenceService;
+use App\Core\Sync\Schema\Syncable;
+use App\Core\Sync\SyncConfig;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\ServiceProvider;
@@ -45,7 +47,16 @@ final class CoreServiceProvider extends ServiceProvider
             self::int($app, 'idempotency.ttl_hours', 24),
         ));
 
+        $this->app->bind(SyncConfig::class, static fn (Application $app): SyncConfig => SyncConfig::fromConfig(
+            $app->make('config'),
+        ));
+
         (new ModuleLoader($this->app->path('Modules')))->register($this->app);
+    }
+
+    public function boot(): void
+    {
+        Syncable::register();
     }
 
     private static function string(Application $app, string $key, string $default): string
