@@ -7,6 +7,9 @@
 //! applied id. The ledger keeps a late-added lower id from being skipped and
 //! rejects a database that has migrations this build does not know.
 //!
+//! The ledger also records module and SQL digest of each migration; a
+//! mismatch on open stops the store.
+//!
 //! Rules: never edit or renumber a migration that has shipped; add a new one.
 
 use rusqlite::{Connection, TransactionBehavior, params};
@@ -39,6 +42,7 @@ const LEDGER: &str = "_keystone_migrations";
 pub fn registry() -> Vec<&'static Migration> {
     let mut all: Vec<&'static Migration> = [
         super::MIGRATIONS,
+        super::MIRROR_MIGRATIONS,
         crate::outbox::MIGRATIONS,
         crate::conflicts::MIGRATIONS,
         crate::engine::MIGRATIONS,
@@ -71,6 +75,12 @@ pub fn validate(migrations: &[&Migration]) -> Result<()> {
 }
 
 /// Applies the migrations that are not in the ledger yet. Returns how many ran.
+///
+/// Every ledger row must match this build by id, name, module and SQL digest
+/// ([`sql_digest`]). The ledger always records module and digest (NOT
+/// NULL); there is no upgrade path from the earlier digest-less ledger,
+/// which never shipped: such a dev database fails to open and must be
+/// deleted.
 pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<usize> {
     validate(migrations)?;
     conn.execute_batch(&format!(
@@ -78,25 +88,52 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
             id INTEGER PRIMARY KEY,
             module TEXT NOT NULL,
             name TEXT NOT NULL,
-            applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+            applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+            sql_digest TEXT NOT NULL
         ) STRICT;"
     ))?;
+    let has_digest: bool = conn.query_row(
+        &format!(
+            "SELECT count(*) > 0 FROM pragma_table_info('{LEDGER}') WHERE name = 'sql_digest'"
+        ),
+        [],
+        |r| r.get(0),
+    )?;
+    if !has_digest {
+        return Err(invalid(
+            "ledger has no sql_digest column (database from an earlier dev build); delete it"
+                .to_owned(),
+        ));
+    }
 
-    let known = ledger(conn)?;
-    for (id, name) in &known {
-        match migrations.iter().find(|m| m.id == *id) {
-            None => {
-                return Err(invalid(format!(
-                    "database has migration {id} {name}, which this build does not know"
-                )));
-            }
-            Some(m) if m.name != name => {
-                return Err(invalid(format!(
-                    "migration {id} is {name:?} in the database but {:?} here",
-                    m.name
-                )));
-            }
-            Some(_) => {}
+    let known = ledger_rows(conn)?;
+    for row in &known {
+        let Some(m) = migrations.iter().find(|m| m.id == row.id) else {
+            return Err(invalid(format!(
+                "database has migration {} {}, which this build does not know",
+                row.id, row.name
+            )));
+        };
+        if m.name != row.name {
+            return Err(invalid(format!(
+                "migration {} is {:?} in the database but {:?} here",
+                row.id, row.name, m.name
+            )));
+        }
+        if m.module != row.module {
+            return Err(invalid(format!(
+                "migration {} belongs to {:?} in the database but {:?} here",
+                row.id, row.module, m.module
+            )));
+        }
+        let digest = sql_digest(m.sql);
+        if row.digest != digest {
+            let stored = &row.digest;
+            return Err(invalid(format!(
+                "migration {} {}: SQL digest {stored} in the database, {digest} here; \
+                     shipped migrations must not change, add a new one",
+                row.id, row.name
+            )));
         }
     }
 
@@ -104,14 +141,14 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
     ordered.sort_by_key(|m| m.id);
     let mut applied = 0;
     for m in ordered {
-        if known.iter().any(|(id, _)| *id == m.id) {
+        if known.iter().any(|row| row.id == m.id) {
             continue;
         }
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         tx.execute_batch(m.sql)?;
         tx.execute(
-            &format!("INSERT INTO {LEDGER} (id, module, name) VALUES (?1, ?2, ?3)"),
-            params![m.id, m.module, m.name],
+            &format!("INSERT INTO {LEDGER} (id, module, name, sql_digest) VALUES (?1, ?2, ?3, ?4)"),
+            params![m.id, m.module, m.name, sql_digest(m.sql)],
         )?;
         let current: u32 = tx.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         if m.id > current {
@@ -122,6 +159,46 @@ pub(crate) fn apply(conn: &mut Connection, migrations: &[&Migration]) -> Result<
         applied += 1;
     }
     Ok(applied)
+}
+
+/// Change detector for migration SQL: FNV-1a 64 over the text with line
+/// endings normalized (`\r\n` -> `\n`, so a CRLF checkout builds the same
+/// digest; any other `\r` still counts). FNV-1a reliably catches accidental
+/// edits; it is not collision resistant against a deliberate forgery. The
+/// ledger sits inside the encrypted database, and `sha2` is not a
+/// dependency of this crate (adding it is the client package's call).
+pub fn sql_digest(sql: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    let normalized = sql.replace("\r\n", "\n");
+    for byte in normalized.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("fnv1a64:{hash:016x}")
+}
+
+struct LedgerRow {
+    id: u32,
+    module: String,
+    name: String,
+    digest: String,
+}
+
+fn ledger_rows(conn: &Connection) -> Result<Vec<LedgerRow>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT id, module, name, sql_digest FROM {LEDGER} ORDER BY id"
+    ))?;
+    let rows = stmt
+        .query_map([], |row| {
+            Ok(LedgerRow {
+                id: row.get(0)?,
+                module: row.get(1)?,
+                name: row.get(2)?,
+                digest: row.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    Ok(rows)
 }
 
 /// `(id, name)` of every applied migration, by id.
