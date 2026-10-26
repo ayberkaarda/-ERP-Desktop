@@ -441,7 +441,7 @@ D1 sonrası durum. Kontrol `backend/` kaynak kodu (main) üzerinde yapıldı. Nu
 
 **Pull**
 
-- **Kapandı.** Tam indirme sayfasının tekrarı: tekrarlanan isteğin kendi cursor'ı (`session` dahil) aynı `limit` ile aynen yeniden gönderilir; alınan `next_cursor` tekrar değil, sonraki sayfanın isteğidir. Sunucu oturumun son verdiği cursor'ı ve bir öncekini tanır (`Modules/Sync/Services/FullDownloads.php`); önceki cursor'la yapılan tekrar okur ama oturumu ilerletmez. İndirmenin son sayfası (`has_more = false`) oturumu siler; bu sayfanın tekrarı `reset: true, reset_reason: cursor_expired` alır ve yeni bir tam indirme başlar. Kural Tam indirme oturumu bölümündedir.
+- **Kapandı.** Tam indirme sayfasının tekrarı: tekrarlanan isteğin kendi cursor'ı (`session` dahil) aynı `limit` ile aynen yeniden gönderilir; alınan `next_cursor` tekrar değil, sonraki sayfanın isteğidir. Sunucu oturumun son verdiği cursor'ı ve bir öncekini tanır (`Modules/Sync/Services/FullDownloads.php`); önceki cursor'la yapılan tekrar okur ama oturumu ilerletmez. Çok sayfalı indirmenin son sayfası (`has_more = false`) oturumu siler; bu sayfayı isteyen devam isteği bitmiş oturumun kimliğini taşıdığından tekrarı `reset: true, reset_reason: cursor_expired` alır ve yeni bir tam indirme başlar. Tek sayfada biten ilk indirmede (`cursor: null`) oturum açılmaz; isteğin tekrarı yine `cursor: null` ile yeni bir tam indirmedir ve `reset: false` döner. Kural Tam indirme oturumu bölümündedir.
 
 **Kapsam**
 
