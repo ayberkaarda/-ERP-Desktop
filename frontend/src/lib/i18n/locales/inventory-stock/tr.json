@@ -1,0 +1,234 @@
+{
+  "common": {
+    "nav": {
+      "title": "Stok",
+      "stock": "Stok durumu",
+      "movements": "Stok hareketleri",
+      "lots": "Lotlar",
+      "serials": "Seri numaraları",
+      "warehouses": "Depolar"
+    },
+    "commands": {
+      "stock": "Stok durumu",
+      "movements": "Stok hareketleri",
+      "lots": "Lotlar ve son kullanma",
+      "serials": "Seri numaraları",
+      "warehouses": "Depolar ve lokasyonlar"
+    },
+    "actions": "İşlemler",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "all": "Tümü",
+    "allWarehouses": "Tüm depolar",
+    "yes": "Evet",
+    "no": "Hayır",
+    "filters": "Filtreler",
+    "clearFilters": "Tüm filtreleri temizle",
+    "retry": "Tekrar dene",
+    "loadFailed": "Veriler yüklenemedi.",
+    "conflictTitle": "Kayıt başka biri tarafından değiştirildi",
+    "conflictBody": "Siz düzenlerken bu kayıt güncellendi. Son hâlini yükleyip değişikliklerinizi yeniden yapın.",
+    "reload": "Yeniden yükle",
+    "uncertain": "Sunucudan yanıt alınamadı; işlem uygulanmış olabilir. Listeyi yenileyip kontrol edin.",
+    "savedViews": "Kayıtlı görünümler",
+    "noSavedViews": "Henüz kayıtlı görünüm yok.",
+    "saveView": "Geçerli görünümü kaydet…",
+    "saveViewBody": "Arama, filtreler ve gruplama bu tarayıcıda sizin için saklanır.",
+    "viewName": "Ad",
+    "removeView": "{{name}} görünümünü sil",
+    "export": {
+      "label": "Dışa aktar",
+      "csv": "CSV",
+      "xlsx": "Excel",
+      "failed": "Dışa aktarım başarısız oldu."
+    }
+  },
+  "fields": {
+    "item": "Ürün",
+    "warehouse": "Depo",
+    "location": "Lokasyon",
+    "lot": "Lot",
+    "serial": "Seri no",
+    "lotSerial": "Lot / seri",
+    "expiry": "Son kullanma",
+    "manufactureDate": "Üretim tarihi",
+    "receivedAt": "Giriş tarihi",
+    "onHand": "Eldeki",
+    "reserved": "Rezerve",
+    "available": "Kullanılabilir",
+    "avgCost": "Ort. maliyet",
+    "value": "Tutar",
+    "occurredAt": "Tarih",
+    "movementType": "Hareket türü",
+    "direction": "Yön",
+    "quantity": "Miktar",
+    "cost": "Maliyet",
+    "document": "Belge",
+    "status": "Durum"
+  },
+  "filters": {
+    "dateFrom": "Başlangıç",
+    "dateTo": "Bitiş",
+    "invalidDate": "Tarih aralığı geçersiz."
+  },
+  "warehouses": {
+    "title": "Depolar",
+    "description": "Depoların stok görünümü: rezervasyon politikası ve lokasyonlar. Depo kartı ve lokasyonlar Referans'ta yönetilir.",
+    "editTitle": "{{code}} rezervasyon politikası",
+    "viewTitle": "{{code}} deposu",
+    "edit": "{{code}} rezervasyon politikasını değiştir",
+    "openLocations": "{{code}} lokasyonlarını aç",
+    "updated": "{{code}} rezervasyon politikası güncellendi.",
+    "default": "Varsayılan",
+    "tabs": {
+      "general": "Genel",
+      "locations": "Lokasyonlar"
+    },
+    "fields": {
+      "code": "Kod",
+      "name": "Ad",
+      "isDefault": "Varsayılan depo",
+      "reservationPolicy": "Rezervasyon politikası",
+      "status": "Durum",
+      "negativeStock": "Eksi stok"
+    },
+    "policy": {
+      "none": "Yok",
+      "soft": "Esnek",
+      "hard": "Katı"
+    },
+    "policyHelp": {
+      "none": "Rezervasyon yapılmaz; kullanılabilir miktar eldeki miktara eşittir.",
+      "soft": "Kullanılabilir miktarı aşan rezervasyona izin verilir ve raporlanır.",
+      "hard": "Kullanılabilir miktarı aşan rezervasyon reddedilir."
+    },
+    "manageInReference": "Referans'ta yönet",
+    "openInReference": "{{code}} deposunu Referans'ta aç",
+    "masterData": "Depo kartı",
+    "masterDataHint": "Kod, ad, adres, eksi stok kuralı, varsayılan depo ve lokasyonlar Referans'taki depo kartından değiştirilir.",
+    "hasMovements": "Bu depoda stok hareketi var.",
+    "noMovements": "Bu depoda henüz stok hareketi yok.",
+    "negative": {
+      "allow": "İzin verilir",
+      "warn": "Uyarılır",
+      "block": "Engellenir"
+    }
+  },
+  "locations": {
+    "treeLabel": "{{code}} lokasyonları",
+    "count": "{{count}} lokasyon",
+    "expand": "{{code}} aç",
+    "collapse": "{{code}} kapat",
+    "expandAll": "Tümünü aç",
+    "collapseAll": "Tümünü kapat",
+    "emptyTitle": "Henüz lokasyon yok",
+    "emptyBody": "Lokasyonlar Referans'taki depo kartından eklenir.",
+    "keyboardHint": "Ok tuşlarıyla gezin, sağ/sol ile açıp kapatın.",
+    "types": {
+      "aisle": "Koridor",
+      "rack": "Raf",
+      "shelf": "Raf katı",
+      "bin": "Göz"
+    }
+  },
+  "stock": {
+    "title": "Stok durumu",
+    "description": "Ürün ve depo bazında eldeki, rezerve ve kullanılabilir miktar ile maliyet.",
+    "groupBy": "Ayrıntı",
+    "groups": {
+      "warehouse": "Ürün × depo",
+      "item": "Ürün (tüm depolar)",
+      "detail": "Lokasyon ve lot"
+    },
+    "noLocation": "Lokasyonsuz",
+    "openItem": "{{code}} stok ayrıntısını aç",
+    "includeZero": "Sıfır bakiyeleri de göster"
+  },
+  "drawer": {
+    "title": "Ürün stoku",
+    "description": "Depo, lot ve son hareketlere göre stok.",
+    "byWarehouse": "Depolara göre",
+    "lots": "Lotlar",
+    "recent": "Son hareketler",
+    "noStock": "Bu ürünün stoku yok.",
+    "noMovements": "Henüz hareket yok.",
+    "allMovements": "Tüm hareketleri göster"
+  },
+  "movements": {
+    "title": "Stok hareketleri",
+    "description": "Değiştirilemeyen stok defteri; düzeltmeler ters kayıtla yapılır.",
+    "seq": "Sıra",
+    "reversal": "Ters kayıt",
+    "unnumbered": "Numarasız",
+    "journal": "Muhasebe fişi",
+    "openDocument": "{{number}} belgesini aç",
+    "openJournal": "{{number}} muhasebe fişini aç",
+    "inQty": "{{qty}} giriş",
+    "outQty": "{{qty}} çıkış",
+    "directions": {
+      "in": "Giriş",
+      "out": "Çıkış"
+    },
+    "loaded": "{{count}} hareket yüklendi",
+    "loadMore": "Daha fazla yükle",
+    "scoped": "Liste bir belge, lot veya seri numarasıyla sınırlı.",
+    "emptyTitle": "Hareket yok",
+    "emptyBody": "Stok belgeleri kayda alındıkça hareketler burada görünür.",
+    "emptyFiltered": "Bu filtrelere uyan hareket yok."
+  },
+  "movementTypes": {
+    "receipt": "Giriş",
+    "issue": "Çıkış",
+    "transfer_out": "Transfer çıkışı",
+    "transfer_in": "Transfer girişi",
+    "count_adjustment": "Sayım farkı",
+    "opening": "Açılış",
+    "return_in": "İade girişi",
+    "return_out": "İade çıkışı",
+    "production_in": "Üretimden giriş",
+    "production_out": "Üretime çıkış",
+    "scrap": "Fire"
+  },
+  "documentTypes": {
+    "stock_document": "Stok belgesi",
+    "sales_delivery": "Satış irsaliyesi",
+    "purchase_receipt": "Alış irsaliyesi",
+    "production_order": "Üretim emri"
+  },
+  "lots": {
+    "title": "Lotlar",
+    "description": "Lot bazında stok ve son kullanma; {{days}} gün içinde dolanlar işaretlenir.",
+    "onlyInStock": "Yalnızca stokta olanlar",
+    "noExpiry": "SKT yok",
+    "expired": "Süresi doldu",
+    "expiresToday": "Bugün doluyor",
+    "expiresIn": "{{count}} gün kaldı",
+    "onlyExpired": "Yalnızca süresi dolmuşlar",
+    "expiresBefore": "Son kullanma (en geç)"
+  },
+  "trace": {
+    "title": "Lot izleme",
+    "titleFor": "{{lot}} lotu",
+    "notFound": "Lot bulunamadı.",
+    "received": "Giren",
+    "issued": "Çıkan",
+    "whereNow": "Şu an nerede",
+    "noBalance": "Bu lottan stok kalmadı.",
+    "history": "Hareket geçmişi",
+    "noMovements": "Hareket bulunamadı.",
+    "inLedger": "Stok defterinde göster"
+  },
+  "serials": {
+    "title": "Seri numaraları",
+    "description": "Seri takipli ürünlerin her birimi, durumu ve yeri.",
+    "history": "Hareket geçmişi",
+    "historyTitle": "{{serial}} geçmişi",
+    "openHistory": "{{serial}} geçmişini aç",
+    "status": {
+      "in_stock": "Stokta",
+      "reserved": "Rezerve",
+      "issued": "Çıkışı yapıldı",
+      "scrapped": "Hurda"
+    }
+  }
+}

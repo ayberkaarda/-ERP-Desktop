@@ -1,0 +1,234 @@
+{
+  "common": {
+    "nav": {
+      "title": "Inventory",
+      "stock": "Stock status",
+      "movements": "Stock movements",
+      "lots": "Lots",
+      "serials": "Serial numbers",
+      "warehouses": "Warehouses"
+    },
+    "commands": {
+      "stock": "Stock status",
+      "movements": "Stock movements",
+      "lots": "Lots and expiry",
+      "serials": "Serial numbers",
+      "warehouses": "Warehouses and locations"
+    },
+    "actions": "Actions",
+    "active": "Active",
+    "inactive": "Inactive",
+    "all": "All",
+    "allWarehouses": "All warehouses",
+    "yes": "Yes",
+    "no": "No",
+    "filters": "Filters",
+    "clearFilters": "Clear all filters",
+    "retry": "Retry",
+    "loadFailed": "Could not load the data.",
+    "conflictTitle": "Someone else changed this record",
+    "conflictBody": "The record was updated while you were editing. Load the latest version and redo your changes.",
+    "reload": "Reload",
+    "uncertain": "No answer from the server; the action may have been applied. Refresh the list to check.",
+    "savedViews": "Saved views",
+    "noSavedViews": "No saved views yet.",
+    "saveView": "Save current view…",
+    "saveViewBody": "Search, filters and grouping are kept for you in this browser.",
+    "viewName": "Name",
+    "removeView": "Remove view {{name}}",
+    "export": {
+      "label": "Export",
+      "csv": "CSV",
+      "xlsx": "Excel",
+      "failed": "The export failed."
+    }
+  },
+  "fields": {
+    "item": "Item",
+    "warehouse": "Warehouse",
+    "location": "Location",
+    "lot": "Lot",
+    "serial": "Serial no.",
+    "lotSerial": "Lot / serial",
+    "expiry": "Expiry",
+    "manufactureDate": "Manufactured",
+    "receivedAt": "Received",
+    "onHand": "On hand",
+    "reserved": "Reserved",
+    "available": "Available",
+    "avgCost": "Avg. cost",
+    "value": "Value",
+    "occurredAt": "Date",
+    "movementType": "Movement type",
+    "direction": "Direction",
+    "quantity": "Quantity",
+    "cost": "Cost",
+    "document": "Document",
+    "status": "Status"
+  },
+  "filters": {
+    "dateFrom": "From",
+    "dateTo": "To",
+    "invalidDate": "The date range is not valid."
+  },
+  "warehouses": {
+    "title": "Warehouses",
+    "description": "Warehouses as stock sees them: reservation policy and locations. Warehouse records and locations are managed in Reference.",
+    "editTitle": "{{code}} reservation policy",
+    "viewTitle": "Warehouse {{code}}",
+    "edit": "Change the reservation policy of {{code}}",
+    "openLocations": "Open locations of {{code}}",
+    "updated": "Reservation policy of {{code}} updated.",
+    "default": "Default",
+    "tabs": {
+      "general": "General",
+      "locations": "Locations"
+    },
+    "fields": {
+      "code": "Code",
+      "name": "Name",
+      "isDefault": "Default warehouse",
+      "reservationPolicy": "Reservation policy",
+      "status": "Status",
+      "negativeStock": "Negative stock"
+    },
+    "policy": {
+      "none": "None",
+      "soft": "Soft",
+      "hard": "Hard"
+    },
+    "policyHelp": {
+      "none": "No reservations; available equals on hand.",
+      "soft": "Reservations beyond the available quantity are allowed and reported.",
+      "hard": "Reservations beyond the available quantity are refused."
+    },
+    "manageInReference": "Manage in Reference",
+    "openInReference": "Open {{code}} in Reference",
+    "masterData": "Warehouse record",
+    "masterDataHint": "Code, name, address, negative stock rule, default warehouse and locations are changed on the warehouse record in Reference.",
+    "hasMovements": "This warehouse has stock movements.",
+    "noMovements": "No stock movements in this warehouse yet.",
+    "negative": {
+      "allow": "Allowed",
+      "warn": "Warned",
+      "block": "Blocked"
+    }
+  },
+  "locations": {
+    "treeLabel": "Locations of {{code}}",
+    "count": "{{count}} locations",
+    "expand": "Expand {{code}}",
+    "collapse": "Collapse {{code}}",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "emptyTitle": "No locations yet",
+    "emptyBody": "Locations are added on the warehouse record in Reference.",
+    "keyboardHint": "Use the arrow keys to move, right/left to expand and collapse.",
+    "types": {
+      "aisle": "Aisle",
+      "rack": "Rack",
+      "shelf": "Shelf",
+      "bin": "Bin"
+    }
+  },
+  "stock": {
+    "title": "Stock status",
+    "description": "On hand, reserved and available quantities with cost, per item and warehouse.",
+    "groupBy": "Detail",
+    "groups": {
+      "warehouse": "Item × warehouse",
+      "item": "Item (all warehouses)",
+      "detail": "Location and lot"
+    },
+    "noLocation": "No location",
+    "openItem": "Open stock details of {{code}}",
+    "includeZero": "Show zero balances too"
+  },
+  "drawer": {
+    "title": "Item stock",
+    "description": "Stock by warehouse, lot and latest movements.",
+    "byWarehouse": "By warehouse",
+    "lots": "Lots",
+    "recent": "Latest movements",
+    "noStock": "This item has no stock.",
+    "noMovements": "No movements yet.",
+    "allMovements": "Show all movements"
+  },
+  "movements": {
+    "title": "Stock movements",
+    "description": "The append-only stock ledger; corrections are made by reversing entries.",
+    "seq": "Seq.",
+    "reversal": "Reversal",
+    "unnumbered": "Unnumbered",
+    "journal": "Journal entry",
+    "openDocument": "Open document {{number}}",
+    "openJournal": "Open journal entry of {{number}}",
+    "inQty": "{{qty}} in",
+    "outQty": "{{qty}} out",
+    "directions": {
+      "in": "In",
+      "out": "Out"
+    },
+    "loaded": "{{count}} movements loaded",
+    "loadMore": "Load more",
+    "scoped": "The list is limited to one document, lot or serial number.",
+    "emptyTitle": "No movements",
+    "emptyBody": "Movements appear here as stock documents are posted.",
+    "emptyFiltered": "No movements match these filters."
+  },
+  "movementTypes": {
+    "receipt": "Receipt",
+    "issue": "Issue",
+    "transfer_out": "Transfer out",
+    "transfer_in": "Transfer in",
+    "count_adjustment": "Count adjustment",
+    "opening": "Opening",
+    "return_in": "Return in",
+    "return_out": "Return out",
+    "production_in": "Production in",
+    "production_out": "Production out",
+    "scrap": "Scrap"
+  },
+  "documentTypes": {
+    "stock_document": "Stock document",
+    "sales_delivery": "Sales delivery",
+    "purchase_receipt": "Purchase receipt",
+    "production_order": "Production order"
+  },
+  "lots": {
+    "title": "Lots",
+    "description": "Stock and expiry per lot; lots expiring within {{days}} days are flagged.",
+    "onlyInStock": "In stock only",
+    "noExpiry": "No expiry",
+    "expired": "Expired",
+    "expiresToday": "Expires today",
+    "expiresIn": "{{count}} days left",
+    "onlyExpired": "Expired only",
+    "expiresBefore": "Expiring by"
+  },
+  "trace": {
+    "title": "Lot trace",
+    "titleFor": "Lot {{lot}}",
+    "notFound": "Lot not found.",
+    "received": "Received",
+    "issued": "Issued",
+    "whereNow": "Where it is now",
+    "noBalance": "No stock left from this lot.",
+    "history": "Movement history",
+    "noMovements": "No movements found.",
+    "inLedger": "Show in the stock ledger"
+  },
+  "serials": {
+    "title": "Serial numbers",
+    "description": "Every unit of serial-tracked items with its status and place.",
+    "history": "Movement history",
+    "historyTitle": "History of {{serial}}",
+    "openHistory": "Open history of {{serial}}",
+    "status": {
+      "in_stock": "In stock",
+      "reserved": "Reserved",
+      "issued": "Issued",
+      "scrapped": "Scrapped"
+    }
+  }
+}

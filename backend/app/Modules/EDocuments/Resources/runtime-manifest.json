@@ -1,0 +1,9 @@
+{
+  "java_minimum": 11,
+  "saxon_version": "12.10",
+  "artifacts": [
+    {"name":"Saxon-HE-12.10.jar","url":"https://repo.maven.apache.org/maven2/net/sf/saxon/Saxon-HE/12.10/Saxon-HE-12.10.jar","sha256":"b571af282f25d7301059f788b9a149aab8b5cdc14ef3d212dc5425d3dcbb9a97","license":"MPL-2.0"},
+    {"name":"xmlresolver-5.3.3.jar","url":"https://repo.maven.apache.org/maven2/org/xmlresolver/xmlresolver/5.3.3/xmlresolver-5.3.3.jar","sha256":"1fe4d5b92f708dcdb82dbce12919e0171e6b5ca62c6dca6220483625098feb5f","license":"Apache-2.0"},
+    {"name":"xmlresolver-5.3.3-data.jar","url":"https://repo.maven.apache.org/maven2/org/xmlresolver/xmlresolver/5.3.3/xmlresolver-5.3.3-data.jar","sha256":"b0c487ad2f3e558be8d829c916d2458d10aca6a5bafa7a4d0524b70845e48a5c","license":"Apache-2.0"}
+  ]
+}

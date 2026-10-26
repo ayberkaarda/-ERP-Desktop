@@ -1,0 +1,28 @@
+name: E2E
+on:
+  push:
+  pull_request:
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for E2E suite
+        id: e2e
+        shell: bash
+        run: |
+          if [ -d frontend/e2e ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.e2e.outputs.run == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.e2e.outputs.run == 'true'
+        with:
+          node-version: '22'
+      - run: npm ci
+        if: steps.e2e.outputs.run == 'true'
+      - name: E2E placeholder
+        run: echo "Configure the frontend E2E command when frontend/e2e is added."
+        if: steps.e2e.outputs.run == 'true'

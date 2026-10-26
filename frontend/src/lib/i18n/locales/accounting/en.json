@@ -1,0 +1,457 @@
+{
+  "common": {
+    "nav": {
+      "title": "Accounting",
+      "accounts": "Chart of accounts",
+      "fiscalYears": "Fiscal years",
+      "periods": "Periods",
+      "determination": "Account determination"
+    },
+    "commands": {
+      "accounts": "Chart of accounts",
+      "accountsFlat": "Account list (flat view)",
+      "accountsImport": "Import chart of accounts",
+      "fiscalYears": "Fiscal years",
+      "fiscalYearNew": "Create fiscal year",
+      "periods": "Accounting periods",
+      "determination": "Account determination rules"
+    },
+    "actions": "Actions",
+    "all": "All",
+    "yes": "Yes",
+    "no": "No",
+    "done": "Done",
+    "retry": "Retry",
+    "reload": "Load latest",
+    "loading": "Loading…",
+    "loadFailed": "Could not load the data.",
+    "limitExceeded": "There are more records than this screen can show; narrow the filter.",
+    "actionFailed": "The action could not be completed.",
+    "uncertain": "No response from the server; the action may have been applied. Refresh the list and check.",
+    "conflictTitle": "Someone else changed this record",
+    "conflictBody": "The record was updated while you were editing. Load the latest version and apply your change again.",
+    "reason": "Reason",
+    "reasonTooShort": "The reason must be at least {{min}} characters.",
+    "savedViews": "Saved views",
+    "noSavedViews": "No saved views yet.",
+    "saveView": "Save this view",
+    "saveViewBody": "Search, filters and view choices are stored under this name.",
+    "viewName": "View name",
+    "removeView": "Remove view {{name}}",
+    "dismiss": "Dismiss"
+  },
+  "accounts": {
+    "title": "Chart of accounts",
+    "subtitle": "Accounts based on the Turkish Uniform Chart of Accounts; tree and flat list views.",
+    "treeView": "Tree",
+    "flatView": "List",
+    "viewMode": "View",
+    "new": "New account",
+    "newTitle": "New account",
+    "editTitle": "Edit account {{code}}",
+    "edit": "Edit",
+    "editNamed": "Edit account {{code}}",
+    "addChild": "Add sub-account",
+    "addChildNamed": "Add account under {{code}}",
+    "delete": "Delete",
+    "deleteTitle": "Delete account {{code}}?",
+    "deleteBody": "Accounts with postings or sub-accounts cannot be deleted; deactivate them instead.",
+    "importAction": "Import",
+    "search": "Search",
+    "searchPlaceholder": "Code or name (e.g. 120, Receivables)",
+    "empty": "The chart of accounts is empty",
+    "emptyBody": "Add accounts or import them from a CSV/XLSX file.",
+    "noMatch": "No account matches the search.",
+    "visibleCount": "Accounts shown: {{count}}",
+    "header": "Header",
+    "postable": "Postable",
+    "active": "Active",
+    "inactive": "Inactive",
+    "system": "System",
+    "systemNote": "System account: code, parent and classification cannot be changed.",
+    "noGroup": "Derive from code",
+    "tdhpGroupOption": "{{group}} · {{name}}",
+    "flagsLegend": "Account options",
+    "fields": {
+      "code": "Account code",
+      "name": "Account name",
+      "parent": "Parent account",
+      "type": "Account type",
+      "normalBalance": "Normal balance",
+      "isPostable": "Postable",
+      "isActive": "Active",
+      "tdhpGroup": "TDHP group",
+      "currency": "Currency",
+      "requiresParty": "Party required",
+      "requiresCostCenter": "Cost center required",
+      "requiresProject": "Project required",
+      "isRevaluable": "Subject to FX revaluation",
+      "notes": "Notes",
+      "status": "Status"
+    },
+    "hints": {
+      "code": "Unique within the company; sub-accounts usually start with the parent code (120.01).",
+      "parent": "Leave empty for a main account.",
+      "currency": "Only for foreign-currency accounts (USD, EUR…).",
+      "postable": "Only accounts without sub-accounts can take entry lines.",
+      "revaluable": "Included in period-end FX revaluation; requires a currency."
+    },
+    "types": {
+      "asset": "Asset",
+      "liability": "Liability",
+      "equity": "Equity",
+      "revenue": "Revenue",
+      "expense": "Expense",
+      "cost": "Cost",
+      "memo": "Memo"
+    },
+    "normal": {
+      "debit": "Debit balance",
+      "credit": "Credit balance"
+    },
+    "side": {
+      "debit": "Debit",
+      "credit": "Credit",
+      "zero": "No balance"
+    },
+    "tdhp": {
+      "1": "Current assets",
+      "2": "Non-current assets",
+      "3": "Short-term liabilities",
+      "4": "Long-term liabilities",
+      "5": "Equity",
+      "6": "Income statement accounts",
+      "7": "Cost accounts",
+      "8": "Free",
+      "9": "Memo accounts"
+    },
+    "integrity": {
+      "title": "Chart of accounts rules",
+      "codeTaken": "This code is already used ({{name}}).",
+      "cycle": "An account cannot be moved under itself or one of its sub-accounts.",
+      "nonLeafPostable": "An account with sub-accounts cannot be postable ({{count}} sub-accounts).",
+      "hasPostings": "An account with postings cannot become a header account.",
+      "parentInactive": "Parent account {{code}} is inactive; this account may not be usable.",
+      "parentBecomesHeader": "Parent account {{code}} is postable now; it becomes a header account once a sub-account is added.",
+      "parentHasPostings": "Parent account {{code}} has postings; the server may refuse adding a sub-account.",
+      "prefix": "The code does not start with the parent code {{code}} (may be required by company settings).",
+      "typeDiffers": "The account type differs from parent account {{code}}.",
+      "unusualBalance": "The normal balance is the opposite of what this account type usually has."
+    },
+    "tree": {
+      "expand": "Expand sub-accounts of {{code}}",
+      "collapse": "Collapse sub-accounts of {{code}}",
+      "expandAll": "Expand all",
+      "collapseAll": "Collapse all",
+      "hint": "Arrow keys: move · Right/Left: expand/collapse · Enter: details · F2: edit · Insert: sub-account"
+    },
+    "combobox": {
+      "empty": "No matching account",
+      "header": "header account"
+    },
+    "detail": {
+      "title": "Account {{code}} details",
+      "close": "Close details",
+      "balance": "Balance",
+      "asOf": "As of",
+      "debit": "Debit",
+      "credit": "Credit",
+      "net": "Balance",
+      "fxBalance": "Foreign-currency balance: {{amount}} {{currency}}",
+      "balanceFailed": "Could not load the balance."
+    },
+    "toast": {
+      "created": "Account created.",
+      "updated": "Account updated.",
+      "deleted": "Account deleted."
+    },
+    "importWizard": {
+      "title": "Import chart of accounts",
+      "progress": "Import steps",
+      "stepNames": {
+        "file": "File",
+        "review": "Review",
+        "done": "Result"
+      },
+      "steps": {
+        "file": "Choose a CSV or XLSX file; a dry run comes first and changes nothing.",
+        "review": "Dry run result: fix the failed rows and upload again, or import.",
+        "done": "The import is complete."
+      },
+      "file": "File",
+      "fileHelp": "CSV (UTF-8) or XLSX, at most 10 MB.",
+      "badType": "Only .csv and .xlsx files are accepted.",
+      "tooLarge": "The file exceeds the {{mb}} MB limit.",
+      "columnsTitle": "Expected columns",
+      "template": "Download sample template",
+      "dryRun": "Run dry run",
+      "commit": "Import",
+      "summary": "Summary",
+      "counts": {
+        "total": "Rows",
+        "created": "New",
+        "updated": "To update",
+        "skipped": "Skipped",
+        "failed": "Failed"
+      },
+      "onlyErrors": "Failed rows only",
+      "downloadReport": "Download error report",
+      "reportFile": "chart-of-accounts-error-report",
+      "resultsCaption": "Dry run row results",
+      "columns": {
+        "row": "Row",
+        "status": "Result",
+        "errors": "Errors"
+      },
+      "status": {
+        "create": "New",
+        "update": "Update",
+        "skip": "Skipped",
+        "error": "Error"
+      },
+      "noRows": "No rows to show.",
+      "fixFirst": "Importing is not possible while rows fail. Download the error report, fix the file and upload it again.",
+      "doneToast": "{{count}} accounts imported.",
+      "doneBody": "{{created}} accounts added, {{updated}} updated, {{skipped}} rows skipped.",
+      "pager": "Result pages",
+      "prevPage": "Previous",
+      "nextPage": "Next",
+      "pageOf": "Page {{page}} of {{pages}}",
+      "reportFor": "Dry run result: {{name}}",
+      "partialToast": "Import finished; {{failed}} rows could not be processed.",
+      "partialBody": "{{failed}} rows were not imported. See the failed rows below or download the error report."
+    }
+  },
+  "fiscal": {
+    "title": "Fiscal years",
+    "subtitle": "Accounting years, year-end closing and reopening.",
+    "new": "New fiscal year",
+    "empty": "No fiscal year defined",
+    "emptyBody": "Create a fiscal year before recording entries.",
+    "defaultName": "Fiscal year {{code}}",
+    "planned": "To be created",
+    "openBoard": "Go to the periods board",
+    "periodsLink": "Periods",
+    "editTitle": "Edit fiscal year {{code}}",
+    "editNamed": "Edit fiscal year {{code}}",
+    "fields": {
+      "code": "Year code",
+      "name": "Name",
+      "start": "Start",
+      "end": "End",
+      "range": "Date range",
+      "status": "Status",
+      "adjustment": "Create period 13 (year-end adjustments)"
+    },
+    "hints": {
+      "adjustment": "A separate zero-length adjustment period on the last day of the year.",
+      "dates": "Dates can only change while there are no posted entries.",
+      "datesLocked": "This year has posted entries; its dates cannot change."
+    },
+    "wizard": {
+      "title": "New fiscal year",
+      "body": "Creating the year opens 12 periods (optionally a 13th) automatically.",
+      "preview": "Periods to be created",
+      "noPreview": "Enter a valid date range.",
+      "overlap": "The date range overlaps fiscal year {{code}}.",
+      "created": "Fiscal year {{code}} created; {{count}} periods opened.",
+      "generated": "Generated periods"
+    },
+    "close": {
+      "action": "Close year",
+      "title": "Close fiscal year {{code}}?",
+      "body": "Closing clears the income statement accounts, carries the result to equity and creates the opening entry of the next year.",
+      "confirm": "Close year",
+      "ack": "I understand that closing entries will be created and no entries can be recorded in this year once it is closed.",
+      "previewTitle": "Closing preview",
+      "previewFailed": "Could not load the preview.",
+      "noPreview": "The server does not provide a preview. Closing applies these steps:",
+      "step1": "6xx income statement accounts are transferred to 690 Profit or Loss for the Period.",
+      "step2": "7xx cost accounts are closed through the related income statement accounts.",
+      "step3": "The result moves to 590 Net Profit / 591 Net Loss for the Period.",
+      "step4": "Balance sheet accounts carry over with the opening entry of the next year.",
+      "result": "Result for the period: {{amount}} ({{side}}) → {{account}}",
+      "entry": "Entry",
+      "date": "Date",
+      "lines": "Lines",
+      "total": "Amount",
+      "types": {
+        "closing": "Closing entry",
+        "opening": "Opening entry"
+      },
+      "openPeriods": "Periods not closed: {{count}}. Closing them before the year-end close is recommended."
+    },
+    "reopen": {
+      "action": "Reopen",
+      "title": "Reopen fiscal year {{code}}?",
+      "body": "Closing and opening entries are reversed. The reason is written to the audit log.",
+      "confirm": "Reopen year"
+    },
+    "toast": {
+      "created": "Fiscal year {{code}} created.",
+      "updated": "Fiscal year {{code}} updated.",
+      "closed": "Fiscal year {{code}} closed.",
+      "reopened": "Fiscal year {{code}} reopened."
+    },
+    "changed": {
+      "title": "The fiscal year changed elsewhere",
+      "body": "This fiscal year was updated before you confirmed. Review the latest version and confirm again.",
+      "adopt": "Use the latest version"
+    }
+  },
+  "periods": {
+    "title": "Accounting periods",
+    "subtitle": "Soft close, close or reopen periods with a reason.",
+    "year": "Fiscal year",
+    "boardLabel": "Periods of {{code}}",
+    "adjustment": "13 · Year-end adjustments",
+    "current": "Current period",
+    "none": "No period matches this filter.",
+    "yearClosed": "This fiscal year is closed; reopen the year before changing periods.",
+    "drafts": "Draft entries: {{count}}",
+    "fields": {
+      "number": "Period",
+      "start": "Start",
+      "end": "End",
+      "status": "Status"
+    },
+    "status": {
+      "open": "Open",
+      "soft_closed": "Soft closed",
+      "closed": "Closed"
+    },
+    "actions": {
+      "softClose": "Soft close",
+      "softCloseTitle": "Soft close {{period}}?",
+      "softCloseBody": "{{start}} – {{end}}: only authorized users can record entries.",
+      "softCloseNamed": "Soft close period {{period}}",
+      "close": "Close period",
+      "closeTitle": "Close {{period}}?",
+      "closeBody": "{{start}} – {{end}}: no entries can be recorded in a closed period. Draft entries block closing.",
+      "closeNamed": "Close period {{period}}",
+      "reopen": "Reopen",
+      "reopenTitle": "Reopen {{period}}?",
+      "reopenBody": "{{start}} – {{end}}: the reason is written to the audit log.",
+      "reopenNamed": "Reopen period {{period}}"
+    },
+    "blocked": {
+      "title": "The period cannot be closed",
+      "drafts": "Draft entries in the period: {{count}}.",
+      "upFront": "This period has draft entries.",
+      "hint": "Post, move or delete the draft entries, then try again."
+    },
+    "toast": {
+      "softClose": "{{period}} soft closed.",
+      "close": "{{period}} closed.",
+      "reopen": "{{period}} reopened."
+    }
+  },
+  "determination": {
+    "title": "Account determination",
+    "subtitle": "Rules that choose the account used when documents are posted.",
+    "new": "New rule",
+    "newTitle": "New account determination rule",
+    "editTitle": "Edit rule",
+    "dialogBody": "The highest-priority rule whose conditions match is chosen; a rule without conditions is the default.",
+    "systemNote": "System rule: only the account, side and description can change.",
+    "search": "Search",
+    "searchPlaceholder": "Event, account or condition value",
+    "group": "Group",
+    "showEmpty": "Show events without rules",
+    "empty": "No rules to show",
+    "noRules": "No rule for this event; posting will fail.",
+    "addRule": "Add rule",
+    "addFor": "Add rule for {{event}}",
+    "tableCaption": "Rules of {{event}} (by priority)",
+    "default": "Default",
+    "system": "System",
+    "sideAny": "Not specified",
+    "moveUp": "Move rule {{n}} of {{event}} up",
+    "moveDown": "Move rule {{n}} of {{event}} down",
+    "editN": "Edit rule {{n}} of {{event}}",
+    "deleteN": "Delete rule {{n}} of {{event}}",
+    "delete": "Delete",
+    "deleteTitle": "Delete rule?",
+    "deleteBody": "This rule of event {{event}} will be deleted.",
+    "fields": {
+      "event": "Event",
+      "priority": "Priority",
+      "conditions": "Conditions",
+      "account": "Account",
+      "side": "Side",
+      "description": "Description"
+    },
+    "hints": {
+      "priority": "Higher numbers are tried first."
+    },
+    "conditions": {
+      "title": "Conditions",
+      "help": "All conditions must match; separate several alternatives for one value with commas.",
+      "none": "No conditions: this rule is used as the default.",
+      "key": "Key",
+      "value": "Value",
+      "keyN": "Condition {{n}} key",
+      "valueN": "Condition {{n}} value",
+      "add": "Add condition",
+      "remove": "Remove condition {{n}}",
+      "errors": {
+        "keyRequired": "The condition key is required.",
+        "valueRequired": "Enter at least one value.",
+        "duplicate": "This key is used more than once."
+      }
+    },
+    "conditionKeys": {
+      "party_group": "Party group",
+      "party_id": "Party",
+      "item_category": "Item category",
+      "item_id": "Item",
+      "currency": "Currency",
+      "tax_code": "Tax code",
+      "warehouse_id": "Warehouse",
+      "branch_id": "Branch"
+    },
+    "groups": {
+      "sales": "Sales",
+      "purchase": "Purchasing",
+      "inventory": "Inventory",
+      "treasury": "Treasury",
+      "fx": "Exchange differences",
+      "payroll": "Payroll"
+    },
+    "events": {
+      "sales_receivable": "Sales receivable",
+      "sales_revenue_goods": "Revenue from goods",
+      "sales_revenue_services": "Revenue from services",
+      "sales_vat_output": "Output VAT",
+      "sales_returns": "Sales returns",
+      "purchase_payable": "Supplier payable",
+      "purchase_expense": "Purchase expense",
+      "purchase_vat_input": "Input VAT",
+      "purchase_vat_withholding": "VAT withholding",
+      "inventory_stock": "Inventory value",
+      "inventory_cogs": "Cost of goods sold",
+      "treasury_cash": "Cash",
+      "treasury_bank": "Bank",
+      "treasury_cheque_portfolio": "Cheques in portfolio",
+      "fx_gain": "Foreign exchange gain",
+      "fx_loss": "Foreign exchange loss"
+    },
+    "test": {
+      "title": "Rule test",
+      "body": "Enter an event and context; the account posting would use is shown, nothing is recorded.",
+      "run": "Test",
+      "resolved": "Resolved account",
+      "byRule": "Conditional rule",
+      "byDefault": "Default rule",
+      "matched": "Matched",
+      "failed": "No account could be determined."
+    },
+    "toast": {
+      "created": "Rule added.",
+      "updated": "Rule updated.",
+      "deleted": "Rule deleted."
+    },
+    "moveFailed": "The order of {{event}} could not be changed; the previous order was restored. Reason: {{reason}}",
+    "moveFailedPartial": "The reorder of {{event}} stopped halfway and could not be undone; the current order was reloaded, please check it. Reason: {{reason}}"
+  }
+}

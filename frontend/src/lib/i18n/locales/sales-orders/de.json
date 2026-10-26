@@ -1,0 +1,84 @@
+{
+  "list": {
+    "title": "Kundenaufträge",
+    "description": "Aufträge der Kunden, Freigabestatus, Liefer- und Fakturierungsfortschritt.",
+    "new": "Neuer Auftrag",
+    "exportName": "kundenauftraege"
+  },
+  "palette": {
+    "list": "Kundenaufträge",
+    "new": "Neuer Kundenauftrag"
+  },
+  "actions": {
+    "confirm": "Bestätigen",
+    "revise": "Revidieren",
+    "cancel": "Auftrag stornieren",
+    "close": "Auftrag abschließen",
+    "createDelivery": "Lieferschein erstellen",
+    "createInvoice": "Rechnung erstellen",
+    "confirmed": "Auftrag bestätigt.",
+    "sentForApproval": "Auftrag zur Freigabe gesendet.",
+    "cancelled": "Auftrag storniert.",
+    "closed": "Auftrag abgeschlossen.",
+    "failed": "Der Vorgang konnte nicht abgeschlossen werden."
+  },
+  "confirm": {
+    "title": "Auftrag bestätigen?",
+    "body": "{{number}} ({{total}}) für {{customer}} wird bestätigt; das Kreditlimit wird geprüft und Bestand reserviert. Oberhalb der Freigabegrenze geht der Auftrag zur Freigabe."
+  },
+  "cancel": {
+    "title": "Auftrag stornieren?",
+    "body": "Reservierungen werden freigegeben. Die Stornierung kann nicht rückgängig gemacht werden."
+  },
+  "closeOrder": {
+    "title": "Auftrag abschließen?",
+    "body": "Offene Mengen werden weder geliefert noch berechnet; offene Reservierungen werden freigegeben."
+  },
+  "approval": {
+    "tab": "Freigabe",
+    "pending": "Der Auftrag wartet auf Freigabe. Nach der Freigabe wird er automatisch bestätigt.",
+    "rejected": "Freigabe abgelehnt: {{comment}}",
+    "unavailable": "Die Freigabe kann nicht angezeigt werden."
+  },
+  "creditOverridden": "Trotz Kreditlimit bestätigt. Begründung: {{reason}}",
+  "wizard": {
+    "close": "Schließen",
+    "step": "Schritt {{step}} von {{total}}",
+    "step1": "Mengen",
+    "step2": "Datum und Übersicht",
+    "linesLabel": "Auftragspositionen",
+    "item": "Artikel",
+    "ordered": "Bestellt",
+    "delivered": "Geliefert",
+    "invoiced": "Fakturiert",
+    "remaining": "Offen",
+    "service": "(Dienstleistung)",
+    "quantityFor": "Menge: {{item}}",
+    "fillAll": "Alle offenen Mengen übernehmen",
+    "clear": "Leeren",
+    "exceeds": "Höchstens {{max}} möglich.",
+    "invalid": "Geben Sie eine gültige Menge ein.",
+    "nothingChosen": "Geben Sie für mindestens eine Position eine Menge ein.",
+    "tolerance": "Überlieferungstoleranz: {{percent}} %",
+    "deliverOnInvoice": "Nicht gelieferte Lagerpositionen mit der Rechnung liefern",
+    "deliverOnInvoiceHelp": "Beim Ausstellen der Rechnung wird automatisch ein Lieferschein erstellt und der Bestand reduziert.",
+    "documentDate": "Belegdatum",
+    "warehouse": "Lager",
+    "summary": "Übersicht",
+    "back": "Zurück",
+    "next": "Weiter",
+    "failed": "Der Beleg konnte nicht erstellt werden.",
+    "delivery": {
+      "title": "Lieferschein zu {{number}}",
+      "quantity": "Liefermenge",
+      "create": "Lieferscheinentwurf erstellen",
+      "created": "Lieferschein {{number}} als Entwurf erstellt."
+    },
+    "invoice": {
+      "title": "Rechnung zu {{number}}",
+      "quantity": "Rechnungsmenge",
+      "create": "Rechnungsentwurf erstellen",
+      "created": "Rechnung {{number}} als Entwurf erstellt."
+    }
+  }
+}

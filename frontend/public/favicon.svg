@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <style>
+    .tile { fill: #0b1c22 }
+    .arch { fill: #4cbac6 }
+    .key { fill: #e9b452 }
+    @media (prefers-color-scheme: light) {
+      .tile { fill: #006776 }
+      .arch { fill: #faf9f6 }
+      .key { fill: #e9b452 }
+    }
+  </style>
+  <rect class="tile" width="48" height="48" rx="10" />
+  <g transform="translate(4.8 3.3) scale(0.8)">
+    <path class="arch" d="M5 44V30A19 19 0 0 1 16.14 12.7L18.77 20.33A11 11 0 0 0 13 30V44ZM43 44V30A19 19 0 0 0 31.86 12.7L29.23 20.33A11 11 0 0 1 35 30V44Z" />
+    <path class="key" d="M20.26 19.13L16.25 7.5H31.75L27.74 19.13Z" />
+  </g>
+</svg>

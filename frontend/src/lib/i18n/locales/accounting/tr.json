@@ -1,0 +1,457 @@
+{
+  "common": {
+    "nav": {
+      "title": "Muhasebe",
+      "accounts": "Hesap planı",
+      "fiscalYears": "Mali yıllar",
+      "periods": "Dönemler",
+      "determination": "Hesap belirleme"
+    },
+    "commands": {
+      "accounts": "Hesap planı",
+      "accountsFlat": "Hesap listesi (düz görünüm)",
+      "accountsImport": "Hesap planını içe aktar",
+      "fiscalYears": "Mali yıllar",
+      "fiscalYearNew": "Yeni mali yıl oluştur",
+      "periods": "Muhasebe dönemleri",
+      "determination": "Hesap belirleme kuralları"
+    },
+    "actions": "İşlemler",
+    "all": "Tümü",
+    "yes": "Evet",
+    "no": "Hayır",
+    "done": "Tamam",
+    "retry": "Tekrar dene",
+    "reload": "Son hâli yükle",
+    "loading": "Yükleniyor…",
+    "loadFailed": "Veriler yüklenemedi.",
+    "limitExceeded": "Kayıt sayısı bu ekranın gösterebileceği sınırı aşıyor; filtreyi daraltın.",
+    "actionFailed": "İşlem tamamlanamadı.",
+    "uncertain": "Sunucudan yanıt alınamadı; işlem uygulanmış olabilir. Listeyi yenileyip kontrol edin.",
+    "conflictTitle": "Kayıt başka biri tarafından değiştirildi",
+    "conflictBody": "Bu kayıt siz düzenlerken güncellendi. Son hâlini yükleyip değişikliğinizi yeniden uygulayın.",
+    "reason": "Gerekçe",
+    "reasonTooShort": "Gerekçe en az {{min}} karakter olmalıdır.",
+    "savedViews": "Kayıtlı görünümler",
+    "noSavedViews": "Henüz kayıtlı görünüm yok.",
+    "saveView": "Bu görünümü kaydet",
+    "saveViewBody": "Arama, filtre ve görünüm seçimleri bu ad altında saklanır.",
+    "viewName": "Görünüm adı",
+    "removeView": "{{name}} görünümünü sil",
+    "dismiss": "Kapat"
+  },
+  "accounts": {
+    "title": "Hesap planı",
+    "subtitle": "Tek Düzen Hesap Planı'na dayalı hesaplar; ağaç ve düz liste görünümü.",
+    "treeView": "Ağaç",
+    "flatView": "Liste",
+    "viewMode": "Görünüm",
+    "new": "Yeni hesap",
+    "newTitle": "Yeni hesap",
+    "editTitle": "{{code}} hesabını düzenle",
+    "edit": "Düzenle",
+    "editNamed": "{{code}} hesabını düzenle",
+    "addChild": "Alt hesap ekle",
+    "addChildNamed": "{{code}} altına hesap ekle",
+    "delete": "Sil",
+    "deleteTitle": "{{code}} hesabı silinsin mi?",
+    "deleteBody": "Hareket görmüş ya da alt hesabı olan hesaplar silinemez; bunun yerine pasif yapın.",
+    "importAction": "İçe aktar",
+    "search": "Ara",
+    "searchPlaceholder": "Kod ya da ad (ör. 120, Alıcılar)",
+    "empty": "Hesap planı boş",
+    "emptyBody": "Hesap ekleyin ya da CSV/XLSX dosyasından içe aktarın.",
+    "noMatch": "Aramaya uyan hesap yok.",
+    "visibleCount": "Gösterilen hesap sayısı: {{count}}",
+    "header": "Toplama",
+    "postable": "Hareket görür",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "system": "Sistem",
+    "systemNote": "Sistem hesabı: kod, üst hesap ve sınıflandırma değiştirilemez.",
+    "noGroup": "Koddan belirlensin",
+    "tdhpGroupOption": "{{group}} · {{name}}",
+    "flagsLegend": "Hesap özellikleri",
+    "fields": {
+      "code": "Hesap kodu",
+      "name": "Hesap adı",
+      "parent": "Üst hesap",
+      "type": "Hesap türü",
+      "normalBalance": "Normal bakiye",
+      "isPostable": "Hareket görebilir",
+      "isActive": "Aktif",
+      "tdhpGroup": "TDHP grubu",
+      "currency": "Döviz",
+      "requiresParty": "Cari zorunlu",
+      "requiresCostCenter": "Masraf merkezi zorunlu",
+      "requiresProject": "Proje zorunlu",
+      "isRevaluable": "Kur değerlemesine tabi",
+      "notes": "Notlar",
+      "status": "Durum"
+    },
+    "hints": {
+      "code": "Şirket içinde benzersiz; alt hesaplar genelde üst hesap koduyla başlar (120.01).",
+      "parent": "Boş bırakılırsa ana hesap olur.",
+      "currency": "Yalnızca dövizli hesaplar için (USD, EUR…).",
+      "postable": "Yalnızca alt hesabı olmayan hesaplar fiş satırı alabilir.",
+      "revaluable": "Dönem sonu kur farkı hesaplamasına girer; döviz gerekir."
+    },
+    "types": {
+      "asset": "Varlık",
+      "liability": "Yabancı kaynak",
+      "equity": "Öz kaynak",
+      "revenue": "Gelir",
+      "expense": "Gider",
+      "cost": "Maliyet",
+      "memo": "Nazım"
+    },
+    "normal": {
+      "debit": "Borç bakiyeli",
+      "credit": "Alacak bakiyeli"
+    },
+    "side": {
+      "debit": "Borç",
+      "credit": "Alacak",
+      "zero": "Bakiye yok"
+    },
+    "tdhp": {
+      "1": "Dönen varlıklar",
+      "2": "Duran varlıklar",
+      "3": "Kısa vadeli yabancı kaynaklar",
+      "4": "Uzun vadeli yabancı kaynaklar",
+      "5": "Öz kaynaklar",
+      "6": "Gelir tablosu hesapları",
+      "7": "Maliyet hesapları",
+      "8": "Serbest",
+      "9": "Nazım hesaplar"
+    },
+    "integrity": {
+      "title": "Hesap planı kuralları",
+      "codeTaken": "Bu kod zaten kullanılıyor ({{name}}).",
+      "cycle": "Hesap kendisinin ya da alt hesaplarından birinin altına taşınamaz.",
+      "nonLeafPostable": "Alt hesabı olan hesap hareket göremez ({{count}} alt hesap var).",
+      "hasPostings": "Hareket görmüş hesap toplama hesabına çevrilemez.",
+      "parentInactive": "Üst hesap {{code}} pasif; bu hesap da kullanılamayabilir.",
+      "parentBecomesHeader": "Üst hesap {{code}} şu an hareket görüyor; alt hesap eklenince toplama hesabına dönüşür.",
+      "parentHasPostings": "Üst hesap {{code}} hareket görmüş; altına hesap açmak sunucu tarafından reddedilebilir.",
+      "prefix": "Kod, üst hesap kodu {{code}} ile başlamıyor (şirket ayarına göre zorunlu olabilir).",
+      "typeDiffers": "Hesap türü üst hesap {{code}} ile farklı.",
+      "unusualBalance": "Normal bakiye bu hesap türü için alışılmışın tersi."
+    },
+    "tree": {
+      "expand": "{{code}} alt hesaplarını aç",
+      "collapse": "{{code}} alt hesaplarını kapat",
+      "expandAll": "Tümünü aç",
+      "collapseAll": "Tümünü kapat",
+      "hint": "Ok tuşları: gezin · Sağ/Sol: aç/kapat · Enter: ayrıntı · F2: düzenle · Insert: alt hesap"
+    },
+    "combobox": {
+      "empty": "Uygun hesap bulunamadı",
+      "header": "toplama hesabı"
+    },
+    "detail": {
+      "title": "{{code}} hesap ayrıntısı",
+      "close": "Ayrıntıyı kapat",
+      "balance": "Bakiye",
+      "asOf": "Tarih itibarıyla",
+      "debit": "Borç",
+      "credit": "Alacak",
+      "net": "Bakiye",
+      "fxBalance": "Döviz bakiyesi: {{amount}} {{currency}}",
+      "balanceFailed": "Bakiye alınamadı."
+    },
+    "toast": {
+      "created": "Hesap oluşturuldu.",
+      "updated": "Hesap güncellendi.",
+      "deleted": "Hesap silindi."
+    },
+    "importWizard": {
+      "title": "Hesap planı içe aktarma",
+      "progress": "İçe aktarma adımları",
+      "stepNames": {
+        "file": "Dosya",
+        "review": "Kontrol",
+        "done": "Sonuç"
+      },
+      "steps": {
+        "file": "CSV ya da XLSX dosyası seçin; önce deneme çalıştırması yapılır, hiçbir kayıt değişmez.",
+        "review": "Deneme sonucu: hatalı satırları düzeltip dosyayı yeniden yükleyin ya da içe aktarın.",
+        "done": "İçe aktarma tamamlandı."
+      },
+      "file": "Dosya",
+      "fileHelp": "CSV (UTF-8) ya da XLSX, en fazla 10 MB.",
+      "badType": "Yalnızca .csv ve .xlsx dosyaları kabul edilir.",
+      "tooLarge": "Dosya {{mb}} MB sınırını aşıyor.",
+      "columnsTitle": "Beklenen sütunlar",
+      "template": "Örnek şablonu indir",
+      "dryRun": "Deneme çalıştır",
+      "commit": "İçe aktar",
+      "summary": "Özet",
+      "counts": {
+        "total": "Satır",
+        "created": "Yeni",
+        "updated": "Güncellenecek",
+        "skipped": "Atlanan",
+        "failed": "Hatalı"
+      },
+      "onlyErrors": "Yalnızca hatalı satırlar",
+      "downloadReport": "Hata raporunu indir",
+      "reportFile": "hesap-plani-hata-raporu",
+      "resultsCaption": "Deneme çalıştırması satır sonuçları",
+      "columns": {
+        "row": "Satır",
+        "status": "Sonuç",
+        "errors": "Hatalar"
+      },
+      "status": {
+        "create": "Yeni",
+        "update": "Güncelleme",
+        "skip": "Atlandı",
+        "error": "Hata"
+      },
+      "noRows": "Gösterilecek satır yok.",
+      "fixFirst": "Hatalı satırlar varken içe aktarma yapılamaz. Hata raporunu indirip düzeltin ve dosyayı yeniden yükleyin.",
+      "doneToast": "{{count}} hesap içe aktarıldı.",
+      "doneBody": "{{created}} yeni hesap eklendi, {{updated}} hesap güncellendi, {{skipped}} satır atlandı.",
+      "pager": "Sonuç sayfaları",
+      "prevPage": "Önceki",
+      "nextPage": "Sonraki",
+      "pageOf": "Sayfa {{page}} / {{pages}}",
+      "reportFor": "Deneme sonucu: {{name}}",
+      "partialToast": "İçe aktarma tamamlandı, {{failed}} satır işlenemedi.",
+      "partialBody": "{{failed}} satır içe aktarılamadı. Hatalı satırları aşağıda görebilir, hata raporunu indirebilirsiniz."
+    }
+  },
+  "fiscal": {
+    "title": "Mali yıllar",
+    "subtitle": "Hesap dönemleri, yıl sonu kapanışı ve yeniden açma.",
+    "new": "Yeni mali yıl",
+    "empty": "Mali yıl tanımlı değil",
+    "emptyBody": "Fiş kesebilmek için önce bir mali yıl oluşturun.",
+    "defaultName": "{{code}} hesap dönemi",
+    "planned": "Oluşturulacak",
+    "openBoard": "Dönem panosuna git",
+    "periodsLink": "Dönemler",
+    "editTitle": "{{code}} mali yılını düzenle",
+    "editNamed": "{{code}} mali yılını düzenle",
+    "fields": {
+      "code": "Yıl kodu",
+      "name": "Ad",
+      "start": "Başlangıç",
+      "end": "Bitiş",
+      "range": "Tarih aralığı",
+      "status": "Durum",
+      "adjustment": "13. dönem (yıl sonu düzeltme) oluştur"
+    },
+    "hints": {
+      "adjustment": "Yılın son günü için sıfır uzunluklu ayrı bir düzeltme dönemi.",
+      "dates": "Tarihler yalnızca kesinleşmiş fiş yokken değiştirilebilir.",
+      "datesLocked": "Bu yılda kesinleşmiş fiş var; tarihler değiştirilemez."
+    },
+    "wizard": {
+      "title": "Yeni mali yıl",
+      "body": "Yıl oluşturulduğunda 12 dönem (isteğe bağlı 13.) otomatik açılır.",
+      "preview": "Oluşturulacak dönemler",
+      "noPreview": "Geçerli bir tarih aralığı girin.",
+      "overlap": "Tarih aralığı {{code}} mali yılı ile çakışıyor.",
+      "created": "{{code}} mali yılı oluşturuldu; {{count}} dönem açıldı.",
+      "generated": "Oluşturulan dönemler"
+    },
+    "close": {
+      "action": "Yılı kapat",
+      "title": "{{code}} mali yılı kapatılsın mı?",
+      "body": "Kapanış işlemi gelir tablosu hesaplarını kapatır, dönem sonucunu öz kaynağa aktarır ve sonraki yılın açılış fişini oluşturur.",
+      "confirm": "Yılı kapat",
+      "ack": "Kapanış fişlerinin oluşturulacağını ve yıl kapandıktan sonra bu yıla fiş kesilemeyeceğini anladım.",
+      "previewTitle": "Kapanış önizlemesi",
+      "previewFailed": "Önizleme alınamadı.",
+      "noPreview": "Sunucu önizleme sağlamıyor. Kapanışta şu adımlar uygulanır:",
+      "step1": "6xx gelir tablosu hesapları 690 Dönem Kârı veya Zararı hesabına aktarılır.",
+      "step2": "7xx maliyet hesapları ilgili gelir tablosu hesapları üzerinden kapatılır.",
+      "step3": "Dönem sonucu 590 Dönem Net Kârı / 591 Dönem Net Zararı hesabına taşınır.",
+      "step4": "Bilanço hesapları sonraki yılın açılış fişiyle devredilir.",
+      "result": "Dönem sonucu: {{amount}} ({{side}}) → {{account}}",
+      "entry": "Fiş",
+      "date": "Tarih",
+      "lines": "Satır",
+      "total": "Tutar",
+      "types": {
+        "closing": "Kapanış fişi",
+        "opening": "Açılış fişi"
+      },
+      "openPeriods": "Kapatılmamış dönem sayısı: {{count}}. Kapanıştan önce dönemleri kapatmanız önerilir."
+    },
+    "reopen": {
+      "action": "Yeniden aç",
+      "title": "{{code}} mali yılı yeniden açılsın mı?",
+      "body": "Kapanış ve açılış fişleri geri alınır. Gerekçe denetim kaydına yazılır.",
+      "confirm": "Yılı yeniden aç"
+    },
+    "toast": {
+      "created": "{{code}} mali yılı oluşturuldu.",
+      "updated": "{{code}} mali yılı güncellendi.",
+      "closed": "{{code}} mali yılı kapatıldı.",
+      "reopened": "{{code}} mali yılı yeniden açıldı."
+    },
+    "changed": {
+      "title": "Mali yıl başka bir yerde değişti",
+      "body": "Bu mali yıl siz onaylamadan önce güncellendi. Güncel hâli inceleyip yeniden onaylayın.",
+      "adopt": "Güncel hâli kullan"
+    }
+  },
+  "periods": {
+    "title": "Muhasebe dönemleri",
+    "subtitle": "Dönemleri geçici kapatın, kesin kapatın ya da gerekçeyle yeniden açın.",
+    "year": "Mali yıl",
+    "boardLabel": "{{code}} dönemleri",
+    "adjustment": "13 · Yıl sonu düzeltme",
+    "current": "Bugünün dönemi",
+    "none": "Bu filtreye uyan dönem yok.",
+    "yearClosed": "Bu mali yıl kapalı; dönem işlemleri için önce yılı yeniden açın.",
+    "drafts": "Taslak fiş: {{count}}",
+    "fields": {
+      "number": "Dönem",
+      "start": "Başlangıç",
+      "end": "Bitiş",
+      "status": "Durum"
+    },
+    "status": {
+      "open": "Açık",
+      "soft_closed": "Geçici kapalı",
+      "closed": "Kapalı"
+    },
+    "actions": {
+      "softClose": "Geçici kapat",
+      "softCloseTitle": "{{period}} geçici kapatılsın mı?",
+      "softCloseBody": "{{start}} – {{end}}: yalnızca yetkili kullanıcılar fiş kaydedebilir.",
+      "softCloseNamed": "{{period}} dönemini geçici kapat",
+      "close": "Dönemi kapat",
+      "closeTitle": "{{period}} kapatılsın mı?",
+      "closeBody": "{{start}} – {{end}}: kapalı döneme fiş kaydedilemez. Taslak fiş varsa kapatma engellenir.",
+      "closeNamed": "{{period}} dönemini kapat",
+      "reopen": "Yeniden aç",
+      "reopenTitle": "{{period}} yeniden açılsın mı?",
+      "reopenBody": "{{start}} – {{end}}: gerekçe denetim kaydına yazılır.",
+      "reopenNamed": "{{period}} dönemini yeniden aç"
+    },
+    "blocked": {
+      "title": "Dönem kapatılamıyor",
+      "drafts": "Dönemdeki taslak fiş sayısı: {{count}}.",
+      "upFront": "Bu dönemde taslak fişler var.",
+      "hint": "Taslak fişleri kesinleştirin, başka döneme taşıyın ya da silin; sonra yeniden deneyin."
+    },
+    "toast": {
+      "softClose": "{{period}} geçici kapatıldı.",
+      "close": "{{period}} kapatıldı.",
+      "reopen": "{{period}} yeniden açıldı."
+    }
+  },
+  "determination": {
+    "title": "Hesap belirleme",
+    "subtitle": "Belgeler muhasebeleşirken hangi hesabın kullanılacağını belirleyen kurallar.",
+    "new": "Yeni kural",
+    "newTitle": "Yeni hesap belirleme kuralı",
+    "editTitle": "Kuralı düzenle",
+    "dialogBody": "Koşulları eşleşen en yüksek öncelikli kural seçilir; koşulsuz kural varsayılandır.",
+    "systemNote": "Sistem kuralı: yalnızca hesap, taraf ve açıklama değiştirilebilir.",
+    "search": "Ara",
+    "searchPlaceholder": "Olay, hesap ya da koşul değeri",
+    "group": "Grup",
+    "showEmpty": "Kuralı olmayan olayları göster",
+    "empty": "Gösterilecek kural yok",
+    "noRules": "Bu olay için kural yok; muhasebeleştirme hata verir.",
+    "addRule": "Kural ekle",
+    "addFor": "{{event}} için kural ekle",
+    "tableCaption": "{{event}} kuralları (öncelik sırasıyla)",
+    "default": "Varsayılan",
+    "system": "Sistem",
+    "sideAny": "Belirtilmedi",
+    "moveUp": "{{event}} {{n}}. kuralı yukarı taşı",
+    "moveDown": "{{event}} {{n}}. kuralı aşağı taşı",
+    "editN": "{{event}} {{n}}. kuralı düzenle",
+    "deleteN": "{{event}} {{n}}. kuralı sil",
+    "delete": "Sil",
+    "deleteTitle": "Kural silinsin mi?",
+    "deleteBody": "{{event}} olayı için bu kural silinecek.",
+    "fields": {
+      "event": "Olay",
+      "priority": "Öncelik",
+      "conditions": "Koşullar",
+      "account": "Hesap",
+      "side": "Taraf",
+      "description": "Açıklama"
+    },
+    "hints": {
+      "priority": "Büyük sayı önce denenir."
+    },
+    "conditions": {
+      "title": "Koşullar",
+      "help": "Tüm koşullar eşleşmelidir; bir değere virgülle birden çok seçenek yazılabilir.",
+      "none": "Koşul yok: bu kural varsayılan olarak kullanılır.",
+      "key": "Anahtar",
+      "value": "Değer",
+      "keyN": "{{n}}. koşul anahtarı",
+      "valueN": "{{n}}. koşul değeri",
+      "add": "Koşul ekle",
+      "remove": "{{n}}. koşulu kaldır",
+      "errors": {
+        "keyRequired": "Koşul anahtarı zorunludur.",
+        "valueRequired": "En az bir değer girin.",
+        "duplicate": "Bu anahtar birden fazla kez kullanılmış."
+      }
+    },
+    "conditionKeys": {
+      "party_group": "Cari grubu",
+      "party_id": "Cari",
+      "item_category": "Stok kategorisi",
+      "item_id": "Stok kartı",
+      "currency": "Para birimi",
+      "tax_code": "Vergi kodu",
+      "warehouse_id": "Depo",
+      "branch_id": "Şube"
+    },
+    "groups": {
+      "sales": "Satış",
+      "purchase": "Satın alma",
+      "inventory": "Stok",
+      "treasury": "Finans",
+      "fx": "Kur farkı",
+      "payroll": "Bordro"
+    },
+    "events": {
+      "sales_receivable": "Satış alacağı",
+      "sales_revenue_goods": "Mal satış geliri",
+      "sales_revenue_services": "Hizmet satış geliri",
+      "sales_vat_output": "Hesaplanan KDV",
+      "sales_returns": "Satıştan iadeler",
+      "purchase_payable": "Satıcı borcu",
+      "purchase_expense": "Alış gideri",
+      "purchase_vat_input": "İndirilecek KDV",
+      "purchase_vat_withholding": "KDV tevkifatı",
+      "inventory_stock": "Stok değeri",
+      "inventory_cogs": "Satılan malın maliyeti",
+      "treasury_cash": "Kasa",
+      "treasury_bank": "Banka",
+      "treasury_cheque_portfolio": "Portföydeki çekler",
+      "fx_gain": "Kambiyo kârı",
+      "fx_loss": "Kambiyo zararı"
+    },
+    "test": {
+      "title": "Kural testi",
+      "body": "Olay ve bağlamı girin; muhasebeleştirmede seçilecek hesap gösterilir, kayıt oluşmaz.",
+      "run": "Test et",
+      "resolved": "Belirlenen hesap",
+      "byRule": "Koşullu kural",
+      "byDefault": "Varsayılan kural",
+      "matched": "Eşleşen",
+      "failed": "Hesap belirlenemedi."
+    },
+    "toast": {
+      "created": "Kural eklendi.",
+      "updated": "Kural güncellendi.",
+      "deleted": "Kural silindi."
+    },
+    "moveFailed": "{{event}} sıralaması değiştirilemedi; önceki sıra geri yüklendi. Neden: {{reason}}",
+    "moveFailedPartial": "{{event}} sıralaması yarım kaldı ve geri alınamadı; güncel sıra yeniden yüklendi, kontrol edin. Neden: {{reason}}"
+  }
+}

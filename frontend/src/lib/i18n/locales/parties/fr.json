@@ -1,0 +1,207 @@
+{
+  "title": "Tiers",
+  "list": {
+    "description": "Fiches clients et fournisseurs",
+    "grid": "Liste des tiers",
+    "new": "Nouveau tiers",
+    "emptyTitle": "Aucun tiers pour l'instant",
+    "emptyBody": "Créez votre premier client ou fournisseur.",
+    "emptyFilteredTitle": "Aucun tiers correspondant",
+    "emptyFilteredBody": "Modifiez la recherche ou les filtres.",
+    "views": "Vues prédéfinies",
+    "viewAll": "Tous",
+    "viewCustomers": "Clients",
+    "viewSuppliers": "Fournisseurs",
+    "viewInactive": "Inactifs",
+    "country": "Pays",
+    "export": "Exporter",
+    "exportCsv": "Télécharger en CSV",
+    "exportXlsx": "Télécharger en Excel (XLSX)",
+    "exportFailed": "L’export a échoué.",
+    "activate": "Activer",
+    "deactivate": "Désactiver",
+    "bulkDone": "{{count}} tiers mis à jour.",
+    "bulkFailed": "{{count}} tiers n'ont pas pu être mis à jour ; ils restent sélectionnés pour réessayer."
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Nom",
+    "legal_name": "Raison sociale",
+    "type": "Type",
+    "roles": "Rôles",
+    "tax_office": "Centre des impôts",
+    "tax_number": "N° fiscal / d'identité",
+    "country": "Pays",
+    "default_currency_code": "Devise par défaut",
+    "risk_limit": "Plafond de risque",
+    "risk_currency_code": "Devise du plafond",
+    "is_active": "Actif",
+    "status": "Statut",
+    "notes": "Notes",
+    "tags": "Étiquettes"
+  },
+  "types": {
+    "company": "Personne morale",
+    "person": "Personne physique"
+  },
+  "roles": {
+    "customer": "Client",
+    "supplier": "Fournisseur"
+  },
+  "status": {
+    "active": "Actif",
+    "inactive": "Inactif"
+  },
+  "hints": {
+    "vkn": "Numéro fiscal turc à 10 chiffres (VKN)",
+    "tckn": "Numéro d'identité turc à 11 chiffres (TCKN)",
+    "foreign": "Tiers étranger : numéro fiscal du pays",
+    "tags": "Séparez par des virgules",
+    "shortcut": "Ctrl+Entrée pour enregistrer"
+  },
+  "validation": {
+    "rolesRequired": "Choisissez au moins un rôle.",
+    "vknLength": "Le numéro fiscal doit comporter 10 chiffres.",
+    "vknChecksum": "Numéro fiscal invalide (chiffre de contrôle incorrect).",
+    "tcknLength": "Le numéro d'identité doit comporter 11 chiffres.",
+    "tcknChecksum": "Numéro d'identité invalide (chiffres de contrôle incorrects).",
+    "foreign": "32 caractères au maximum ; lettres, chiffres et . - / autorisés.",
+    "country": "Choisissez un code pays à deux lettres.",
+    "currency": "Choisissez un code devise à trois lettres.",
+    "riskCurrency": "Choisissez une devise pour le plafond de risque.",
+    "email": "Saisissez une adresse e-mail valide.",
+    "ibanFormat": "Un IBAN commence par un code pays et des chiffres de contrôle.",
+    "ibanLength": "Longueur d'IBAN incorrecte pour ce pays.",
+    "ibanTrFormat": "Structure d'IBAN TR invalide (26 caractères, chiffre réservé 0).",
+    "ibanChecksum": "Les chiffres de contrôle de l'IBAN sont incorrects.",
+    "swift": "Un code SWIFT comporte 8 ou 11 caractères.",
+    "tooLong": "Le texte est trop long.",
+    "ibanCountry": "Ce code pays n'utilise pas d'IBAN.",
+    "ibanBban": "La partie banque/compte ne correspond pas au format IBAN de ce pays."
+  },
+  "form": {
+    "createTitle": "Nouveau tiers",
+    "editTitle": "Modifier le tiers",
+    "identity": "Identité",
+    "tax": "Informations fiscales",
+    "commercial": "Informations commerciales",
+    "other": "Autres",
+    "save": "Enregistrer",
+    "create": "Créer",
+    "cancel": "Annuler",
+    "created": "Tiers créé : {{code}}",
+    "saved": "Modifications enregistrées.",
+    "saveFailed": "Enregistrement impossible.",
+    "subresourcesAfterCreate": "Les adresses, contacts et comptes bancaires s'ajoutent après l'enregistrement.",
+    "changedElsewhere": "Quelqu'un d'autre a modifié cette fiche pendant votre saisie. L'enregistrement signalera un conflit ; vous pouvez charger la dernière version."
+  },
+  "duplicates": {
+    "title": "Des tiers similaires existent",
+    "body": "Avant d'enregistrer, vérifiez que cette société n'existe pas déjà.",
+    "byTaxNumber": "même numéro fiscal",
+    "byName": "nom similaire",
+    "inactive": "inactif"
+  },
+  "conflict": {
+    "title": "Quelqu'un d'autre a modifié cette fiche",
+    "body": "La fiche a été mise à jour pendant votre saisie. Chargez la dernière version puis refaites vos modifications.",
+    "reload": "Charger la dernière version",
+    "keep": "Revenir à la saisie"
+  },
+  "detail": {
+    "edit": "Modifier",
+    "activate": "Activer",
+    "deactivate": "Désactiver",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer le tiers ?",
+    "deleteBody": "{{name}} sera supprimé. Un tiers utilisé dans des documents ne peut pas être supprimé ; désactivez-le plutôt.",
+    "deleted": "Tiers supprimé.",
+    "activated": "Tiers activé.",
+    "deactivated": "Tiers désactivé.",
+    "deactivatedInUse": "Le tiers est utilisé ; il a été désactivé au lieu d’être supprimé.",
+    "summary": "Résumé",
+    "loadFailed": "Impossible de charger le tiers.",
+    "notFound": "Tiers introuvable.",
+    "backToList": "Retour à la liste",
+    "none": "—",
+    "tabs": "Sections du tiers",
+    "addresses": "Adresses",
+    "contacts": "Contacts",
+    "bankAccounts": "Comptes bancaires",
+    "attachments": "Pièces jointes",
+    "history": "Historique",
+    "sales": "Ventes",
+    "purchases": "Achats"
+  },
+  "sub": {
+    "add": "Ajouter",
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer cette ligne ?",
+    "deleteBody": "Cette ligne sera supprimée définitivement.",
+    "saved": "Enregistré.",
+    "deleted": "Supprimé.",
+    "failed": "L'action a échoué.",
+    "conflict": "Quelqu'un d'autre a modifié cette ligne ; la liste a été actualisée.",
+    "loadFailed": "Impossible de charger la liste.",
+    "actions": "Actions",
+    "default": "Par défaut",
+    "makeDefault": "Définir par défaut",
+    "primary": "Principal",
+    "makePrimary": "Définir principal",
+    "rowLabel": "Ligne {{index}}",
+    "newRow": "Nouvelle ligne",
+    "keyboardHint": "Entrée enregistre, Échap annule.",
+    "changedElsewhere": "Cette ligne a été modifiée ailleurs ; l'enregistrement signalera un conflit."
+  },
+  "address": {
+    "empty": "Aucune adresse.",
+    "type": "Type",
+    "label": "Libellé",
+    "line1": "Adresse ligne 1",
+    "line2": "Adresse ligne 2",
+    "district": "Arrondissement",
+    "city": "Ville",
+    "postal_code": "Code postal",
+    "country": "Pays",
+    "is_default": "Par défaut",
+    "types": {
+      "billing": "Facturation",
+      "shipping": "Livraison",
+      "other": "Autre"
+    }
+  },
+  "contact": {
+    "empty": "Aucun contact.",
+    "name": "Nom complet",
+    "title": "Fonction",
+    "email": "E-mail",
+    "phone": "Téléphone",
+    "is_primary": "Principal"
+  },
+  "bank": {
+    "empty": "Aucun compte bancaire.",
+    "bank_name": "Banque",
+    "iban": "IBAN",
+    "swift": "SWIFT",
+    "currency_code": "Devise",
+    "is_default": "Par défaut"
+  },
+  "quickCreate": {
+    "title": "Création rapide de tiers",
+    "description": "Enregistrez l'essentiel maintenant ; complétez la fiche plus tard.",
+    "submit": "Créer et sélectionner"
+  },
+  "combobox": {
+    "placeholder": "Rechercher par nom, code ou numéro fiscal",
+    "create": "Créer un nouveau tiers",
+    "inactive": "Inactif"
+  },
+  "commands": {
+    "list": "Tiers",
+    "new": "Nouveau tiers",
+    "search": "Rechercher un tiers"
+  }
+}

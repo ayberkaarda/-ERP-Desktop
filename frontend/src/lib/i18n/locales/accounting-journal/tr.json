@@ -1,0 +1,252 @@
+{
+  "nav": {
+    "accounting": "Muhasebe",
+    "entries": "Yevmiye fişleri",
+    "reports": "Raporlar",
+    "trialBalance": "Mizan",
+    "generalLedger": "Büyük defter",
+    "journalBook": "Yevmiye defteri"
+  },
+  "palette": {
+    "newEntry": "Yeni yevmiye fişi"
+  },
+  "actions": {
+    "cancel": "Vazgeç",
+    "close": "Kapat",
+    "ok": "Tamam",
+    "retry": "Tekrar dene",
+    "save": "Kaydet"
+  },
+  "status": {
+    "draft": "Taslak",
+    "posted": "Kesinleşti",
+    "reversed": "Ters kayıtlı"
+  },
+  "entryType": {
+    "opening": "Açılış",
+    "general": "Mahsup",
+    "receipt": "Tahsil",
+    "payment": "Tediye",
+    "adjustment": "Düzeltme",
+    "revaluation": "Kur değerlemesi",
+    "closing": "Kapanış",
+    "reversal": "Ters kayıt",
+    "system": "Sistem"
+  },
+  "fields": {
+    "number": "Fiş no",
+    "entryDate": "Tarih",
+    "entryType": "Fiş türü",
+    "description": "Açıklama",
+    "status": "Durum",
+    "source": "Kaynak",
+    "totalDebit": "Borç toplamı",
+    "totalCredit": "Alacak toplamı"
+  },
+  "list": {
+    "title": "Yevmiye fişleri",
+    "description": "Taslak, kesinleşmiş ve ters kayıtlı muhasebe fişleri.",
+    "new": "Yeni fiş",
+    "filters": "Fiş filtreleri",
+    "unnumbered": "Taslak"
+  },
+  "filters": {
+    "dateFrom": "Başlangıç tarihi",
+    "dateTo": "Bitiş tarihi",
+    "account": "Hesap",
+    "party": "Cari",
+    "amountMin": "En az tutar",
+    "amountMax": "En çok tutar",
+    "clear": "Tüm filtreleri temizle"
+  },
+  "presets": {
+    "views": "Kayıtlı görünümler",
+    "params": "Kayıtlı parametreler",
+    "empty": "Henüz kayıt yok.",
+    "remove": "{{name}} kaydını sil",
+    "saveCurrent": "Geçerli ayarları kaydet…",
+    "saveTitle": "Ayarları kaydet",
+    "saveBody": "Seçili filtre ve parametreler bu tarayıcıda bu adla saklanır.",
+    "name": "Ad"
+  },
+  "export": {
+    "label": "Dışa aktar",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "Dosya indirilemedi."
+  },
+  "lines": {
+    "title": "Fiş satırları",
+    "account": "Hesap",
+    "description": "Açıklama",
+    "debit": "Borç",
+    "credit": "Alacak",
+    "fxAmount": "Döviz tutarı",
+    "fxRate": "Kur",
+    "baseAmount": "TL karşılığı",
+    "applyBase": "{{index}}. satıra TL karşılığını yaz",
+    "party": "Cari",
+    "costCenter": "Masraf merkezi",
+    "project": "Proje",
+    "dimensions": "Boyutlar",
+    "required": "Zorunlu",
+    "optional": "İsteğe bağlı",
+    "notApplicable": "Bu hesap için geçerli değil",
+    "count": "Satır: {{count}} / {{max}}",
+    "keys": "F9 veya = : farkı bu satıra yaz · Borçtan sonra Enter alacağı atlar · Ctrl+S taslak kaydet",
+    "maxReached": "Bir fişte en çok {{max}} satır olabilir."
+  },
+  "balance": {
+    "balanced": "Fiş dengede",
+    "empty": "Henüz tutar girilmedi",
+    "creditShort": "Alacak eksik: {{amount}}",
+    "debitShort": "Borç eksik: {{amount}}",
+    "debitTotal": "Borç",
+    "creditTotal": "Alacak",
+    "difference": "Fark",
+    "totals": "Toplam"
+  },
+  "validation": {
+    "account": "Hesap seçin.",
+    "amountRequired": "Borç ya da alacak tutarı girin.",
+    "bothSides": "Bir satırda hem borç hem alacak olamaz.",
+    "party": "Bu hesap cari ister.",
+    "costCenter": "Bu hesap masraf merkezi ister.",
+    "project": "Bu hesap proje ister.",
+    "fxAmount": "Dövizli hesapta döviz tutarı zorunludur.",
+    "fxRate": "Dövizli hesapta kur zorunludur.",
+    "minLines": "En az bir satır girin.",
+    "maxLines": "Bir fişte en çok {{max}} satır olabilir.",
+    "descriptionTooLong": "Açıklama en çok 500 karakter olabilir."
+  },
+  "editor": {
+    "newTitle": "Yeni yevmiye fişi",
+    "editTitle": "Taslak fiş",
+    "description": "Satırları klavyeyle girin; fiş dengelenince kesinleştirebilirsiniz.",
+    "saveDraft": "Taslağı kaydet",
+    "post": "Kesinleştir",
+    "postNeedsBalance": "Kesinleştirmek için borç ve alacak toplamları eşit olmalı.",
+    "showAllDimensions": "Tüm boyut sütunlarını göster",
+    "saved": "Taslak kaydedildi.",
+    "delete": "Taslağı sil",
+    "deleteTitle": "Taslak silinsin mi?",
+    "deleteBody": "Taslak fiş ve satırları kalıcı olarak silinir.",
+    "deleted": "Taslak silindi."
+  },
+  "post": {
+    "title": "Fiş kesinleştirilsin mi?",
+    "body": "Kesinleşen fişe yevmiye numarası verilir; sonradan değiştirilemez, yalnızca ters kayıtla düzeltilebilir.",
+    "summary": "{{date}} · {{count}} satır · Borç {{debit}} · Alacak {{credit}}",
+    "confirm": "Kesinleştir",
+    "doneTitle": "Fiş kesinleşti",
+    "doneBody": "Fişe {{number}} yevmiye numarası verildi.",
+    "unbalancedNow": "Fiş artık dengede değil; kesinleştirilmedi. Fişi yeniden yükleyip kontrol edin."
+  },
+  "reverse": {
+    "action": "Ters kayıt",
+    "title": "{{number}} için ters kayıt",
+    "body": "Fişin borç ve alacakları yer değiştirerek yeni bir fiş oluşturulur; iki fiş birbirine bağlanır.",
+    "date": "Ters kayıt tarihi",
+    "reason": "Gerekçe",
+    "reasonRequired": "Gerekçe en az 3 karakter olmalı.",
+    "confirm": "Ters kaydı oluştur",
+    "done": "Ters kayıt {{number}} oluşturuldu."
+  },
+  "view": {
+    "title": "Fiş {{number}}",
+    "noNumber": "numarasız",
+    "postedAt": "Kesinleşme",
+    "manual": "Elle girildi",
+    "reverses": "Bu fiş şu fişin ters kaydıdır:",
+    "reversedBy": "Ters kaydı:",
+    "openEntry": "fişi aç",
+    "reason": "Gerekçe",
+    "audit": "İşlem geçmişi",
+    "user": "Kullanıcı"
+  },
+  "conflict": {
+    "title": "Fiş başka biri tarafından değiştirildi",
+    "body": "Kaydetmeden önce son hâli yükleyin; yaptığınız değişiklikler birleştirilmez.",
+    "reload": "Son hâli yükle"
+  },
+  "errors": {
+    "generic": "İşlem tamamlanamadı.",
+    "loadFailed": "Veriler yüklenemedi.",
+    "refreshFailed": "Fişin son hâli alınamadı; ekrandaki bilgiler eski olabilir."
+  },
+  "reports": {
+    "parameters": "Rapor parametreleri",
+    "rangeMode": "Dönem seçimi",
+    "mode": {
+      "range": "Tarih aralığı",
+      "period": "Muhasebe dönemi"
+    },
+    "period": "Dönem",
+    "choosePeriod": "Dönem seçin",
+    "loading": "Yükleniyor…",
+    "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
+    "run": "Raporu getir",
+    "choose": "Parametreleri seçip raporu getirin.",
+    "noRows": "Bu parametrelerle satır yok.",
+    "periodsFailed": "Dönemler yüklenemedi."
+  },
+  "trialBalance": {
+    "title": "Mizan",
+    "description": "Hesapların açılış, dönem hareketi ve bakiyeleri; borç ve alacak toplamları kontrol edilir.",
+    "level": "Kırılım",
+    "levelOption": "{{level}}. seviye",
+    "includeZero": "Bakiyesiz hesapları göster",
+    "compare": "Önceki yılla karşılaştır",
+    "account": "Hesap",
+    "opening": "Açılış",
+    "movements": "Dönem hareketi",
+    "balance": "Bakiye",
+    "previousBalance": "Önceki yıl bakiye",
+    "debit": "Borç",
+    "credit": "Alacak",
+    "totals": "Genel toplam",
+    "balanced": "Borç = Alacak",
+    "unbalanced": "Mizan tutmuyor · hareket farkı {{movement}} · bakiye farkı {{balance}}",
+    "expandAll": "Tümünü aç",
+    "collapseAll": "Tümünü kapat",
+    "expand": "{{code}} alt hesaplarını aç",
+    "collapse": "{{code}} alt hesaplarını kapat",
+    "group": "{{group}} · {{name}}"
+  },
+  "ledger": {
+    "title": "Büyük defter",
+    "description": "Tek hesabın açılış bakiyesi, hareketleri ve yürüyen bakiyesi.",
+    "account": "Hesap",
+    "choose": "Hesap ve tarih aralığı seçip raporu getirin.",
+    "opening": "Açılış bakiyesi (devir)",
+    "closing": "Toplam ve kapanış bakiyesi",
+    "balance": "Bakiye",
+    "debitSide": "B",
+    "creditSide": "A",
+    "noMovements": "Bu aralıkta hareket yok.",
+    "rows": "{{count}} hareket",
+    "loadMore": "Daha fazla yükle ({{loaded}} / {{total}})"
+  },
+  "book": {
+    "title": "Yevmiye defteri",
+    "description": "Kesinleşmiş fişler numara sırasıyla; her sayfada devreden ve nakledilen toplamlar.",
+    "pageSize": "Sayfa başına satır",
+    "pageSizeOption": "{{count}} satır",
+    "print": "Yazdır",
+    "page": "Sayfa {{number}} / {{total}}",
+    "accountCode": "Hesap kodu",
+    "accountName": "Hesap adı",
+    "entryNo": "Yevmiye no {{number}}",
+    "broughtForward": "Devreden",
+    "pageTotal": "Sayfa toplamı",
+    "carriedForward": "Nakledilen",
+    "grandTotal": "Genel toplam",
+    "empty": "Bu aralıkta kesinleşmiş fiş yok.",
+    "tooLarge": "Aralık ekranda gösterilemeyecek kadar büyük; aralığı daraltın ya da dışa aktarın.",
+    "changed": "Yevmiye defteri yüklenirken yeni kayıtlar işlendi; toplamlar tutmuyor. Yeniden yükleyin."
+  },
+  "changed": {
+    "title": "Fiş başka bir yerde değişti",
+    "body": "Siz düzenlerken fişin yeni bir sürümü kaydedildi. Değişiklikleriniz kaydedilmeden önce son hâli yükleyin."
+  }
+}

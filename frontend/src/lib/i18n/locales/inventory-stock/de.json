@@ -1,0 +1,234 @@
+{
+  "common": {
+    "nav": {
+      "title": "Lager",
+      "stock": "Lagerbestand",
+      "movements": "Lagerbewegungen",
+      "lots": "Chargen",
+      "serials": "Seriennummern",
+      "warehouses": "Lager"
+    },
+    "commands": {
+      "stock": "Lagerbestand",
+      "movements": "Lagerbewegungen",
+      "lots": "Chargen und Verfall",
+      "serials": "Seriennummern",
+      "warehouses": "Lager und Lagerplätze"
+    },
+    "actions": "Aktionen",
+    "active": "Aktiv",
+    "inactive": "Inaktiv",
+    "all": "Alle",
+    "allWarehouses": "Alle Lager",
+    "yes": "Ja",
+    "no": "Nein",
+    "filters": "Filter",
+    "clearFilters": "Alle Filter zurücksetzen",
+    "retry": "Erneut versuchen",
+    "loadFailed": "Die Daten konnten nicht geladen werden.",
+    "conflictTitle": "Jemand anderes hat diesen Datensatz geändert",
+    "conflictBody": "Der Datensatz wurde während Ihrer Bearbeitung aktualisiert. Laden Sie den neuesten Stand und wiederholen Sie Ihre Änderungen.",
+    "reload": "Neu laden",
+    "uncertain": "Keine Antwort vom Server; die Aktion wurde eventuell ausgeführt. Aktualisieren Sie die Liste zur Kontrolle.",
+    "savedViews": "Gespeicherte Ansichten",
+    "noSavedViews": "Noch keine gespeicherten Ansichten.",
+    "saveView": "Aktuelle Ansicht speichern…",
+    "saveViewBody": "Suche, Filter und Gruppierung werden in diesem Browser für Sie gespeichert.",
+    "viewName": "Name",
+    "removeView": "Ansicht {{name}} entfernen",
+    "export": {
+      "label": "Exportieren",
+      "csv": "CSV",
+      "xlsx": "Excel",
+      "failed": "Der Export ist fehlgeschlagen."
+    }
+  },
+  "fields": {
+    "item": "Artikel",
+    "warehouse": "Lager",
+    "location": "Lagerplatz",
+    "lot": "Charge",
+    "serial": "Seriennr.",
+    "lotSerial": "Charge / Serie",
+    "expiry": "Verfallsdatum",
+    "manufactureDate": "Herstelldatum",
+    "receivedAt": "Eingang",
+    "onHand": "Bestand",
+    "reserved": "Reserviert",
+    "available": "Verfügbar",
+    "avgCost": "Durchschn. Kosten",
+    "value": "Wert",
+    "occurredAt": "Datum",
+    "movementType": "Bewegungsart",
+    "direction": "Richtung",
+    "quantity": "Menge",
+    "cost": "Kosten",
+    "document": "Beleg",
+    "status": "Status"
+  },
+  "filters": {
+    "dateFrom": "Von",
+    "dateTo": "Bis",
+    "invalidDate": "Der Datumsbereich ist ungültig."
+  },
+  "warehouses": {
+    "title": "Lager",
+    "description": "Lager aus Sicht des Bestands: Reservierungsregel und Lagerplätze. Lagerstamm und Lagerplätze werden unter Referenz gepflegt.",
+    "editTitle": "Reservierungsregel von {{code}}",
+    "viewTitle": "Lager {{code}}",
+    "edit": "Reservierungsregel von {{code}} ändern",
+    "openLocations": "Lagerplätze von {{code}} öffnen",
+    "updated": "Reservierungsregel von {{code}} aktualisiert.",
+    "default": "Standard",
+    "tabs": {
+      "general": "Allgemein",
+      "locations": "Lagerplätze"
+    },
+    "fields": {
+      "code": "Code",
+      "name": "Name",
+      "isDefault": "Standardlager",
+      "reservationPolicy": "Reservierungsregel",
+      "status": "Status",
+      "negativeStock": "Negativer Bestand"
+    },
+    "policy": {
+      "none": "Keine",
+      "soft": "Weich",
+      "hard": "Strikt"
+    },
+    "policyHelp": {
+      "none": "Keine Reservierungen; verfügbar entspricht dem Bestand.",
+      "soft": "Reservierungen über die verfügbare Menge hinaus sind erlaubt und werden gemeldet.",
+      "hard": "Reservierungen über die verfügbare Menge hinaus werden abgelehnt."
+    },
+    "manageInReference": "In Referenz verwalten",
+    "openInReference": "{{code}} in Referenz öffnen",
+    "masterData": "Lagerstamm",
+    "masterDataHint": "Code, Name, Adresse, Regel für negativen Bestand, Standardlager und Lagerplätze werden im Lagerstamm unter Referenz geändert.",
+    "hasMovements": "Dieses Lager hat Lagerbewegungen.",
+    "noMovements": "In diesem Lager gibt es noch keine Lagerbewegungen.",
+    "negative": {
+      "allow": "Erlaubt",
+      "warn": "Mit Warnung",
+      "block": "Gesperrt"
+    }
+  },
+  "locations": {
+    "treeLabel": "Lagerplätze von {{code}}",
+    "count": "{{count}} Lagerplätze",
+    "expand": "{{code}} aufklappen",
+    "collapse": "{{code}} zuklappen",
+    "expandAll": "Alle aufklappen",
+    "collapseAll": "Alle zuklappen",
+    "emptyTitle": "Noch keine Lagerplätze",
+    "emptyBody": "Lagerplätze werden im Lagerstamm unter Referenz angelegt.",
+    "keyboardHint": "Mit den Pfeiltasten navigieren, rechts/links zum Auf- und Zuklappen.",
+    "types": {
+      "aisle": "Gang",
+      "rack": "Regal",
+      "shelf": "Fach",
+      "bin": "Platz"
+    }
+  },
+  "stock": {
+    "title": "Lagerbestand",
+    "description": "Bestand, reservierte und verfügbare Mengen mit Kosten je Artikel und Lager.",
+    "groupBy": "Detail",
+    "groups": {
+      "warehouse": "Artikel × Lager",
+      "item": "Artikel (alle Lager)",
+      "detail": "Lagerplatz und Charge"
+    },
+    "noLocation": "Ohne Lagerplatz",
+    "openItem": "Bestandsdetails von {{code}} öffnen",
+    "includeZero": "Auch Nullbestände anzeigen"
+  },
+  "drawer": {
+    "title": "Artikelbestand",
+    "description": "Bestand nach Lager, Charge und letzten Bewegungen.",
+    "byWarehouse": "Nach Lager",
+    "lots": "Chargen",
+    "recent": "Letzte Bewegungen",
+    "noStock": "Dieser Artikel hat keinen Bestand.",
+    "noMovements": "Noch keine Bewegungen.",
+    "allMovements": "Alle Bewegungen anzeigen"
+  },
+  "movements": {
+    "title": "Lagerbewegungen",
+    "description": "Das unveränderliche Lagerjournal; Korrekturen erfolgen durch Stornobuchungen.",
+    "seq": "Nr.",
+    "reversal": "Storno",
+    "unnumbered": "Ohne Nummer",
+    "journal": "Buchungssatz",
+    "openDocument": "Beleg {{number}} öffnen",
+    "openJournal": "Buchungssatz zu {{number}} öffnen",
+    "inQty": "{{qty}} Zugang",
+    "outQty": "{{qty}} Abgang",
+    "directions": {
+      "in": "Zugang",
+      "out": "Abgang"
+    },
+    "loaded": "{{count}} Bewegungen geladen",
+    "loadMore": "Mehr laden",
+    "scoped": "Die Liste ist auf einen Beleg, eine Charge oder eine Seriennummer beschränkt.",
+    "emptyTitle": "Keine Bewegungen",
+    "emptyBody": "Bewegungen erscheinen hier, sobald Lagerbelege gebucht werden.",
+    "emptyFiltered": "Keine Bewegungen entsprechen diesen Filtern."
+  },
+  "movementTypes": {
+    "receipt": "Zugang",
+    "issue": "Abgang",
+    "transfer_out": "Umlagerung Abgang",
+    "transfer_in": "Umlagerung Zugang",
+    "count_adjustment": "Inventurdifferenz",
+    "opening": "Anfangsbestand",
+    "return_in": "Rücknahme",
+    "return_out": "Rücksendung",
+    "production_in": "Zugang aus Fertigung",
+    "production_out": "Abgang an Fertigung",
+    "scrap": "Ausschuss"
+  },
+  "documentTypes": {
+    "stock_document": "Lagerbeleg",
+    "sales_delivery": "Lieferschein",
+    "purchase_receipt": "Wareneingang",
+    "production_order": "Fertigungsauftrag"
+  },
+  "lots": {
+    "title": "Chargen",
+    "description": "Bestand und Verfall je Charge; Chargen, die innerhalb von {{days}} Tagen verfallen, werden markiert.",
+    "onlyInStock": "Nur mit Bestand",
+    "noExpiry": "Kein Verfall",
+    "expired": "Verfallen",
+    "expiresToday": "Verfällt heute",
+    "expiresIn": "noch {{count}} Tage",
+    "onlyExpired": "Nur abgelaufene",
+    "expiresBefore": "Ablauf bis"
+  },
+  "trace": {
+    "title": "Chargenverfolgung",
+    "titleFor": "Charge {{lot}}",
+    "notFound": "Charge nicht gefunden.",
+    "received": "Zugegangen",
+    "issued": "Abgegangen",
+    "whereNow": "Aktueller Ort",
+    "noBalance": "Von dieser Charge ist kein Bestand mehr vorhanden.",
+    "history": "Bewegungshistorie",
+    "noMovements": "Keine Bewegungen gefunden.",
+    "inLedger": "Im Lagerjournal anzeigen"
+  },
+  "serials": {
+    "title": "Seriennummern",
+    "description": "Jede Einheit seriengeführter Artikel mit Status und Ort.",
+    "history": "Bewegungshistorie",
+    "historyTitle": "Historie von {{serial}}",
+    "openHistory": "Historie von {{serial}} öffnen",
+    "status": {
+      "in_stock": "Am Lager",
+      "reserved": "Reserviert",
+      "issued": "Ausgegeben",
+      "scrapped": "Verschrottet"
+    }
+  }
+}

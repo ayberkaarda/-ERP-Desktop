@@ -1,0 +1,10 @@
+// Pieces other sales areas (fe-sales2) and the shell may reuse.
+export { DocumentChain } from './components/DocumentChain'
+export { SalesStatusBadge, VersionConflictAlert } from './components/common'
+export { ExposureBadge } from './components/ExposureBadge'
+export { TotalsPanel, WarningsList } from './components/TotalsPanel'
+export { CreditOverrideDialog } from './components/CreditOverrideDialog'
+export { buildChain, documentPath, SALES_PATHS } from './lib/insights'
+export { salesKeys, invalidateSales } from './lib/keys'
+export { SALES_ACCESS, SALES_PERMS, SALES_SECTION } from './permissions'
+export type * from './types'
