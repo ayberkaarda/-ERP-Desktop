@@ -17,6 +17,17 @@ return [
         'push_batch_max' => (int) env('SYNC_PUSH_BATCH_MAX', 200),
     ],
 
+    // Server-side protection of /sync/*, not part of the manifest: requests per minute per device
+    // token and per user (429 TOO_MANY_ATTEMPTS with Retry-After), and pulls running at once.
+    'throttle' => [
+        'device_per_minute' => (int) env('SYNC_THROTTLE_DEVICE_PER_MINUTE', 120),
+        'user_per_minute' => (int) env('SYNC_THROTTLE_USER_PER_MINUTE', 300),
+        'concurrent_pulls_per_device' => (int) env('SYNC_CONCURRENT_PULLS_PER_DEVICE', 1),
+        'concurrent_pulls_per_user' => (int) env('SYNC_CONCURRENT_PULLS_PER_USER', 3),
+        // Upper bound of one pull; a slot of a crashed worker frees itself after this.
+        'pull_slot_seconds' => (int) env('SYNC_PULL_SLOT_SECONDS', 120),
+    ],
+
     // Tombstones older than this are pruned; pruning raises the tombstone floor.
     'tombstone_retention_days' => (int) env('SYNC_TOMBSTONE_RETENTION_DAYS', 90),
 
