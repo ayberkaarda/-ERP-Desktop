@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection as SupportCollection;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
@@ -67,6 +68,9 @@ class PurchaseRequest extends Model implements Attachable, HasStatus
     /** @var array<string, mixed> */
     protected $attributes = ['status' => 'draft'];
 
+    /** @var array{0: string|null, 1: string}|null */
+    private ?array $lineChange = null;
+
     public static function kind(): DocumentKind
     {
         return DocumentKind::Request;
@@ -82,6 +86,37 @@ class PurchaseRequest extends Model implements Attachable, HasStatus
     {
         return LogOptions::defaults()->logOnly(['number', 'status', 'document_date', 'needed_by', 'estimated_total', 'notes', 'version'])
             ->logOnlyDirty()->dontLogEmptyChanges();
+    }
+
+    /**
+     * Marks that the save in progress also replaces the lines (digest before and after; null old =
+     * created). The next activity entry of this model carries it as attributes.lines in its attribute_changes
+     * (spatie/laravel-activitylog v5 keeps model changes there, not in properties).
+     */
+    public function recordLineChange(?string $old, string $new): void
+    {
+        $this->lineChange = [$old, $new];
+    }
+
+    public function beforeActivityLogged(Model $activity, string $event): void
+    {
+        if ($this->lineChange === null) {
+            return;
+        }
+
+        [$old, $new] = $this->lineChange;
+        $this->lineChange = null;
+        $properties = $activity->getAttribute('attribute_changes');
+        $properties = $properties instanceof SupportCollection ? $properties : new SupportCollection;
+        $attributes = $properties->get('attributes');
+        $properties->put('attributes', [...(is_array($attributes) ? $attributes : []), 'lines' => $new]);
+
+        if ($old !== null) {
+            $before = $properties->get('old');
+            $properties->put('old', [...(is_array($before) ? $before : []), 'lines' => $old]);
+        }
+
+        $activity->setAttribute('attribute_changes', $properties);
     }
 
     /** @return array<string, string> */

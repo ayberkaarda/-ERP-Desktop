@@ -129,8 +129,9 @@ final class ReceiptService extends DocumentService
     {
         return Purchasing::transaction(function () use ($receipt, $data, $lines, $version, $canOverridePrice): PurchaseReceipt {
             $order = $receipt->order_id === null ? null : $this->lockOrder($receipt->order_id);
-            $receipt = $this->lock($receipt, $version);
+            $receipt = $this->lock($receipt);
             $this->assertDraft($receipt);
+            $receipt->assertVersion($version);
 
             if ($receipt->invoice_id !== null) {
                 Messages::fail('document', 'receipt_belongs_to_invoice');
@@ -170,8 +171,12 @@ final class ReceiptService extends DocumentService
     public function delete(PurchaseReceipt $receipt, ?int $version): void
     {
         Purchasing::transaction(function () use ($receipt, $version): void {
-            $receipt = $this->lock($receipt, $version);
+            $receipt = $this->lock($receipt);
             $this->assertDraft($receipt);
+
+            if ($version !== null) {
+                $receipt->assertVersion($version);
+            }
 
             if ($receipt->invoice_id !== null) {
                 Messages::fail('document', 'receipt_belongs_to_invoice');

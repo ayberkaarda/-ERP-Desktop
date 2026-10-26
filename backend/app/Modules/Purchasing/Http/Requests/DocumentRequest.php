@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Modules\Purchasing\Http\Requests;
 
+use App\Core\Sync\Rules\Uuid7;
 use App\Modules\Purchasing\Models\PurchaseDocument;
+use Illuminate\Validation\Rule;
 
 /**
  * Draft create (POST) / update (PATCH with version) of a document, and the conversion payloads.
@@ -35,7 +37,7 @@ final class DocumentRequest extends PurchasingRequest
                 'lines.*.quantity' => ['required', 'string', 'regex:'.self::QTY], 'lines.*.estimated_price' => ['sometimes', 'nullable', 'string', 'regex:'.self::QTY],
                 'lines.*.suggested_supplier_id' => ['sometimes', 'nullable', 'uuid'], 'lines.*.needed_by' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
                 'lines.*.warehouse_id' => ['sometimes', 'nullable', 'uuid'], 'lines.*.description' => ['sometimes', 'nullable', 'string', 'max:500'],
-                ...$this->versionRules($patch),
+                ...$this->versionRules($patch), ...$this->clientIdRules($patch, 'purchase_requests'),
             ],
             'request_rfq' => [
                 ...$date, 'notes' => ['sometimes', 'nullable', 'string', 'max:5000'], 'response_due' => ['sometimes', 'nullable', 'date_format:Y-m-d'],
@@ -105,6 +107,16 @@ final class DocumentRequest extends PurchasingRequest
             ],
             default => [...$this->headerRules($patch, $form), ...$this->lineRules($patch, $form, $max), ...($form === 'preview' ? [] : $this->versionRules($patch))],
         };
+    }
+
+    /**
+     * A draft created offline carries its own primary key (UUIDv7, not taken); a PATCH never sets it.
+     *
+     * @return array<string, list<mixed>>
+     */
+    private function clientIdRules(bool $patch, string $table): array
+    {
+        return $patch ? [] : ['id' => ['sometimes', 'string', new Uuid7, Rule::unique($table, 'id')]];
     }
 
     /**
@@ -200,13 +212,21 @@ final class DocumentRequest extends PurchasingRequest
     }
 
     /**
-     * Validated header fields (lines and version removed).
+     * Validated header fields (id, lines and version removed).
      *
      * @return array<string, mixed>
      */
     public function headerData(): array
     {
-        return collect($this->validated())->except(['lines', 'version'])->all();
+        return collect($this->validated())->except(['id', 'lines', 'version'])->all();
+    }
+
+    /** The client-generated primary key of a created draft, when one was sent. */
+    public function clientId(): ?string
+    {
+        $id = $this->validated('id');
+
+        return is_string($id) ? $id : null;
     }
 
     /**

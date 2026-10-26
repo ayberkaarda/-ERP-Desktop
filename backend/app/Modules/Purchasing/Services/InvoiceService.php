@@ -235,8 +235,9 @@ final class InvoiceService extends DocumentService
         return Purchasing::transaction(function () use ($invoice, $data, $lines, $version, $actor, $canOverridePrice): PurchaseInvoice {
             $lines ??= $this->linesAsInput($invoice);
             $this->lockSources($lines);
-            $invoice = $this->lock($invoice, $version);
+            $invoice = $this->lock($invoice);
             $this->assertDraft($invoice);
+            $invoice->assertVersion($version);
 
             if ($invoice->isDebitNote()) {
                 Messages::fail('document', 'debit_note_not_editable');
@@ -261,8 +262,12 @@ final class InvoiceService extends DocumentService
     public function delete(PurchaseInvoice $invoice, ?int $version): void
     {
         Purchasing::transaction(function () use ($invoice, $version): void {
-            $invoice = $this->lock($invoice, $version);
+            $invoice = $this->lock($invoice);
             $this->assertDraft($invoice);
+            if ($version !== null) {
+                $invoice->assertVersion($version);
+            }
+
             $invoice->delete();
         });
     }

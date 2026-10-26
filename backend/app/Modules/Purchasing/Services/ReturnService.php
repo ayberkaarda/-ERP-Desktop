@@ -143,8 +143,9 @@ final class ReturnService extends DocumentService
     {
         return Purchasing::transaction(function () use ($return, $data, $lines, $version): PurchaseReturn {
             $source = $this->lockSource($return);
-            $return = $this->lock($return, $version);
+            $return = $this->lock($return);
             $this->assertDraft($return);
+            $return->assertVersion($version);
             $lines ??= $this->linesAsInput($return);
             $base = [
                 'document_date' => $data['document_date'] ?? $return->document_date->format('Y-m-d'),
@@ -171,8 +172,12 @@ final class ReturnService extends DocumentService
     public function delete(PurchaseReturn $return, ?int $version): void
     {
         Purchasing::transaction(function () use ($return, $version): void {
-            $return = $this->lock($return, $version);
+            $return = $this->lock($return);
             $this->assertDraft($return);
+            if ($version !== null) {
+                $return->assertVersion($version);
+            }
+
             $return->delete();
         });
     }
