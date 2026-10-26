@@ -19,7 +19,7 @@ import { documentsApi, lookupsApi, type BarcodeHit } from '../api/client'
 import { invalidateStockEffects, invDocsKeys } from '../api/keys'
 import { useStockWarehouses } from '../../shared/warehouses'
 import { useEnrich } from '../hooks/queries'
-import { errorMessage, isVersionConflict } from '../lib/errors'
+import { errorMessage, isDocumentLocked, isVersionConflict } from '../lib/errors'
 import { usePayloadKeys } from '../lib/idempotency'
 import {
   emptyDocument,
@@ -74,6 +74,8 @@ export function DocumentEditor({
   const warehouses = useStockWarehouses()
   const defaultWarehouse = warehouses.data?.find((w) => w.is_default && w.is_active)?.id ?? ''
   const [conflict, setConflict] = useState(false)
+  // 409 DOCUMENT_LOCKED: the document was posted or cancelled while it was being edited.
+  const [locked, setLocked] = useState(false)
   const [base, setBase] = useState<StockDocument | null>(document)
   const [confirmPost, setConfirmPost] = useState(
     () =>
@@ -155,7 +157,9 @@ export function DocumentEditor({
       form.reset(toDocValues(saved))
     },
     onError: (error, { company: started }) => {
-      if (sameCompany(started) && isVersionConflict(error)) setConflict(true)
+      if (!sameCompany(started)) return
+      if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
     },
   })
 
@@ -181,7 +185,9 @@ export function DocumentEditor({
       if (sameCompany(started)) onPosted(posted)
     },
     onError: (error, { company: started }) => {
-      if (sameCompany(started) && isVersionConflict(error)) setConflict(true)
+      if (!sameCompany(started)) return
+      if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
     },
   })
 
@@ -197,6 +203,7 @@ export function DocumentEditor({
     onError: (error, { company: started }) => {
       if (!sameCompany(started)) return
       if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
       else platform.notify.error(errorMessage(error, t('errors.generic')))
     },
   })
@@ -305,6 +312,7 @@ export function DocumentEditor({
       form.reset(toDocValues(fresh))
     }
     setConflict(false)
+    setLocked(false)
     save.reset()
     post.reset()
   }
@@ -318,7 +326,7 @@ export function DocumentEditor({
 
   const disabled = !canEdit || save.isPending || post.isPending
   const busy = save.isPending || post.isPending || checking
-  const actionError = conflict ? null : (save.error ?? post.error)
+  const actionError = conflict || locked ? null : (save.error ?? post.error)
   const typeLabel = t(`docType.${docType}`)
   const warehouseLabel = (id: string) => {
     const w = warehouses.data?.find((x) => x.id === id)
@@ -382,8 +390,17 @@ export function DocumentEditor({
         }
       />
       <Form form={form} onSubmit={() => void submitSave()} className="space-y-4">
-        {conflict && <VersionConflictAlert onReload={() => void reload()} />}
-        {!conflict && changedElsewhere && <VersionConflictAlert onReload={() => void reload()} />}
+        {locked && (
+          <VersionConflictAlert
+            title={t('locked.title')}
+            body={t('locked.body')}
+            onReload={() => void reload()}
+          />
+        )}
+        {!locked && conflict && <VersionConflictAlert onReload={() => void reload()} />}
+        {!locked && !conflict && changedElsewhere && (
+          <VersionConflictAlert onReload={() => void reload()} />
+        )}
         {!canEdit && (
           <p role="status" className="text-sm text-muted-foreground">
             {t('editor.readOnly')}

@@ -88,6 +88,10 @@
     "body": "Laden Sie vor dem Speichern die aktuelle Fassung. Ungespeicherte Änderungen gehen verloren.",
     "reload": "Aktuelle Fassung laden"
   },
+  "locked": {
+    "title": "Der Beleg ist kein Entwurf mehr",
+    "body": "Er wurde inzwischen bestätigt oder weitergeführt, daher können diese Änderungen nicht gespeichert werden. Laden Sie den aktuellen Stand; nicht gespeicherte Änderungen gehen verloren."
+  },
   "reason": {
     "tooShort": "Geben Sie mindestens {{min}} Zeichen ein."
   },

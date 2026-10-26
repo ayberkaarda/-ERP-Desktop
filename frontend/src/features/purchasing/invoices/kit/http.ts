@@ -6,6 +6,7 @@ export {
   exportParams,
   fetchAll,
   http,
+  isDocumentLocked,
   isVersionConflict,
   seg,
   toAudit,

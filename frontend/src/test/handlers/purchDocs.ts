@@ -651,6 +651,8 @@ const notFound = () => error(404, 'NOT_FOUND', 'Kayıt bulunamadı.')
 const conflict = () =>
   error(409, 'VERSION_CONFLICT', 'Kayıt siz düzenlerken başka biri tarafından değiştirildi.')
 const transition = () => error(422, 'INVALID_STATE_TRANSITION', 'Bu durumda işlem yapılamaz.')
+/** DocumentService::assertDraft: edit or delete past draft, answered before the version check. */
+const locked = () => error(409, 'DOCUMENT_LOCKED', 'Yalnızca taslak belgeler düzenlenebilir.')
 
 function paginate<T>(rows: T[], url: URL, defaultPerPage = 25) {
   const perPage = Math.min(100, Number(url.searchParams.get('per_page') ?? defaultPerPage))
@@ -1166,8 +1168,8 @@ export function purchDocsHandlers(db: PurchDocsDb) {
           serial_numbers: string[]
         }[]
       }
+      if (r.status !== 'draft') return locked()
       if (b.version !== r.version) return conflict()
-      if (r.status !== 'draft') return transition()
       const o = order(r.order_id)
       r.document_date = b.document_date
       r.warehouse_id = b.warehouse_id
@@ -1193,6 +1195,8 @@ export function purchDocsHandlers(db: PurchDocsDb) {
     }),
     http.delete(`${base}/purchase-receipts/:id`, async ({ request, params }) => {
       await record(request)
+      const r = db.receipts.find((x) => x.id === params.id)
+      if (r && r.status !== 'draft') return locked()
       db.receipts = db.receipts.filter((x) => x.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -1390,8 +1394,8 @@ export function purchDocsHandlers(db: PurchDocsDb) {
         receive_on_invoice: boolean
         lines: Record<string, unknown>[]
       }
+      if (inv.status !== 'draft') return locked()
       if (b.version !== inv.version) return conflict()
-      if (inv.status !== 'draft') return transition()
       if (
         b.supplier_invoice_no &&
         db.invoices.some(
@@ -1415,6 +1419,8 @@ export function purchDocsHandlers(db: PurchDocsDb) {
     }),
     http.delete(`${base}/purchase-invoices/:id`, async ({ request, params }) => {
       await record(request)
+      const inv = db.invoices.find((x) => x.id === params.id)
+      if (inv && inv.status !== 'draft') return locked()
       db.invoices = db.invoices.filter((x) => x.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -1596,6 +1602,8 @@ export function purchDocsHandlers(db: PurchDocsDb) {
     }),
     http.delete(`${base}/purchase-returns/:id`, async ({ request, params }) => {
       await record(request)
+      const r = db.returns.find((x) => x.id === params.id)
+      if (r && r.status !== 'draft') return locked()
       db.returns = db.returns.filter((x) => x.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),

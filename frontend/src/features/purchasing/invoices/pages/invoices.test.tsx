@@ -120,6 +120,20 @@ describe('match panel', () => {
 describe('supplier invoice booking', () => {
   beforeEach(() => window.localStorage.clear())
 
+  it('says the invoice left draft when it was booked meanwhile (409 DOCUMENT_LOCKED)', async () => {
+    const db = setupPurch()
+    const user = userEvent.setup()
+    renderPurch(`/purchasing/invoices/${INVOICE_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Fatura satırları' })
+    const stored = db.invoices.find((i) => i.id === INVOICE_DRAFT)
+    if (stored) stored.status = 'booked'
+    await user.click(within(table).getByLabelText('Miktar, 1. satır'))
+    await user.keyboard('{Control>}a{/Control}4')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    expect(await screen.findByText('Belge artık taslak değil')).toBeInTheDocument()
+    expect(db.calls.find((c) => c.method === 'PATCH')).toBeTruthy()
+  })
+
   it('books in warn mode with the live match shown and assigns the number', async () => {
     const db = setupPurch()
     const user = userEvent.setup()

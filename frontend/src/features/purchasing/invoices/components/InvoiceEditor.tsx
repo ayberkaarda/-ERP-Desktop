@@ -30,7 +30,7 @@ import { DocLinks } from '../kit/components/DocLinks'
 import { InvoiceStatusBadge } from '../kit/components/StatusBadges'
 import { SupplierExposureBadge } from '../kit/components/SupplierExposureBadge'
 import { TotalsPanel } from '../kit/components/TotalsPanel'
-import { errorMessage, isVersionConflict } from '../kit/http'
+import { errorMessage, isDocumentLocked, isVersionConflict } from '../kit/http'
 import { purchKeys } from '../kit/keys'
 import { INVOICES_BASE } from '../kit/links'
 import { PURCH_PERMS, saveDraftPermission } from '../kit/permissions'
@@ -74,6 +74,8 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onBooked }: In
   const companyCurrency = useCompanyCurrency()
   const [base, setBase] = useState<Invoice | null>(invoice)
   const [conflict, setConflict] = useState(false)
+  // 409 DOCUMENT_LOCKED: the invoice was booked while it was being edited.
+  const [locked, setLocked] = useState(false)
   const [booking, setBooking] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [lastValues, setLastValues] = useState<InvoiceValues | null>(null)
@@ -131,7 +133,9 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onBooked }: In
       form.reset(valuesFromInvoice(saved))
     },
     onError: (error, { company: started }) => {
-      if (sameCompany(started) && isVersionConflict(error)) setConflict(true)
+      if (!sameCompany(started)) return
+      if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
     },
   })
 
@@ -149,6 +153,7 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onBooked }: In
     onError: (error, { company: started }) => {
       if (!sameCompany(started)) return
       if (isVersionConflict(error)) setConflict(true)
+      else if (isDocumentLocked(error)) setLocked(true)
       else platform.notify.error(errorMessage(error, t('errors.generic')))
     },
   })
@@ -190,6 +195,7 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onBooked }: In
       form.reset(valuesFromInvoice(latest))
     }
     setConflict(false)
+    setLocked(false)
     save.reset()
   }
 
@@ -202,7 +208,7 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onBooked }: In
 
   const busy = save.isPending
   const disabled = !canSave || busy
-  const actionError = conflict ? null : save.error
+  const actionError = conflict || locked ? null : save.error
 
   return (
     <div className="mx-auto max-w-[1600px] px-6 py-6" onKeyDown={onKeyDown}>
@@ -253,7 +259,11 @@ export function InvoiceEditor({ invoice, initialValues, onReload, onBooked }: In
         }
       />
       <Form form={form} onSubmit={() => void submitSave()} className="space-y-4">
-        {(conflict || changedElsewhere) && <VersionConflictAlert onReload={() => void reload()} />}
+        {locked ? (
+          <VersionConflictAlert locked onReload={() => void reload()} />
+        ) : (
+          (conflict || changedElsewhere) && <VersionConflictAlert onReload={() => void reload()} />
+        )}
         {!canSave && (
           <p role="status" className="text-sm text-muted-foreground">
             {t('editor.readOnly')}
