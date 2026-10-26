@@ -14,6 +14,10 @@ use Illuminate\Support\Facades\DB;
  */
 return new class extends Migration
 {
+    /**
+     * @param  literal-string  $exemption
+     * @return literal-string
+     */
     private static function guard(string $exemption): string
     {
         return <<<SQL

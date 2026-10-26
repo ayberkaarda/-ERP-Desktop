@@ -116,8 +116,10 @@ final class RoleAdministration
      */
     private function holders(Role $role): array
     {
-        return DB::table('model_has_roles')->where('role_id', $role->id)->distinct()->pluck('model_id')
-            ->map(static fn (mixed $id): string => (string) $id)->values()->all();
+        return array_values(array_map(
+            static fn (mixed $id): string => is_scalar($id) ? (string) $id : '',
+            DB::table('model_has_roles')->where('role_id', $role->id)->distinct()->pluck('model_id')->all(),
+        ));
     }
 
     /**
