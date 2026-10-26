@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/error.response.schema.json",
+  "title": "Senkron uçlarının hata yanıtı",
+  "description": "Tüm API'deki hata zarfıyla aynı: {errors:{message, code, fields?}}. İstek düzeyindeki senkron hataları bu biçimde döner.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["errors"],
+  "properties": {
+    "errors": { "$ref": "common.schema.json#/$defs/apiError" }
+  }
+}
