@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Modules\Inventory;
 
 use App\Core\Modules\ModuleServiceProvider;
+use App\Core\Sync\Contracts\SyncResource;
+use App\Core\Sync\Contracts\SyncWriter;
 use App\Modules\Catalog\Contracts\ItemUsageChecker;
 use App\Modules\Inventory\Console\CheckReorder;
 use App\Modules\Inventory\Console\ExpireReservations;
@@ -31,6 +33,8 @@ use App\Modules\Inventory\Services\StockPoster;
 use App\Modules\Inventory\Services\StockQuery;
 use App\Modules\Inventory\Services\WarehouseDirectory;
 use App\Modules\Inventory\Support\InventorySettings;
+use App\Modules\Inventory\Sync\StockDocumentSyncResource;
+use App\Modules\Inventory\Sync\StockDocumentSyncWriter;
 use App\Modules\Organization\Events\CompanyCreated;
 use App\Modules\Settings\Contracts\SettingsRegistrar;
 use Illuminate\Console\Scheduling\Schedule;
@@ -54,6 +58,8 @@ final class InventoryServiceProvider extends ModuleServiceProvider
         $this->app->bind(Reservations::class, ReservationBook::class);
         $this->app->bind(WarehouseLookup::class, WarehouseDirectory::class);
         $this->app->tag([InventoryItemUsage::class], ItemUsageChecker::TAG);
+        $this->app->tag([StockDocumentSyncResource::class], SyncResource::TAG);
+        $this->app->tag([StockDocumentSyncWriter::class], SyncWriter::TAG);
     }
 
     public function boot(): void
