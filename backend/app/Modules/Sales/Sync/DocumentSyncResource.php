@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Sync;
 
+use App\Core\Company\CompanyScope;
 use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\SyncScope;
 use App\Modules\Sales\Http\Resources\DocumentResource;
@@ -19,7 +20,8 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Read side of the five sales document resources. A row is the REST list shape (DocumentResource
  * with line_count) plus the `lines` embed; line tables touch their header, so a line change moves
- * the document in the pull. Window: document_date (manifest window_days).
+ * the document in the pull, and returns touch their invoice (returnable_serials). Window:
+ * document_date (manifest window_days). Everything a row reads is tied to the explicit company.
  */
 final class DocumentSyncResource implements SyncResource
 {
@@ -63,13 +65,16 @@ final class DocumentSyncResource implements SyncResource
     public function query(string $companyId): Builder
     {
         $table = $this->table();
+        $lineTable = (new $this->model)->lines()->getRelated()->getTable();
+        // Lines and their count follow the explicit company too, never the ambient CompanyContext.
+        $lines = static fn ($query) => $query->withoutGlobalScope(CompanyScope::class)->where("{$lineTable}.company_id", $companyId);
 
         /** @var Builder<Model> */
         return $this->model::query()
             ->withoutCompanyScope()
             ->where("{$table}.company_id", $companyId)
-            ->withCount('lines')
-            ->with($this->embeds());
+            ->withCount(['lines' => $lines])
+            ->with(['lines' => $lines]);
     }
 
     public function positionColumn(): string

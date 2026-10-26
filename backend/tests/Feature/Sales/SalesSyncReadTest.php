@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Core\Company\CompanyContext;
 use App\Core\Sync\Contracts\SyncResource;
+use App\Core\Sync\Xid8;
 use App\Modules\Sales\Http\Resources\DocumentResource;
 use App\Modules\Sales\Sync\DocumentSyncResource;
 use Illuminate\Database\QueryException;
@@ -28,14 +30,23 @@ beforeEach(function (): void {
  *
  * @return list<array<string, mixed>>
  */
-function salesPulled(string $resource, string $company): array
+function salesPulled(string $resource, string $company, ?Xid8 $after = null, string|false|null $context = null): array
 {
     $adapter = collect(app()->tagged(SyncResource::TAG))->first(fn (SyncResource $r): bool => $r->name() === $resource);
-
-    return SalesKit::in($company, fn (): array => $adapter->query($company)
+    $read = fn (): array => $adapter->query($company)
         ->whereRaw($adapter->positionColumn().' < pg_snapshot_xmin(pg_current_snapshot())')
+        ->when($after !== null, fn ($q) => $q->whereRaw($adapter->positionColumn().' > ?::xid8', [(string) $after]))
         ->orderByRaw($adapter->positionColumn().', id')->get()
-        ->map(fn ($doc): array => (new DocumentResource($doc))->resolve(new Request))->all());
+        ->map(fn ($doc): array => (new DocumentResource($doc))->resolve(new Request))->all();
+
+    // $context: null = the pulled company, false = no active company, string = another company.
+    if ($context === false) {
+        app(CompanyContext::class)->clear();
+
+        return $read();
+    }
+
+    return SalesKit::in($context ?? $company, $read);
 }
 
 /** @param  array<array-key, mixed>  $data */
@@ -138,6 +149,15 @@ it('lets the parent touch through the posted delivery guard and nothing else', f
     });
     expect(Sync::txidOf('sales_deliveries', $delivery['id'])->greaterThan($before))->toBeTrue();
 
+    // The flag alone does not open the guard: with it on, any data change is still refused.
+    foreach ([['notes' => 'changed'], ['total' => '1'], ['status' => 'draft']] as $change) {
+        expect(fn () => DB::transaction(function () use ($delivery, $change): void {
+            DB::select("SELECT set_config('keystone.sync_touch', 'on', true)");
+            DB::table('sales_deliveries')->where('id', $delivery['id'])->update($change);
+        }))->toThrow(QueryException::class, 'cannot be changed');
+    }
+    expect(DB::table('sales_deliveries')->where('id', $delivery['id'])->value('status'))->toBe('posted');
+
     expect(fn () => DB::table('sales_deliveries')->where('id', $delivery['id'])->update(['notes' => 'changed']))
         ->toThrow(QueryException::class, 'cannot be changed');
     expect(fn () => DB::table('sales_delivery_lines')->where('document_id', $delivery['id'])->update(['description' => 'x']))
@@ -154,4 +174,68 @@ it('limits the pull by the window field and loads the manifest embeds', function
             ->and($resource->parentKey())->toBeNull()
             ->and($sql)->toContain('"company_id" = ?');
     }
+});
+
+it('reads lines and line_count for the explicit company whatever the ambient context', function (): void {
+    $quote = SalesKit::post($this->w->user, $this->w->company, 'sales-quotes', ['party_id' => $this->w->party->id,
+        'lines' => [['item_id' => $this->w->item->id, 'quantity' => '2'], ['item_id' => $this->w->item->id, 'quantity' => '1']]])->assertCreated()->json('data');
+    $other = SalesKit::world(stock: false);
+    Sync::awaitHorizonPast(Sync::txidOf('sales_quotes', $quote['id']));
+
+    $own = salesPulled('sales-quotes', $this->w->company);
+    expect($own[0]['line_count'])->toBe(2);
+
+    foreach ([false, $other->company] as $context) {
+        $pulled = salesPulled('sales-quotes', $this->w->company, context: $context);
+        expect($pulled)->toHaveCount(1)
+            ->and($pulled[0]['line_count'])->toBe(2)
+            ->and($pulled[0]['lines'])->toHaveCount(2)
+            ->and($pulled)->toBe($own);
+    }
+});
+
+it('moves the invoice in an incremental pull when a serial return is created, cancelled or deleted', function (): void {
+    $serial = SalesKit::item($this->w->company, ['code' => 'PHONE', 'tracking' => 'serial', 'default_tax_code_id' => $this->w->vat->id], $this->w->unit);
+    SalesKit::receive($this->w->company, $this->w->wh->id, $serial->id, '2', '100', ['serials' => ['S1', 'S2']]);
+    $order = SalesKit::confirmedOrder($this->w, [[$serial->id, '2', '300']]);
+    $delivery = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/deliveries", [
+        'lines' => [['order_line_id' => $order['lines'][0]['id'], 'quantity' => '2', 'serial_numbers' => ['S1', 'S2']]],
+    ])->assertCreated()->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-deliveries/{$delivery['id']}/post")->assertOk();
+    $invoice = SalesKit::invoiceDelivery($this->w, $delivery['id']);
+    $line = $invoice['lines'][0]['id'];
+    $kept = fn (): array => (array) DB::table('sales_invoices')->where('id', $invoice['id'])->select('version', 'updated_at')->first();
+    $pullAfter = function (Xid8 $cursor) use ($invoice): array {
+        Sync::awaitHorizonPast(Sync::txidOf('sales_invoices', $invoice['id']));
+
+        return collect(salesPulled('sales-invoices', $this->w->company, $cursor))->where('id', $invoice['id'])->values()->all();
+    };
+    $returnOf = fn (string $serial) => SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/returns", [
+        'lines' => [['invoice_line_id' => $line, 'quantity' => '1', 'serial_numbers' => [$serial]]],
+    ])->assertCreated()->json('data');
+
+    $cursor = Sync::txidOf('sales_invoices', $invoice['id']);
+    Sync::awaitHorizonPast($cursor);
+    expect(salesPulled('sales-invoices', $this->w->company, $cursor))->toBe([]);
+    $before = $kept();
+
+    // Created: the invoice moves and S1 is no longer returnable; version and updated_at stay.
+    $return = $returnOf('S1');
+    $pulled = $pullAfter($cursor);
+    expect($pulled)->toHaveCount(1)->and($pulled[0]['lines'][0]['returnable_serials'])->toBe(['S2'])->and($kept())->toBe($before);
+
+    // Cancelled: S1 is returnable again.
+    $cursor = Sync::txidOf('sales_invoices', $invoice['id']);
+    SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/cancel", ['reason' => 'Wrong serial'])->assertOk();
+    $pulled = $pullAfter($cursor);
+    expect($pulled)->toHaveCount(1)->and($pulled[0]['lines'][0]['returnable_serials'])->toBe(['S1', 'S2'])->and($kept())->toBe($before);
+
+    // A draft return deleted: the invoice moves again.
+    $draft = $returnOf('S2');
+    $cursor = Sync::txidOf('sales_invoices', $invoice['id']);
+    Sync::awaitHorizonPast($cursor);
+    expect($pullAfter(Xid8::zero())[0]['lines'][0]['returnable_serials'])->toBe(['S1']);
+    SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-returns/{$draft['id']}")->assertNoContent();
+    $pulled = $pullAfter($cursor);
+    expect($pulled)->toHaveCount(1)->and($pulled[0]['lines'][0]['returnable_serials'])->toBe(['S1', 'S2'])->and($kept())->toBe($before);
 });

@@ -16,9 +16,15 @@ use Illuminate\Support\Facades\Schema;
  * comparisons of sales_invoices_guard see sync_txid unchanged, and a parent touch of an issued,
  * cancelled or reversed invoice changes no kept column and keeps the status, which that guard
  * already allows. sales_deliveries_guard refuses every update of a posted or cancelled delivery
- * except the cancellation, so it lets the parent touch through (sync_touching()); that statement
- * writes nothing but the sync position. Line guards stay as they are: they refuse the line
- * change itself, before any touch happens.
+ * except the cancellation, so it lets the parent touch through: sync_touching() and no column
+ * but sync_txid differs. The flag alone is not enough (any session can set the setting), so a
+ * data change with it on is refused like any other. Line guards stay as they are: they refuse
+ * the line change itself, before any touch happens.
+ *
+ * Invoices embed returnable_serials (serials shipped on the line and not on a live return), which
+ * depends on the returns of the invoice. A return's insert, update or delete therefore touches
+ * its invoice (sync_txid only; version and updated_at stay); return line changes touch the
+ * return first, so they reach the invoice too.
  */
 return new class extends Migration
 {
@@ -36,7 +42,7 @@ return new class extends Migration
         DECLARE
             kept text[] := ARRAY['status', 'version', 'updated_at', 'cancelled_at', 'cancelled_by', 'cancel_reason', 'reversal_stock_document_id', 'reversal_date'];
         BEGIN
-            IF TG_OP = 'UPDATE' AND sync_touching() THEN
+            IF TG_OP = 'UPDATE' AND sync_touching() AND (to_jsonb(NEW) - 'sync_txid') = (to_jsonb(OLD) - 'sync_txid') THEN
                 RETURN NEW;
             END IF;
             IF OLD.status = 'draft' THEN
@@ -71,6 +77,13 @@ return new class extends Migration
         $$;
         SQL;
 
+    /** Return statements that touch their invoice (statement level, like syncable() parent touches). */
+    private const array RETURN_TOUCH = [
+        'insert' => 'AFTER INSERT ON sales_returns REFERENCING NEW TABLE AS sync_new',
+        'update' => 'AFTER UPDATE ON sales_returns REFERENCING OLD TABLE AS sync_old NEW TABLE AS sync_new',
+        'delete' => 'AFTER DELETE ON sales_returns REFERENCING OLD TABLE AS sync_old',
+    ];
+
     public function up(): void
     {
         DB::unprepared(self::DELIVERY_GUARD);
@@ -83,10 +96,18 @@ return new class extends Migration
                 $t->syncable(parent: $header, parentKey: ['document_id']);
             });
         }
+
+        foreach (self::RETURN_TOUCH as $event => $when) {
+            DB::statement("CREATE TRIGGER sales_returns_touch_invoice_{$event} {$when} FOR EACH STATEMENT EXECUTE FUNCTION sync_touch_parent('sales_invoices', 'invoice_id', 'id')");
+        }
     }
 
     public function down(): void
     {
+        foreach (array_keys(self::RETURN_TOUCH) as $event) {
+            DB::statement("DROP TRIGGER IF EXISTS sales_returns_touch_invoice_{$event} ON sales_returns");
+        }
+
         foreach (array_reverse(self::TABLES, true) as $header => $lines) {
             Schema::table($lines, function (Blueprint $t) use ($header): void {
                 $t->dropSyncable(parent: $header);
