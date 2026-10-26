@@ -6,6 +6,9 @@ use App\Core\Company\CompanyContext;
 use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Xid8;
 use App\Modules\Sales\Http\Resources\DocumentResource;
+use App\Modules\Sales\Models\SalesInvoice;
+use App\Modules\Sales\Models\SalesReturn;
+use App\Modules\Sales\Services\ReturnService;
 use App\Modules\Sales\Sync\DocumentSyncResource;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -238,4 +241,101 @@ it('moves the invoice in an incremental pull when a serial return is created, ca
     SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-returns/{$draft['id']}")->assertNoContent();
     $pulled = $pullAfter($cursor);
     expect($pulled)->toHaveCount(1)->and($pulled[0]['lines'][0]['returnable_serials'])->toBe(['S1', 'S2'])->and($kept())->toBe($before);
+});
+
+it('computes returnable_serials for the invoice company whatever the ambient context', function (): void {
+    $serial = SalesKit::item($this->w->company, ['code' => 'PHONE', 'tracking' => 'serial', 'default_tax_code_id' => $this->w->vat->id], $this->w->unit);
+    SalesKit::receive($this->w->company, $this->w->wh->id, $serial->id, '2', '100', ['serials' => ['S1', 'S2']]);
+    $order = SalesKit::confirmedOrder($this->w, [[$serial->id, '2', '300']]);
+    $delivery = SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$order['id']}/deliveries", [
+        'lines' => [['order_line_id' => $order['lines'][0]['id'], 'quantity' => '2', 'serial_numbers' => ['S1', 'S2']]],
+    ])->assertCreated()->json('data');
+    SalesKit::post($this->w->user, $this->w->company, "sales-deliveries/{$delivery['id']}/post")->assertOk();
+    $invoice = SalesKit::invoiceDelivery($this->w, $delivery['id']);
+    SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/returns", [
+        'lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1', 'serial_numbers' => ['S1']]],
+    ])->assertCreated();
+    $other = SalesKit::world(stock: false);
+    Sync::awaitHorizonPast(Sync::txidOf('sales_invoices', $invoice['id']));
+
+    $show = SalesKit::get($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}")->assertOk()->json('data.lines.0.returnable_serials');
+    expect($show)->toBe(['S2']);
+
+    foreach ([null, false, $other->company] as $context) {
+        $pulled = collect(salesPulled('sales-invoices', $this->w->company, context: $context))->firstWhere('id', $invoice['id']);
+        expect($pulled['lines'][0]['returnable_serials'])->toBe(['S2'], 'context: '.var_export($context, true));
+    }
+
+    // The resource on its own, outside any company and inside another one.
+    $doc = SalesKit::in($this->w->company, fn () => SalesInvoice::query()->with('lines')->findOrFail($invoice['id']));
+    $serials = fn (): mixed => (new DocumentResource($doc))->resolve(new Request)['lines'][0]['returnable_serials'];
+    expect(SalesKit::in($other->company, $serials))->toBe(['S2']);
+    app(CompanyContext::class)->clear();
+    expect($serials())->toBe(['S2']);
+});
+
+it('locks the invoice before the return on every return path', function (string $path): void {
+    $order = SalesKit::confirmedOrder($this->w, [[$this->w->item->id, '2', '120']]);
+    $delivery = SalesKit::deliver($this->w, $order['id'], [$order['lines'][0]['id'] => '2']);
+    $invoice = SalesKit::invoiceDelivery($this->w, $delivery['id']);
+    $return = SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/returns", [
+        'lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1']],
+    ])->assertCreated()->json('data');
+
+    if ($path === 'receive') {
+        SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/approve")->assertOk();
+    }
+
+    $locks = [];
+    DB::listen(function ($query) use (&$locks): void {
+        if (str_contains($query->sql, 'for update') && preg_match('/from "(sales_invoices|sales_returns)"/', $query->sql, $m) === 1) {
+            $locks[] = $m[1];
+        }
+    });
+
+    $response = match ($path) {
+        'delete' => SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-returns/{$return['id']}"),
+        default => SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/{$path}", ['reason' => 'x']),
+    };
+    expect($response->status())->toBeLessThan(300)
+        ->and(array_values(array_unique($locks)))->toBe(['sales_invoices', 'sales_returns']);
+})->with(['cancel', 'delete', 'receive']);
+
+it('does not deadlock a return cancel against an invoice-first path', function (): void {
+    $order = SalesKit::confirmedOrder($this->w, [[$this->w->item->id, '2', '120']]);
+    $delivery = SalesKit::deliver($this->w, $order['id'], [$order['lines'][0]['id'] => '2']);
+    $invoice = SalesKit::invoiceDelivery($this->w, $delivery['id']);
+    $return = SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$invoice['id']}/returns", [
+        'lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1']],
+    ])->assertCreated()->json('data');
+
+    // A second connection holds the invoice row, as an invoice-first path (update, approve, credit) does.
+    $config = config('database.connections.'.config('database.default'));
+    config(['database.connections.sales_lock_probe' => $config]);
+    $other = DB::connection('sales_lock_probe');
+    $other->beginTransaction();
+    $other->select('select id from sales_invoices where id = ? for update', [$invoice['id']]);
+
+    // The cancel must wait on the invoice before it holds the return. Under a short lock_timeout it
+    // fails on that first SELECT ... FOR UPDATE of the invoice; locking the return first would fail
+    // later, inside the UPDATE of sales_returns whose trigger touches the invoice (the deadlock path).
+    DB::statement("SET lock_timeout = '300ms'");
+    $failed = null;
+    try {
+        SalesKit::in($this->w->company, fn () => app(ReturnService::class)->cancel(SalesReturn::query()->findOrFail($return['id']), null, $this->w->user));
+    } catch (QueryException $e) {
+        $failed = $e;
+    } finally {
+        DB::statement('SET lock_timeout = 0');
+        $other->rollBack();
+        DB::disconnect('sales_lock_probe');
+    }
+
+    expect($failed)->not->toBeNull()
+        ->and($failed->errorInfo[0] ?? null)->toBe('55P03')
+        ->and($failed->getSql())->toContain('from "sales_invoices"')->toContain('for update')
+        ->and(DB::table('sales_returns')->where('id', $return['id'])->value('status'))->toBe('draft');
+
+    // Released: the cancel goes through.
+    SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/cancel", ['reason' => 'x'])->assertOk()->assertJsonPath('data.status', 'cancelled');
 });

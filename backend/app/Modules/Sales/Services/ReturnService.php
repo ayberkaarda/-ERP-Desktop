@@ -111,6 +111,7 @@ final class ReturnService extends DocumentService
     public function delete(SalesReturn $return, ?int $version): void
     {
         Sales::transaction(function () use ($return, $version): void {
+            $this->lockInvoiceRow($return->invoice_id);
             $return = $this->lockDraft($return, $version);
             $return->delete();
         });
@@ -134,6 +135,7 @@ final class ReturnService extends DocumentService
     public function cancel(SalesReturn $return, ?int $version, ?Authenticatable $actor): SalesReturn
     {
         return Sales::transaction(function () use ($return, $version, $actor): SalesReturn {
+            $this->lockInvoiceRow($return->invoice_id);
             $return = $this->lock($return, $version);
             $this->assertStatus($return, [ReturnStatus::Draft, ReturnStatus::Approved], ReturnStatus::Cancelled->value);
             $return->cancelled_at = now();
@@ -150,6 +152,7 @@ final class ReturnService extends DocumentService
     public function receive(SalesReturn $return, ?int $version, ?Authenticatable $actor): array
     {
         return Sales::transaction(function () use ($return, $version, $actor): array {
+            $this->lockInvoiceRow($return->invoice_id);
             $return = $this->lock($return);
 
             if (in_array($return->status, [ReturnStatus::Received, ReturnStatus::Credited], true)) {
@@ -359,6 +362,16 @@ final class ReturnService extends DocumentService
         $deliveryLine = $line->delivery_line_id === null ? null : SalesDeliveryLine::query()->whereKey($line->delivery_line_id)->first();
 
         return $deliveryLine === null ? null : SalesDelivery::query()->whereKey($deliveryLine->document_id)->value('warehouse_id');
+    }
+
+    /**
+     * Lock order on every return path: invoice, then return. A return write touches its invoice
+     * (sales_returns_touch_invoice_*), so a path that locked the return first and the invoice
+     * through that touch would deadlock against the paths that lock the invoice first.
+     */
+    private function lockInvoiceRow(string $invoiceId): void
+    {
+        SalesInvoice::query()->whereKey($invoiceId)->lockForUpdate()->value('id');
     }
 
     private function lockInvoice(string $invoiceId, bool $booked = true): SalesInvoice
