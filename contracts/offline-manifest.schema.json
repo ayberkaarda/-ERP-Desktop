@@ -1,0 +1,281 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/offline-manifest.schema.json",
+  "title": "Çevrimdışı kapsam manifesti",
+  "description": "Masaüstü istemcinin hangi kaynağı nasıl okuyup yazabildiğini tanımlar. Sunucu (Modules/Sync) ve Rust sync motoru aynı dosyayı okur. Yazma için varsayılan kural reddir: write tanımı olmayan her mutasyon ONLINE_ONLY sayılır. Bkz. docs/SYNC-PROTOCOL.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest_version", "sync_schema_version", "api_prefix", "defaults", "resources", "online_only"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "manifest_version": {
+      "description": "İçerik değiştikçe artar; GET /sync/manifest yanıtında offline_manifest_version olarak döner.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "sync_schema_version": { "$ref": "sync/common.schema.json#/$defs/schemaVersion" },
+    "api_prefix": { "const": "/api/v1" },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recent_window_days", "snapshot_refresh_minutes"],
+      "properties": {
+        "recent_window_days": { "type": "integer", "minimum": 1 },
+        "snapshot_refresh_minutes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/resource" }
+    },
+    "online_only": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/onlineOnly" }
+    }
+  },
+  "$defs": {
+    "path": {
+      "description": "api_prefix dahil gerçek route yolu; parametre adları routes.php'deki gibi ({id}, {party}, {item}, {priceList}, {warehouse}, {child}).",
+      "type": "string",
+      "pattern": "^/api/v1(/([a-z0-9-]+|\\{[a-zA-Z]+\\}))+$"
+    },
+    "routeRef": {
+      "description": "'METHOD /api/v1/...' biçiminde route.",
+      "type": "string",
+      "pattern": "^(GET|POST|PUT|PATCH|DELETE) /api/v1(/([a-z0-9-]+|\\{[a-zA-Z]+\\}))+$"
+    },
+    "apiResource": {
+      "description": "Satır şeklini veren Laravel API Resource sınıfı (FQCN).",
+      "type": "string",
+      "pattern": "^App(\\\\[A-Z][A-Za-z0-9]*)+Resource$"
+    },
+    "child": {
+      "description": "Üst kaydın altındaki iç içe koleksiyon; ayrı bir pull akışıdır (resource adı '<üst>.<segment>').",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "path", "detail_path", "api_resource"],
+      "properties": {
+        "resource": { "$ref": "sync/common.schema.json#/$defs/resourceName" },
+        "path": { "$ref": "#/$defs/path" },
+        "detail_path": { "$ref": "#/$defs/path" },
+        "api_resource": { "$ref": "#/$defs/apiResource" },
+        "write": { "$ref": "#/$defs/write" }
+      }
+    },
+    "writeOp": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "op": { "enum": ["create", "update", "delete", "action"] },
+        "action": { "type": "string", "pattern": "^[a-z][a-z-]*$" },
+        "route": { "$ref": "#/$defs/routeRef" },
+        "requires": { "$ref": "sync/common.schema.json#/$defs/requires" },
+        "version_check": {
+          "description": "none: create (sürüm yok). field-merge: eski base_version'da kesişmeyen alanlar uygulanır. exact: base_version sunucu sürümüne eşit olmalı; değilse VERSION_CONFLICT. delete ve action her zaman exact'tir.",
+          "enum": ["none", "field-merge", "exact"]
+        }
+      },
+      "required": ["op", "route", "requires", "version_check"],
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "action" } } },
+          "then": { "required": ["action"] },
+          "else": { "not": { "required": ["action"] } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "create" } } },
+          "then": { "properties": { "version_check": { "const": "none" } } }
+        },
+        {
+          "if": { "properties": { "op": { "enum": ["delete", "action"] } } },
+          "then": { "properties": { "version_check": { "const": "exact" } } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "update" } } },
+          "then": { "properties": { "version_check": { "enum": ["field-merge", "exact"] } } }
+        }
+      ]
+    },
+    "write": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "ops", "conflict"],
+      "if": {
+        "properties": {
+          "ops": { "type": "array", "contains": { "type": "object", "properties": { "op": { "const": "update" }, "version_check": { "const": "field-merge" } }, "required": ["op", "version_check"] } }
+        }
+      },
+      "then": { "required": ["derived_fields"] },
+      "properties": {
+        "mode": { "const": "draft-outbox" },
+        "ops": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/writeOp" }
+        },
+        "derived_fields": {
+          "description": "Servisin yazma sırasında yeniden hesapladığı alanlar. Bir kuralın when alanlarından biri etkin yazma kümesindeyse ve derives alanı payload'da yoksa, derives alanları etkin yazma/çakışma kümesine eklenir (zincirleme, sabit noktaya kadar). always: her update'te yeniden hesaplanan alanlar. field-merge update tanımlı her write bu listeyi taşımak zorundadır (boş olabilir).",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["when", "derives"],
+            "properties": {
+              "when": {
+                "description": "Tetikleyen üst düzey alanlar; '*' her update'i ifade eder.",
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^([a-z][a-z0-9_]*|\\*)$" }
+              },
+              "derives": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+              },
+              "source": {
+                "description": "Türetmenin backend'deki yeri (dosya:satır veya sınıf::metot).",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "draft_only": {
+          "description": "Yalnızca bu alan bu değerdeyken update/delete/action uygulanır; değilse DOCUMENT_LOCKED.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["field", "value"],
+          "properties": {
+            "field": { "type": "string" },
+            "value": { "type": "string" }
+          }
+        },
+        "target_constraints": {
+          "description": "update/delete/action'da hedef kaydın sunucudaki mevcut değerleri, satır kilidi altında okunarak bu listelerde olmalıdır (ör. yalnızca doc_type=count olan stok belgesi). İhlal SYNC_OFFLINE_WRITE_NOT_ALLOWED; draft_only ihlali ise DOCUMENT_LOCKED.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        },
+        "payload_constraints": {
+          "description": "create ve update payload'ında alan bulunuyorsa alabileceği değerler (ör. stok belgesinde yalnızca doc_type=count). İhlal SYNC_OFFLINE_WRITE_NOT_ALLOWED.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        },
+        "conflict": {
+          "description": "field-merge: base_version eskiyse kesişmeyen alanlar uygulanır, kesişen alanlar Conflict Inbox'a düşer.",
+          "const": "field-merge"
+        },
+        "duplicate_check": {
+          "description": "create öncesi sunucunun çalıştıracağı mükerrer araması; aday varsa DUPLICATE_RECORD.",
+          "$ref": "#/$defs/routeRef"
+        }
+      }
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "module", "scope", "path", "requires", "read", "source"],
+      "properties": {
+        "resource": { "$ref": "sync/common.schema.json#/$defs/resourceName" },
+        "module": { "type": "string", "pattern": "^[A-Z][A-Za-z]+$" },
+        "scope": { "$ref": "sync/common.schema.json#/$defs/scope" },
+        "activation": {
+          "description": "scope=global_with_company_activation için şirkete özel durum tablosu ve global tabloya bağlayan kolon.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["table", "key"],
+          "properties": {
+            "table": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+          }
+        },
+        "description": { "type": "string" },
+        "path": { "$ref": "#/$defs/path" },
+        "detail_path": { "$ref": "#/$defs/path" },
+        "api_resource": { "$ref": "#/$defs/apiResource" },
+        "requires": { "$ref": "sync/common.schema.json#/$defs/requires" },
+        "read": {
+          "description": "local-first: her zaman yerel depodan, arka planda pull. online-first: önce ağ (kısa zaman aşımı), olmazsa yerel kopya 'eski' etiketiyle. offline-fallback: çevrimiçiyken yalnızca ağ; yerel anlık görüntü yalnızca çevrimdışıyken, 'şu tarih itibarıyla' etiketiyle gösterilir.",
+          "enum": ["local-first", "online-first", "offline-fallback"]
+        },
+        "source": { "enum": ["pull", "snapshot"] },
+        "window_days": {
+          "description": "Belge penceresi (gün). Yalnızca window_field değeri bu pencerede olan satırlar indirilir ve tutulur.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "window_field": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "snapshot_params": {
+          "description": "Anlık görüntü isteğinin sorgu parametreleri.",
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "embeds": {
+          "description": "API Resource'un whenLoaded ile gömdüğü ilişkiler; pull satırları bunlar yüklenmiş olarak döner.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+        },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/child" }
+        },
+        "write": { "$ref": "#/$defs/write" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "source": { "const": "pull" } } },
+          "then": { "required": ["detail_path", "api_resource"] }
+        },
+        {
+          "if": { "properties": { "source": { "const": "snapshot" } } },
+          "then": {
+            "properties": { "read": { "const": "offline-fallback" } },
+            "not": { "anyOf": [{ "required": ["write"] }, { "required": ["children"] }] }
+          }
+        },
+        {
+          "if": { "required": ["window_days"] },
+          "then": { "required": ["window_field"] }
+        },
+        {
+          "if": { "required": ["write"] },
+          "then": { "properties": { "read": { "const": "local-first" }, "scope": { "const": "company" } } }
+        },
+        {
+          "if": { "properties": { "scope": { "const": "global_with_company_activation" } } },
+          "then": { "required": ["activation"] },
+          "else": { "not": { "required": ["activation"] } }
+        }
+      ]
+    },
+    "onlineOnly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "i18n_key", "category", "routes"],
+      "properties": {
+        "action": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*$" },
+        "i18n_key": { "type": "string", "pattern": "^desktop\\.onlineOnly\\.[a-z][a-zA-Z0-9]*$" },
+        "category": {
+          "enum": ["finalize", "approve", "payment", "stock", "edocument", "period-close", "server-calculation", "live-report"]
+        },
+        "routes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/routeRef" }
+        }
+      }
+    }
+  }
+}

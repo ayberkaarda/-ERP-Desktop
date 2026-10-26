@@ -8,7 +8,9 @@ use App\Core\Http\ApiException;
 use App\Core\Http\ApiResponse;
 use App\Core\Http\ErrorCode;
 use App\Modules\Identity\Http\Requests\PasswordChangeRequest;
+use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\AccessRevoker;
+use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Identity\Services\LoginThrottle;
 use App\Modules\Identity\Services\SessionRegistry;
 use App\Modules\Identity\Support\CurrentToken;
@@ -29,6 +31,7 @@ final class PasswordController
         LoginThrottle $throttle,
         SessionRegistry $sessions,
         AccessRevoker $revoker,
+        DeviceTokens $tokens,
     ): JsonResponse {
         $user = $this->currentUser($request);
         $key = LoginThrottle::key('password_change', $user->id, $request->ip());
@@ -62,6 +65,16 @@ final class PasswordController
             $token === null ? null : (string) $token->getKey(),
             broadcast: false,
         );
+
+        // A desktop client keeps its sign-in with a fresh token pair; every older refresh token is void.
+        if ($token !== null) {
+            $device = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->first();
+            $issued = $device instanceof UserDevice ? $tokens->reissue($user, $device) : null;
+
+            if ($issued !== null) {
+                return ApiResponse::success($issued);
+            }
+        }
 
         return ApiResponse::noContent();
     }

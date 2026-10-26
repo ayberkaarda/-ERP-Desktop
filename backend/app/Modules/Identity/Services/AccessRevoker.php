@@ -7,6 +7,7 @@ namespace App\Modules\Identity\Services;
 use App\Models\User;
 use App\Modules\Identity\Events\SessionRevoked;
 use App\Modules\Identity\Models\UserDevice;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -34,8 +35,11 @@ final class AccessRevoker
             $tokens->whereKeyNot($keepTokenId);
         }
 
-        $devices->delete();
-        $tokens->delete();
+        // Device rows are locked by the delete, so a concurrent refresh finishes before or fails after it.
+        DB::transaction(function () use ($devices, $tokens): void {
+            $devices->delete();
+            $tokens->delete();
+        });
 
         if ($broadcast) {
             SessionRevoked::dispatch($user->id, $reason);

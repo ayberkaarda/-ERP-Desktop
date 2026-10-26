@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://keystone-erp.invalid/contracts/sync/device-login.request.schema.json",
+  "title": "POST /api/v1/auth/device isteği",
+  "description": "Cihaz girişi. Alanlar mevcut DeviceLoginRequest kurallarıyla aynıdır. Başarılı yanıt device-token.response.schema.json. Identity uç sözleşmesidir; D1'de OpenAPI'ye (Scramble) taşınır, o zamana kadar tek kaynak bu dosyadır. Bkz. ADR 0007.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["email", "password", "device_name", "fingerprint"],
+  "properties": {
+    "email": { "type": "string", "pattern": "^[^@\\s]+@[^@\\s]+$", "maxLength": 254 },
+    "password": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "two_factor_code": {
+      "description": "2FA açıksa zorunlu: 6 haneli TOTP veya kurtarma kodu. Eksikse TWO_FACTOR_REQUIRED (401), yanlışsa INVALID_TWO_FACTOR_CODE (422).",
+      "anyOf": [{ "type": "string", "maxLength": 32 }, { "type": "null" }]
+    },
+    "device_name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "fingerprint": {
+      "description": "Cihaza özgü, kurulum boyunca değişmeyen değer. Aynı kullanıcı ve fingerprint ile yeni giriş önceki cihaz kaydını ve refresh ailesini iptal eder.",
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 255
+    }
+  }
+}

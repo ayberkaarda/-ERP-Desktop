@@ -1,0 +1,56 @@
+{
+  "manifest_version": 1,
+  "sync_schema_version": 1,
+  "api_prefix": "/api/v1",
+  "defaults": {
+    "recent_window_days": 30,
+    "snapshot_refresh_minutes": 15
+  },
+  "resources": [
+    {
+      "resource": "sales-quotes",
+      "module": "Sales",
+      "scope": "company",
+      "path": "/api/v1/sales-quotes",
+      "detail_path": "/api/v1/sales-quotes/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": {
+        "all_of": [
+          "sales.quotes.view"
+        ]
+      },
+      "read": "local-first",
+      "source": "pull",
+      "write": {
+        "mode": "draft-outbox",
+        "ops": [
+          {
+            "op": "update",
+            "route": "PATCH /api/v1/sales-quotes/{id}",
+            "requires": {
+              "all_of": [
+                "sales.quotes.update"
+              ]
+            },
+            "version_check": "field-merge"
+          }
+        ],
+        "draft_only": {
+          "field": "status",
+          "value": "draft"
+        },
+        "conflict": "field-merge"
+      }
+    }
+  ],
+  "online_only": [
+    {
+      "action": "decideApproval",
+      "i18n_key": "desktop.onlineOnly.decideApproval",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/approvals/{id}/decisions"
+      ]
+    }
+  ]
+}

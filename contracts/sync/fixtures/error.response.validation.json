@@ -1,0 +1,7 @@
+{
+  "errors": {
+    "message": "Gönderilen veri geçersiz.",
+    "code": "VALIDATION_ERROR",
+    "fields": { "resources.1.resource": ["Kaynak bu istekte iki kez geçiyor."] }
+  }
+}
