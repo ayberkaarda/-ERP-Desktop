@@ -18,7 +18,7 @@ final class ReferenceResource extends JsonResource
     public function toArray(Request $request): array
     {
         $data = $this->resource->toArray();
-        unset($data['deleted_at'], $data[ReferenceRepository::ACTIVE], $data[ReferenceRepository::VERSION]);
+        unset($data['deleted_at'], $data['sync_txid'], $data[ReferenceRepository::ACTIVE], $data[ReferenceRepository::VERSION]);
         if ($this->resource instanceof Currency) {
             [$active, $version] = $this->activation($this->resource);
             $data['company_is_active'] = $active;

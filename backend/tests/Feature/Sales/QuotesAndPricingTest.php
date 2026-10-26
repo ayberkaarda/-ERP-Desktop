@@ -93,8 +93,8 @@ it('walks the quote lifecycle and refuses illegal transitions', function (): voi
     expect($sent['number'])->toBe('QUO2027000000001');
 
     SalesKit::patch($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}", ['version' => $sent['version'], 'notes' => 'x'])
-        ->assertStatus(422)->assertJsonPath('errors.code', 'INVALID_STATE_TRANSITION');
-    SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-quotes/{$quote['id']}")->assertStatus(422);
+        ->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    SalesKit::as($this->w->user, $this->w->company)->deleteJson("/api/v1/sales-quotes/{$quote['id']}")->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
 
     SalesKit::post($this->w->user, $this->w->company, "sales-quotes/{$quote['id']}/reject", ['reason' => 'Too expensive'])
         ->assertOk()->assertJsonPath('data.status', 'rejected')->assertJsonPath('data.rejection_reason', 'Too expensive');

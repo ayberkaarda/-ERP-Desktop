@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Parties\Http\Requests;
 
+use App\Core\Sync\Rules\Uuid7;
 use App\Modules\Parties\Enums\PartyRole;
 use App\Modules\Parties\Enums\PartyType;
 use App\Modules\Parties\Models\Party;
@@ -58,6 +59,7 @@ final class PartyRequest extends FormRequest
         $required = $creating ? 'required' : 'sometimes';
 
         return [
+            ...$creating ? ['id' => ['sometimes', 'uuid', new Uuid7, Rule::unique('parties', 'id')]] : [],
             'code' => ['prohibited'],
             'version' => [$creating ? 'prohibited' : 'required', 'integer', 'min:1'],
             'name' => [$required, 'string', 'max:255'],

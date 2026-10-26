@@ -137,6 +137,8 @@ it('returns the causer as id and name only, loaded once for the page, also for d
     // The number of queries does not grow with the number of entries (no per-row causer lookup).
     $count = function () use ($other): int {
         Identity::fresh();
+        // The database session driver sweeps expired sessions on 2% of requests (an extra DELETE); keep the count deterministic.
+        config(['session.lottery' => [0, 100]]);
         DB::flushQueryLog();
         DB::enableQueryLog();
         test()->actingAs($other)->getJson('/api/v1/logs/audit?per_page=100', Identity::headers($this->a))->assertOk();

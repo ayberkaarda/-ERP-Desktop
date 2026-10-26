@@ -37,17 +37,25 @@
       "pattern": "^(0|[1-9][0-9]{0,19})$"
     },
     "cursor": {
-      "description": "Kaynak başına keyset konumu: (sync_txid, id) ve görünürlük nesli. after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır. gen, sunucudaki (kullanıcı, şirket, kaynak) görünürlük neslinden farklıysa kaynak reset alır.",
+      "description": "Kaynak başına keyset konumu: (sync_txid, id), görünürlük nesli ve tam indirme oturumu. after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır. gen, sunucudaki (kullanıcı, şirket, kaynak) görünürlük neslinden farklıysa kaynak reset alır. session: bkz. cursorSession.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["txid", "after_id", "gen"],
+      "required": ["txid", "after_id", "gen", "session"],
       "properties": {
         "txid": { "$ref": "#/$defs/xid8" },
         "after_id": {
           "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
         },
-        "gen": { "$ref": "#/$defs/visibilityGeneration" }
+        "gen": { "$ref": "#/$defs/visibilityGeneration" },
+        "session": { "$ref": "#/$defs/cursorSession" }
       }
+    },
+    "cursorSession": {
+      "description": "Tam indirme oturumunun opak kimliği. Sunucu üretir; istemci yorumlamaz, değiştirmez, cursor ile birlikte aynen geri gönderir. Tam indirmenin (ilk indirme veya reset) has_more=true sayfalarındaki next_cursor'da doludur; artımlı cursor'larda (has_more=false sonrası horizon cursor'ı ve artımlı akışın sayfaları) null'dur. Dolu session'lı cursor yalnızca o oturumun devamıdır: oturum bitmiş, yenisiyle değişmiş ya da bu konumu vermemişse aynı txid/after_id/gen değerleri olsa bile devam ettirilmez, reset (cursor_expired) alır.",
+      "anyOf": [
+        { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
+        { "type": "null" }
+      ]
     },
     "visibilityGeneration": {
       "description": "Sunucuda (kullanıcı, şirket, kaynak) başına tutulan, görünürlüğü etkileyen her değişiklikte (rol, izin, şirket üyeliği, kapsam) artan sayaç. Tüketilen bir bayrak değildir; her cihaz kendi cursor'ındaki değeri bununla karşılaştırır.",

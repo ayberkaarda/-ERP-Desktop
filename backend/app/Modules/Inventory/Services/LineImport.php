@@ -39,7 +39,7 @@ final class LineImport
         }
 
         if (! $doc->isDraft()) {
-            Messages::fail('document', 'document_not_draft');
+            Messages::locked();
         }
 
         $rows = $this->read($file);

@@ -25,11 +25,16 @@ final class DocumentStore
      * @param  T  $doc
      * @param  array<string, mixed>  $extraHeader
      * @param  list<array<string, mixed>>  $extraLines  type-specific columns per line, aligned with the composed lines
+     * @param  string|null  $id  client-supplied key (validated by the request); generated when null
      * @return T
      */
-    public function create(SalesDocument $doc, Composed $composed, array $extraHeader = [], array $extraLines = [], ?string $actor = null): SalesDocument
+    public function create(SalesDocument $doc, Composed $composed, array $extraHeader = [], array $extraLines = [], ?string $actor = null, ?string $id = null): SalesDocument
     {
         $doc->forceFill([...$composed->header, ...$extraHeader]);
+
+        if ($id !== null) {
+            $doc->id = $id;
+        }
         $doc->created_by = $actor;
         $doc->save();
         $this->writeLines($doc, $composed, $extraLines);
