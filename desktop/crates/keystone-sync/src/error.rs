@@ -26,6 +26,8 @@ pub enum LocalCode {
     DecodeError,
     /// The token store (OS keychain) failed.
     TokenStoreError,
+    /// Server profile URL or endpoint path rejected (not https, or not under `/api/v1/`).
+    InvalidServerUrl,
     /// The scaffold has no implementation for this operation yet.
     NotImplemented,
 }
@@ -40,13 +42,14 @@ impl LocalCode {
             Self::StoreMigrationInvalid => "STORE_MIGRATION_INVALID",
             Self::DecodeError => "DECODE_ERROR",
             Self::TokenStoreError => "TOKEN_STORE_ERROR",
+            Self::InvalidServerUrl => "INVALID_SERVER_URL",
             Self::NotImplemented => "NOT_IMPLEMENTED",
         }
     }
 }
 
 /// Either side of `SyncError::kind`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Code {
     Server(ErrorCode),
     Local(LocalCode),
@@ -78,6 +81,8 @@ pub enum SyncError {
     Decode(#[from] serde_json::Error),
     #[error("token store: {0}")]
     TokenStore(String),
+    #[error("invalid server url: {0}")]
+    InvalidServerUrl(String),
     #[error("not implemented: {0}")]
     NotImplemented(&'static str),
 }
@@ -97,7 +102,7 @@ impl SyncError {
     /// Server or local code of this error.
     pub fn kind(&self) -> Code {
         let local = match self {
-            Self::Api { code, .. } => return Code::Server(*code),
+            Self::Api { code, .. } => return Code::Server(code.clone()),
             Self::OfflineUnavailable(_) => LocalCode::OfflineUnavailable,
             Self::Network(_) => LocalCode::NetworkError,
             Self::StoreKeyInvalid => LocalCode::StoreKeyInvalid,
@@ -105,15 +110,17 @@ impl SyncError {
             Self::Migration(_) => LocalCode::StoreMigrationInvalid,
             Self::Decode(_) => LocalCode::DecodeError,
             Self::TokenStore(_) => LocalCode::TokenStoreError,
+            Self::InvalidServerUrl(_) => LocalCode::InvalidServerUrl,
             Self::NotImplemented(_) => LocalCode::NotImplemented,
         };
         Code::Local(local)
     }
 
     /// Stable code string: the `ErrorCode` wire value or the `LocalCode`.
+    /// An unknown server code gives `SERVER_ERROR`.
     pub fn code(&self) -> &'static str {
         match self.kind() {
-            Code::Server(code) => code.as_str(),
+            Code::Server(code) => code.ui_code(),
             Code::Local(code) => code.as_str(),
         }
     }
@@ -140,6 +147,7 @@ mod tests {
             LocalCode::StoreMigrationInvalid,
             LocalCode::DecodeError,
             LocalCode::TokenStoreError,
+            LocalCode::InvalidServerUrl,
             LocalCode::NotImplemented,
         ];
         for local in locals {

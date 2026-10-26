@@ -133,25 +133,55 @@ fn pascal_case(wire: &str) -> Result<String, String> {
 
 fn error_code_rs(schema: &Value) -> Result<String, String> {
     let codes = parse_codes(schema)?;
+    if codes.iter().any(|code| code.variant == "Unknown") {
+        return Err("error code UNKNOWN collides with the ErrorCode::Unknown fallback".into());
+    }
     let mut s = String::from(HEADER);
     s.push_str(
-        "\nuse serde::{Deserialize, Serialize};\n\n\
+        "\nuse serde::{Deserialize, Deserializer, Serialize, Serializer};\n\n\
          /// Values of `errors.code` (`contracts/sync/error-codes.schema.json`).\n\
-         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]\n\
+         ///\n\
+         /// A code missing from the schema (a newer server) decodes to [`ErrorCode::Unknown`]\n\
+         /// instead of failing, and counts as a generic server error.\n\
+         #[derive(Debug, Clone, PartialEq, Eq, Hash)]\n\
          pub enum ErrorCode {\n",
     );
     for code in &codes {
         for line in code.description.lines() {
             let _ = writeln!(s, "    /// {line}");
         }
-        let _ = writeln!(s, "    #[serde(rename = \"{}\")]", code.wire);
+        if !code.description.is_empty() {
+            s.push_str("    ///\n");
+        }
+        let _ = writeln!(s, "    /// Wire: `{}`.", code.wire);
         let _ = writeln!(s, "    {},", code.variant);
     }
-    s.push_str("}\n\nimpl ErrorCode {\n    /// Every code, in schema order.\n    pub const ALL: &[Self] = &[\n");
+    s.push_str(
+        "    /// A code this client does not know, kept verbatim.\n    Unknown(String),\n}\n\n\
+         impl ErrorCode {\n    /// Every known code, in schema order.\n    pub const ALL: &[Self] = &[\n",
+    );
     for code in &codes {
         let _ = writeln!(s, "        Self::{},", code.variant);
     }
-    s.push_str("    ];\n\n    /// The wire spelling.\n    pub const fn as_str(self) -> &'static str {\n        match self {\n");
+    s.push_str(
+        "    ];\n\n    /// Parses a wire code; anything unknown becomes [`ErrorCode::Unknown`].\n    \
+         pub fn from_wire(code: &str) -> Self {\n        match code {\n",
+    );
+    for code in &codes {
+        let _ = writeln!(
+            s,
+            "            \"{}\" => Self::{},",
+            code.wire, code.variant
+        );
+    }
+    s.push_str(
+        "            other => Self::Unknown(other.to_owned()),\n        }\n    }\n\n    \
+         /// The wire spelling (the original text for [`ErrorCode::Unknown`]).\n    \
+         pub fn as_str(&self) -> &str {\n        match self {\n            \
+         Self::Unknown(code) => code,\n            known => known.ui_code(),\n        }\n    }\n\n    \
+         /// Code the UI translates: the wire spelling, or `SERVER_ERROR` for an unknown code.\n    \
+         pub const fn ui_code(&self) -> &'static str {\n        match self {\n",
+    );
     for code in &codes {
         let _ = writeln!(
             s,
@@ -160,9 +190,12 @@ fn error_code_rs(schema: &Value) -> Result<String, String> {
         );
     }
     s.push_str(
-        "        }\n    }\n\n    /// HTTP status used when the code is returned at request level.\n    \
-         /// `None` for codes that only appear inside push results.\n    \
-         pub const fn http_status(self) -> Option<u16> {\n        match self {\n",
+        "            Self::Unknown(_) => \"SERVER_ERROR\",\n        }\n    }\n\n    \
+         /// False only for [`ErrorCode::Unknown`].\n    \
+         pub const fn is_known(&self) -> bool {\n        !matches!(self, Self::Unknown(_))\n    }\n\n    \
+         /// HTTP status used when the code is returned at request level.\n    \
+         /// `None` for codes that only appear inside push results, and for unknown codes.\n    \
+         pub const fn http_status(&self) -> Option<u16> {\n        match self {\n",
     );
     for code in &codes {
         let status = code
@@ -171,8 +204,9 @@ fn error_code_rs(schema: &Value) -> Result<String, String> {
         let _ = writeln!(s, "            Self::{} => {status},", code.variant);
     }
     s.push_str(
-        "        }\n    }\n\n    /// Marked \"Önerilen\" in the schema: added for sync, not yet in the server `ErrorCode`.\n    \
-         pub const fn is_proposed(self) -> bool {\n        match self {\n",
+        "            Self::Unknown(_) => None,\n        }\n    }\n\n    \
+         /// Marked \"Önerilen\" in the schema: added for sync, not yet in the server `ErrorCode`.\n    \
+         pub const fn is_proposed(&self) -> bool {\n        match self {\n",
     );
     for code in &codes {
         let _ = writeln!(
@@ -181,7 +215,18 @@ fn error_code_rs(schema: &Value) -> Result<String, String> {
             code.variant, code.proposed
         );
     }
-    s.push_str("        }\n    }\n}\n\nimpl std::fmt::Display for ErrorCode {\n    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        f.write_str(self.as_str())\n    }\n}\n");
+    s.push_str(
+        "            Self::Unknown(_) => false,\n        }\n    }\n}\n\n\
+         impl std::fmt::Display for ErrorCode {\n    \
+         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        \
+         f.write_str(self.as_str())\n    }\n}\n\n\
+         impl Serialize for ErrorCode {\n    \
+         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {\n        \
+         serializer.serialize_str(self.as_str())\n    }\n}\n\n\
+         impl<'de> Deserialize<'de> for ErrorCode {\n    \
+         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {\n        \
+         String::deserialize(deserializer).map(|code| Self::from_wire(&code))\n    }\n}\n",
+    );
     Ok(s)
 }
 

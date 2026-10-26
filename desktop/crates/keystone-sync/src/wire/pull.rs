@@ -25,14 +25,12 @@ pub struct PullResource {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PullResponse {
     pub data: PullData,
     pub meta: Meta,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PullData {
     /// Every row in this response has `sync_txid < horizon`.
     pub horizon: Xid8,
@@ -43,7 +41,6 @@ pub struct PullData {
 
 /// One page for one resource. `reset_reason` is present exactly when `reset`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PullResourceResult {
     pub resource: ResourceName,
     pub rows: Vec<ResourceRow>,
@@ -65,7 +62,6 @@ pub enum ResetReason {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Tombstone {
     pub resource: ResourceName,
     pub id: Uuid,

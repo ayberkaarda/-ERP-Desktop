@@ -10,14 +10,12 @@ use super::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ManifestResponse {
     pub data: Manifest,
     pub meta: Meta,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub schema_version: SchemaVersion,
     pub min_schema_version: SchemaVersion,
@@ -35,7 +33,6 @@ pub struct Manifest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ManifestResource {
     pub resource: ResourceName,
     pub scope: Scope,
@@ -115,7 +112,6 @@ fn is_action_name(name: &str) -> bool {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Limits {
     pub pull_resources_max: u32,
     pub pull_page_default: u32,

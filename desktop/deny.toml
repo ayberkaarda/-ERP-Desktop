@@ -13,6 +13,11 @@ allow = [
     "Apache-2.0",
     "Unicode-3.0",
     "Zlib",
+    # rustls stack (reqwest client): rustls-webpki, ring, untrusted (ISC),
+    # subtle (BSD-3-Clause), webpki-root-certs via rustls-platform-verifier.
+    "ISC",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
 ]
 
 [licenses.private]

@@ -1,113 +1,151 @@
 // Produced by desktop/scripts/gen-wire.sh from contracts/sync. Do not edit by hand.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Values of `errors.code` (`contracts/sync/error-codes.schema.json`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// A code missing from the schema (a newer server) decodes to [`ErrorCode::Unknown`]
+/// instead of failing, and counts as a generic server error.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ErrorCode {
     /// 422. FormRequest doğrulaması veya alan değişmezi ihlali.
-    #[serde(rename = "VALIDATION_ERROR")]
+    ///
+    /// Wire: `VALIDATION_ERROR`.
     ValidationError,
     /// 401. Token yok, süresi dolmuş veya iptal edilmiş (cihaz iptali dahil).
-    #[serde(rename = "UNAUTHENTICATED")]
+    ///
+    /// Wire: `UNAUTHENTICATED`.
     Unauthenticated,
     /// 403. Policy veya izin reddi.
-    #[serde(rename = "FORBIDDEN")]
+    ///
+    /// Wire: `FORBIDDEN`.
     Forbidden,
     /// 404. Kayıt yok ya da şirket kapsamı dışında.
-    #[serde(rename = "NOT_FOUND")]
+    ///
+    /// Wire: `NOT_FOUND`.
     NotFound,
     /// 405.
-    #[serde(rename = "METHOD_NOT_ALLOWED")]
+    ///
+    /// Wire: `METHOD_NOT_ALLOWED`.
     MethodNotAllowed,
     /// 429. Hız sınırı.
-    #[serde(rename = "TOO_MANY_ATTEMPTS")]
+    ///
+    /// Wire: `TOO_MANY_ATTEMPTS`.
     TooManyAttempts,
     /// 400. Alan kodu olmayan genel HTTP hatası.
-    #[serde(rename = "HTTP_ERROR")]
+    ///
+    /// Wire: `HTTP_ERROR`.
     HttpError,
     /// 500.
-    #[serde(rename = "SERVER_ERROR")]
+    ///
+    /// Wire: `SERVER_ERROR`.
     ServerError,
     /// 409. base_version güncel değil ve değişen alanlar kesişiyor.
-    #[serde(rename = "VERSION_CONFLICT")]
+    ///
+    /// Wire: `VERSION_CONFLICT`.
     VersionConflict,
     /// 400.
-    #[serde(rename = "IDEMPOTENCY_KEY_REQUIRED")]
+    ///
+    /// Wire: `IDEMPOTENCY_KEY_REQUIRED`.
     IdempotencyKeyRequired,
     /// 422. Aynı anahtar farklı içerikle yeniden kullanıldı.
-    #[serde(rename = "IDEMPOTENCY_KEY_REUSED")]
+    ///
+    /// Wire: `IDEMPOTENCY_KEY_REUSED`.
     IdempotencyKeyReused,
     /// 409. Aynı anahtarlı istek hâlâ işleniyor.
-    #[serde(rename = "IDEMPOTENCY_IN_PROGRESS")]
+    ///
+    /// Wire: `IDEMPOTENCY_IN_PROGRESS`.
     IdempotencyInProgress,
     /// 400. X-Company-Id başlığı eksik.
-    #[serde(rename = "COMPANY_REQUIRED")]
+    ///
+    /// Wire: `COMPANY_REQUIRED`.
     CompanyRequired,
     /// 403. Kullanıcı şirketin üyesi değil.
-    #[serde(rename = "COMPANY_FORBIDDEN")]
+    ///
+    /// Wire: `COMPANY_FORBIDDEN`.
     CompanyForbidden,
     /// 401. POST /auth/device için TOTP gerekli.
-    #[serde(rename = "TWO_FACTOR_REQUIRED")]
+    ///
+    /// Wire: `TWO_FACTOR_REQUIRED`.
     TwoFactorRequired,
     /// 422.
-    #[serde(rename = "INVALID_TWO_FACTOR_CODE")]
+    ///
+    /// Wire: `INVALID_TWO_FACTOR_CODE`.
     InvalidTwoFactorCode,
     /// 403.
-    #[serde(rename = "PASSWORD_CHANGE_REQUIRED")]
+    ///
+    /// Wire: `PASSWORD_CHANGE_REQUIRED`.
     PasswordChangeRequired,
     /// 403.
-    #[serde(rename = "USER_DEACTIVATED")]
+    ///
+    /// Wire: `USER_DEACTIVATED`.
     UserDeactivated,
     /// 422. Belge durum makinesi geçişe izin vermiyor.
-    #[serde(rename = "INVALID_STATE_TRANSITION")]
+    ///
+    /// Wire: `INVALID_STATE_TRANSITION`.
     InvalidStateTransition,
     /// 409.
-    #[serde(rename = "APPROVAL_REQUIRED")]
+    ///
+    /// Wire: `APPROVAL_REQUIRED`.
     ApprovalRequired,
     /// 413.
-    #[serde(rename = "FILE_TOO_LARGE")]
+    ///
+    /// Wire: `FILE_TOO_LARGE`.
     FileTooLarge,
     /// 422.
-    #[serde(rename = "UNSUPPORTED_FILE_TYPE")]
+    ///
+    /// Wire: `UNSUPPORTED_FILE_TYPE`.
     UnsupportedFileType,
     /// Önerilen. 409. Hedef belge artık taslak değil. REST düzenleme/silme uçları da (bugünkü INVALID_STATE_TRANSITION yerine) bunu döner; push içinde conflict sonucu olarak döner.
-    #[serde(rename = "DOCUMENT_LOCKED")]
+    ///
+    /// Wire: `DOCUMENT_LOCKED`.
     DocumentLocked,
     /// Önerilen. 409. Yeni cari, mevcut bir cariyle mükerrer adayı (vergi no / ad eşleşmesi). Push içinde conflict sonucu olarak döner.
-    #[serde(rename = "DUPLICATE_RECORD")]
+    ///
+    /// Wire: `DUPLICATE_RECORD`.
     DuplicateRecord,
     /// Önerilen. 409. İstemcinin schema_version değeri sunucunun desteklediği aralıkta değil; istemci güncellenmeli.
-    #[serde(rename = "SYNC_SCHEMA_MISMATCH")]
+    ///
+    /// Wire: `SYNC_SCHEMA_MISMATCH`.
     SyncSchemaMismatch,
     /// Önerilen. 422. Cursor biçimsiz ya da horizon'dan ileride.
-    #[serde(rename = "SYNC_CURSOR_INVALID")]
+    ///
+    /// Wire: `SYNC_CURSOR_INVALID`.
     SyncCursorInvalid,
     /// Önerilen. 422. İstenen kaynak offline-manifest'te yok veya bu işlem için tanımlı değil.
-    #[serde(rename = "SYNC_RESOURCE_UNSUPPORTED")]
+    ///
+    /// Wire: `SYNC_RESOURCE_UNSUPPORTED`.
     SyncResourceUnsupported,
     /// Önerilen. 422. Mutasyon offline-manifest'teki write tanımının dışında (ONLINE_ONLY işlem, izin verilmeyen alan değeri).
-    #[serde(rename = "SYNC_OFFLINE_WRITE_NOT_ALLOWED")]
+    ///
+    /// Wire: `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
     SyncOfflineWriteNotAllowed,
     /// Önerilen. 413. Pull kaynak sayısı veya push mutasyon sayısı manifest limitini aşıyor.
-    #[serde(rename = "SYNC_BATCH_TOO_LARGE")]
+    ///
+    /// Wire: `SYNC_BATCH_TOO_LARGE`.
     SyncBatchTooLarge,
     /// Önerilen. Yalnızca push sonucu. Aynı kaydın önceki mutasyonu ya da depends_on ile bildirilen mutasyon applied/duplicate değil; bu mutasyon denenmedi.
-    #[serde(rename = "SYNC_DEPENDENCY_FAILED")]
+    ///
+    /// Wire: `SYNC_DEPENDENCY_FAILED`.
     SyncDependencyFailed,
     /// Önerilen. 422. Yalnızca push sonucu. base_version sunucudaki sürümden büyük; istemci durumu bozuk, kayıt yeniden indirilmeli.
-    #[serde(rename = "SYNC_BASE_VERSION_AHEAD")]
+    ///
+    /// Wire: `SYNC_BASE_VERSION_AHEAD`.
     SyncBaseVersionAhead,
     /// Önerilen. 422. Yalnızca push sonucu. changed_fields, payload'ın üst düzey anahtar kümesine eşit değil.
-    #[serde(rename = "SYNC_CHANGED_FIELDS_MISMATCH")]
+    ///
+    /// Wire: `SYNC_CHANGED_FIELDS_MISMATCH`.
     SyncChangedFieldsMismatch,
     /// Önerilen. 422. Yalnızca push sonucu. resolution, aynı kullanıcı/şirket/kayıt için saklanan bir conflict sonucuna karşılık gelmiyor ya da seçim o çakışma türünde geçersiz.
-    #[serde(rename = "SYNC_RESOLUTION_INVALID")]
+    ///
+    /// Wire: `SYNC_RESOLUTION_INVALID`.
     SyncResolutionInvalid,
+    /// A code this client does not know, kept verbatim.
+    Unknown(String),
 }
 
 impl ErrorCode {
-    /// Every code, in schema order.
+    /// Every known code, in schema order.
     pub const ALL: &[Self] = &[
         Self::ValidationError,
         Self::Unauthenticated,
@@ -144,8 +182,56 @@ impl ErrorCode {
         Self::SyncResolutionInvalid,
     ];
 
-    /// The wire spelling.
-    pub const fn as_str(self) -> &'static str {
+    /// Parses a wire code; anything unknown becomes [`ErrorCode::Unknown`].
+    pub fn from_wire(code: &str) -> Self {
+        match code {
+            "VALIDATION_ERROR" => Self::ValidationError,
+            "UNAUTHENTICATED" => Self::Unauthenticated,
+            "FORBIDDEN" => Self::Forbidden,
+            "NOT_FOUND" => Self::NotFound,
+            "METHOD_NOT_ALLOWED" => Self::MethodNotAllowed,
+            "TOO_MANY_ATTEMPTS" => Self::TooManyAttempts,
+            "HTTP_ERROR" => Self::HttpError,
+            "SERVER_ERROR" => Self::ServerError,
+            "VERSION_CONFLICT" => Self::VersionConflict,
+            "IDEMPOTENCY_KEY_REQUIRED" => Self::IdempotencyKeyRequired,
+            "IDEMPOTENCY_KEY_REUSED" => Self::IdempotencyKeyReused,
+            "IDEMPOTENCY_IN_PROGRESS" => Self::IdempotencyInProgress,
+            "COMPANY_REQUIRED" => Self::CompanyRequired,
+            "COMPANY_FORBIDDEN" => Self::CompanyForbidden,
+            "TWO_FACTOR_REQUIRED" => Self::TwoFactorRequired,
+            "INVALID_TWO_FACTOR_CODE" => Self::InvalidTwoFactorCode,
+            "PASSWORD_CHANGE_REQUIRED" => Self::PasswordChangeRequired,
+            "USER_DEACTIVATED" => Self::UserDeactivated,
+            "INVALID_STATE_TRANSITION" => Self::InvalidStateTransition,
+            "APPROVAL_REQUIRED" => Self::ApprovalRequired,
+            "FILE_TOO_LARGE" => Self::FileTooLarge,
+            "UNSUPPORTED_FILE_TYPE" => Self::UnsupportedFileType,
+            "DOCUMENT_LOCKED" => Self::DocumentLocked,
+            "DUPLICATE_RECORD" => Self::DuplicateRecord,
+            "SYNC_SCHEMA_MISMATCH" => Self::SyncSchemaMismatch,
+            "SYNC_CURSOR_INVALID" => Self::SyncCursorInvalid,
+            "SYNC_RESOURCE_UNSUPPORTED" => Self::SyncResourceUnsupported,
+            "SYNC_OFFLINE_WRITE_NOT_ALLOWED" => Self::SyncOfflineWriteNotAllowed,
+            "SYNC_BATCH_TOO_LARGE" => Self::SyncBatchTooLarge,
+            "SYNC_DEPENDENCY_FAILED" => Self::SyncDependencyFailed,
+            "SYNC_BASE_VERSION_AHEAD" => Self::SyncBaseVersionAhead,
+            "SYNC_CHANGED_FIELDS_MISMATCH" => Self::SyncChangedFieldsMismatch,
+            "SYNC_RESOLUTION_INVALID" => Self::SyncResolutionInvalid,
+            other => Self::Unknown(other.to_owned()),
+        }
+    }
+
+    /// The wire spelling (the original text for [`ErrorCode::Unknown`]).
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Unknown(code) => code,
+            known => known.ui_code(),
+        }
+    }
+
+    /// Code the UI translates: the wire spelling, or `SERVER_ERROR` for an unknown code.
+    pub const fn ui_code(&self) -> &'static str {
         match self {
             Self::ValidationError => "VALIDATION_ERROR",
             Self::Unauthenticated => "UNAUTHENTICATED",
@@ -180,12 +266,18 @@ impl ErrorCode {
             Self::SyncBaseVersionAhead => "SYNC_BASE_VERSION_AHEAD",
             Self::SyncChangedFieldsMismatch => "SYNC_CHANGED_FIELDS_MISMATCH",
             Self::SyncResolutionInvalid => "SYNC_RESOLUTION_INVALID",
+            Self::Unknown(_) => "SERVER_ERROR",
         }
     }
 
+    /// False only for [`ErrorCode::Unknown`].
+    pub const fn is_known(&self) -> bool {
+        !matches!(self, Self::Unknown(_))
+    }
+
     /// HTTP status used when the code is returned at request level.
-    /// `None` for codes that only appear inside push results.
-    pub const fn http_status(self) -> Option<u16> {
+    /// `None` for codes that only appear inside push results, and for unknown codes.
+    pub const fn http_status(&self) -> Option<u16> {
         match self {
             Self::ValidationError => Some(422),
             Self::Unauthenticated => Some(401),
@@ -220,11 +312,12 @@ impl ErrorCode {
             Self::SyncBaseVersionAhead => Some(422),
             Self::SyncChangedFieldsMismatch => Some(422),
             Self::SyncResolutionInvalid => Some(422),
+            Self::Unknown(_) => None,
         }
     }
 
     /// Marked "Önerilen" in the schema: added for sync, not yet in the server `ErrorCode`.
-    pub const fn is_proposed(self) -> bool {
+    pub const fn is_proposed(&self) -> bool {
         match self {
             Self::ValidationError => false,
             Self::Unauthenticated => false,
@@ -259,6 +352,7 @@ impl ErrorCode {
             Self::SyncBaseVersionAhead => true,
             Self::SyncChangedFieldsMismatch => true,
             Self::SyncResolutionInvalid => true,
+            Self::Unknown(_) => false,
         }
     }
 }
@@ -266,5 +360,17 @@ impl ErrorCode {
 impl std::fmt::Display for ErrorCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for ErrorCode {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ErrorCode {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(|code| Self::from_wire(&code))
     }
 }

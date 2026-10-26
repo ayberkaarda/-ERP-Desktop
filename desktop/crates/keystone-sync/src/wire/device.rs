@@ -55,7 +55,6 @@ impl fmt::Debug for DeviceRefreshRequest {
 
 /// Success body of both device login and refresh.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct DeviceTokenResponse {
     pub data: DeviceToken,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -64,7 +63,6 @@ pub struct DeviceTokenResponse {
 
 /// Access token (60 min) and single-use refresh token (sliding 30 days).
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct DeviceToken {
     pub token: String,
     pub expires_at: Timestamp,
