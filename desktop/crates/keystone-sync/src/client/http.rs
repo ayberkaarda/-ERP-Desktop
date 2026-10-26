@@ -536,6 +536,7 @@ fn sign_in_required(message: &str) -> SyncError {
         message: message.to_owned(),
         fields: BTreeMap::new(),
         retry_after: None,
+        redacted: None,
     }
 }
 
@@ -547,5 +548,6 @@ fn deactivated() -> SyncError {
         message: "account deactivated".to_owned(),
         fields: BTreeMap::new(),
         retry_after: None,
+        redacted: None,
     }
 }

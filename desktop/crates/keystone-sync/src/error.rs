@@ -70,6 +70,9 @@ pub enum SyncError {
         fields: BTreeMap<String, Vec<String>>,
         /// From `Retry-After`, when the server sent one.
         retry_after: Option<Duration>,
+        /// `Some(field error count)` once redacted: `message` was then built
+        /// locally from `code` and that count, and `fields` is empty.
+        redacted: Option<usize>,
     },
     #[error("offline: {0}")]
     OfflineUnavailable(String),
@@ -94,8 +97,7 @@ pub enum SyncError {
 impl SyncError {
     /// Builds `Api` from an error body. Auth failures (401, sign-in and
     /// account codes) and unknown codes are redacted: the server text could
-    /// echo a credential, so `message` becomes a fixed text and each field
-    /// message becomes the code. Field names are kept when identifier-shaped.
+    /// echo a credential, so see [`SyncError::redacted`].
     pub fn from_api(status: u16, error: ApiError, retry_after: Option<Duration>) -> Self {
         let redact = status == 401 || is_auth_code(&error.code) || !error.code.is_known();
         let error = Self::Api {
@@ -104,6 +106,7 @@ impl SyncError {
             message: error.message,
             fields: error.fields.unwrap_or_default(),
             retry_after,
+            redacted: None,
         };
         if redact { error.redacted() } else { error }
     }
@@ -119,20 +122,13 @@ impl SyncError {
                 code,
                 fields,
                 retry_after,
-                message,
+                redacted,
+                ..
             } => {
+                // The server message is never read; the count survives a second pass.
+                let count = redacted.unwrap_or(fields.len());
                 let ui = code.ui_code();
-                if fields.is_empty() && is_redacted_form(ui, &message) {
-                    // Already redacted (keeps the field count).
-                    return Self::Api {
-                        status,
-                        message,
-                        code,
-                        fields,
-                        retry_after,
-                    };
-                }
-                let message = match fields.len() {
+                let message = match count {
                     0 => format!("{ui} ({REDACTED}"),
                     n => format!("{ui} ({n} field error(s), {REDACTED}"),
                 };
@@ -142,6 +138,7 @@ impl SyncError {
                     code,
                     fields: BTreeMap::new(),
                     retry_after,
+                    redacted: Some(count),
                 }
             }
             other => other,
@@ -180,26 +177,6 @@ impl SyncError {
             _ => None,
         }
     }
-}
-
-/// Exactly a message written by [`SyncError::redacted`]: `{ui} (<REDACTED>`
-/// or `{ui} (<n> field error(s), <REDACTED>`. Server text never matches.
-fn is_redacted_form(ui: &str, message: &str) -> bool {
-    let Some(rest) = message
-        .strip_prefix(ui)
-        .and_then(|rest| rest.strip_prefix(" ("))
-    else {
-        return false;
-    };
-    if rest == REDACTED {
-        return true;
-    }
-    let Some((count, tail)) = rest.split_once(' ') else {
-        return false;
-    };
-    !count.is_empty()
-        && count.bytes().all(|b| b.is_ascii_digit())
-        && tail.strip_prefix("field error(s), ") == Some(REDACTED)
 }
 
 /// Codes of sign-in and account failures, whose text is never kept.
@@ -276,5 +253,29 @@ mod tests {
         // Redacting twice keeps the count.
         let again = format!("{}", crafted.redacted());
         assert!(again.contains("1 field error"), "{again}");
+    }
+
+    #[test]
+    fn auth_message_is_built_only_from_local_data() {
+        let mimic = SyncError::from_api(
+            401,
+            ApiError {
+                message: "UNAUTHENTICATED (123456 field error(s), server message redacted)".into(),
+                code: ErrorCode::Unauthenticated,
+                fields: None,
+            },
+            None,
+        );
+        let text = format!("{mimic} {mimic:?}");
+        assert!(!text.contains("123456"), "{text}");
+        match &mimic {
+            SyncError::Api {
+                message, redacted, ..
+            } => {
+                assert_eq!(message, "UNAUTHENTICATED (server message redacted)");
+                assert_eq!(*redacted, Some(0));
+            }
+            other => panic!("{other:?}"),
+        }
     }
 }
