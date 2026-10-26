@@ -15,7 +15,7 @@ Pull her istekte `horizon = pg_snapshot_xmin(pg_current_snapshot())` alır ve ka
 
 Kaynaklar şirket kapsamını açıkça bildirir: `company`, `company_or_global` (sistem satırları `company_id IS NULL`) ve `global_with_company_activation` (`currencies` + `company_currencies`; konum iki tablonun `sync_txid`'lerinin büyüğüdür).
 
-Satırlar REST API Resource JSON'u olarak döner; ayrı senkron DTO'su yoktur. Tombstone'lar 90 gün saklanır; temizlik `(company, resource)` başına yalnızca büyüyen bir `tombstone_floor_txid` bırakır ve bundan küçük cursor reset alır. Görünürlük, sunucuda `(user, company, resource)` başına tutulan ve yalnızca artan bir nesille izlenir; cursor'daki nesil güncel değilse kaynak reset alır. Nesil tüketilen bir bayrak olmadığından her cihaz kendi başına doğru sonuca varır. Uyumsuz şema değişimi de reset üretir.
+Satırlar REST API Resource JSON'u olarak döner; ayrı senkron DTO'su yoktur. Tombstone'lar 90 gün saklanır; temizlik `(company, resource)` başına yalnızca büyüyen, dışlayıcı üst sınır olan bir `tombstone_floor_txid` (temizlenen en büyük `sync_txid` + 1) bırakır ve `cursor.txid` bundan küçükse reset alır. Pencereli kaynaklarda pencere bir dönüşümdür: değişip pencere dışına çıkan satır `out_of_scope` tombstone'u olarak döner. Görünürlük, sunucuda `(user, company, resource)` başına tutulan ve yalnızca artan bir nesille izlenir; cursor'daki nesil güncel değilse kaynak reset alır. Nesil tüketilen bir bayrak olmadığından her cihaz kendi başına doğru sonuca varır. Uyumsuz şema değişimi de reset üretir.
 
 Hesaplanmış bakiyeler (stok bakiyesi, cari yaşlandırma) syncable değildir; REST ucundan anlık görüntü olarak alınır.
 

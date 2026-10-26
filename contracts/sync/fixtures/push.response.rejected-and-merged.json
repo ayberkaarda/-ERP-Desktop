@@ -10,7 +10,11 @@
         "error": {
           "message": "Gönderilen veri geçersiz.",
           "code": "VALIDATION_ERROR",
-          "fields": { "lines.0.quantity": ["Miktar sıfırdan büyük olmalıdır."] }
+          "fields": {
+            "lines.0.quantity": [
+              "Miktar sıfırdan büyük olmalıdır."
+            ]
+          }
         }
       },
       {
@@ -33,7 +37,11 @@
         "error": {
           "message": "Bildirilen değişen alanlar gönderilen alanlarla uyuşmuyor.",
           "code": "SYNC_CHANGED_FIELDS_MISMATCH",
-          "fields": { "changed_fields": ["payload içinde bildirilmeyen alan: internal_notes"] }
+          "fields": {
+            "changed_fields": [
+              "payload içinde bildirilmeyen alan: internal_notes"
+            ]
+          }
         }
       },
       {
@@ -54,7 +62,10 @@
             "status": "draft",
             "version": 3
           },
-          "choices": ["keep_mine", "take_server"]
+          "choices": [
+            "keep_mine",
+            "take_server"
+          ]
         }
       },
       {
@@ -64,8 +75,90 @@
         "status": "applied",
         "replayed": false,
         "version": 8,
-        "merged_fields": ["notes"],
-        "data": { "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c41", "status": "draft", "version": 8 }
+        "merged_fields": [
+          "notes"
+        ],
+        "data": {
+          "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c41",
+          "document_type": "order",
+          "number": "ORD2026000000043",
+          "status": "draft",
+          "document_date": "2026-10-24",
+          "party_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+          "party_name": "Anadolu Yapı Market",
+          "party_tax_office": "Kadıköy",
+          "party_tax_number": "1234567890",
+          "billing_address": {
+            "line1": "Bağdat Cad. 120",
+            "city": "İstanbul",
+            "country": "TR"
+          },
+          "currency_code": "TRY",
+          "fx_rate": "1.000000",
+          "payment_term_id": null,
+          "due_date": null,
+          "price_list_id": null,
+          "warehouse_id": "0193a000-0000-7000-8000-0000000000d1",
+          "cost_center_id": null,
+          "project_id": null,
+          "notes": "Teslimat cuma öğleden sonra.",
+          "internal_notes": "Depo ekibi bilgilendirildi.",
+          "source_type": null,
+          "source_id": null,
+          "subtotal": "4497.00",
+          "discount_total": "0.00",
+          "tax_total": "899.40",
+          "total": "5396.40",
+          "subtotal_local": "4497.00",
+          "discount_total_local": "0.00",
+          "tax_total_local": "899.40",
+          "total_local": "5396.40",
+          "requested_delivery_date": "2026-10-30",
+          "quote_id": null,
+          "revision": 1,
+          "credit_override_reason": null,
+          "credit_override_by": null,
+          "approval_request_id": null,
+          "approval_comment": null,
+          "confirmed_at": null,
+          "confirmed_by": null,
+          "cancelled_at": null,
+          "closed_at": null,
+          "version": 8,
+          "created_by": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
+          "created_at": "2026-10-24T11:20:00+03:00",
+          "updated_at": "2026-10-26T09:15:03+03:00",
+          "lines": [
+            {
+              "id": "0193b2a0-0002-7b00-8a00-0000000000a2",
+              "line_no": 1,
+              "item_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b30",
+              "variant_id": null,
+              "item_type": "stock",
+              "description": "Vida seti 4x40",
+              "quantity": "30.0000",
+              "unit_id": "0193a000-0000-7000-8000-0000000000b1",
+              "base_quantity": "30.0000",
+              "unit_price": "149.900000",
+              "tax_inclusive": false,
+              "discount_percent": "0.0000",
+              "discount_amount": "0.00",
+              "gross_amount": "4497.00",
+              "line_discount": "0.00",
+              "net_amount": "4497.00",
+              "tax_code_id": "0193a000-0000-7000-8000-00000000c020",
+              "tax_rate": "20.0000",
+              "tax_amount": "899.40",
+              "line_total": "5396.40",
+              "warehouse_id": "0193a000-0000-7000-8000-0000000000d1",
+              "source_line_id": null,
+              "price_source": "manual",
+              "delivered_quantity": "0.0000",
+              "invoiced_quantity": "0.0000",
+              "reservation_id": null
+            }
+          ]
+        }
       }
     ]
   },

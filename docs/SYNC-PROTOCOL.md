@@ -26,6 +26,7 @@ Tüm şemalar JSON Schema draft 2020-12'dir. Tel tipleri bu şemalardan üretili
 | `contracts/sync/tombstone.schema.json` | Silinen satır bildirimi. |
 | `contracts/sync/error-codes.schema.json` | `errors.code` değerleri (mevcut `ErrorCode` + önerilen senkron kodları). |
 | `contracts/sync/error.response.schema.json` | İstek düzeyindeki hata zarfı. |
+| `contracts/sync/device-login.request.schema.json`, `device-refresh.request.schema.json`, `device-token.response.schema.json` | Cihaz girişi ve refresh token yenilemesi (Identity; D1'de OpenAPI'ye taşınır). |
 | `contracts/sync/fixtures/` | Her şema için geçerli örnekler; `fixtures/invalid/` şemanın reddetmesi gereken örnekler. Dosya adı `<şema>.<durum>.json`. |
 
 Şema `$id` değerleri `https://keystone-erp.invalid/contracts/...` biçimindedir. Bu adres çözülmez; yalnızca dosyalar arası `$ref` için taban URI'dir.
@@ -126,7 +127,7 @@ LIMIT :limit + 1
 - `next_cursor.gen` her zaman kaynağın güncel görünürlük neslidir.
 - İstemci sayfaları sırayla uygular ve `next_cursor`'ı sayfayı yerel depoya yazdığı transaction içinde saklar.
 - Satırlar policy ve şirket kapsamından geçer. Kullanıcının göremediği satır dönmez.
-- `window_days` tanımlı kaynaklarda yalnızca `window_field` değeri pencere içinde olan satırlar döner. Pencereden çıkan belgeler için tombstone üretilmez; istemci yerel kopyayı aynı kurala göre kendisi budar.
+- `window_days` tanımlı kaynaklarda yalnızca `window_field` değeri pencere içinde olan satırlar `rows` içinde döner. Pencere **filtre değil dönüşümdür**: konumu cursor aralığında olan (yani değişmiş) ama `window_field` değeri pencerenin dışında kalan canlı satır, `reason: out_of_scope` tombstone'u olarak döner. Böylece belge tarihi pencere dışına değiştirildiğinde istemci, eski tarihi bilse bile kaydı kaldırır. Değişmeden yaşlanarak pencereden çıkan belgeler için olay üretilmez; istemci bunları yerelde bildiği `window_field` değerine göre kendisi budar. Pencereye geri giren satır, değiştiği için normal satır olayı olarak gelir.
 
 ### Görünürlük nesli
 
@@ -146,7 +147,7 @@ Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir 
 | `visibility_changed` | `cursor.gen`, güncel görünürlük nesline eşit değil. |
 | `schema_changed` | Kaynağın API Resource şekli uyumsuz değişti. |
 
-**Tombstone tabanı.** `xid8` değerinden yaş hesaplanamaz. Bu yüzden tombstone temizliği (90 günden eski `deleted_at`) silinen tombstone'ların en büyük `sync_txid` değerini `(company_id, resource)` başına `tombstone_floor_txid` olarak saklar; taban yalnızca büyür. `cursor.txid < tombstone_floor_txid` olan cursor, aradaki bir silmeyi kaçırmış olabilir ve `cursor_expired` alır. İlk indirme (`cursor: null`) tabandan etkilenmez.
+**Tombstone tabanı.** `xid8` değerinden yaş hesaplanamaz. Bu yüzden tombstone temizliği (90 günden eski `deleted_at`) `(company_id, resource)` başına bir `tombstone_floor_txid` saklar. Taban **dışlayıcı üst sınırdır**: temizlenen tombstone'ların en büyük `sync_txid` değerinin bir fazlası (`max(purged.sync_txid) + 1`); yalnızca büyür. Kural tek ve kesindir: `cursor.txid < tombstone_floor_txid` ise cursor `cursor_expired` alır. Böylece temizlenen bir silmeyle aynı `sync_txid`'e sahip cursor (`{txid: T, after_id: null}` veya `{txid: T, after_id: a}`, T = temizlenen en büyük değer) da reset alır; `cursor.txid >= tombstone_floor_txid` olan her cursor için aralıktaki tüm tombstone'lar hâlâ tablodadır. İlk indirme (`cursor: null`) tabandan etkilenmez.
 
 ### Anlık görüntü kaynakları
 
@@ -205,37 +206,47 @@ Her işlem için: `base_version` sunucu sürümünden **büyükse** `rejected` /
 
 ### İşleme
 
-1. İstek düzeyi kontroller: token, şirket, `schema_version`, parti boyutu (`limits.push_batch_max`). Hata varsa tüm istek `error.response.schema.json` biçiminde döner.
+Adımlar bu sırayla uygulanır. **Yetkilendirme, hiçbir saklanan sonuç, `conflict` veya `server_data` dönmeden önce yapılır**; bir adım başarısızsa sonraki adımlar çalışmaz.
+
+1. İstek düzeyi kontroller: token, şirket üyeliği, `schema_version`, parti boyutu (`limits.push_batch_max`). Hata varsa tüm istek `error.response.schema.json` biçiminde döner.
 2. Mutasyonlar **sırayla** ve her biri **kendi transaction'ında** işlenir. Parti atomik değildir.
-3. **Idempotency.** `(kullanıcı, şirket, 'sync.push', idempotency_key)` için saklanan bir sonuç varsa mutasyon yeniden çalıştırılmaz:
+3. **Manifest ve izin.** Kaynak, `op`/`action` manifestteki `write` tanımında olmalı ve kullanıcının **şu anki** izinleri işlemin `requires` koşulunu sağlamalı. Tanım dışıysa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`; izin yoksa `rejected` / `FORBIDDEN`. Varsayılan kural reddir; manifestte tanımlı olmayan her yazma ONLINE_ONLY'dir.
+4. **Hedef yükleme ve Policy.** Hedef satır (update/delete/action'da `id`; create'te aynı `id` ile var olan satır) **şirket kapsamlı** sorguyla (`company` middleware'i + `BelongsToCompany`) ve `SELECT … FOR UPDATE` ile yüklenir. Başka şirketin veya hiç olmayan satır `rejected` / `NOT_FOUND` olur; varlığı sızdırılmaz. Ardından Policy, işlemin yeteneğiyle (`update`, `delete`, `create`) **ve** `view` ile satır üzerinde çalışır; biri reddederse `rejected` / `FORBIDDEN`. `server_data` ve `data` yalnızca bu adımı geçmiş satırlar için üretilir.
+5. **Idempotency.** `(kullanıcı, şirket, 'sync.push', idempotency_key)` için saklanan bir sonuç varsa mutasyon yeniden çalıştırılmaz. 3. ve 4. adımlar replay için de çalışmıştır; yetkisini yitiren kullanıcı saklanan veriyi geri alamaz (sonuç `rejected` / `FORBIDDEN` veya `NOT_FOUND`, `replayed: false`, saklanmaz).
    - İstek özeti farklıysa `rejected` / `IDEMPOTENCY_KEY_REUSED`.
-   - Saklanan sonuç `applied` ise `duplicate` döner; ilk sonucun `version` ve `data`'sı aynen, `replayed: true`.
-   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`. Böylece tekrar gönderim bir çakışmayı başarı gibi göstermez.
-   Sonucun tamamı 7 gün saklanır. Geçici hatalar (aşağıda) saklanmaz.
-4. **Bağımlılık.** Aynı `id`'ye ait önceki mutasyonlar ve `depends_on` ile bildirilenler `applied` veya `duplicate` olmalıdır; değilse `rejected` / `SYNC_DEPENDENCY_FAILED` ve mutasyon denenmez. `depends_on` yalnızca aynı partide **daha önce** gelen ya da önceki bir partide gönderilmiş (sonucu saklı) anahtarlara işaret edebilir; ileri veya bilinmeyen referans `rejected` / `VALIDATION_ERROR` (`fields.depends_on`) olur. Referanslar yalnızca geriye baktığı için döngü oluşamaz.
-5. **Manifest kontrolü.** Kaynak, `op`/`action`, izin, `payload_constraints` (create ve update payload'ı) manifestteki `write` tanımıyla karşılaştırılır. Tanım dışıysa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`. Varsayılan kural reddir; manifestte tanımlı olmayan her yazma ONLINE_ONLY'dir.
-6. **Hedef kontrolü** (update, delete, action). Hedef satır kilit altında okunur:
+   - Saklanan sonuç `applied` ise `duplicate` döner; ilk sonucun `version` ve `data`'sı aynen, `replayed: true`. Delete'in tekrarında hedef satır artık yoktur; 4. adım bu durumda `NOT_FOUND` üretmez, saklanan `data: null` sonucu döner.
+   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`; `server_data` güncel satırdan yeniden üretilir.
+   Sonucun tamamı 7 gün saklanır. Geçici hatalar ve yetkilendirme retleri saklanmaz.
+6. **Bağımlılık.** Aynı partide aynı `id`'ye ait daha önceki mutasyonlar ve `depends_on` ile bildirilenler `applied` veya `duplicate` olmalıdır; değilse `rejected` / `SYNC_DEPENDENCY_FAILED` ve mutasyon denenmez. `depends_on` yalnızca aynı partide **daha önce** gelen ya da önceki bir partide gönderilmiş (sonucu saklı) anahtarlara işaret edebilir; ileri veya bilinmeyen referans `rejected` / `VALIDATION_ERROR` (`fields.depends_on`) olur. Referanslar yalnızca geriye baktığı için döngü oluşamaz. `resolution` taşıyan mutasyon için istisna aşağıda (Çakışma çözümü).
+7. **Payload kısıtları.** `payload_constraints` (create ve update payload'ı) sağlanmıyorsa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
+8. **Hedef kısıtları** (update, delete, action; 4. adımda kilitlenen satır üzerinde):
    - `target_constraints` sağlanmıyorsa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`. Örnek: `stock-documents` için hedefin `doc_type` değeri `count` olmalıdır; başka türdeki taslak çevrimdışı güncellenemez, silinemez ve sayılamaz.
    - `draft_only` sağlanmıyorsa `conflict` / `DOCUMENT_LOCKED`.
    - Sürüm kontrolü (yukarıda).
-7. Mutasyon ilgili REST ucunun **FormRequest → Policy → Service** zincirinden geçirilir. Senkron için ayrı iş kuralı yazılmaz.
+9. Mutasyon ilgili REST ucunun **FormRequest → Service** zincirinden geçirilir (Policy 4. adımda çalıştı; servis içindeki ek yetki kontrolleri aynen geçerlidir). Senkron için ayrı iş kuralı yazılmaz.
 
 ### Sonuçlar
 
 | `status` | Anlamı | Zorunlu alanlar | İstemci |
 |---|---|---|---|
-| `applied` | Bu istekte uygulandı. | `data`; `data` doluysa `version`; kesişimsiz birleştirmede `merged_fields`. `replayed: false`. | Outbox kaydını siler, yerel satırı `data` ile değiştirir; `data: null` (delete) ise yerel satırı siler. |
-| `duplicate` | Daha önce `applied` olmuş anahtarın tekrarı. | `applied` ile aynı; `replayed: true`. | `applied` gibi davranır. |
+| `applied` | Bu istekte uygulandı. | `data`; `data` doluysa `version`; kesişimsiz birleştirmede `merged_fields`. `replayed: false`. | Outbox kaydını siler; yerel satırı aşağıdaki **sürüm kuralıyla** `data` ile değiştirir. |
+| `duplicate` | Daha önce `applied` olmuş anahtarın tekrarı. | `applied` ile aynı; `replayed: true`. | `applied` gibi; `data` eski olabileceğinden sürüm kuralı burada özellikle önemlidir. |
 | `conflict` | Kullanıcı kararı gerekir. | `conflict`. | Kaydı Conflict Inbox'a taşır. |
 | `rejected` | Kalıcı hata. | `error`. | Outbox kaydını hata koduyla işaretler, kullanıcıya gösterir. |
 
 Geçici hatalarda (ağ, 5xx, `TOO_MANY_ATTEMPTS`, `IDEMPOTENCY_IN_PROGRESS`) sonuç yoktur; istemci partiyi aynı anahtarlarla geri çekilerek yeniden gönderir.
 
+**Sürüm kuralı (istemci).** Push sonucu yerel satırı asla geriletmez:
+
+- `data` doluysa: yerel satır yoksa ya da yerel `version < data.version` ise `data` uygulanır; yerel `version >= data.version` ise (arada daha yeni bir pull uygulanmış) yerel satır korunur, yalnızca outbox kaydı kapanır.
+- `data: null` (delete): yerel satır yoksa bir şey yapılmaz. Yerel `version` delete mutasyonunun `base_version` değerine eşit ya da küçükse satır silinir. Büyükse satır silinmez; kaynak bir sonraki pull'da yeniden doğrulanır (tombstone gelirse silinir, canlı satır gelirse kalır).
+- Cursor bu kuraldan etkilenmez; pull ile gelen olaylar her zaman uygulanır.
+
 ### Çakışma kuralları
 
 Sessiz üzerine yazma yasaktır.
 
-1. **Belge kilitli.** `write.draft_only` alanı (`status`) artık `draft` değilse sonuç `conflict` / `DOCUMENT_LOCKED` olur. Seçenekler yalnızca `save_as_new_draft` (istemci yeni UUIDv7 ve yeni anahtarla `create` üretir) veya `discard` (şema denetler).
+1. **Belge kilitli.** `write.draft_only` alanı (`status`) artık `draft` değilse sonuç `conflict` / `DOCUMENT_LOCKED` olur. Aynı kural REST'te de geçerlidir: taslak olmayan belgeyi `PATCH`/`DELETE` ile düzenleme girişimi HTTP 409 `DOCUMENT_LOCKED` döner (bugünkü 422 `INVALID_STATE_TRANSITION` yerine); push bu REST hatasını conflict sonucuna çevirir. Seçenekler yalnızca `save_as_new_draft` (istemci yeni UUIDv7 ve yeni anahtarla `create` üretir) veya `discard` (şema denetler).
 2. **Eski sürüm, kesişim yok** (`field-merge`). `base_version` güncel değilse, doğrulanmış `changed_fields` ile `base_version`'dan beri sunucuda değişen alanlar (audit diff) karşılaştırılır. Kesişim yoksa değişiklik uygulanır: `applied` ve `merged_fields`.
 3. **Eski sürüm, kesişim var.** Sonuç `conflict` / `VERSION_CONFLICT`; `conflicting_fields` ve `server_data` döner. Seçenekler `keep_mine`, `take_server`, `merge` içinden. `delete`/`action` için `exact` kuralı gereği kesişim aranmaz; seçenekler `keep_mine` ve `take_server`.
 4. **Belirsizlik çakışmadır.** Aradaki değişikliği audit kaydından kesin çıkarılamayan alan (ör. activitylog'un izlemediği `lines`) kesişiyor sayılır.
@@ -254,6 +265,12 @@ Conflict Inbox kararı, **yeni bir `idempotency_key`** ile gönderilen yeni bir 
 | `DUPLICATE_RECORD` | `keep_mine` | Aynı `id` ile `create`; `resolution` `{code: DUPLICATE_RECORD, choice: keep_mine}`. Sunucu bu durumda mükerrer kontrolünü atlar; diğer doğrulamalar ve `parties.create` izni aynen uygulanır. |
 | `DUPLICATE_RECORD` | `use_existing` | Mutasyon yok; bağımlı outbox kayıtları istemcide aday `id`'ye yeniden yazılır. |
 | Herhangi | `discard` | Mutasyon yok; outbox kaydı silinir. |
+
+**Yerine geçme.** `resolution` taşıyan mutasyon, çözdüğü mutasyonun (`resolves`) **yerine geçer**:
+
+- Sunucu, `resolves` sonucunun saklanan statüsü `conflict` olduğu ve kodunun `resolution.code` ile eşleştiği sürece bu mutasyonu işler. Çözülen mutasyon örtük aynı-`id` bağımlılığından ve `depends_on` kontrolünden çıkarılır; yani çözülen conflict, çözen mutasyonu `SYNC_DEPENDENCY_FAILED` ile engellemez.
+- Çözen mutasyon `applied` olunca sunucu çözülen kaydı `superseded_by = <yeni anahtar>` olarak işaretler. Aynı `resolves` için ikinci bir çözüm `rejected` / `SYNC_RESOLUTION_INVALID` olur. Çözülen anahtarın tekrarı saklanan conflict'i döndürmeye devam eder; istemci onu outbox'tan zaten çıkarmıştır.
+- Aynı `id` için çözülen mutasyondan sonra gelmiş ve onun yüzünden `SYNC_DEPENDENCY_FAILED` almış mutasyonları istemci, çözen mutasyondan sonra yeni anahtarlarla ve güncel `base_version` ile yeniden üretir.
 
 Numara verme sunucudadır. Çevrimdışı oluşturulan taslak numarasızdır; numara push uygulandığında `data.number` ile gelir.
 
@@ -289,7 +306,7 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 
 | Kod | HTTP | Nerede |
 |---|---|---|
-| `DOCUMENT_LOCKED` | 409 | Push `conflict`. Hedef belge taslak değil. |
+| `DOCUMENT_LOCKED` | 409 | REST düzenleme/silme uçları ve push `conflict`. Hedef belge taslak değil. |
 | `DUPLICATE_RECORD` | 409 | Push `conflict`. Mükerrer cari adayı. |
 | `SYNC_SCHEMA_MISMATCH` | 409 | İstek. İstemci şema sürümü desteklenmiyor. |
 | `SYNC_CURSOR_INVALID` | 422 | İstek. Cursor biçimsiz, horizon'dan ileride ya da `gen` güncel nesilden büyük. |
@@ -308,13 +325,29 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 - `POST /api/v1/auth/device`: e-posta, parola, TOTP (2FA açıksa), `device_name`, `fingerprint`. `desktop` yetenekli Sanctum token'ı verir; token cihaza (`user_devices`) bağlıdır.
 - `GET /api/v1/me/devices` ve `DELETE /api/v1/me/devices/{id}`: cihazları listeler ve iptal eder.
 - Pasifleştirme, parola değişimi ve yönetici sıfırlaması cihaz token'larını iptal eder (`AccessRevoker`).
-- Hedef: kısa ömürlü erişim token'ı ve döndürülerek yenilenen refresh token (ADR 0007). Uç sözleşmesi D1 açık konusudur (aşağıda madde 12).
+- `POST /api/v1/auth/device/refresh`: refresh token'ı döndürerek erişim token'ını yeniler (ADR 0007). Şemalar: `device-login.request`, `device-token.response`, `device-refresh.request` (`contracts/sync/`; D1'de OpenAPI'ye taşınır).
+
+### Token yaşam döngüsü
+
+| Değer | Kural |
+|---|---|
+| Erişim token'ı | 60 dakika. `desktop` yetenekli Sanctum token'ı. |
+| Refresh token | 30 gün, kayan: her başarılı yenileme yeni bir refresh token ve yeni 30 gün verir. Tek kullanımlıktır. |
+| Saklama | `device_refresh_tokens(id, device_id, token_hash, family_id, expires_at, used_at)`. Ham token saklanmaz. |
+
+- **İlk giriş.** `POST /auth/device` erişim token'ını ve ailenin ilk refresh token'ını birlikte döner: `{data: {token, expires_at, refresh_token, refresh_expires_at}}`. Aynı kullanıcı ve fingerprint ile yeni giriş önceki cihaz kaydını ve ailesini iptal eder.
+- **Yenileme.** `POST /auth/device/refresh` gövdesi `{refresh_token}`; `Authorization` başlığı gerekmez. Sunucu token'ı `used_at` ile işaretler, aynı `family_id` içinde yeni refresh token ve yeni erişim token'ı verir, eski erişim token'ını siler. Yanıt ilk girişle aynı şekildedir.
+- **Yeniden kullanım.** `used_at` dolu bir refresh token gelirse sunucu ailenin tamamını, cihazın erişim token'larını ve cihaz kaydını iptal eder ve 401 `UNAUTHENTICATED` döner. İstemci yerel oturumu kapatır; outbox korunur ve yeniden girişten sonra gönderilir.
+- **Diğer hatalar.** Bilinmeyen, süresi dolmuş veya iptal edilmiş cihaza ait refresh token: 401 `UNAUTHENTICATED`. Pasif kullanıcı: 403 `USER_DEACTIVATED`. Hız sınırı: 429 `TOO_MANY_ATTEMPTS`. Biçimsiz gövde: 422 `VALIDATION_ERROR`.
+- **Eşzamanlılık.** Eşzamanlı yenileme desteklenmez; ikinci istek yeniden kullanım sayılır. İstemci yenilemeyi tek uçuşla sıralar ve erişim token'ı `expires_at`'ten önce (ör. 5 dakika kala) yeniler.
+- **İptal.** `DELETE /me/devices/{id}`, kullanıcı pasifleştirme, parola değişimi ve yönetici sıfırlaması (`AccessRevoker`) aileyi de iptal eder.
 
 ## Saklama ve limitler
 
 | Değer | Süre / sınır |
 |---|---|
-| Tombstone | 90 gün (`deleted_at`'e göre). Temizlik `tombstone_floor_txid`'i yükseltir; daha eski cursor `reset: cursor_expired` alır. |
+| Tombstone | 90 gün (`deleted_at`'e göre). Temizlik `tombstone_floor_txid`'i (dışlayıcı üst sınır) yükseltir; `cursor.txid < tombstone_floor_txid` olan cursor `reset: cursor_expired` alır. |
+| Erişim token'ı / refresh token | 60 dakika / 30 gün kayan. |
 | Push idempotency kaydı | 7 gün (`sync.push` kapsamı); istek özeti ve sonucun tamamı. |
 | Görünürlük nesli | Süresiz; yalnızca artar. |
 | Pull sayfası | Varsayılan 200, en fazla 1000 satır. |
@@ -356,19 +389,14 @@ Web'de hazırlanması planlanan A6 zemininin ve senkron sunucusunun backend'de h
 
 8. Store FormRequest'leri istemcinin gönderdiği `id`'yi kabul etmiyor. `HasUuid7` modelde istemci kimliğine izin veriyor, ama `parties`, `sales-quotes`, `sales-orders`, `purchase-requests` ve `stock-documents` için doğrulama kuralı (UUIDv7, benzersiz) eklenmeli.
 9. `Idempotency-Key` saklama süresi 24 saat (`config/idempotency.php`, `IDEMPOTENCY_TTL_HOURS`) ve mevcut katman HTTP yanıtını saklıyor. Push için mutasyon başına sonuç, istek özeti ve 7 günlük `sync.push` kapsamı gerekli.
-10. Taslak olmayan belgeyi düzenleme bugün `INVALID_STATE_TRANSITION` (422, `document_not_editable`) döndürüyor. Push bunu `DOCUMENT_LOCKED`'a çevirmeli; önerilen 11 kod `ErrorCode`'a eklenmeli.
+10. Taslak olmayan belgeyi düzenleme bugün `INVALID_STATE_TRANSITION` (422, `document_not_editable`) döndürüyor. Karar: REST uçları da 409 `DOCUMENT_LOCKED` dönecek (Sales, Purchasing, Inventory servisleri ve testleri güncellenmeli); önerilen 11 kod `ErrorCode`'a eklenmeli.
 11. `POST /api/v1/parties` mükerrer kontrolü yapmıyor; `DuplicateFinder` yalnızca `GET /api/v1/parties/duplicates` ucunda. Push create'i öncesinde çağrılmalı.
 12. Alan bazlı birleştirme için audit diff yetersiz: activitylog `Party` için `version`'ı, `SalesDocument` için satırları kaydetmiyor. Kural 4 (belirsizlik çakışmadır) bu yüzden şart; daha iyi birleştirme için sürüm bazlı alan değişikliği kaydı gerekiyor.
 13. Sunucu toplamları hesaplıyor (`preview-totals`). Çevrimdışı taslakta tutarlar geçicidir; push sonrası `data` ile kesinleşir.
 
 **Cihaz kimliği**
 
-14. **D1 açık konusu: refresh token sözleşmesi.** `POST /auth/device`, `GET /me/devices` ve `DELETE /me/devices/{id}` var; token tek ve 30 günlük (`DeviceTokens`: `sanctum.device_token_ttl_days` / `identity.device_tokens.ttl_days`). Gerekçe: yenileme bir Identity uç sözleşmesidir ve senkron tel biçimine değil OpenAPI'ye aittir; Identity değişikliğiyle birlikte şemalaştırılacak. D1'de bağlayıcı olacak çerçeve:
-    - `POST /api/v1/auth/device/refresh`, gövde `{refresh_token, fingerprint}`, yanıt `{data: {token, expires_at, refresh_token, refresh_expires_at}}`.
-    - Erişim token'ı 15 dakika, refresh token 30 gün (kayan). Her refresh yeni bir refresh token verir; eskisi tek kullanımlıktır.
-    - Refresh token'lar `user_devices` kaydına bağlı bir **aile** oluşturur. Kullanılmış bir refresh token tekrar gelirse ailenin tamamı ve cihaz iptal edilir.
-    - Eşzamanlı yenileme: aynı refresh token ile 30 saniye içinde gelen ikinci istek aynı yeni çifti alır (idempotent pencere); sonrası tekrar kullanım sayılır.
-    - `DELETE /me/devices/{id}`, pasifleştirme, parola değişimi ve yönetici sıfırlaması aileyi iptal eder.
+14. Refresh token uygulaması yok: bugün tek, 30 günlük token (`DeviceTokens`: `sanctum.device_token_ttl_days` / `identity.device_tokens.ttl_days`). Sözleşme yukarıda (Token yaşam döngüsü) ve `contracts/sync/device-*.schema.json` dosyalarında; D1'de uygulanıp OpenAPI'ye taşınacak.
 
 **Kapsam**
 

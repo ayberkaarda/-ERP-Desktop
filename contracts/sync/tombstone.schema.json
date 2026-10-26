@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://keystone-erp.invalid/contracts/sync/tombstone.schema.json",
   "title": "Tombstone",
-  "description": "Senkronlanan bir satırın istemciden kaldırılması gerektiğini bildirir. sync_tombstones tablosundaki bir satırın tel biçimidir; 90 gün saklanır.",
+  "description": "Senkronlanan bir satırın istemciden kaldırılması gerektiğini bildirir. deleted/soft_deleted: sync_tombstones tablosundaki satırın tel biçimi; 90 gün saklanır. out_of_scope: tabloda saklanmaz; konumu cursor aralığında olan ama artık kaynağın penceresine uymayan canlı satır için pull sırasında üretilir.",
   "type": "object",
   "additionalProperties": false,
   "required": ["resource", "id", "sync_txid", "deleted_at", "reason"],
@@ -14,10 +14,13 @@
       "anyOf": [{ "$ref": "common.schema.json#/$defs/uuid" }, { "type": "null" }]
     },
     "sync_txid": { "$ref": "common.schema.json#/$defs/xid8" },
-    "deleted_at": { "$ref": "common.schema.json#/$defs/timestamp" },
+    "deleted_at": {
+      "description": "Silme zamanı; out_of_scope için satırı kapsamdan çıkaran değişikliğin zamanı (updated_at).",
+      "$ref": "common.schema.json#/$defs/timestamp"
+    },
     "reason": {
-      "description": "deleted: satır fiziksel olarak silindi. soft_deleted: deleted_at dolduruldu (SoftDeletes). Pencere dışına düşen belgeler tombstone üretmez; istemci onları window_days'e göre kendisi budar.",
-      "enum": ["deleted", "soft_deleted"]
+      "description": "deleted: satır fiziksel olarak silindi. soft_deleted: deleted_at dolduruldu (SoftDeletes). out_of_scope: satır değişti ve window_field değeri artık pencerenin dışında (ör. belge tarihi geriye alındı). Değişmeden yaşlanarak pencereden çıkan belgeler tombstone üretmez; istemci onları kendi bildiği window_field değerine göre budar.",
+      "enum": ["deleted", "soft_deleted", "out_of_scope"]
     }
   }
 }

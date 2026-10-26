@@ -27,7 +27,7 @@
     { "const": "APPROVAL_REQUIRED", "description": "409." },
     { "const": "FILE_TOO_LARGE", "description": "413." },
     { "const": "UNSUPPORTED_FILE_TYPE", "description": "422." },
-    { "const": "DOCUMENT_LOCKED", "description": "Önerilen. 409. Hedef belge artık taslak değil; çevrimdışı değişiklik uygulanamaz. Push içinde conflict sonucu olarak döner." },
+    { "const": "DOCUMENT_LOCKED", "description": "Önerilen. 409. Hedef belge artık taslak değil. REST düzenleme/silme uçları da (bugünkü INVALID_STATE_TRANSITION yerine) bunu döner; push içinde conflict sonucu olarak döner." },
     { "const": "DUPLICATE_RECORD", "description": "Önerilen. 409. Yeni cari, mevcut bir cariyle mükerrer adayı (vergi no / ad eşleşmesi). Push içinde conflict sonucu olarak döner." },
     { "const": "SYNC_SCHEMA_MISMATCH", "description": "Önerilen. 409. İstemcinin schema_version değeri sunucunun desteklediği aralıkta değil; istemci güncellenmeli." },
     { "const": "SYNC_CURSOR_INVALID", "description": "Önerilen. 422. Cursor biçimsiz ya da horizon'dan ileride." },
