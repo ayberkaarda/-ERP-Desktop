@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Core\Sync\Schema\Syncable;
 use App\Core\Sync\Xid8;
+use Illuminate\Database\QueryException;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -275,5 +277,104 @@ it('adds sync tracking to an existing table with rows', function (): void {
             ->toContain('(company_id, sync_txid, id)');
     } finally {
         Schema::dropIfExists('sync_fixture_legacy');
+    }
+});
+
+it('leaves no position change or tombstone behind a rolled back savepoint', function (): void {
+    $note = note();
+    $before = Sync::txidOf('sync_fixture_notes', $note->id);
+    $ghost = null;
+
+    DB::transaction(function () use ($note, &$ghost): void {
+        try {
+            DB::transaction(function () use ($note, &$ghost): void {
+                $ghost = note('Ghost');
+                $note->delete();
+                DB::table('sync_fixture_note_lines')->insert(['note_id' => $note->id, 'position' => 1, 'body' => 'x']);
+
+                throw new RuntimeException('roll back the savepoint');
+            });
+        } catch (RuntimeException) {
+            // the outer transaction goes on and commits
+        }
+    });
+
+    expect(Sync::tombstone('sync_fixture_notes', $note->id))->toBeNull()
+        ->and(Sync::txidOf('sync_fixture_notes', $note->id))->toEqual($before)
+        ->and(DB::table('sync_fixture_notes')->where('id', $ghost?->id)->exists())->toBeFalse()
+        ->and(DB::table('sync_fixture_note_lines')->where('note_id', $note->id)->exists())->toBeFalse();
+});
+
+it('runs a syncable/dropSyncable cycle on a 63 character table name', function (): void {
+    $name = str_pad('sync_fixture_long_', 63, 'x');
+
+    Schema::create($name, function (Blueprint $table): void {
+        $table->uuid('id')->primary()->default(DB::raw('uuidv7()'));
+        $table->uuid('company_id');
+        $table->syncable();
+    });
+
+    try {
+        $index = Syncable::indexName($name);
+
+        expect(strlen($index))->toBeLessThanOrEqual(63)
+            ->and(Schema::hasIndex($name, $index))->toBeTrue();
+
+        Schema::table($name, fn (Blueprint $table) => $table->dropSyncable());
+        expect(Schema::hasColumn($name, 'sync_txid'))->toBeFalse()
+            ->and(Schema::hasIndex($name, $index))->toBeFalse();
+
+        Schema::table($name, fn (Blueprint $table) => $table->syncable());
+        expect(Schema::hasIndex($name, $index))->toBeTrue();
+    } finally {
+        Schema::dropIfExists($name);
+    }
+});
+
+it('stamps after the table guards and lets them pass parent touches', function (): void {
+    // A guard in the style of the posted-document guards: closed notes are frozen.
+    DB::unprepared(<<<'SQL'
+        CREATE OR REPLACE FUNCTION sync_fixture_closed_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+            IF sync_touching() THEN RETURN NEW; END IF;
+            IF OLD.status = 'closed' THEN
+                RAISE EXCEPTION 'closed notes are immutable' USING ERRCODE = '23514';
+            END IF;
+            IF (to_jsonb(NEW) - ARRAY['title', 'status', 'version', 'updated_at']) IS DISTINCT FROM
+               (to_jsonb(OLD) - ARRAY['title', 'status', 'version', 'updated_at']) THEN
+                RAISE EXCEPTION 'only title and status may change' USING ERRCODE = '23514';
+            END IF;
+            RETURN NEW;
+        END;
+        $$;
+        CREATE TRIGGER sync_fixture_notes_guard BEFORE UPDATE ON sync_fixture_notes
+            FOR EACH ROW EXECUTE FUNCTION sync_fixture_closed_guard();
+        SQL);
+
+    try {
+        $note = note();
+        $order = DB::table('pg_trigger')
+            ->join('pg_class', 'pg_class.oid', '=', 'pg_trigger.tgrelid')
+            ->where('pg_class.relname', 'sync_fixture_notes')
+            ->whereIn('tgname', ['sync_fixture_notes_guard', 'zz_sync_touch'])
+            ->orderBy('tgname')
+            ->pluck('tgname')
+            ->all();
+
+        // Name order is firing order: the guard compares before sync_txid is restamped.
+        expect($order)->toBe(['sync_fixture_notes_guard', 'zz_sync_touch']);
+
+        $txid = inTransaction(fn () => $note->update(['title' => 'Allowed', 'status' => 'closed']));
+        expect(Sync::txidOf('sync_fixture_notes', $note->id))->toEqual($txid);
+
+        // A line change on the closed note still moves its position, through sync_touching().
+        $lineTx = inTransaction(fn () => DB::table('sync_fixture_note_lines')->insert(['note_id' => $note->id, 'position' => 1, 'body' => 'late']));
+        expect(Sync::txidOf('sync_fixture_notes', $note->id))->toEqual($lineTx)
+            ->and(DB::selectOne('SELECT sync_touching() AS t')->t)->toBeFalse();
+
+        // Everything else on the closed note is still refused.
+        expect(fn () => $note->fresh()?->update(['title' => 'Nope']))->toThrow(QueryException::class);
+    } finally {
+        DB::unprepared('DROP TRIGGER IF EXISTS sync_fixture_notes_guard ON sync_fixture_notes; DROP FUNCTION IF EXISTS sync_fixture_closed_guard();');
     }
 });

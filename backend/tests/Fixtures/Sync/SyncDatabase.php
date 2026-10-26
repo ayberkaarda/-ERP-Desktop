@@ -14,23 +14,28 @@ use Illuminate\Foundation\Testing\RefreshDatabaseState;
  *
  * Under RefreshDatabase every row a test writes carries the xid of the test's own open
  * transaction, and the pull horizon pg_snapshot_xmin(pg_current_snapshot()) can never pass
- * that xid, so pull would return nothing. Tests using this trait commit for real; committed
- * rows are removed before and after each test.
+ * that xid, so pull would return nothing. Tests using this trait commit for real; before and
+ * after each test the database is put back into its post-migration state.
  *
- * Differences from the stock trait, so the rest of the suite (RefreshDatabase, same process)
- * keeps working:
- * - Rows are deleted with triggers and foreign keys off (session_replication_role = replica)
- *   instead of TRUNCATE ... CASCADE, which the append-only guards (e.g. stock_movements)
- *   refuse, and which would make the sync triggers write tombstones while cleaning up.
- * - Tables that migrations seed are left alone; they are recorded once per process while
- *   only seed rows exist.
+ * How, and why not the stock trait:
+ * - Once per process, while only migration seed rows exist, the tables that hold rows are
+ *   copied into the schema `sync_test_seed`. Cleanup empties every other table and restores
+ *   seeded tables row for row from that copy, so rows a test inserted into, changed in or
+ *   deleted from a seeded table never reach the next test, and no table keeps rows that
+ *   point at removed ones.
+ * - It runs with triggers and foreign keys off (session_replication_role = replica, needs a
+ *   superuser, as the docker and CI database users are) instead of TRUNCATE ... CASCADE,
+ *   which append-only guards (stock_movements) refuse and which would make the sync triggers
+ *   write tombstones while cleaning up.
  * - The table list is read each time, so fixture tables created by a test are cleaned too.
  */
 trait SyncDatabase
 {
     use DatabaseTruncation;
 
-    /** @var list<string>|null tables holding migration seed rows */
+    private static string $seedSchema = 'sync_test_seed';
+
+    /** @var list<string>|null qualified names of the tables restored from the seed copy */
     private static ?array $seededTables = null;
 
     protected function truncateDatabaseTables(): void
@@ -41,55 +46,96 @@ trait SyncDatabase
             RefreshDatabaseState::$migrated = true;
         }
 
-        $this->deleteCommittedRows();
+        $this->restoreDatabase();
     }
 
     protected function tearDownSyncDatabase(): void
     {
-        $this->deleteCommittedRows();
+        $this->restoreDatabase();
     }
 
-    private function deleteCommittedRows(): void
+    private function restoreDatabase(): void
     {
         /** @var Connection $db */
         $db = $this->app['db']->connection();
-        $seeded = $this->seededTables($db);
+        $seeded = $this->snapshotSeeds($db);
         $migrations = $this->migrationsTable();
-        $tables = array_values(array_filter(
-            $this->tableNames($db),
-            static fn (string $t): bool => ! in_array($t, $seeded, true) && $t !== $migrations && ! str_ends_with($t, '.'.$migrations),
-        ));
+        $schema = self::$seedSchema;
 
-        $db->transaction(static function () use ($db, $tables): void {
+        $db->transaction(function () use ($db, $seeded, $migrations, $schema): void {
             $db->statement('SET LOCAL session_replication_role = replica');
 
-            foreach ($tables as $table) {
-                $db->table($table)->delete();
+            foreach ($this->tableNames($db) as $table) {
+                if ($table === $migrations || str_ends_with($table, '.'.$migrations)) {
+                    continue;
+                }
+
+                $quoted = self::quote($table);
+                $db->statement("DELETE FROM {$quoted}");
+
+                if (in_array($table, $seeded, true)) {
+                    $columns = $this->insertableColumns($db, $table);
+                    $copy = '"'.$schema.'".'.self::quote(self::copyName($table));
+                    $db->statement("INSERT INTO {$quoted} ({$columns}) OVERRIDING SYSTEM VALUE SELECT {$columns} FROM {$copy}");
+                }
             }
         });
     }
 
     /**
-     * Computed once per process, before this trait's first cleanup, while only seed rows
-     * exist: right after migrate:fresh, or after RefreshDatabase tests (which roll back).
-     *
+     * Takes the seed copy again from the current state (tests of this trait only).
+     */
+    protected function retakeSeedSnapshot(): void
+    {
+        self::$seededTables = null;
+        /** @var Connection $db */
+        $db = $this->app['db']->connection();
+        $this->snapshotSeeds($db);
+    }
+
+    /**
      * @return list<string>
      */
-    private function seededTables(Connection $db): array
+    private function snapshotSeeds(Connection $db): array
     {
         if (self::$seededTables !== null) {
             return self::$seededTables;
         }
 
+        $schema = self::$seedSchema;
+        $migrations = $this->migrationsTable();
         $seeded = [];
 
+        $db->statement("DROP SCHEMA IF EXISTS \"{$schema}\" CASCADE");
+        $db->statement("CREATE SCHEMA \"{$schema}\"");
+
         foreach ($this->tableNames($db) as $table) {
-            if ($db->table($table)->exists()) {
-                $seeded[] = $table;
+            if ($table === $migrations || str_ends_with($table, '.'.$migrations) || ! $db->table($table)->exists()) {
+                continue;
             }
+
+            $db->statement('CREATE TABLE "'.$schema.'".'.self::quote(self::copyName($table)).' AS TABLE '.self::quote($table));
+            $seeded[] = $table;
         }
 
         return self::$seededTables = $seeded;
+    }
+
+    /**
+     * Column list without generated columns, which cannot be written.
+     */
+    private function insertableColumns(Connection $db, string $table): string
+    {
+        [$schema, $name] = explode('.', $table, 2);
+        $columns = $db->table('information_schema.columns')
+            ->where('table_schema', $schema)
+            ->where('table_name', $name)
+            ->where('is_generated', 'NEVER')
+            ->orderBy('ordinal_position')
+            ->pluck('column_name')
+            ->all();
+
+        return implode(', ', array_map(static fn (mixed $c): string => '"'.(is_string($c) ? $c : '').'"', $columns));
     }
 
     /**
@@ -111,5 +157,17 @@ trait SyncDatabase
         $table = is_array($migrations) ? ($migrations['table'] ?? 'migrations') : $migrations;
 
         return is_string($table) ? $table : 'migrations';
+    }
+
+    private static function quote(string $qualified): string
+    {
+        return implode('.', array_map(static fn (string $part): string => '"'.$part.'"', explode('.', $qualified)));
+    }
+
+    private static function copyName(string $qualified): string
+    {
+        $name = str_replace('.', '__', $qualified);
+
+        return strlen($name) <= 63 ? $name : 't_'.md5($qualified);
     }
 }

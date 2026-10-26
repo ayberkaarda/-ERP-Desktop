@@ -13,7 +13,12 @@ it('accepts canonical decimal xid8 values up to 2^64-1', function (string $value
 it('rejects anything else', function (string $value): void {
     expect(Xid8::isValid($value))->toBeFalse()
         ->and(Xid8::tryOf($value))->toBeNull();
-})->with(['', '-1', '01', '1.5', ' 1', '18446744073709551616', '99999999999999999999', 'abc', '1e3']);
+})->with(['', '-1', '01', '1.5', ' 1', '18446744073709551616', '99999999999999999999', 'abc', '1e3', "9\n", "1\r\n", "\n1"]);
+
+it('does not let a trailing newline sort above a longer value', function (): void {
+    expect(fn () => Xid8::of("9\n"))->toThrow(InvalidArgumentException::class)
+        ->and(preg_match(Cursor::UUID_PATTERN, "01928c1e-7a2b-7c3d-8e4f-0a1b2c3d4e5f\n"))->toBe(0);
+});
 
 it('compares numerically beyond the PHP integer range', function (): void {
     $small = Xid8::of('9');

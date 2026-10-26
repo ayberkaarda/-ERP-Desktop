@@ -13,6 +13,7 @@ use App\Core\Sync\Rules\Uuid7;
 use App\Core\Sync\SyncConfig;
 use App\Core\Sync\SyncConflict;
 use App\Core\Sync\WriteOutcome;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
@@ -77,6 +78,16 @@ it('names the invalid mutation fields', function (array $overrides, string $fiel
     [['changed_fields' => ['a', 'a']], 'changed_fields'],
     [['payload' => ['a', 'b']], 'payload'],
     [['occurred_at' => 'yesterday-ish'], 'occurred_at'],
+    [['occurred_at' => 'now'], 'occurred_at'],
+    [['occurred_at' => 'tomorrow'], 'occurred_at'],
+    [['occurred_at' => '2027-02-30T10:00:00+03:00'], 'occurred_at'],
+    [['occurred_at' => '2027-08-01T24:00:00Z'], 'occurred_at'],
+    [['occurred_at' => '2027-08-01T10:60:00Z'], 'occurred_at'],
+    [['occurred_at' => '2027-08-01T10:00:00'], 'occurred_at'],
+    [['occurred_at' => '2027-08-01 10:00:00+03:00'], 'occurred_at'],
+    [['occurred_at' => '2027-08-01T10:00:00+25:00'], 'occurred_at'],
+    [['occurred_at' => "2027-08-01T10:00:00Z\n"], 'occurred_at'],
+    [['id' => "01928c1e-7a2b-7c3d-9e4f-0a1b2c3d4e60\n"], 'id'],
     [['depends_on' => ['x']], 'depends_on'],
     [['resolution' => ['resolves' => '01928c1e-7a2b-7c3d-8e4f-0a1b2c3d4e62', 'code' => 'DOCUMENT_LOCKED', 'choice' => 'merge']], 'resolution'],
 ]);
@@ -87,6 +98,25 @@ it('fingerprints mutations independent of payload key order', function (): void 
     $c = Mutation::fromArray(wireMutation(['payload' => ['title' => 'Other', 'lines' => [['body' => 'a', 'n' => 1]]]]));
 
     expect($a->fingerprint())->toBe($b->fingerprint())->not->toBe($c->fingerprint());
+});
+
+it('accepts strict RFC 3339 timestamps, with or without fractions', function (string $value): void {
+    expect(Mutation::fromArray(wireMutation(['occurred_at' => $value]))->occurredAt->format('Y-m-d'))->toBe('2027-08-01');
+})->with(['2027-08-01T10:00:00Z', '2027-08-01T10:00:00.123456+03:00', '2027-08-01T23:59:59-05:30']);
+
+it('gives a retried mutation the same fingerprint whenever it arrives', function (): void {
+    $wire = wireMutation();
+
+    try {
+        CarbonImmutable::setTestNow('2027-08-01 10:00:00');
+        $first = Mutation::fromArray($wire)->fingerprint();
+        CarbonImmutable::setTestNow('2027-08-09 18:30:00');
+        $retry = Mutation::fromArray($wire)->fingerprint();
+    } finally {
+        CarbonImmutable::setTestNow();
+    }
+
+    expect($retry)->toBe($first);
 });
 
 it('serialises outcomes in the push result shape', function (): void {
