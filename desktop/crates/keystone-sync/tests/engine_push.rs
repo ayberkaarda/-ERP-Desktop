@@ -179,6 +179,8 @@ async fn repeated_transient_failures_quarantine_the_mutation_visibly() {
         .mount(&env.server)
         .await;
     let e = &env.engine;
+    // Verifies the sign-in; nothing to push yet.
+    e.run_once(Trigger::Startup).await.unwrap();
     let id = Uuid::now_v7();
     e.enqueue(draft(
         MutationOp::Create,

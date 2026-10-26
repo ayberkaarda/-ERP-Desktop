@@ -232,9 +232,11 @@ async fn a_stale_deactivation_deletes_nothing() {
             move |_: &Request| match seen.fetch_add(1, Ordering::SeqCst) {
                 0 => ResponseTemplate::new(200).set_body_json(simple_manifest(&["parties"])),
                 // Answers a call made before the new sign-in below.
-                _ => ResponseTemplate::new(403)
+                1 => ResponseTemplate::new(403)
                     .set_body_json(error_body("USER_DEACTIVATED", "inactive"))
                     .set_delay(Duration::from_millis(600)),
+                // The follow-up run under the new sign-in finds the server down.
+                _ => ResponseTemplate::new(500).set_body_json(error_body("SERVER_ERROR", "down")),
             },
         )
         .mount(&env.server)
@@ -246,8 +248,11 @@ async fn a_stale_deactivation_deletes_nothing() {
     let run = tokio::spawn(async move { engine.run_once(Trigger::Timer).await });
     tokio::time::sleep(Duration::from_millis(200)).await;
     let generation = env.tokens.sign_in(PROFILE, &tokens(4)).unwrap();
+    // The stale 403 changed nothing; the run cut short by the sign-in is
+    // followed by one under the new sign-in.
     let error = run.await.unwrap().unwrap_err();
-    assert_eq!(error.code(), "USER_DEACTIVATED");
+    assert_eq!(error.code(), "SERVER_ERROR");
+    assert_eq!(calls.load(Ordering::SeqCst), 3);
 
     let record = env.tokens.load_record(PROFILE).unwrap();
     assert_eq!(record.generation, generation);
@@ -255,10 +260,7 @@ async fn a_stale_deactivation_deletes_nothing() {
     assert_eq!(record.tokens, Some(tokens(4)));
     assert_eq!(local_rows(&env), 1);
     assert_eq!(env.engine.status().pending, 1);
-    assert_eq!(
-        env.engine.status().state,
-        SyncState::Failed("USER_DEACTIVATED")
-    );
+    assert_eq!(env.engine.status().state, SyncState::Failed("SERVER_ERROR"));
 }
 
 #[tokio::test]

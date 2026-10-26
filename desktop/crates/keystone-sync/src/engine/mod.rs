@@ -10,25 +10,43 @@
 //! - Pull requests are built from [`crate::store::MirrorStore::pull_base`] and applied with
 //!   the same base; a `Stale` page is requested again from a fresh base. A
 //!   request whose answer was lost is sent again unchanged (same cursor,
-//!   session and `limit`) while the resource has not moved.
+//!   session and `limit`) while the resource has not moved; when the
+//!   manifest no longer allows its `limit`, the resource starts a new full
+//!   download instead. Pulls that stop progressing fail the run.
 //! - Identity: `UNAUTHENTICATED` keeps everything ([`SyncState::AuthRequired`]);
 //!   a different user or company in the manifest wipes local data before
 //!   anything is pushed; `USER_DEACTIVATED` wipes mirror, outbox, conflicts
 //!   and tokens only when the token store recorded it for the current
 //!   sign-in generation (see [`crate::client::HttpClient`]).
+//! - Sign-in generation: a run belongs to the generation
+//!   ([`crate::auth::SessionRecord::generation`]) it started in. Its calls
+//!   are bound to it ([`SyncApi::manifest_in`] and friends), answers are
+//!   committed only while it is still current, and a run cut short by a
+//!   new sign-in is followed by a run under the new one.
+//! - Local access: [`SyncEngine::list`], [`SyncEngine::get`] and
+//!   [`SyncEngine::enqueue`] answer only when the local data was verified by
+//!   a manifest of the current generation (not deactivated), and only for
+//!   resources of that manifest. After another sign-in they fail with
+//!   `OFFLINE_UNAVAILABLE` until a run has checked who signed in. Enqueue,
+//!   sign-out and every wipe exclude each other.
 //! - State is published through [`SyncEngine::subscribe`]; changed resources
-//!   through [`SyncEngine::subscribe_changes`].
+//!   through [`SyncEngine::subscribe_changes`], also for a run that is
+//!   cancelled midway.
 //!
-//! Store calls are synchronous SQLite work run inline on the calling task.
+//! Store calls are synchronous SQLite work run inline on the calling task
+//! (bounded: one push batch or one pull page at a time). Run the sync loop
+//! on its own runtime thread so it cannot stall other tasks.
 
 mod driver;
 mod local;
 mod overlay;
 mod pass;
+#[cfg(test)]
+mod tests;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
 use tokio::sync::{broadcast, watch};
@@ -66,8 +84,19 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 /// Upper bound of push batches in one run (the rest waits for the next run).
 pub const MAX_PUSH_BATCHES: usize = 100;
 
-/// Upper bound of pull requests in one run.
+/// Upper bound of pull requests in one run; a pull still unfinished after
+/// it fails the run.
 pub const MAX_PULL_REQUESTS: usize = 10_000;
+
+/// `Stale` answers per resource and run before the run fails.
+pub const MAX_STALE_PAGES: usize = 3;
+
+/// Server resets per resource and run before the run fails.
+pub const MAX_SERVER_RESETS: usize = 2;
+
+/// Consecutive `has_more` pages per resource that bring nothing and do not
+/// move the cursor before the run fails.
+pub const MAX_IDLE_PAGES: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Trigger {
@@ -173,18 +202,54 @@ struct Gate {
     queued: bool,
 }
 
-/// Clears `running` even when the run panics.
-struct Running<'a>(&'a Mutex<Gate>);
+/// Frees the run slot when a run is cancelled or panics. A run that ends
+/// normally frees it itself, in the same critical section that checks for
+/// a follow-up, and disarms this guard.
+struct Running<'a> {
+    gate: &'a Mutex<Gate>,
+    armed: bool,
+}
 
 impl Drop for Running<'_> {
     fn drop(&mut self) {
-        let mut gate = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        gate.running = false;
-        gate.queued = false;
+        if self.armed {
+            let mut gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
+            gate.running = false;
+            gate.queued = false;
+        }
+    }
+}
+
+/// Settles state and change notifications of a pass whose future is
+/// dropped before it finishes.
+struct PassGuard<'a, A> {
+    engine: &'a SyncEngine<A>,
+    before: SyncState,
+    done: bool,
+}
+
+impl<A> Drop for PassGuard<'_, A> {
+    fn drop(&mut self) {
+        if !self.done {
+            self.engine.cancelled(self.before.clone());
+        }
     }
 }
 
 type PendingPulls = HashMap<ResourceName, (PullBase, PullResource)>;
+
+/// Test seams: points where a unit test can act in the middle of a step
+/// (no-ops outside unit tests).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Hook {
+    /// `run_once` decided whether to run again.
+    GateDecided,
+    /// `sign_out` counted the unsent work and has not wiped yet.
+    SignOutCounted,
+}
+
+#[cfg(test)]
+type HookFn = dyn Fn(Hook) + Send + Sync;
 
 pub struct SyncEngine<A> {
     api: A,
@@ -199,11 +264,19 @@ pub struct SyncEngine<A> {
     gate: Mutex<Gate>,
     /// Held by a run and by sign-out.
     work: tokio::sync::Mutex<()>,
+    /// Local data guard, never held across an await: reads, enqueues and
+    /// answer commits share it; identity changes, wipes and sign-out take
+    /// it exclusively.
+    local: RwLock<()>,
     /// Last pull request per resource, with the base it was built from.
     pending_pulls: Mutex<PendingPulls>,
+    /// Resources changed by the running pass and not announced yet.
+    unreported: Mutex<Vec<ResourceName>>,
     failures: AtomicU32,
     status: watch::Sender<SyncStatus>,
     changes: broadcast::Sender<ResourcesChanged>,
+    #[cfg(test)]
+    hook: Mutex<Option<Arc<HookFn>>>,
 }
 
 impl<A> std::fmt::Debug for SyncEngine<A> {
@@ -217,8 +290,8 @@ impl<A> std::fmt::Debug for SyncEngine<A> {
 
 impl<A: SyncApi> SyncEngine<A> {
     /// `tokens` and `profile` must be the token store and profile id the API
-    /// client uses: the engine reads the deactivation mark from there and
-    /// clears the tokens on sign-out and deactivation.
+    /// client uses: the engine reads the sign-in generation and the
+    /// deactivation mark from there and clears the tokens on sign-out.
     pub fn new(
         api: A,
         store: Arc<Store>,
@@ -237,10 +310,14 @@ impl<A: SyncApi> SyncEngine<A> {
             backoff: Backoff::default(),
             gate: Mutex::default(),
             work: tokio::sync::Mutex::new(()),
+            local: RwLock::new(()),
             pending_pulls: Mutex::default(),
+            unreported: Mutex::default(),
             failures: AtomicU32::new(0),
             status: watch::Sender::new(SyncStatus::default()),
             changes: broadcast::channel(64).0,
+            #[cfg(test)]
+            hook: Mutex::default(),
         }
     }
 
@@ -269,31 +346,51 @@ impl<A: SyncApi> SyncEngine<A> {
     /// and returns at once with `coalesced: true`; the running call performs
     /// the follow-up before it returns.
     pub async fn run_once(&self, trigger: Trigger) -> Result<SyncReport> {
-        {
-            let mut gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
-            if gate.running {
-                gate.queued = true;
-                return Ok(SyncReport {
-                    coalesced: true,
-                    ..SyncReport::default()
-                });
-            }
-            gate.running = true;
-            gate.queued = false;
+        if !self.enter_gate() {
+            return Ok(SyncReport {
+                coalesced: true,
+                ..SyncReport::default()
+            });
         }
-        let _running = Running(&self.gate);
+        let mut running = Running {
+            gate: &self.gate,
+            armed: true,
+        };
         let mut trigger = trigger;
         loop {
             let result = self.pass(trigger).await;
+            // Checking for a follow-up and freeing the slot is one step: a
+            // caller that finds the slot taken is always served.
             let again = {
                 let mut gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
-                std::mem::take(&mut gate.queued)
+                if gate.queued {
+                    gate.queued = false;
+                    true
+                } else {
+                    gate.running = false;
+                    false
+                }
             };
+            self.hook(Hook::GateDecided);
             if !again {
+                running.armed = false;
                 return result;
             }
             trigger = Trigger::Manual;
         }
+    }
+
+    /// Takes the single run slot, or records one follow-up run for the
+    /// caller that holds it (`false`).
+    fn enter_gate(&self) -> bool {
+        let mut gate = self.gate.lock().unwrap_or_else(PoisonError::into_inner);
+        if gate.running {
+            gate.queued = true;
+            return false;
+        }
+        gate.running = true;
+        gate.queued = false;
+        true
     }
 
     /// Current status.
@@ -319,33 +416,50 @@ impl<A: SyncApi> SyncEngine<A> {
     /// Queues a local write. For updates, deletes and actions the current
     /// mirror row is kept as the draft's base, so the draft stays readable
     /// when retention or a reset removes the mirror row.
+    ///
+    /// Fails without queueing while the local data is not verified for the
+    /// current sign-in (see the module docs) or when the resource is not in
+    /// the manifest. Excluded with sign-out and wipes: a write is either
+    /// counted by sign-out or refused, never silently deleted.
     pub fn enqueue(&self, mutation: NewMutation) -> Result<EnqueueOutcome> {
         let resource = mutation.resource.clone();
-        if mutation.op != MutationOp::Create {
-            local::save_base(&self.store, &resource, mutation.id)?;
-        }
-        let outcome = self.outbox.enqueue_outcome(mutation)?;
+        let outcome = {
+            let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+            self.check_access(&resource)?;
+            if mutation.op != MutationOp::Create {
+                local::save_base(&self.store, &resource, mutation.id)?;
+            }
+            self.outbox.enqueue_outcome(mutation)?
+        };
         self.refresh_status()?;
         self.emit(vec![resource]);
         Ok(outcome)
     }
 
-    /// Local list: mirror rows with pending drafts laid over them.
+    /// Local list: mirror rows with pending drafts laid over them. Same
+    /// access rule as [`SyncEngine::enqueue`].
     pub fn list(&self, resource: &ResourceName, query: &ListQuery) -> Result<LocalPage> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        self.check_access(resource)?;
         overlay::list(&self.store, resource, query)
     }
 
-    /// Local row, draft first.
+    /// Local row, draft first. Same access rule as [`SyncEngine::enqueue`].
     pub fn get(&self, resource: &ResourceName, id: Uuid) -> Result<Option<LocalRow>> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        self.check_access(resource)?;
         overlay::get(&self.store, resource, id)
     }
 
     /// Signs out: removes tokens, mirror, outbox and conflicts. With unsent
     /// work (any outbox entry or open conflict) nothing happens unless
-    /// `force`. Waits for a running pass.
+    /// `force`. Waits for a running pass; counting and wiping exclude
+    /// [`SyncEngine::enqueue`].
     pub async fn sign_out(&self, force: bool) -> Result<SignOut> {
         let _work = self.work.lock().await;
+        let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
         let counts = local::counts(&self.store)?;
+        self.hook(Hook::SignOutCounted);
         let outbox = counts.pending + counts.rejected + counts.quarantined + counts.in_conflict;
         if !force && (outbox > 0 || counts.conflicts > 0) {
             return Ok(SignOut::PendingWork {
@@ -367,6 +481,8 @@ impl<A: SyncApi> SyncEngine<A> {
         &self.store
     }
 
+    /// Direct outbox access (retry, discard, inspection). Queue new writes
+    /// through [`SyncEngine::enqueue`], which applies the access rules.
     pub fn outbox(&self) -> &Outbox {
         &self.outbox
     }
@@ -383,21 +499,50 @@ impl<A: SyncApi> SyncEngine<A> {
     /// identity-loss rules applied to its error.
     async fn pass(&self, trigger: Trigger) -> Result<SyncReport> {
         let _work = self.work.lock().await;
+        let before = self.status.borrow().state.clone();
         self.status
             .send_modify(|status| status.state = SyncState::Syncing);
+        let mut guard = PassGuard {
+            engine: self,
+            before,
+            done: false,
+        };
         let mut report = SyncReport::default();
-        let result = self.pass_inner(&trigger, &mut report).await;
+        let (generation, result) = match self.generation() {
+            Ok(generation) => (
+                Some(generation),
+                self.pass_inner(&trigger, generation, &mut report).await,
+            ),
+            Err(error) => (None, Err(error)),
+        };
+        guard.done = true;
+        self.unreported
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
         if !report.changed.is_empty() {
             self.emit(report.changed.clone());
         }
+        let moved = |engine: &Self| {
+            generation.is_some_and(|g| engine.generation().is_ok_and(|now| now != g))
+        };
         match result {
             Ok(()) => {
                 self.failures.store(0, Ordering::SeqCst);
                 self.set_state(SyncState::Idle, None)?;
+                if moved(self) {
+                    self.queue_follow_up();
+                }
                 Ok(report)
             }
             Err(error) => {
                 let state = self.on_error(&error)?;
+                if moved(self) {
+                    // Cut short by another sign-in: run again at once under
+                    // it; that run publishes the state.
+                    self.queue_follow_up();
+                    return Err(error);
+                }
                 if matches!(state, SyncState::Failed(_)) {
                     self.failures.fetch_add(1, Ordering::SeqCst);
                 }
@@ -420,17 +565,68 @@ impl<A: SyncApi> SyncEngine<A> {
         if !deactivated {
             return Ok(state_after_error(error));
         }
+        let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
         // The client marks the record only when the 403 answered a call of
         // the current generation; a stale one leaves the mark unset.
         let record = self.tokens.load_record(&self.profile)?;
         if !record.deactivated {
             return Ok(SyncState::Failed(error.code()));
         }
+        // The local data is the deactivated user's, whatever happens next.
         self.wipe()?;
-        self.tokens.clear(&self.profile)?;
+        // Compare-and-set: tokens of a sign-in made after the mark was read
+        // stay (the client already removed the deactivated ones).
+        self.tokens.deactivate(&self.profile, record.generation)?;
         Ok(SyncState::AuthRequired)
     }
 
+    /// Local access rule of reads and enqueues; the caller holds `local`.
+    fn check_access(&self, resource: &ResourceName) -> Result<()> {
+        let record = self.tokens.load_record(&self.profile)?;
+        let session = local::session(&self.store)?;
+        if record.deactivated || session.generation != Some(record.generation) {
+            return Err(SyncError::OfflineUnavailable(
+                "local data is not verified for the current sign-in yet; sync first".to_owned(),
+            ));
+        }
+        if !session.resources.contains(resource) {
+            return Err(SyncError::Api {
+                status: 403,
+                code: ErrorCode::Forbidden,
+                message: "resource is not in the offline manifest".to_owned(),
+                fields: BTreeMap::new(),
+                retry_after: None,
+                redacted: None,
+            });
+        }
+        Ok(())
+    }
+
+    /// Current sign-in generation of the profile.
+    fn generation(&self) -> Result<u64> {
+        Ok(self.tokens.load_record(&self.profile)?.generation)
+    }
+
+    /// Fails when another sign-in happened since `generation`.
+    fn ensure_generation(&self, generation: u64) -> Result<()> {
+        if self.generation()? == generation {
+            Ok(())
+        } else {
+            Err(session_changed())
+        }
+    }
+
+    fn queue_follow_up(&self) {
+        self.gate
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .queued = true;
+    }
+}
+
+impl<A> SyncEngine<A> {
+    /// Removes mirror, outbox, conflicts and engine state; the caller holds
+    /// `local` exclusively.
     fn wipe(&self) -> Result<()> {
         let names = local::wipe(&self.store)?;
         self.pending_pulls
@@ -441,6 +637,45 @@ impl<A: SyncApi> SyncEngine<A> {
             self.emit(names);
         }
         Ok(())
+    }
+
+    /// Marks `resource` changed in `report` and for a cancelled pass.
+    fn touch(&self, report: &mut SyncReport, resource: &ResourceName) {
+        report.touch(resource);
+        let mut unreported = self
+            .unreported
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if !unreported.contains(resource) {
+            unreported.push(resource.clone());
+        }
+    }
+
+    /// A pass was dropped midway: announce what it changed and leave
+    /// `Syncing`. Outbox entries it left in flight go back to the queue at
+    /// the start of the next pass.
+    fn cancelled(&self, before: SyncState) {
+        let names = std::mem::take(
+            &mut *self
+                .unreported
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
+        if !names.is_empty() {
+            self.emit(names);
+        }
+        let state = if before == SyncState::Syncing {
+            SyncState::Idle
+        } else {
+            before
+        };
+        let counts = local::counts(&self.store);
+        self.status.send_modify(|status| {
+            status.state = state;
+            if let Ok(counts) = &counts {
+                counts.apply(status);
+            }
+        });
     }
 
     fn set_state(&self, state: SyncState, retry_after: Option<Duration>) -> Result<()> {
@@ -461,6 +696,27 @@ impl<A: SyncApi> SyncEngine<A> {
         // No subscriber is not an error.
         let _ = self.changes.send(ResourcesChanged { resources });
     }
+
+    #[cfg(test)]
+    fn set_hook(&self, hook: impl Fn(Hook) + Send + Sync + 'static) {
+        *self.hook.lock().unwrap_or_else(PoisonError::into_inner) = Some(Arc::new(hook));
+    }
+
+    #[cfg(test)]
+    fn hook(&self, point: Hook) {
+        let hook = self
+            .hook
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        if let Some(hook) = hook {
+            hook(point);
+        }
+    }
+
+    #[cfg(not(test))]
+    #[inline(always)]
+    fn hook(&self, _point: Hook) {}
 }
 
 /// State after a failed run, by error.
@@ -475,14 +731,33 @@ pub fn state_after_error(error: &SyncError) -> SyncState {
     }
 }
 
-/// Transient for push accounting: the batch may or may not have been
-/// applied, and resending it later is expected to work.
+/// Counts towards the outbox quarantine: the server answered with a
+/// failure that resending later is expected to fix. A network failure does
+/// not count: the client does not tell "never sent" from "answer lost"
+/// apart, and a resend of an applied batch is answered `duplicate`.
 fn is_transient(error: &SyncError) -> bool {
     match error {
-        SyncError::Network(_) => true,
         SyncError::Api { status, code, .. } => {
             *status >= 500 || *status == 429 || *code == ErrorCode::IdempotencyInProgress
         }
         _ => false,
     }
+}
+
+/// A run's answer arrived, or its next call was due, after another sign-in.
+fn session_changed() -> SyncError {
+    SyncError::Api {
+        status: 401,
+        code: ErrorCode::Unauthenticated,
+        message: "another sign-in happened during the sync run".to_owned(),
+        fields: BTreeMap::new(),
+        retry_after: None,
+        redacted: None,
+    }
+}
+
+/// An answer that breaks the protocol (rows outside the request, a pull
+/// that does not progress).
+fn invalid_answer(message: &str) -> SyncError {
+    SyncError::Decode(<serde_json::Error as serde::de::Error>::custom(message))
 }

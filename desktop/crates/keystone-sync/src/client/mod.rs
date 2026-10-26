@@ -55,6 +55,39 @@ pub trait SyncApi: Send + Sync {
     fn pull(&self, request: &PullRequest) -> impl Future<Output = Result<PullResponse>> + Send;
 
     fn push(&self, request: &PushRequest) -> impl Future<Output = Result<PushResponse>> + Send;
+
+    /// [`SyncApi::manifest`] bound to a sign-in generation
+    /// ([`crate::auth::SessionRecord::generation`]): sent only with tokens of
+    /// `generation` (a refresh keeps it); after another sign-in it fails
+    /// with `UNAUTHENTICATED` without sending anything. The default ignores
+    /// the generation; [`HttpClient`] enforces it.
+    fn manifest_in(
+        &self,
+        generation: u64,
+    ) -> impl Future<Output = Result<ManifestResponse>> + Send {
+        let _ = generation;
+        self.manifest()
+    }
+
+    /// [`SyncApi::pull`] bound to a sign-in generation (see [`SyncApi::manifest_in`]).
+    fn pull_in(
+        &self,
+        request: &PullRequest,
+        generation: u64,
+    ) -> impl Future<Output = Result<PullResponse>> + Send {
+        let _ = generation;
+        self.pull(request)
+    }
+
+    /// [`SyncApi::push`] bound to a sign-in generation (see [`SyncApi::manifest_in`]).
+    fn push_in(
+        &self,
+        request: &PushRequest,
+        generation: u64,
+    ) -> impl Future<Output = Result<PushResponse>> + Send {
+        let _ = generation;
+        self.push(request)
+    }
 }
 
 /// Device token endpoints (no bearer token).

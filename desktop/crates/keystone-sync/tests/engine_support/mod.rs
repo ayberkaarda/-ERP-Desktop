@@ -24,13 +24,16 @@ pub const USER_B: &str = "0192f5a0-0000-7000-8000-00000000000b";
 
 pub type Engine = SyncEngine<HttpClient<MemoryTokenStore>>;
 
-pub struct Env {
+/// Test setup over a token store of type `T`.
+pub struct EnvOf<T> {
     pub server: MockServer,
     pub dir: tempfile::TempDir,
     pub store: Arc<Store>,
-    pub tokens: Arc<MemoryTokenStore>,
-    pub engine: Arc<Engine>,
+    pub tokens: Arc<T>,
+    pub engine: Arc<SyncEngine<HttpClient<T>>>,
 }
+
+pub type Env = EnvOf<MemoryTokenStore>;
 
 pub fn tokens(n: u8) -> StoredTokens {
     StoredTokens {
@@ -47,11 +50,18 @@ pub async fn env() -> Env {
 
 /// `request_timeout` bounds every HTTP call (lost-response tests).
 pub async fn env_with(request_timeout: Duration) -> Env {
+    env_on(Arc::new(MemoryTokenStore::default()), request_timeout).await
+}
+
+/// Same setup over `tokens`, signed in here with `tokens(1)`.
+pub async fn env_on<T: TokenStore + 'static>(
+    tokens: Arc<T>,
+    request_timeout: Duration,
+) -> EnvOf<T> {
     let server = MockServer::start().await;
     let dir = tempfile::tempdir().expect("tempdir");
     let store =
         Arc::new(Store::open(dir.path().join("engine.db"), &DbKey::from_bytes([42; 32])).unwrap());
-    let tokens = Arc::new(MemoryTokenStore::default());
     tokens.sign_in(PROFILE, &self::tokens(1)).unwrap();
     let client = HttpClient::new(
         &ApiConfig {
@@ -70,7 +80,7 @@ pub async fn env_with(request_timeout: Duration) -> Env {
     .unwrap();
     let dyn_tokens: Arc<dyn TokenStore> = tokens.clone();
     let engine = Arc::new(SyncEngine::new(client, store.clone(), dyn_tokens, PROFILE));
-    Env {
+    EnvOf {
         server,
         dir,
         store,
@@ -279,4 +289,37 @@ pub fn draft(op: MutationOp, resource: &str, id: Uuid, payload: Value) -> NewMut
 
 pub fn error_body(code: &str, message: &str) -> Value {
     json!({"errors": {"message": message, "code": code}})
+}
+
+/// Answers `applied` for every pushed mutation, echoing its payload as the row.
+pub fn apply_all(request: &Request) -> ResponseTemplate {
+    let results: Vec<Value> = body(request)["mutations"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .map(|m| {
+            json!({"idempotency_key": m["idempotency_key"], "resource": m["resource"],
+                   "id": m["id"], "status": "applied", "replayed": false, "version": 1,
+                   "data": row(m["id"].as_str().unwrap_or_default(), 1, m["payload"].clone())})
+        })
+        .collect();
+    ResponseTemplate::new(200).set_body_json(json!({"data": {"results": results}, "meta": {}}))
+}
+
+/// `Authorization` header of a received request.
+pub fn bearer_of(request: &Request) -> Option<String> {
+    request
+        .headers
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned)
+}
+
+/// Writes a server row straight into the mirror.
+pub fn put_row(store: &Store, resource: &str, id: &str, fields: Value) {
+    use keystone_sync::store::MirrorStore;
+    let row: keystone_sync::wire::ResourceRow =
+        serde_json::from_value(row(id, 1, fields)).expect("row");
+    store.put_row(&name(resource), &row).expect("put_row");
 }

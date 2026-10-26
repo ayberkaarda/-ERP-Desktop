@@ -17,6 +17,17 @@ fn put(env: &Env, resource: &str, fields: serde_json::Value) -> Uuid {
     id
 }
 
+/// One run so the local data is verified for the sign-in and `resources`
+/// are readable; the test registers its own layouts afterwards.
+async fn verified(env: &Env, resources: &[&str]) {
+    mount_manifest(&env.server, simple_manifest(resources)).await;
+    mount_empty_pull(&env.server).await;
+    env.engine
+        .run_once(keystone_sync::engine::Trigger::Startup)
+        .await
+        .unwrap();
+}
+
 fn ids(page: &keystone_sync::engine::LocalPage) -> Vec<Uuid> {
     page.rows.iter().map(|r| r.id).collect()
 }
@@ -24,6 +35,7 @@ fn ids(page: &keystone_sync::engine::LocalPage) -> Vec<Uuid> {
 #[tokio::test]
 async fn drafts_are_laid_over_list_and_get() {
     let env = env().await;
+    verified(&env, &["parties"]).await;
     let parties = name("parties");
     env.store
         .register(
@@ -138,6 +150,7 @@ async fn drafts_are_laid_over_list_and_get() {
 #[tokio::test]
 async fn drafts_survive_retention_and_reset() {
     let env = env().await;
+    verified(&env, &["sales-quotes"]).await;
     let quotes = name("sales-quotes");
     env.store
         .register(

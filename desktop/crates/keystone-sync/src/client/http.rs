@@ -172,12 +172,14 @@ impl<T: TokenStore> HttpClient<T> {
         self.settle(result, generation).await
     }
 
-    /// Sync call with bearer token, one refresh + retry on 401.
+    /// Sync call with bearer token, one refresh + retry on 401. With
+    /// `expected`, a token of another sign-in generation is never sent.
     async fn authorized<Req, Resp>(
         &self,
         method: Method,
         path: &str,
         body: Option<&Req>,
+        expected: Option<u64>,
     ) -> Result<Resp>
     where
         Req: Serialize + Sync,
@@ -189,6 +191,9 @@ impl<T: TokenStore> HttpClient<T> {
         let record = self.snapshot().await?;
         if record.deactivated {
             return Err(deactivated());
+        }
+        if expected.is_some_and(|g| g != record.generation) {
+            return Err(session_changed());
         }
         let mut generation = record.generation;
         let access = record
@@ -202,6 +207,10 @@ impl<T: TokenStore> HttpClient<T> {
                 .await?;
             if raw.status == 401 {
                 let (fresh, fresh_generation) = self.refresh_after_unauthorized(&access).await?;
+                if expected.is_some_and(|g| g != fresh_generation) {
+                    // A sign-in happened meanwhile: its token is not ours.
+                    return Err(session_changed());
+                }
                 generation = fresh_generation;
                 raw = self.send_authorized(method, url, body, &fresh).await?;
             }
@@ -336,17 +345,32 @@ impl<T: TokenStore> HttpClient<T> {
 
 impl<T: TokenStore> SyncApi for HttpClient<T> {
     async fn manifest(&self) -> Result<ManifestResponse> {
-        self.authorized::<(), _>(Method::GET, paths::MANIFEST, None)
+        self.authorized::<(), _>(Method::GET, paths::MANIFEST, None, None)
             .await
     }
 
     async fn pull(&self, request: &PullRequest) -> Result<PullResponse> {
-        self.authorized(Method::POST, paths::PULL, Some(request))
+        self.authorized(Method::POST, paths::PULL, Some(request), None)
             .await
     }
 
     async fn push(&self, request: &PushRequest) -> Result<PushResponse> {
-        self.authorized(Method::POST, paths::PUSH, Some(request))
+        self.authorized(Method::POST, paths::PUSH, Some(request), None)
+            .await
+    }
+
+    async fn manifest_in(&self, generation: u64) -> Result<ManifestResponse> {
+        self.authorized::<(), _>(Method::GET, paths::MANIFEST, None, Some(generation))
+            .await
+    }
+
+    async fn pull_in(&self, request: &PullRequest, generation: u64) -> Result<PullResponse> {
+        self.authorized(Method::POST, paths::PULL, Some(request), Some(generation))
+            .await
+    }
+
+    async fn push_in(&self, request: &PushRequest, generation: u64) -> Result<PushResponse> {
+        self.authorized(Method::POST, paths::PUSH, Some(request), Some(generation))
             .await
     }
 }
@@ -538,6 +562,11 @@ fn sign_in_required(message: &str) -> SyncError {
         retry_after: None,
         redacted: None,
     }
+}
+
+/// A generation-bound call found another sign-in: nothing was sent.
+fn session_changed() -> SyncError {
+    sign_in_required("another sign-in happened since the call was prepared; it was not sent")
 }
 
 /// Local stand-in for 403 `USER_DEACTIVATED` once the session is marked.

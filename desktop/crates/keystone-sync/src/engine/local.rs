@@ -10,8 +10,12 @@ use crate::error::Result;
 use crate::store::Store;
 use crate::wire::{ResourceName, ResourceRow};
 
-/// `engine_meta` key of the `user_id:company_id` the local data belongs to.
+/// `engine_meta` keys: the `user_id:company_id` the local data belongs to,
+/// the sign-in generation whose manifest confirmed it, and the manifest's
+/// resources (JSON array).
 const IDENTITY: &str = "identity";
+const GENERATION: &str = "generation";
+const RESOURCES: &str = "resources";
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct Counts {
@@ -133,26 +137,67 @@ pub(super) fn wipe(store: &Store) -> Result<Vec<ResourceName>> {
     })
 }
 
-/// `user_id:company_id` the local data belongs to.
-pub(super) fn identity(store: &Store) -> Result<Option<String>> {
+/// Who the local data belongs to, as confirmed by the last manifest.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(super) struct LocalSession {
+    pub identity: Option<String>,
+    /// Sign-in generation of that manifest.
+    pub generation: Option<u64>,
+    pub resources: Vec<ResourceName>,
+}
+
+pub(super) fn session(store: &Store) -> Result<LocalSession> {
     store.read(|conn| {
-        Ok(conn
-            .query_row(
-                "SELECT value FROM engine_meta WHERE key = ?1",
-                [IDENTITY],
-                |r| r.get(0),
-            )
-            .optional()?)
+        let get = |key: &str| -> Result<Option<String>> {
+            Ok(conn
+                .query_row("SELECT value FROM engine_meta WHERE key = ?1", [key], |r| {
+                    r.get(0)
+                })
+                .optional()?)
+        };
+        let resources = match get(RESOURCES)? {
+            Some(json) => serde_json::from_str(&json)?,
+            None => Vec::new(),
+        };
+        Ok(LocalSession {
+            identity: get(IDENTITY)?,
+            generation: get(GENERATION)?.and_then(|g| g.parse().ok()),
+            resources,
+        })
     })
 }
 
-pub(super) fn set_identity(store: &Store, value: &str) -> Result<()> {
+/// Records identity, generation and manifest resources together.
+pub(super) fn set_session(
+    store: &Store,
+    identity: &str,
+    generation: u64,
+    resources: &[ResourceName],
+) -> Result<()> {
+    let resources = serde_json::to_string(resources)?;
     store.write(|tx| {
-        tx.execute(
-            "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![IDENTITY, value],
-        )?;
+        for (key, value) in [
+            (IDENTITY, identity.to_owned()),
+            (GENERATION, generation.to_string()),
+            (RESOURCES, resources),
+        ] {
+            tx.execute(
+                "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            )?;
+        }
         Ok(())
+    })
+}
+
+/// Drops the saved draft bases of `resource` (server data the user may no
+/// longer see); the drafts themselves stay in the outbox.
+pub(super) fn drop_bases(store: &Store, resource: &ResourceName) -> Result<usize> {
+    store.write(|tx| {
+        Ok(tx.execute(
+            "DELETE FROM engine_draft_bases WHERE resource = ?1",
+            [resource.as_str()],
+        )?)
     })
 }
