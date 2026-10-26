@@ -9,6 +9,7 @@ use App\Modules\Catalog\Models\ItemBarcode;
 use App\Modules\Catalog\Models\PriceList;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\Fixtures\Sync\SyncDatabase;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
@@ -40,6 +41,42 @@ beforeEach(function (): void {
         ->first(fn (SyncResource $r): bool => $r->name() === $name);
     $this->txid = fn (string $table, string $id): string => Sync::txidOf($table, $id)->value;
 });
+
+/**
+ * One row of every catalog resource in the company, keyed by resource name.
+ *
+ * @return array<string, list<string>>
+ */
+function catalogSet(string $company): array
+{
+    $pcs = Catalog::unit($company, 'PCS');
+    $box = Catalog::unit($company, 'BOX');
+    $conversion = Catalog::conversion($company, $box, $pcs, '12');
+    $category = Catalog::category($company, 'CAT');
+    $item = Catalog::item($company, $pcs, ['category_id' => $category->id]);
+    Catalog::itemUnit($company, $item, $box, '12');
+    $variant = Catalog::variant($company, $item, 'V-1');
+    $barcode = Catalog::in($company, function () use ($item, $pcs): ItemBarcode {
+        $barcode = new ItemBarcode(['unit_id' => $pcs->id, 'barcode' => '8690000000012', 'is_primary' => true]);
+        $barcode->item_id = $item->id;
+        $barcode->save();
+
+        return $barcode;
+    });
+    $list = Catalog::priceList($company, ['code' => 'RETAIL']);
+    $line = Catalog::line($company, $list, $item, $pcs, '10.5');
+
+    return [
+        'units' => [$pcs->id, $box->id],
+        'unit-conversions' => [$conversion->id],
+        'item-categories' => [$category->id],
+        'items' => [$item->id],
+        'items.variants' => [$variant->id],
+        'items.barcodes' => [$barcode->id],
+        'price-lists' => [$list->id],
+        'price-lists.lines' => [$line->id],
+    ];
+}
 
 /**
  * Rows a pull would deliver for the company (below the horizon), as REST JSON.
@@ -120,17 +157,129 @@ it('serves items with the manifest embeds, as the REST detail shows them', funct
         ->and($rows[0]['units'][0]['unit']['code'])->toBe('BOX');
 });
 
-it('keeps other companies out of every resource', function (): void {
-    $unit = Catalog::unit($this->other, 'FOREIGN');
-    $item = Catalog::item($this->other, $unit);
-    $variant = Catalog::variant($this->other, $item, 'F-1');
+it('keeps each company to its own rows in every resource, whatever company is active', function (): void {
+    $mine = [
+        'units' => [$this->pcs->id, $this->box->id],
+        'unit-conversions' => [$this->conversion->id],
+        'item-categories' => [$this->category->id],
+        'items' => [$this->item->id],
+        'items.variants' => [$this->variant->id],
+        'items.barcodes' => [$this->barcode->id],
+        'price-lists' => [$this->list->id],
+        'price-lists.lines' => [$this->line->id],
+    ];
+    $theirs = catalogSet($this->other);
 
-    foreach (['units', 'items', 'items.variants'] as $name) {
-        $ids = array_column(pulled(($this->adapter)($name), $this->company), 'id');
-        expect($ids)->not->toContain($unit->id)->not->toContain($item->id)->not->toContain($variant->id);
+    foreach ($mine as $name => $ids) {
+        $adapter = ($this->adapter)($name);
+        $none = pulled($adapter, $this->company);
+        $asOther = Catalog::in($this->other, fn (): array => pulled($adapter, $this->company));
+        $asMine = Catalog::in($this->company, fn (): array => pulled($adapter, $this->company));
+
+        expect(array_column($none, 'id'))->toEqualCanonicalizing($ids, $name)
+            ->and($asOther)->toBe($none)
+            ->and($asMine)->toBe($none)
+            ->and(array_column(pulled($adapter, $this->other), 'id'))->toEqualCanonicalizing($theirs[$name], $name)
+            ->and(Catalog::in($this->company, fn (): array => array_column(pulled($adapter, $this->other), 'id')))
+            ->toEqualCanonicalizing($theirs[$name], $name);
+    }
+});
+
+it('does not embed another company\'s rows through a cross-company reference', function (): void {
+    $theirs = Catalog::unit($this->other, 'THEIRS');
+    $theirCategory = Catalog::category($this->other, 'THEIRS');
+    $now = now();
+    DB::table('items')->where('id', $this->item->id)->update(['base_unit_id' => $theirs->id, 'category_id' => $theirCategory->id]);
+    DB::table('item_units')->where('id', $this->itemUnit->id)->update(['unit_id' => $theirs->id]);
+    DB::table('item_units')->insert([
+        'id' => (string) Str::uuid7(), 'company_id' => $this->other, 'item_id' => $this->item->id, 'unit_id' => Catalog::unit($this->other, 'THEIRS2')->id,
+        'factor' => '6', 'version' => 1, 'created_at' => $now, 'updated_at' => $now,
+    ]);
+    DB::table('unit_conversions')->where('id', $this->conversion->id)->update(['to_unit_id' => $theirs->id]);
+
+    foreach ([null, $this->company, $this->other] as $active) {
+        $pull = fn (string $name): array => pulled(($this->adapter)($name), $this->company);
+        [$items, $conversions] = $active === null
+            ? [$pull('items'), $pull('unit-conversions')]
+            : Catalog::in($active, fn (): array => [$pull('items'), $pull('unit-conversions')]);
+
+        expect($items)->toHaveCount(1)
+            ->and($items[0]['base_unit'])->toBeNull()
+            ->and($items[0]['category'])->toBeNull()
+            ->and($items[0]['units'])->toHaveCount(1)
+            ->and($items[0]['units'][0]['id'])->toBe($this->itemUnit->id)
+            ->and($items[0]['units'][0]['unit'])->toBeNull()
+            ->and($conversions[0]['from_unit']['code'])->toBe('BOX')
+            ->and($conversions[0]['to_unit'])->toBeNull()
+            ->and(json_encode([$items, $conversions]))->not->toContain('THEIRS');
+    }
+});
+
+it('reads tombstones per company', function (string $name): void {
+    $adapter = ($this->adapter)($name);
+    $theirs = catalogSet($this->other);
+    $mine = DB::table($adapter->table())->where('company_id', $this->company)->value('id');
+    DB::table($adapter->table())->whereIn('id', [$mine, $theirs[$name][0]])->delete();
+    $read = fn (string $company): array => DB::table('sync_tombstones')
+        ->where('resource_table', $adapter->table())->where('company_id', $company)->pluck('row_id')->all();
+
+    expect($read($this->company))->toBe([$mine])
+        ->and($read($this->other))->toBe([$theirs[$name][0]]);
+})->with(['items.variants', 'items.barcodes', 'unit-conversions', 'price-lists.lines']);
+
+it('touches the embedding rows when an embedded unit or category changes, without touching their version', function (Closure $change, array $touched): void {
+    $tables = ['items' => $this->item->id, 'unit_conversions' => $this->conversion->id];
+    $before = array_map(fn (string $id, string $table): string => ($this->txid)($table, $id), $tables, array_keys($tables));
+    $before = array_combine(array_keys($tables), $before);
+    $item = Item::query()->withoutCompanyScope()->whereKey($this->item->id)->firstOrFail();
+
+    $change($this);
+
+    foreach ($tables as $table => $id) {
+        $moved = ($this->txid)($table, $id) !== $before[$table];
+        expect($moved)->toBe(in_array($table, $touched, true), "{$table} touched");
     }
 
-    expect(array_column(pulled(($this->adapter)('units'), $this->other), 'id'))->toBe([$unit->id]);
+    $after = Item::query()->withoutCompanyScope()->whereKey($this->item->id)->firstOrFail();
+    expect($after->version)->toBe($item->version)
+        ->and($after->updated_at?->toIso8601String())->toBe($item->updated_at?->toIso8601String());
+})->with([
+    'base unit rename' => [fn ($t) => DB::table('units')->where('id', $t->pcs->id)->update(['name' => 'Piece']), ['items']],
+    'base unit symbol' => [fn ($t) => DB::table('units')->where('id', $t->pcs->id)->update(['symbol' => 'pc']), ['items']],
+    'item unit rename' => [fn ($t) => DB::table('units')->where('id', $t->box->id)->update(['code' => 'CRATE']), ['items', 'unit_conversions']],
+    'unit soft delete' => [fn ($t) => DB::table('units')->where('id', $t->box->id)->update(['deleted_at' => now()]), ['items', 'unit_conversions']],
+    'unit change outside the embeds' => [fn ($t) => DB::table('units')->where('id', $t->pcs->id)->update(['is_active' => false]), []],
+    'category rename' => [fn ($t) => DB::table('item_categories')->where('id', $t->category->id)->update(['name' => 'Renamed']), ['items']],
+    'unrelated unit rename' => [fn ($t) => DB::table('units')->where('id', Catalog::unit($t->company, 'OTHER')->id)->update(['name' => 'Other']), []],
+]);
+
+it('delivers the new embedded name once a unit or category is renamed', function (): void {
+    $before = Sync::txidOf('items', $this->item->id);
+    DB::table('units')->where('id', $this->pcs->id)->update(['name' => 'Piece']);
+    DB::table('units')->where('id', $this->box->id)->update(['code' => 'CRATE']);
+    DB::table('item_categories')->where('id', $this->category->id)->update(['name' => 'Renamed']);
+
+    $items = pulled(($this->adapter)('items'), $this->company);
+    $conversions = pulled(($this->adapter)('unit-conversions'), $this->company);
+
+    expect(Sync::txidOf('items', $this->item->id)->greaterThan($before))->toBeTrue()
+        ->and(Sync::belowHorizon('items'))->toContain($this->item->id)
+        ->and($items[0]['base_unit']['name'])->toBe('Piece')
+        ->and($items[0]['category']['name'])->toBe('Renamed')
+        ->and($items[0]['units'][0]['unit']['code'])->toBe('CRATE')
+        ->and($conversions[0]['from_unit']['code'])->toBe('CRATE');
+});
+
+it('does not touch another company\'s rows that point at a renamed unit', function (): void {
+    $theirs = catalogSet($this->other);
+    DB::table('items')->where('id', $theirs['items'][0])->update(['base_unit_id' => $this->pcs->id]);
+    $before = ($this->txid)('items', $theirs['items'][0]);
+    $mine = ($this->txid)('items', $this->item->id);
+
+    DB::table('units')->where('id', $this->pcs->id)->update(['name' => 'Piece']);
+
+    expect(($this->txid)('items', $theirs['items'][0]))->toBe($before)
+        ->and(($this->txid)('items', $this->item->id))->not->toBe($mine);
 });
 
 it('records soft deletes as tombstones and hides the row', function (string $name, Closure $subject): void {

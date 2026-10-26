@@ -31,16 +31,19 @@ abstract class CatalogSyncResource implements SyncResource
     }
 
     /**
-     * Eager loads that do not depend on the request's active company (a pull may run without one).
+     * Eager loads pinned to the pulled company instead of the request's active company (a pull
+     * may run without one). Every relation, nested ones included, filters on its own company_id,
+     * so a cross-company reference (the foreign keys do not enforce it) loads as null or empty.
      *
      * @return array<string, Closure>
      */
-    private function scopedRelations(): array
+    private function scopedRelations(string $companyId): array
     {
         $relations = [];
 
         foreach ($this->with() as $relation) {
-            $relations[$relation] = static fn ($query) => $query->withoutCompanyScope();
+            $relations[$relation] = static fn ($query) => $query->withoutCompanyScope()
+                ->where($query->getModel()->qualifyColumn('company_id'), $companyId);
         }
 
         return $relations;
@@ -63,7 +66,7 @@ abstract class CatalogSyncResource implements SyncResource
         return $model::query()
             ->withoutCompanyScope()
             ->where("{$table}.company_id", $companyId)
-            ->with($this->scopedRelations());
+            ->with($this->scopedRelations($companyId));
     }
 
     public function positionColumn(): string
