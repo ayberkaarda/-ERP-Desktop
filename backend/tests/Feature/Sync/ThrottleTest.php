@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Sync\Http\Middleware\LimitConcurrentPulls;
+use App\Modules\Sync\Http\Middleware\PullLease;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -133,6 +135,74 @@ it('bounds a running pull by its slot lease in the database', function (): void 
     expect($seen)->toBe(['25s', '25s'])
         ->and(DB::selectOne('show transaction_timeout')->transaction_timeout)->toBe('0')
         ->and(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('0');
+});
+
+/**
+ * Runs $slow once, on the pull's first visibility query, then lets the pull go on.
+ */
+function slowPullOnce(Closure $slow): void
+{
+    $done = false;
+    DB::listen(function ($query) use (&$done, $slow): void {
+        if (! $done && str_contains($query->sql, 'sync_visibility_generations')) {
+            $done = true;
+            $slow();
+        }
+    });
+}
+
+it('ends a pull whose work outside one statement outlasts the lease', function (): void {
+    // 6 s slot - 5 s margin: a 1 s lease for the whole request.
+    config(['sync.throttle.pull_slot_seconds' => 6]);
+    slowPullOnce(fn () => usleep(1_200_000));
+
+    $response = throttledPull($this, $this->headers);
+
+    $response->assertStatus(500)->assertHeader('Retry-After');
+    expect(SyncKit::wire($response, 'sync/error.response.schema.json')['errors']['code'])->toBe('SERVER_ERROR');
+    // The slot is free again and the next pull runs.
+    throttledPull($this, $this->headers)->assertOk();
+});
+
+it('cuts a statement at the deadline left, not at the full lease', function (): void {
+    config(['sync.throttle.pull_slot_seconds' => 6]);
+    $started = microtime(true);
+    // 0.6 s gone, then a 0.7 s statement: within a fresh 1 s timeout, past the 1 s deadline.
+    slowPullOnce(function (): void {
+        usleep(600_000);
+        DB::select('select pg_sleep(0.7)');
+    });
+
+    throttledPull($this, $this->headers)->assertStatus(500);
+
+    expect(microtime(true) - $started)->toBeLessThan(1.25);
+});
+
+it('drops the connection when it cannot put the settings back', function (): void {
+    $db = DB::connection();
+    $db->beginTransaction();
+    $lease = PullLease::begin($db, 30_000);
+
+    // An aborted transaction refuses the restoring statements.
+    try {
+        $db->select('select 1/0');
+    } catch (QueryException) {
+    }
+    $lease->end();
+
+    expect($db->getRawPdo())->toBeNull()
+        ->and(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('0')
+        ->and(DB::selectOne('show transaction_timeout')->transaction_timeout)->toBe('0');
+});
+
+it('restores the session settings the pull found', function (): void {
+    DB::statement("SET statement_timeout = '7s'");
+
+    throttledPull($this, $this->headers)->assertOk();
+
+    expect(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('7s')
+        ->and(DB::selectOne('show transaction_timeout')->transaction_timeout)->toBe('0');
+    DB::statement('RESET statement_timeout');
 });
 
 it('frees the pull slot after every pull, failed ones too', function (): void {

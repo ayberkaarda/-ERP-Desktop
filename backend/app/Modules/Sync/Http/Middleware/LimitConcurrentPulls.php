@@ -10,8 +10,8 @@ use Closure;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\Repository;
+use Illuminate\Database\Connection;
 use Illuminate\Database\ConnectionInterface;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -22,11 +22,10 @@ use Symfony\Component\HttpFoundation\Response;
  * cache locks released when the pull ends, failed or not; pull_slot_seconds frees the slot of a
  * worker that died mid-pull.
  *
- * The lease bounds the pull itself: while the slot is held, the database ends any transaction
- * or statement of the request after the slot time minus a margin (transaction_timeout and
- * statement_timeout, reset afterwards), so a slow pull fails before its slot can expire and be
- * taken by another pull. The pull's rows are read in one REPEATABLE READ transaction, the part
- * whose length depends on the data.
+ * The lease bounds the whole request (PullLease): from the moment the slot is taken the pull has
+ * the slot time minus a margin, across all its statements and transactions; past it, the next
+ * statement is refused and a running one is cancelled by the database, so a slow pull fails
+ * before its slot can expire and be taken by another pull.
  */
 final class LimitConcurrentPulls
 {
@@ -56,7 +55,7 @@ final class LimitConcurrentPulls
 
         $seconds = max(1, (int) config('sync.throttle.pull_slot_seconds', 120));
         $held = [];
-        $bounded = false;
+        $lease = null;
 
         try {
             foreach ([['device', $device, 'concurrent_pulls_per_device'], ['user', (string) $user->getAuthIdentifier(), 'concurrent_pulls_per_user']] as [$scope, $id, $limit]) {
@@ -69,31 +68,18 @@ final class LimitConcurrentPulls
                 $held[] = $slot;
             }
 
-            $deadline = max(1000, $seconds * 1000 - self::MARGIN_MS);
-            $this->db->statement("SET transaction_timeout = {$deadline}");
-            $this->db->statement("SET statement_timeout = {$deadline}");
-            $bounded = true;
+            if ($this->db instanceof Connection) {
+                $lease = PullLease::begin($this->db, max(1000, $seconds * 1000 - self::MARGIN_MS));
+            }
 
             /** @var Response */
             return $next($request);
         } finally {
-            if ($bounded) {
-                $this->resetDeadline();
-            }
+            $lease?->end();
 
             foreach ($held as $lock) {
                 $lock->release();
             }
-        }
-    }
-
-    private function resetDeadline(): void
-    {
-        try {
-            $this->db->statement('RESET transaction_timeout');
-            $this->db->statement('RESET statement_timeout');
-        } catch (QueryException) {
-            // Inside an aborted transaction the SETs roll back with it; the session is not left bounded.
         }
     }
 
