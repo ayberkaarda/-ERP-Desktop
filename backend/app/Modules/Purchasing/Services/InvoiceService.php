@@ -473,6 +473,10 @@ final class InvoiceService extends DocumentService
 
                 return $invoice;
             });
+        } catch (VersionConflictException $e) {
+            // The sources kept changing under the lock (withSources gave up): a transient race, not a
+            // booking failure. No fallback to draft; the approval sees the error and can be retried.
+            throw $e;
         } catch (ValidationException|MatchFailed|ApiException $e) {
             // The invoice can no longer be booked (period closed, sources changed, match block): back to draft.
             Log::info('purchase invoice approval could not book', ['invoice' => $invoiceId, 'error' => $e->getMessage()]);
@@ -988,7 +992,7 @@ final class InvoiceService extends DocumentService
      * @param  Closure(): T  $fn
      * @return T
      */
-    private function withSources(Closure $fn): mixed
+    public function withSources(Closure $fn): mixed
     {
         for ($attempt = 1; ; $attempt++) {
             try {

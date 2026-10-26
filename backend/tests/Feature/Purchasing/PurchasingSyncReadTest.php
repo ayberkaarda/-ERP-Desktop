@@ -13,6 +13,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Fixtures\Sync\SyncDatabase;
+use Tests\Support\Actors;
 use Tests\Support\Purchasing\PurchKit;
 use Tests\Support\Sync;
 
@@ -445,4 +446,76 @@ it('gives up with VERSION_CONFLICT when the sources keep changing', function ():
 
     expect($failed)->not->toBeNull()->and($flips)->toBe(3)
         ->and(DB::table('purchase_invoices')->where('id', $draft)->value('status'))->toBe('draft');
+});
+
+it('retries a return created while the source invoice sources change, instead of failing', function (): void {
+    $w = $this->w;
+    $order = PurchKit::approvedOrder($w, [[$w->item->id, '5', '10'], [$w->item->id, '3', '10']]);
+    $receipt = PurchKit::receive($w, $order['id'], [$order['lines'][0]['id'] => '5']);
+    $other = PurchKit::receive($w, $order['id'], [$order['lines'][1]['id'] => '3']);
+    $invoice = PurchKit::invoiceReceipt($w, $receipt['id']);
+    config(['database.connections.purchasing_race' => config('database.connections.'.config('database.default'))]);
+    $race = DB::connection('purchasing_race');
+    $receiptLocks = 0;
+
+    // Once, right after the unlocked read of the invoice sources, a concurrent change moves the
+    // invoice line to another receipt (forced past the guards: the race lockWithSources rechecks).
+    DB::connection()->beforeExecuting(static function (string $sql) use (&$receiptLocks, $race, $invoice, $other): void {
+        if (str_contains($sql, 'for update') && str_contains($sql, '"purchase_receipts"') && ++$receiptLocks === 1) {
+            $race->statement('SET session_replication_role = replica');
+            $race->table('purchase_invoice_lines')->where('document_id', $invoice['id'])->update(['receipt_line_id' => $other['lines'][0]['id']]);
+            $race->statement('SET session_replication_role = DEFAULT');
+        }
+    });
+
+    try {
+        $response = PurchKit::post($w->user, $w->company, "purchase-invoices/{$invoice['id']}/returns", ['lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1']]]);
+    } finally {
+        DB::disconnect('purchasing_race');
+    }
+
+    // First attempt rolled back (SourcesChanged), the second locks the new receipt first and creates.
+    $response->assertCreated();
+    expect($receiptLocks)->toBe(2)
+        ->and(DB::table('purchase_returns')->where('invoice_id', $invoice['id'])->count())->toBe(1);
+});
+
+it('leaves a pending invoice pending when its approval keeps losing the source race', function (): void {
+    $w = $this->w;
+    $c = purchasingLockChain($w);
+    $draft = $c['draft']['id'];
+    PurchKit::setting($w->company, 'purchasing.invoice_approval_over', '10');
+    $approver = Actors::user(['approvals.view', 'approvals.decide', 'approval_flows.manage']);
+    PurchKit::post($approver, $w->company, 'approval-flows', [
+        'name' => 'Supplier invoices', 'document_type' => 'purchase_invoice',
+        'steps' => [['position' => 1, 'mode' => 'any_of', 'approver_type' => 'user', 'approver_ref' => $approver->id]],
+    ])->assertCreated();
+    $pending = PurchKit::post($w->user, $w->company, "purchase-invoices/{$draft}/book")->assertOk()->assertJsonPath('data.status', 'pending_approval')->json('data');
+    $lines = [$c['second']['lines'][0]['id'], $c['receipt']['lines'][0]['id']];
+    config(['database.connections.purchasing_race' => config('database.connections.'.config('database.default'))]);
+    $race = DB::connection('purchasing_race');
+    $flips = 0;
+
+    DB::connection()->beforeExecuting(static function (string $sql) use (&$flips, $race, $draft, $lines): void {
+        if (str_contains($sql, 'for update') && str_contains($sql, '"purchase_receipts"')) {
+            $race->table('purchase_invoice_lines')->where('document_id', $draft)->update(['receipt_line_id' => $lines[++$flips % 2]]);
+        }
+    });
+
+    $failed = null;
+    try {
+        PurchKit::in($w->company, fn () => app(InvoiceService::class)->approvalCompleted($draft, $pending['approval_request_id']));
+    } catch (VersionConflictException $e) {
+        $failed = $e;
+    } finally {
+        DB::disconnect('purchasing_race');
+    }
+
+    // A transient race is not a booking failure: no fallback to draft, no failure notice; the
+    // exception reaches the approval so the decision can be retried.
+    $row = DB::table('purchase_invoices')->where('id', $draft)->first();
+    expect($failed)->not->toBeNull()->and($flips)->toBe(3)
+        ->and($row->status)->toBe('pending_approval')
+        ->and($row->approval_comment)->toBeNull()
+        ->and(DB::table('notifications')->where('type', 'purchasing.invoice_approval_failed')->exists())->toBeFalse();
 });

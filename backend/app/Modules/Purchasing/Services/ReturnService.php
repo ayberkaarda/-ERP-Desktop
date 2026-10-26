@@ -70,7 +70,7 @@ final class ReturnService extends DocumentService
      */
     public function createFromInvoice(PurchaseInvoice $invoice, array $data, ?array $lines, ?Authenticatable $actor): PurchaseReturn
     {
-        return Purchasing::transaction(function () use ($invoice, $data, $lines, $actor): PurchaseReturn {
+        return $this->invoices->withSources(function () use ($invoice, $data, $lines, $actor): PurchaseReturn {
             $invoice = $this->lockInvoice($invoice->id);
 
             if ($lines === null) {
@@ -141,7 +141,7 @@ final class ReturnService extends DocumentService
      */
     public function update(PurchaseReturn $return, array $data, ?array $lines, int $version): PurchaseReturn
     {
-        return Purchasing::transaction(function () use ($return, $data, $lines, $version): PurchaseReturn {
+        return $this->invoices->withSources(function () use ($return, $data, $lines, $version): PurchaseReturn {
             $source = $this->lockSource($return);
             $return = $this->lock($return);
             $this->assertDraft($return);
@@ -171,7 +171,7 @@ final class ReturnService extends DocumentService
 
     public function delete(PurchaseReturn $return, ?int $version): void
     {
-        Purchasing::transaction(function () use ($return, $version): void {
+        $this->invoices->withSources(function () use ($return, $version): void {
             $this->lockSource($return);
             $return = $this->lock($return);
             $this->assertDraft($return);
@@ -185,7 +185,7 @@ final class ReturnService extends DocumentService
 
     public function approve(PurchaseReturn $return, ?int $version, ?Authenticatable $actor): PurchaseReturn
     {
-        return Purchasing::transaction(function () use ($return, $version, $actor): PurchaseReturn {
+        return $this->invoices->withSources(function () use ($return, $version, $actor): PurchaseReturn {
             $source = $this->lockSource($return);
             $return = $this->lock($return, $version);
             $this->assertStatus($return, [ReturnStatus::Draft], ReturnStatus::Approved->value);
@@ -206,7 +206,7 @@ final class ReturnService extends DocumentService
 
     public function cancel(PurchaseReturn $return, ?int $version, ?Authenticatable $actor): PurchaseReturn
     {
-        return Purchasing::transaction(function () use ($return, $version, $actor): PurchaseReturn {
+        return $this->invoices->withSources(function () use ($return, $version, $actor): PurchaseReturn {
             $this->lockSource($return);
             $return = $this->lock($return, $version);
             $this->assertStatus($return, [ReturnStatus::Draft, ReturnStatus::Approved], ReturnStatus::Cancelled->value);
@@ -223,7 +223,7 @@ final class ReturnService extends DocumentService
      */
     public function ship(PurchaseReturn $return, ?int $version, ?Authenticatable $actor): array
     {
-        return Purchasing::transaction(function () use ($return, $version, $actor): array {
+        return $this->invoices->withSources(function () use ($return, $version, $actor): array {
             $this->lockSource($return);
             $return = $this->lock($return);
 
@@ -309,7 +309,7 @@ final class ReturnService extends DocumentService
      */
     public function debit(PurchaseReturn $return, ?int $version, ?Authenticatable $actor): array
     {
-        return Purchasing::transaction(function () use ($return, $version, $actor): array {
+        return $this->invoices->withSources(function () use ($return, $version, $actor): array {
             if ($return->invoice_id === null) {
                 Messages::fail('document', 'return_not_invoiced');
             }
