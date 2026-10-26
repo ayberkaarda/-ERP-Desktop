@@ -209,7 +209,10 @@ pub(crate) fn validate_field(field: &str) -> Result<()> {
     }
 }
 
-/// Mirror table of a resource: `m_` + name, `-` → `_`, `.` → `__`.
+/// Mirror table of a resource: `m_` + name with `-` → `_2d` and `.` → `_2e`.
+/// Resource names never contain `_`, so every `_` after the prefix starts a
+/// fixed-length escape and the mapping is one-to-one (`a--b` → `m_a_2d_2db`,
+/// `a.b` → `m_a_2eb`).
 pub(crate) fn table_name(resource: &ResourceName) -> String {
     format!("m_{}", ident_part(resource.as_str()))
 }
@@ -239,7 +242,7 @@ pub(crate) fn json_path(field: &str) -> String {
 }
 
 fn ident_part(name: &str) -> String {
-    name.replace('.', "__").replace('-', "_")
+    name.replace('-', "_2d").replace('.', "_2e")
 }
 
 pub(crate) fn invalid(message: impl std::fmt::Display) -> SyncError {
@@ -260,7 +263,7 @@ mod tests {
         assert!(validate_field("a') OR 1").is_err());
         assert_eq!(
             table_name(&ResourceName("price-lists.lines".into())),
-            "m_price_lists__lines"
+            "m_price_2dlists_2elines"
         );
     }
 }

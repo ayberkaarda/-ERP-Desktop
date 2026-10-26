@@ -25,6 +25,7 @@ pub fn fold(text: &str) -> String {
 }
 
 /// Combining Diacritical Marks: part of a token for unicode61.
+/// Known limitation: rare marks unicode61 splits on (e.g. U+034F) stay in the word.
 fn is_combining_mark(c: char) -> bool {
     matches!(c, '\u{0300}'..='\u{036F}')
 }

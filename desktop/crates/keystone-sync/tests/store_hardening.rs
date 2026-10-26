@@ -56,7 +56,7 @@ fn search(store: &Store, resource: &str, text: &str) -> Vec<u128> {
 fn derived_names_never_collide_between_resources() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path().join("names.db"), &key()).unwrap();
-    // `m-foo` maps to table `m_m_foo`; its FTS/index names must not be `foo`'s.
+    // `m-foo` maps to table `m_m_2dfoo`; its FTS/index names must not be `foo`'s.
     // `foo-data` must not collide with FTS shadow tables of `foo`.
     for name in ["foo", "m-foo", "foo-data", "a.f-b"] {
         store
@@ -318,4 +318,37 @@ fn digest_normalizes_only_crlf() {
     assert_eq!(sql_digest("a\r\nb"), sql_digest("a\nb"));
     assert_ne!(sql_digest("a\rb"), sql_digest("ab"));
     assert_ne!(sql_digest("'x\ry'"), sql_digest("'xy'"));
+}
+
+#[test]
+fn table_names_are_one_to_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path().join("inject.db"), &key()).unwrap();
+    // These used to share `m_a__b`; the second registration was refused.
+    let pairs = [("a--b", "a.b"), ("a-.b", "a---b"), ("x-2d", "x--2d")];
+    for (one, two) in pairs {
+        store
+            .register(&ResourceSpec::new(res(one)).search(["name"]))
+            .unwrap();
+        store
+            .register(&ResourceSpec::new(res(two)).search(["name"]))
+            .unwrap();
+        let t1 = store.mirror_table(&res(one)).unwrap().unwrap();
+        let t2 = store.mirror_table(&res(two)).unwrap().unwrap();
+        assert_ne!(t1, t2, "{one} / {two}");
+    }
+    assert_eq!(
+        store.mirror_table(&res("a--b")).unwrap().unwrap(),
+        "m_a_2d_2db"
+    );
+    assert_eq!(store.mirror_table(&res("a.b")).unwrap().unwrap(), "m_a_2eb");
+    store
+        .put_row(&res("a--b"), &row(1, json!({"name": "Bir"})))
+        .unwrap();
+    store
+        .put_row(&res("a.b"), &row(2, json!({"name": "Iki"})))
+        .unwrap();
+    assert_eq!(search(&store, "a--b", "bir"), [1]);
+    assert_eq!(search(&store, "a.b", "iki"), [2]);
+    assert!(search(&store, "a.b", "bir").is_empty());
 }
