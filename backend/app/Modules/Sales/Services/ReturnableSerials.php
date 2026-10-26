@@ -23,8 +23,11 @@ final class ReturnableSerials
     public static function forLines(iterable $lines): array
     {
         $deliveryOf = [];
+        $company = null;
 
         foreach ($lines as $line) {
+            $company = $line->company_id;
+
             if ($line->delivery_line_id !== null) {
                 $deliveryOf[$line->id] = $line->delivery_line_id;
             }
@@ -34,11 +37,15 @@ final class ReturnableSerials
             return [];
         }
 
-        $shipped = SalesDeliveryLine::query()->whereIn('id', array_values($deliveryOf))->get()->keyBy('id');
+        // The invoice lines' company, not the ambient context (sync pulls read with an explicit company).
+        $shipped = SalesDeliveryLine::query()->withoutCompanyScope()->where('company_id', $company)
+            ->whereIn('id', array_values($deliveryOf))->get()->keyBy('id');
         $taken = [];
+        $live = SalesReturn::query()->withoutCompanyScope()->where('company_id', $company)
+            ->select('id')->where('status', '<>', ReturnStatus::Cancelled->value);
 
-        foreach (SalesReturnLine::query()->whereIn('delivery_line_id', array_values($deliveryOf))
-            ->whereIn('document_id', SalesReturn::query()->select('id')->where('status', '<>', ReturnStatus::Cancelled->value))
+        foreach (SalesReturnLine::query()->withoutCompanyScope()->where('company_id', $company)
+            ->whereIn('delivery_line_id', array_values($deliveryOf))->whereIn('document_id', $live)
             ->get() as $returned) {
             $taken[$returned->delivery_line_id] = [...($taken[$returned->delivery_line_id] ?? []), ...$returned->serial_numbers];
         }
