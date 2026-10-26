@@ -17,9 +17,11 @@ use Throwable;
  */
 final readonly class Mutation
 {
-    public const string UUID7_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
+    public const string UUID7_PATTERN = '/\A[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/';
 
-    private const string RESOURCE_PATTERN = '/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*$/';
+    private const string TIMESTAMP_PATTERN = '/\A(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(\.\d{1,6})?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)\z/';
+
+    private const string RESOURCE_PATTERN = '/\A[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)*\z/';
 
     /**
      * @param  list<string>  $changedFields
@@ -55,7 +57,7 @@ final readonly class Mutation
         $op = $opValue === null ? null : MutationOp::tryFrom($opValue);
         $resource = self::string($data, 'resource', self::RESOURCE_PATTERN, $errors);
         $id = self::string($data, 'id', self::UUID7_PATTERN, $errors);
-        $action = self::string($data, 'action', '/^[a-z][a-z-]*$/', $errors, optional: true);
+        $action = self::string($data, 'action', '/\A[a-z][a-z-]*\z/', $errors, optional: true);
         $parentId = self::string($data, 'parent_id', Cursor::UUID_PATTERN, $errors, optional: true);
         $occurred = self::string($data, 'occurred_at', null, $errors);
 
@@ -85,14 +87,10 @@ final readonly class Mutation
             $errors['payload'] = ['The payload field must be an object.'];
         }
 
-        $occurredAt = null;
+        $occurredAt = $occurred === null ? null : self::timestamp($occurred);
 
-        if ($occurred !== null) {
-            try {
-                $occurredAt = CarbonImmutable::parse($occurred);
-            } catch (Throwable) {
-                $errors['occurred_at'] = ['The occurred_at field is invalid.'];
-            }
+        if ($occurred !== null && $occurredAt === null) {
+            $errors['occurred_at'] = ['The occurred_at field is invalid.'];
         }
 
         $resolution = self::resolution($data['resolution'] ?? null, $errors);
@@ -162,6 +160,28 @@ final readonly class Mutation
         }
 
         return $value;
+    }
+
+    /**
+     * Strict RFC 3339 date-time with an explicit offset (common.schema.json#/$defs/timestamp).
+     * Relative words ("now", "tomorrow") are refused: they would make the fingerprint of a
+     * retried mutation depend on when it arrived. Impossible calendar values (Feb 30, 24:00)
+     * are refused instead of rolling over.
+     */
+    private static function timestamp(string $value): ?CarbonImmutable
+    {
+        if (preg_match(self::TIMESTAMP_PATTERN, $value, $m) !== 1) {
+            return null;
+        }
+
+        try {
+            $parsed = new CarbonImmutable($value);
+        } catch (Throwable) {
+            return null;
+        }
+
+        // DateTime rolls Feb 30 over to March; the wall clock it read must be the one sent.
+        return $parsed->format('Y-m-d H:i:s') === "{$m[1]} {$m[2]}" ? $parsed : null;
     }
 
     /**

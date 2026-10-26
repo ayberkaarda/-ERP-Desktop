@@ -22,12 +22,18 @@ use LogicException;
  *     $table->dropSyncable(...same arguments...);                     // in down()
  *
  * A tracked table gets `sync_txid xid8 NOT NULL DEFAULT pg_current_xact_id()`, an index on
- * (company_id, sync_txid, id) â€” (sync_txid, id) when the table has no company_id â€” the
- * sync_touch trigger and the sync_tombstone triggers (AFTER DELETE, plus AFTER UPDATE OF
+ * (company_id, sync_txid, id) (or (sync_txid, id) when the table has no company_id), the
+ * zz_sync_touch trigger and the sync_tombstone triggers (AFTER DELETE, plus AFTER UPDATE OF
  * deleted_at when the table soft-deletes). A child (parent given) gets three statement-level
  * triggers that bump the parent's sync_txid once per statement. The trigger functions are
  * created by the 2027_08_01_100000 migration. Laravel's grammar has no xid8 type, so all of
  * this compiles to raw statements, after the table's own create/alter statements.
+ *
+ * Existing row guards: PostgreSQL fires BEFORE triggers in name order, so the stamping trigger
+ * is called zz_sync_touch and runs after guards such as treasury_payments_immutable; they see
+ * sync_txid unchanged and their to_jsonb(OLD)/to_jsonb(NEW) comparisons keep working. A guard
+ * that refuses every update of a closed parent row must let the parent touch through:
+ * `IF sync_touching() THEN RETURN NEW; END IF;` (that UPDATE changes only the sync position).
  *
  * parentKey lists the child columns that reference the parent's `id`; a string key maps a
  * child column to another parent column, and several entries match as one row value.
@@ -36,7 +42,7 @@ final class Syncable
 {
     public const string COLUMN = 'sync_txid';
 
-    private const string IDENTIFIER = '/^[a-z_][a-z0-9_]{0,62}$/';
+    private const string IDENTIFIER = '/\A[a-z_][a-z0-9_]{0,62}\z/';
 
     public static function register(): void
     {
@@ -94,10 +100,11 @@ final class Syncable
             $hasSoftDeletes = $command->get('hasSoftDeletes');
             $position = ($hasCompany instanceof Closure && $hasCompany() === true) ? 'company_id, sync_txid, id' : 'sync_txid, id';
             $parentColumn = self::tombstoneParentColumn($command);
+            $index = self::indexName($table);
 
             $statements[] = "ALTER TABLE \"{$table}\" ADD COLUMN sync_txid xid8 NOT NULL DEFAULT pg_current_xact_id()";
-            $statements[] = "CREATE INDEX \"{$table}_sync_position_index\" ON \"{$table}\" ({$position})";
-            $statements[] = "CREATE TRIGGER sync_touch BEFORE INSERT OR UPDATE ON \"{$table}\" FOR EACH ROW EXECUTE FUNCTION sync_touch()";
+            $statements[] = "CREATE INDEX \"{$index}\" ON \"{$table}\" ({$position})";
+            $statements[] = "CREATE TRIGGER zz_sync_touch BEFORE INSERT OR UPDATE ON \"{$table}\" FOR EACH ROW EXECUTE FUNCTION sync_touch()";
             $statements[] = "CREATE TRIGGER sync_tombstone_delete AFTER DELETE ON \"{$table}\" FOR EACH ROW EXECUTE FUNCTION sync_tombstone('{$parentColumn}')";
 
             if ($hasSoftDeletes instanceof Closure && $hasSoftDeletes() === true) {
@@ -148,10 +155,11 @@ final class Syncable
         }
 
         if ($command->get('tracked') === true) {
+            $index = self::indexName($table);
             $statements[] = "DROP TRIGGER IF EXISTS sync_tombstone_soft ON \"{$table}\"";
             $statements[] = "DROP TRIGGER IF EXISTS sync_tombstone_delete ON \"{$table}\"";
-            $statements[] = "DROP TRIGGER IF EXISTS sync_touch ON \"{$table}\"";
-            $statements[] = "DROP INDEX IF EXISTS \"{$table}_sync_position_index\"";
+            $statements[] = "DROP TRIGGER IF EXISTS zz_sync_touch ON \"{$table}\"";
+            $statements[] = "DROP INDEX IF EXISTS \"{$index}\"";
             $statements[] = "ALTER TABLE \"{$table}\" DROP COLUMN IF EXISTS sync_txid";
             $statements[] = "DELETE FROM sync_tombstones WHERE resource_table = '{$table}'";
         }
@@ -221,6 +229,17 @@ final class Syncable
         $index = array_search('id', $targets, true);
 
         return $index === false ? ($children[0] ?? '') : $children[$index];
+    }
+
+    /**
+     * Index names share the 63-byte limit with the table name; PostgreSQL would silently cut a
+     * long one down to the table's own name and the CREATE INDEX would then collide with it.
+     */
+    public static function indexName(string $table): string
+    {
+        $name = "{$table}_sync_position_index";
+
+        return strlen($name) <= 63 ? $name : substr($table, 0, 40).'_'.substr(md5($table), 0, 12).'_sync_pos';
     }
 
     private static function parentTrigger(string $parent): string

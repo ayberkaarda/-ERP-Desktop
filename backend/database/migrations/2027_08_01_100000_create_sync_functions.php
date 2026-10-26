@@ -17,6 +17,15 @@ use Illuminate\Support\Facades\DB;
  *   each affected parent once. Arguments: parent table, child columns, parent columns
  *   (comma separated, matched as a row value). Touches sync_txid only; version and
  *   updated_at stay untouched, so optimistic locking on the parent is not disturbed.
+ *   The UPDATE itself writes sync_txid = sync_txid; the parent's own zz_sync_touch trigger
+ *   stamps the value, and the statement runs with sync_touching() = true.
+ * - sync_touching(): true only inside such a parent touch. Row guards that refuse any change
+ *   to a closed record (posted documents, ledgers) can `IF sync_touching() THEN RETURN NEW;`
+ *   because that statement changes nothing but the sync position.
+ *
+ * Guard compatibility: the macro names its stamping trigger zz_sync_touch, and PostgreSQL
+ * runs BEFORE triggers in name order, so existing guards that compare to_jsonb(OLD) and
+ * to_jsonb(NEW) see sync_txid unchanged on ordinary updates.
  */
 return new class extends Migration
 {
@@ -80,6 +89,7 @@ return new class extends Migration
                 child_cols text;
                 parent_cols text;
                 source text;
+                previous text;
             BEGIN
                 SELECT string_agg(quote_ident(btrim(c)), ', ') INTO child_cols FROM unnest(string_to_array(TG_ARGV[1], ',')) AS c;
                 SELECT string_agg(quote_ident(btrim(c)), ', ') INTO parent_cols FROM unnest(string_to_array(TG_ARGV[2], ',')) AS c;
@@ -90,13 +100,22 @@ return new class extends Migration
                     ELSE format('SELECT %1$s FROM sync_new UNION SELECT %1$s FROM sync_old', child_cols)
                 END;
 
+                previous := current_setting('keystone.sync_touch', true);
+                PERFORM set_config('keystone.sync_touch', 'on', true);
+
                 EXECUTE format(
-                    'UPDATE %I SET sync_txid = pg_current_xact_id() WHERE (%s) IN (%s) AND sync_txid <> pg_current_xact_id()',
+                    'UPDATE %I SET sync_txid = sync_txid WHERE (%s) IN (%s) AND sync_txid <> pg_current_xact_id()',
                     TG_ARGV[0], parent_cols, source
                 );
 
+                PERFORM set_config('keystone.sync_touch', coalesce(previous, ''), true);
+
                 RETURN NULL;
             END;
+            $$;
+
+            CREATE OR REPLACE FUNCTION sync_touching() RETURNS boolean LANGUAGE sql STABLE AS $$
+                SELECT coalesce(current_setting('keystone.sync_touch', true), '') = 'on'
             $$;
             SQL);
     }
@@ -104,6 +123,7 @@ return new class extends Migration
     public function down(): void
     {
         DB::unprepared(<<<'SQL'
+            DROP FUNCTION IF EXISTS sync_touching();
             DROP FUNCTION IF EXISTS sync_touch_parent();
             DROP FUNCTION IF EXISTS sync_tombstone();
             DROP FUNCTION IF EXISTS sync_touch();

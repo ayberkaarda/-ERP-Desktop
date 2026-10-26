@@ -19,6 +19,13 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * conditions, no ordering, no limit — with the scope rules of scope() already applied.
  * Row visibility is per resource in D1 (manifest `requires` + company scope + this query);
  * policies are not evaluated per row.
+ *
+ * Table setup (module migration): `$table->syncable()` on the resource table and
+ * `syncable(parent: ..., parentKey: [...])` on line tables (see App\Core\Sync\Schema\Syncable).
+ * Before binding, check the table's own BEFORE UPDATE guards: comparisons of to_jsonb(OLD) and
+ * to_jsonb(NEW) keep working (zz_sync_touch runs last), but a guard that rejects every update
+ * of a posted/closed row also rejects the parent touch caused by a line change; such a guard
+ * needs `IF sync_touching() THEN RETURN NEW; END IF;` first.
  */
 interface SyncResource
 {

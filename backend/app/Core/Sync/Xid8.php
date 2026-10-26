@@ -17,7 +17,7 @@ final readonly class Xid8 implements JsonSerializable, Stringable
 {
     public const string MAX = '18446744073709551615';
 
-    private const string PATTERN = '/^(0|[1-9][0-9]{0,19})$/';
+    private const string PATTERN = '/\A(0|[1-9][0-9]{0,19})\z/';
 
     private function __construct(public string $value) {}
 
