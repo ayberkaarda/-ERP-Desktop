@@ -3,21 +3,36 @@
 //! One `Store` per (server profile, user, company). Other modules reach the
 //! database only through [`Store::read`] and [`Store::write`]; they own their
 //! tables through their `MIGRATIONS` (see [`migrations`]).
+//!
+//! Connections: one writer (behind a mutex, IMMEDIATE transactions) and a
+//! small pool of `query_only` readers. WAL lets readers run while the writer
+//! holds a transaction; they see the last committed state.
 
+mod fold;
 pub mod migrations;
 mod mirror;
+mod query;
+mod retention;
+mod spec;
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 
 use rusqlite::{Connection, ErrorCode as SqliteCode, Transaction, TransactionBehavior};
 
 use crate::error::{Result, SyncError};
+pub use fold::{fold, match_expression};
 pub use migrations::{Migration, RANGES};
-pub use mirror::{AppliedPage, MirrorStore};
+pub use mirror::{AppliedPage, MirrorStore, ResourceState, Snapshot};
+pub use query::{
+    Filter, FilterOp, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, ListPage, ListQuery, ReadRoute, SortKey,
+    read_route,
+};
+pub use retention::{PruneReport, RetentionPolicy};
+pub use spec::{DEFAULT_SEARCH_FIELDS, ResourceSpec, Window, specs_from_offline_manifest};
 
-/// Store-owned tables.
+/// Store base tables.
 pub const MIGRATIONS: &[Migration] = &[Migration {
     id: 1,
     module: "store",
@@ -27,6 +42,35 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
         value TEXT NOT NULL
     ) STRICT;",
 }];
+
+/// Generic mirror bookkeeping (store range, part of [`migrations::registry`]).
+/// Kept apart from [`MIGRATIONS`] so the base list stays `store_meta` only.
+/// Per-resource row tables (`m_*`) and FTS tables (`s_*`) are created by
+/// [`Store::register`], not by migrations: their shape follows the spec.
+pub const MIRROR_MIGRATIONS: &[Migration] = &[Migration {
+    id: 10,
+    module: "store",
+    name: "mirror_registry",
+    sql: "CREATE TABLE store_resources (
+        resource TEXT PRIMARY KEY,
+        table_name TEXT NOT NULL UNIQUE,
+        spec TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE store_cursors (
+        resource TEXT PRIMARY KEY,
+        cursor TEXT NOT NULL,
+        complete INTEGER NOT NULL,
+        synced_at TEXT NOT NULL
+    ) STRICT;
+    CREATE TABLE store_snapshots (
+        resource TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
+    ) STRICT;",
+}];
+
+/// Readers opened next to the writer.
+pub const READER_POOL_SIZE: usize = 3;
 
 /// 256-bit raw SQLCipher key. The OS keychain keeps it (D3).
 #[derive(Clone, PartialEq, Eq)]
@@ -54,13 +98,18 @@ impl fmt::Debug for DbKey {
 }
 
 pub struct Store {
-    conn: Mutex<Connection>,
+    writer: Mutex<Connection>,
+    readers: ReaderPool,
+    retention: Mutex<RetentionPolicy>,
     path: PathBuf,
 }
 
 impl fmt::Debug for Store {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Store").field("path", &self.path).finish()
+        f.debug_struct("Store")
+            .field("path", &self.path)
+            .field("readers", &self.readers.size)
+            .finish()
     }
 }
 
@@ -85,8 +134,31 @@ impl Store {
              PRAGMA busy_timeout = 5000;",
         )?;
         migrations::apply(&mut conn, migrations)?;
+
+        let size = if is_memory(&path) {
+            0
+        } else {
+            READER_POOL_SIZE
+        };
+        let mut idle = Vec::with_capacity(size);
+        for _ in 0..size {
+            let reader = Connection::open(&path)?;
+            unlock(&reader, key)?;
+            reader.execute_batch(
+                "PRAGMA query_only = ON;
+                 PRAGMA foreign_keys = ON;
+                 PRAGMA busy_timeout = 5000;",
+            )?;
+            idle.push(reader);
+        }
         Ok(Self {
-            conn: Mutex::new(conn),
+            writer: Mutex::new(conn),
+            readers: ReaderPool {
+                idle: Mutex::new(idle),
+                ready: Condvar::new(),
+                size,
+            },
+            retention: Mutex::new(RetentionPolicy::default()),
             path,
         })
     }
@@ -95,14 +167,23 @@ impl Store {
         &self.path
     }
 
-    /// Runs `f` on the connection without a transaction.
+    /// Runs `f` on a pooled read-only connection, without a transaction.
+    /// Waits when every reader is busy; never waits for the writer.
     pub fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
-        f(&self.lock())
+        if self.readers.size == 0 {
+            return f(&self.lock_writer());
+        }
+        let lease = self.readers.take();
+        match &lease.conn {
+            Some(conn) => f(conn),
+            None => Err(SyncError::Store(rusqlite::Error::InvalidQuery)),
+        }
     }
 
-    /// Runs `f` in an IMMEDIATE transaction; commits on `Ok`, rolls back on `Err`.
+    /// Runs `f` in an IMMEDIATE transaction on the single writer; commits on
+    /// `Ok`, rolls back on `Err`.
     pub fn write<T>(&self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
-        let mut conn = self.lock();
+        let mut conn = self.lock_writer();
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let value = f(&tx)?;
         tx.commit()?;
@@ -119,11 +200,74 @@ impl Store {
         self.read(migrations::ledger)
     }
 
-    fn lock(&self) -> MutexGuard<'_, Connection> {
+    pub fn retention(&self) -> RetentionPolicy {
+        *self
+            .retention
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Replaces the retention policy of this open store (not persisted).
+    pub fn set_retention(&self, policy: RetentionPolicy) {
+        *self
+            .retention
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = policy;
+    }
+
+    fn lock_writer(&self) -> MutexGuard<'_, Connection> {
         // A panic inside `read`/`write` cannot leave a half-open transaction:
         // `Transaction` rolls back on drop. The connection stays usable.
-        self.conn.lock().unwrap_or_else(PoisonError::into_inner)
+        self.writer.lock().unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+struct ReaderPool {
+    idle: Mutex<Vec<Connection>>,
+    ready: Condvar,
+    size: usize,
+}
+
+impl ReaderPool {
+    fn take(&self) -> Lease<'_> {
+        let mut idle = self.idle.lock().unwrap_or_else(PoisonError::into_inner);
+        loop {
+            if let Some(conn) = idle.pop() {
+                return Lease {
+                    pool: self,
+                    conn: Some(conn),
+                };
+            }
+            idle = self
+                .ready
+                .wait(idle)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+    }
+}
+
+/// A borrowed reader; goes back to the pool on drop, also on panic.
+struct Lease<'a> {
+    pool: &'a ReaderPool,
+    conn: Option<Connection>,
+}
+
+impl Drop for Lease<'_> {
+    fn drop(&mut self) {
+        if let Some(conn) = self.conn.take() {
+            self.pool
+                .idle
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .push(conn);
+            self.pool.ready.notify_one();
+        }
+    }
+}
+
+fn is_memory(path: &Path) -> bool {
+    let text = path.to_string_lossy();
+    text.is_empty() || text == ":memory:" || text.starts_with("file::memory:")
 }
 
 fn unlock(conn: &Connection, key: &DbKey) -> Result<()> {

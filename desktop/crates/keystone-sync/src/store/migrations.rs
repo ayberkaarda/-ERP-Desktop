@@ -39,6 +39,7 @@ const LEDGER: &str = "_keystone_migrations";
 pub fn registry() -> Vec<&'static Migration> {
     let mut all: Vec<&'static Migration> = [
         super::MIGRATIONS,
+        super::MIRROR_MIGRATIONS,
         crate::outbox::MIGRATIONS,
         crate::conflicts::MIGRATIONS,
         crate::engine::MIGRATIONS,
