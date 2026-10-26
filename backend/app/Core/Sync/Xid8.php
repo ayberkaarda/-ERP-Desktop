@@ -6,6 +6,7 @@ namespace App\Core\Sync;
 
 use InvalidArgumentException;
 use JsonSerializable;
+use OverflowException;
 use Stringable;
 
 /**
@@ -80,6 +81,30 @@ final readonly class Xid8 implements JsonSerializable, Stringable
     public function greaterThan(self $other): bool
     {
         return $this->compare($other) > 0;
+    }
+
+    /**
+     * value + 1 (decimal string arithmetic; e.g. the exclusive tombstone floor).
+     */
+    public function next(): self
+    {
+        if ($this->value === self::MAX) {
+            throw new OverflowException('xid8 overflow.');
+        }
+
+        $digits = str_split($this->value);
+
+        for ($i = count($digits) - 1; $i >= 0; $i--) {
+            if ($digits[$i] !== '9') {
+                $digits[$i] = (string) ((int) $digits[$i] + 1);
+
+                return new self(implode('', $digits));
+            }
+
+            $digits[$i] = '0';
+        }
+
+        return new self('1'.implode('', $digits));
     }
 
     public static function max(self $a, self $b): self

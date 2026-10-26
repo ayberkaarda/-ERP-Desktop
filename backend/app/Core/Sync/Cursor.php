@@ -82,14 +82,14 @@ final readonly class Cursor implements JsonSerializable
     /**
      * True when pruning may have removed a tombstone this cursor still has to see.
      *
-     * The floor is the largest sync_txid among pruned tombstones (sync_watermarks.floor_txid).
-     * The next page reads sync_txid >= txid (or (sync_txid, id) > (txid, after_id)), so a
-     * pruned tombstone at exactly txid would be missed too: the bound is inclusive.
-     * Not applied to a first download (`cursor: null`), which needs no tombstones at all.
+     * The floor (sync_watermarks.floor_txid, SYNC-PROTOCOL "Tombstone tabanı") is an exclusive
+     * upper bound: max(pruned sync_txid) + 1. A cursor expires when cursor.txid < floor, so a
+     * cursor sitting exactly on the largest pruned sync_txid (with or without after_id) is
+     * reset too. Not applied to a first download (`cursor: null`).
      */
     public function expiredBy(?Xid8 $floor): bool
     {
-        return $floor !== null && $this->txid->lessThanOrEqual($floor);
+        return $floor !== null && $this->txid->lessThan($floor);
     }
 
     /**

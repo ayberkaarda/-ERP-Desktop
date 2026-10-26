@@ -49,14 +49,23 @@ it('parses the wire cursor and round-trips it', function (): void {
         ->and(Cursor::atHorizon(Xid8::of('77'), 1)->toArray())->toBe(['txid' => '77', 'after_id' => null, 'gen' => 1]);
 });
 
-it('expires cursors at or below the tombstone floor, inclusive', function (): void {
+it('expires cursors below the exclusive tombstone floor', function (): void {
     $cursor = Cursor::fromWire(['txid' => '500', 'after_id' => null, 'gen' => 0]);
+    // Largest pruned sync_txid 500 -> floor 501.
+    $floor = Xid8::of('500')->next();
 
-    expect($cursor->expiredBy(null))->toBeFalse()
-        ->and($cursor->expiredBy(Xid8::of('499')))->toBeFalse()
-        ->and($cursor->expiredBy(Xid8::of('500')))->toBeTrue()
-        ->and($cursor->expiredBy(Xid8::of('501')))->toBeTrue()
-        ->and(Cursor::after(Xid8::of('500'), '01928c1e-7a2b-7c3d-8e4f-0a1b2c3d4e5f', 0)->expiredBy(Xid8::of('500')))->toBeTrue();
+    expect($floor->value)->toBe('501')
+        ->and($cursor->expiredBy(null))->toBeFalse()
+        ->and($cursor->expiredBy(Xid8::of('500')))->toBeFalse()
+        ->and($cursor->expiredBy($floor))->toBeTrue()
+        ->and(Cursor::after(Xid8::of('500'), '01928c1e-7a2b-7c3d-8e4f-0a1b2c3d4e5f', 0)->expiredBy($floor))->toBeTrue()
+        ->and(Cursor::atHorizon(Xid8::of('501'), 0)->expiredBy($floor))->toBeFalse();
+});
+
+it('increments with carry beyond the PHP integer range', function (): void {
+    expect(Xid8::of('9223372036854775807')->next()->value)->toBe('9223372036854775808')
+        ->and(Xid8::of('1999')->next()->value)->toBe('2000')
+        ->and(fn () => Xid8::of(Xid8::MAX)->next())->toThrow(OverflowException::class);
 });
 
 it('knows when a cursor is past the horizon', function (): void {

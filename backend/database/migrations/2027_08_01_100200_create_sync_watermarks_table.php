@@ -8,10 +8,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /*
- * Tombstone floor per (table, company): the largest sync_txid among tombstones that pruning
- * has removed. It only grows. A cursor at or below it (cursor.txid <= floor_txid, see
- * App\Core\Sync\Cursor::expiredBy) may have missed a pruned delete and gets
- * `reset: cursor_expired`; an initial download (cursor null) is not affected.
+ * Tombstone floor per (table, company), an exclusive upper bound: max(sync_txid of the
+ * tombstones pruning removed) + 1 (Xid8::next()). It only grows. A cursor below it
+ * (cursor.txid < floor_txid, see App\Core\Sync\Cursor::expiredBy) may have missed a pruned
+ * delete and gets `reset: cursor_expired`; an initial download (cursor null) is not affected.
  * company_id NULL holds the floor of global rows, so NULLs are not distinct in the key.
  */
 return new class extends Migration
