@@ -39,6 +39,12 @@ return new class extends Migration
         Schema::table('price_lists', fn (Blueprint $table) => $table->syncable());
         Schema::table('price_list_lines', fn (Blueprint $table) => $table->syncable(parent: 'price_lists', parentKey: ['price_list_id'], tracked: true));
 
+        // Reverse lookups for the embed touches below (company first, then the referenced id).
+        DB::statement('CREATE INDEX items_company_base_unit_index ON items (company_id, base_unit_id)');
+        DB::statement('CREATE INDEX item_units_company_unit_index ON item_units (company_id, unit_id)');
+        DB::statement('CREATE INDEX unit_conversions_company_from_unit_index ON unit_conversions (company_id, from_unit_id)');
+        DB::statement('CREATE INDEX unit_conversions_company_to_unit_index ON unit_conversions (company_id, to_unit_id)');
+
         DB::unprepared(<<<'SQL'
             CREATE OR REPLACE FUNCTION catalog_sync_touch_unit_embedders() RETURNS trigger LANGUAGE plpgsql AS $$
             DECLARE
@@ -51,26 +57,28 @@ return new class extends Migration
                     FROM sync_new n JOIN sync_old o ON o.id = n.id
                     CROSS JOIN LATERAL (VALUES (n.company_id), (o.company_id)) AS c (company_id)
                     WHERE (n.company_id, n.code, n.name, n.symbol, n.deleted_at) IS DISTINCT FROM (o.company_id, o.code, o.name, o.symbol, o.deleted_at)
+                ), affected AS (
+                    SELECT i.id, i.company_id FROM items i JOIN changed c ON i.company_id = c.company_id AND i.base_unit_id = c.id
+                    UNION
+                    SELECT iu.item_id, iu.company_id FROM item_units iu JOIN changed c ON iu.company_id = c.company_id AND iu.unit_id = c.id
                 )
                 UPDATE items i SET sync_txid = sync_txid
-                WHERE i.sync_txid <> pg_current_xact_id()
-                  AND (
-                    EXISTS (SELECT 1 FROM changed c WHERE c.id = i.base_unit_id AND c.company_id = i.company_id)
-                    OR EXISTS (
-                        SELECT 1 FROM item_units iu JOIN changed c ON c.id = iu.unit_id AND c.company_id = iu.company_id
-                        WHERE iu.item_id = i.id AND iu.company_id = i.company_id
-                    )
-                  );
+                FROM affected a
+                WHERE i.id = a.id AND i.company_id = a.company_id AND i.sync_txid <> pg_current_xact_id();
 
                 WITH changed AS (
                     SELECT n.id, c.company_id
                     FROM sync_new n JOIN sync_old o ON o.id = n.id
                     CROSS JOIN LATERAL (VALUES (n.company_id), (o.company_id)) AS c (company_id)
                     WHERE (n.company_id, n.code, n.deleted_at) IS DISTINCT FROM (o.company_id, o.code, o.deleted_at)
+                ), affected AS (
+                    SELECT uc.id FROM unit_conversions uc JOIN changed c ON uc.company_id = c.company_id AND uc.from_unit_id = c.id
+                    UNION
+                    SELECT uc.id FROM unit_conversions uc JOIN changed c ON uc.company_id = c.company_id AND uc.to_unit_id = c.id
                 )
                 UPDATE unit_conversions uc SET sync_txid = sync_txid
-                WHERE uc.sync_txid <> pg_current_xact_id()
-                  AND EXISTS (SELECT 1 FROM changed c WHERE c.company_id = uc.company_id AND c.id IN (uc.from_unit_id, uc.to_unit_id));
+                FROM affected a
+                WHERE uc.id = a.id AND uc.sync_txid <> pg_current_xact_id();
 
                 PERFORM set_config('keystone.sync_touch', coalesce(previous, ''), true);
 
@@ -84,13 +92,18 @@ return new class extends Migration
             BEGIN
                 PERFORM set_config('keystone.sync_touch', 'on', true);
 
-                UPDATE items i SET sync_txid = sync_txid
-                WHERE i.sync_txid <> pg_current_xact_id()
-                  AND EXISTS (
-                    SELECT 1 FROM sync_new n JOIN sync_old o ON o.id = n.id
+                -- items (company_id, category_id) is indexed by the items migration.
+                WITH changed AS (
+                    SELECT DISTINCT n.id, c.company_id
+                    FROM sync_new n JOIN sync_old o ON o.id = n.id
+                    CROSS JOIN LATERAL (VALUES (n.company_id), (o.company_id)) AS c (company_id)
                     WHERE (n.company_id, n.code, n.name, n.deleted_at) IS DISTINCT FROM (o.company_id, o.code, o.name, o.deleted_at)
-                      AND i.category_id = n.id AND i.company_id IN (n.company_id, o.company_id)
-                  );
+                ), affected AS (
+                    SELECT i.id FROM items i JOIN changed c ON i.company_id = c.company_id AND i.category_id = c.id
+                )
+                UPDATE items i SET sync_txid = sync_txid
+                FROM affected a
+                WHERE i.id = a.id AND i.sync_txid <> pg_current_xact_id();
 
                 PERFORM set_config('keystone.sync_touch', coalesce(previous, ''), true);
 
@@ -115,6 +128,10 @@ return new class extends Migration
             DROP TRIGGER IF EXISTS catalog_sync_touch_embedders ON units;
             DROP FUNCTION IF EXISTS catalog_sync_touch_category_embedders();
             DROP FUNCTION IF EXISTS catalog_sync_touch_unit_embedders();
+            DROP INDEX IF EXISTS unit_conversions_company_to_unit_index;
+            DROP INDEX IF EXISTS unit_conversions_company_from_unit_index;
+            DROP INDEX IF EXISTS item_units_company_unit_index;
+            DROP INDEX IF EXISTS items_company_base_unit_index;
             SQL);
 
         Schema::table('price_list_lines', fn (Blueprint $table) => $table->dropSyncable(parent: 'price_lists', tracked: true));

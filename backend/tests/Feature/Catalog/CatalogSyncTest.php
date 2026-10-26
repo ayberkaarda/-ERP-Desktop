@@ -9,6 +9,7 @@ use App\Modules\Catalog\Models\ItemBarcode;
 use App\Modules\Catalog\Models\PriceList;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\Fixtures\Sync\SyncDatabase;
 use Tests\Support\Actors;
@@ -215,17 +216,30 @@ it('does not embed another company\'s rows through a cross-company reference', f
     }
 });
 
-it('reads tombstones per company', function (string $name): void {
+it('attributes each company\'s tombstones to that company', function (string $name): void {
     $adapter = ($this->adapter)($name);
-    $theirs = catalogSet($this->other);
-    $mine = DB::table($adapter->table())->where('company_id', $this->company)->value('id');
-    DB::table($adapter->table())->whereIn('id', [$mine, $theirs[$name][0]])->delete();
-    $read = fn (string $company): array => DB::table('sync_tombstones')
-        ->where('resource_table', $adapter->table())->where('company_id', $company)->pluck('row_id')->all();
+    $table = $adapter->table();
+    $theirs = catalogSet($this->other)[$name][0];
+    $mine = (string) DB::table($table)->where('company_id', $this->company)->value('id');
+    $parents = DB::table($table)->whereIn('id', [$mine, $theirs])->pluck($adapter->parentKey() ?? 'id', 'id');
+    $soft = Schema::hasColumn($table, 'deleted_at');
 
-    expect($read($this->company))->toBe([$mine])
-        ->and($read($this->other))->toBe([$theirs[$name][0]]);
-})->with(['items.variants', 'items.barcodes', 'unit-conversions', 'price-lists.lines']);
+    foreach ([$mine, $theirs] as $id) {
+        $soft
+            ? DB::table($table)->where('id', $id)->update(['deleted_at' => now()])
+            : DB::table($table)->where('id', $id)->delete();
+    }
+
+    foreach ([$mine => $this->company, $theirs => $this->other] as $id => $company) {
+        $tombstone = Sync::tombstone($table, $id);
+
+        expect($tombstone)->not->toBeNull()
+            ->and($tombstone->reason)->toBe($soft ? 'soft_deleted' : 'deleted')
+            ->and($tombstone->company_id)->toBe($company)
+            ->and($tombstone->parent_id)->toBe($adapter->parentKey() === null ? null : $parents[$id])
+            ->and($adapter->query($company)->whereKey($id)->exists())->toBeFalse();
+    }
+})->with(['units', 'unit-conversions', 'item-categories', 'items', 'items.variants', 'items.barcodes', 'price-lists', 'price-lists.lines']);
 
 it('touches the embedding rows when an embedded unit or category changes, without touching their version', function (Closure $change, array $touched): void {
     $tables = ['items' => $this->item->id, 'unit_conversions' => $this->conversion->id];
