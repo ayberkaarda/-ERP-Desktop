@@ -63,6 +63,17 @@ it('still lets progress, status and the sync touch through', function (): void {
     expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('delivered');
 });
 
+it('refuses status moves the order machine does not allow once documents exist', function (string $to): void {
+    SalesKit::deliver($this->w, $this->order['id'], [$this->line => '1']);
+    $order = $this->order['id'];
+
+    // Back to an editable state would reopen the free branches of both guards.
+    orderRefused(fn () => DB::table('sales_orders')->where('id', $order)->update(['status' => $to]));
+
+    expect(DB::table('sales_orders')->where('id', $order)->value('status'))->toBe('partially_delivered');
+    orderRefused(fn () => DB::table('sales_order_lines')->where('id', $this->line)->update(['unit_price' => '1']));
+})->with(['draft', 'pending_approval', 'cancelled']);
+
 it('freezes closed and cancelled orders', function (): void {
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$this->order['id']}/close")->assertOk();
     $cancelled = SalesKit::confirmedOrder($this->w, [[$this->w->item->id, '1', '120']]);
