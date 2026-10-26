@@ -8,6 +8,7 @@ use App\Core\Company\CompanyContext;
 use App\Core\Company\DenyAllMembershipChecker;
 use App\Core\Company\MembershipChecker;
 use App\Core\Idempotency\EnsureIdempotency;
+use App\Core\Idempotency\IdempotencyStore;
 use App\Core\Modules\ModuleLoader;
 use App\Core\Numbering\NumberSequenceService;
 use Illuminate\Contracts\Foundation\Application;
@@ -32,11 +33,16 @@ final class CoreServiceProvider extends ServiceProvider
             self::stringMap($app, 'numbering.formats'),
         ));
 
+        $this->app->bind(IdempotencyStore::class, static fn (Application $app): IdempotencyStore => new IdempotencyStore(
+            $app->make(ConnectionInterface::class),
+            self::int($app, 'idempotency.lease_seconds', 300),
+        ));
+
         $this->app->bind(EnsureIdempotency::class, static fn (Application $app): EnsureIdempotency => new EnsureIdempotency(
             $app->make(ConnectionInterface::class),
             $app->make(CompanyContext::class),
+            $app->make(IdempotencyStore::class),
             self::int($app, 'idempotency.ttl_hours', 24),
-            self::int($app, 'idempotency.lease_seconds', 300),
         ));
 
         (new ModuleLoader($this->app->path('Modules')))->register($this->app);
