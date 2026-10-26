@@ -49,13 +49,21 @@ final readonly class PushResults
     }
 
     /**
-     * Canonical digest of a payload: object keys sorted, list order kept.
+     * Canonical digest of a payload: object keys sorted, list order kept, and JSON numbers by
+     * value (an integral float such as 1.0 counts as 1, as JSON itself does not tell them
+     * apart). Strings, decimals among them, are compared as sent.
      *
      * @param  array<array-key, mixed>  $payload
      */
     public static function payloadHash(array $payload): string
     {
         $sort = static function (mixed &$value) use (&$sort): void {
+            if (is_float($value) && is_finite($value) && floor($value) === $value && abs($value) < 9007199254740992.0) {
+                $value = (int) $value;
+
+                return;
+            }
+
             if (! is_array($value)) {
                 return;
             }
@@ -70,7 +78,7 @@ final readonly class PushResults
         };
         $sort($payload);
 
-        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION));
+        return hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
     }
 
     public function find(IdempotencyScope $scope): ?StoredResult

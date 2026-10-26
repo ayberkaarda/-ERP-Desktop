@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Company\CompanyContext;
 use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\DeviceTokens;
+use App\Modules\Sync\Services\PushResults;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -116,4 +117,61 @@ it('drops the sessions of a revoked device', function (): void {
     app(DeviceTokens::class)->revoke($this->user, UserDevice::query()->where('user_id', $this->user->id)->firstOrFail());
 
     expect(sessions($this))->toBe(0);
+});
+
+it('leaves a newer session alone when an older continuation finishes or moves on', function (int $limit): void {
+    SyncKit::waitVisible();
+    $token = $this->issued['token'];
+    $first = downloadPage($this, $token, null);
+
+    config(['database.connections.sync_session_race' => config('database.connections.'.config('database.default'))]);
+    $race = DB::connection('sync_session_race');
+    $fired = false;
+
+    // Right after the old continuation read its session, the device starts a new download.
+    DB::listen(function ($query) use (&$fired, $race): void {
+        if ($fired || $query->connectionName === 'sync_session_race' || ! str_contains($query->sql, 'sync_full_downloads') || ! str_starts_with(strtolower(ltrim($query->sql)), 'select')) {
+            return;
+        }
+
+        $fired = true;
+        $race->statement("UPDATE sync_full_downloads SET started_horizon = '7'::xid8, cursor_hash = ?, previous_hash = NULL", [str_repeat('e', 64)]);
+    });
+
+    $response = SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => $first['next_cursor'], 'limit' => $limit]], ($this->headers)($token))->assertOk();
+    $race->disconnect();
+    $page = SyncKit::wire($response, 'sync/pull.response.schema.json')['data']['resources'][0];
+
+    $row = DB::table('sync_full_downloads')->where('company_id', $this->company->id)->selectRaw('cursor_hash, started_horizon::text AS started')->first();
+
+    expect($fired)->toBeTrue()
+        ->and($page['has_more'])->toBe($limit === 1)
+        ->and($row)->not->toBeNull()
+        ->and($row?->cursor_hash)->toBe(str_repeat('e', 64))
+        ->and($row?->started)->toBe('7');
+})->with([
+    'completion would delete it' => [10],
+    'continuation would overwrite it' => [1],
+]);
+
+it('hashes payloads the same whatever the number serialization', function (): void {
+    expect(PushResults::payloadHash(['qty' => 1, 'lines' => [['price' => 2.0]]]))
+        ->toBe(PushResults::payloadHash(['lines' => [['price' => 2]], 'qty' => 1.0]))
+        ->and(PushResults::payloadHash(['qty' => 1.5]))->not->toBe(PushResults::payloadHash(['qty' => 1]))
+        ->and(PushResults::payloadHash(['qty' => '1.0']))->not->toBe(PushResults::payloadHash(['qty' => 1]));
+});
+
+it('does not continue a cursor of an older session once a new download started', function (): void {
+    raiseFloor($this);
+    $token = $this->issued['token'];
+    $first = downloadPage($this, $token, null);
+    $second = downloadPage($this, $token, $first['next_cursor']);
+    expect($second['reset'])->toBeFalse();
+
+    // The device starts over; the old session's cursors no longer continue anything.
+    downloadPage($this, $token, null);
+    $old = downloadPage($this, $token, $second['next_cursor']);
+
+    expect($old['reset'])->toBeTrue()
+        ->and($old['reset_reason'])->toBe('cursor_expired');
 });

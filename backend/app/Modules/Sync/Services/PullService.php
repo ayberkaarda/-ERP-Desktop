@@ -97,8 +97,8 @@ final class PullService
             }
 
             $limit = min($request['limit'] ?? $config->pullPageDefault, $config->pullPageMax);
-            $started = $cursor === null || $device === null ? null : $this->downloads->startedAt($device, $user->id, $companyId, $resource->name, $cursor);
-            $plans[] = [$resource, $adapter, $cursor, $started, $generation, max(1, $limit)];
+            $session = $cursor === null || $device === null ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $cursor);
+            $plans[] = [$resource, $adapter, $cursor, $session, $generation, max(1, $limit)];
         }
 
         // Floor, live rows and tombstones of every resource come from one REPEATABLE READ
@@ -110,12 +110,12 @@ final class PullService
             $results = [];
             $continuations = [];
 
-            foreach ($plans as [$resource, $adapter, $cursor, $started, $generation, $limit]) {
-                [$page, $continuation] = $this->page($resource, $adapter, $companyId, $cursor, $started, $generation, $limit, $horizon);
+            foreach ($plans as [$resource, $adapter, $cursor, $session, $generation, $limit]) {
+                [$page, $continuation] = $this->page($resource, $adapter, $companyId, $cursor, $session?->started, $generation, $limit, $horizon);
                 $results[] = $page;
 
                 if ($continuation !== null) {
-                    $continuations[] = [$resource->name, ...$continuation];
+                    $continuations[] = [$resource->name, ...$continuation, $session];
                 }
             }
 
@@ -123,10 +123,19 @@ final class PullService
         });
 
         if ($device !== null) {
-            foreach ($continuations as [$name, $next, $started, $fresh]) {
-                $next === null
-                    ? $this->downloads->finish($device, $user->id, $companyId, $name)
-                    : $this->downloads->remember($device, $user->id, $companyId, $name, $next, $started, $fresh);
+            // A page that began a download replaces the session; any other page only touches
+            // the session it continued, compared on its id and cursor, so a late request of an
+            // older download never moves or removes a newer one.
+            foreach ($continuations as [$name, $next, $started, $fresh, $session]) {
+                if ($fresh || $session === null) {
+                    $next === null
+                        ? $this->downloads->forget($device, $user->id, $companyId, $name)
+                        : $this->downloads->start($device, $user->id, $companyId, $name, $next, $started);
+                } else {
+                    $next === null
+                        ? $this->downloads->finish($session)
+                        : $this->downloads->advance($session, $next);
+                }
             }
         }
 
