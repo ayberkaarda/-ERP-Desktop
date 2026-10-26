@@ -34,6 +34,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -797,9 +798,11 @@ final class InvoiceService extends DocumentService
      * Locks the sources the stored lines name, then the invoice (the order of update(): sources
      * before the invoice), then reads the lines again: once the invoice is locked no line can
      * change any more. A concurrent edit committed in between may have moved lines to sources not
-     * locked yet; locking those now would take a source after the invoice, the reverse of
-     * update(), and two such transactions deadlock. That case answers VERSION_CONFLICT instead
-     * (the invoice did change), so progress is only ever applied to orders locked in order.
+     * locked yet, so progress has to go to those. Waiting for them now would hold the invoice
+     * while waiting for a source, the reverse of update(), and two such transactions deadlock.
+     * They are therefore taken with NOWAIT: free (the usual case) they are locked at once and the
+     * issue goes on; held by another transaction the call answers VERSION_CONFLICT (retry)
+     * without ever waiting behind the invoice lock.
      *
      * @return array{0: SalesInvoice, 1: array<string, SalesOrder>}
      */
@@ -809,8 +812,33 @@ final class InvoiceService extends DocumentService
         $orders = $this->lockSourceIds($orderIds, $deliveryIds);
         $locked = $this->lock($invoice);
         [$nowOrders, $nowDeliveries] = $this->sourceIds($this->linesAsInput($locked));
+        $newOrders = array_values(array_diff($nowOrders, $orderIds));
+        $newDeliveries = array_values(array_diff($nowDeliveries, $deliveryIds));
 
-        if (array_diff($nowOrders, $orderIds) !== [] || array_diff($nowDeliveries, $deliveryIds) !== []) {
+        if ($newOrders === [] && $newDeliveries === []) {
+            return [$locked, $orders];
+        }
+
+        try {
+            // A savepoint, so a refused NOWAIT does not abort the surrounding transaction.
+            $orders += DB::transaction(function () use ($newOrders, $newDeliveries): array {
+                $taken = [];
+
+                foreach ($newOrders as $id) {
+                    $taken[$id] = SalesOrder::query()->whereKey($id)->lock('for update nowait')->firstOrFail();
+                }
+
+                foreach ($newDeliveries as $id) {
+                    SalesDelivery::query()->whereKey($id)->lock('for update nowait')->first();
+                }
+
+                return $taken;
+            });
+        } catch (QueryException $e) {
+            if (($e->errorInfo[0] ?? null) !== '55P03') {
+                throw $e;
+            }
+
             throw new VersionConflictException($invoice->version, $locked->version);
         }
 

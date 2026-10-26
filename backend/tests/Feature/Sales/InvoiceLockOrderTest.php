@@ -13,9 +13,10 @@ use Tests\Support\Sales\SalesKit;
 /*
  * Lock order of invoice paths: sources (orders, then deliveries) before the invoice, as
  * InvoiceService::update does. issue() re-reads the lines once the invoice is locked; when a
- * concurrent edit moved them to other sources in between, it must not lock those sources after
- * the invoice (that is the update path's order reversed, a deadlock) but answer VERSION_CONFLICT.
- * Committing database: the concurrent edit runs on a second connection.
+ * concurrent edit moved them to other sources in between, those are taken with NOWAIT: it never
+ * waits for a source while holding the invoice (the update path's order reversed, a deadlock).
+ * Free sources are taken and the issue goes on; a held one answers VERSION_CONFLICT.
+ * Committing database: the concurrent edit and the holder run on their own connections.
  */
 uses(SyncDatabase::class);
 
@@ -30,24 +31,30 @@ beforeEach(function (): void {
     $this->o2 = $o2;
     $this->invoice = SalesKit::post($this->w->user, $this->w->company, "sales-deliveries/{$this->d1['id']}/invoice", ['document_date' => '2027-06-13'])
         ->assertCreated()->json('data');
+
+    foreach (['sales_lock_editor', 'sales_lock_holder'] as $name) {
+        config(["database.connections.{$name}" => config('database.connections.'.config('database.default'))]);
+    }
 });
 
 afterEach(function (): void {
     DB::disconnect('sales_lock_editor');
+    DB::disconnect('sales_lock_holder');
 });
 
 /**
  * Runs issue() while a committed edit moves the invoice line from delivery 1 to delivery 2 right
- * before the invoice row is locked. Returns the tables locked FOR UPDATE, in order, and the error.
+ * before the invoice row is locked. Returns the row locks taken after the invoice lock
+ * (table => NOWAIT or not) and the error.
  *
- * @return array{0: list<string>, 1: Throwable|null}
+ * @return array{0: list<array{0: string, 1: bool}>, 1: Throwable|null}
  */
 function issueWhileLinesMove(object $test): array
 {
-    config(['database.connections.sales_lock_editor' => config('database.connections.'.config('database.default'))]);
     $editor = DB::connection('sales_lock_editor');
     $moved = false;
-    $locks = [];
+    $invoiceLocked = false;
+    $after = [];
 
     DB::connection()->beforeExecuting(function (string $sql) use (&$moved, $editor, $test): void {
         if (! $moved && str_contains($sql, 'from "sales_invoices"') && str_contains($sql, 'for update')) {
@@ -58,11 +65,20 @@ function issueWhileLinesMove(object $test): array
             );
         }
     });
-    DB::listen(function ($query) use (&$locks): void {
-        if (str_contains($query->sql, 'for update') && preg_match('/from "(sales_invoices|sales_orders|sales_deliveries)"/', $query->sql, $m) === 1) {
-            $locks[] = $m[1];
+    // A lock that has to wait fails after 2s instead of hanging the test.
+    DB::statement("SET lock_timeout = '2s'");
+    $record = function (string $sql) use (&$invoiceLocked, &$after): void {
+        if (! str_contains($sql, 'for update') || preg_match('/from "(sales_invoices|sales_orders|sales_deliveries)"/', $sql, $m) !== 1) {
+            return;
         }
-    });
+
+        if ($invoiceLocked) {
+            $after[] = [$m[1], str_contains($sql, 'nowait')];
+        }
+
+        $invoiceLocked = $invoiceLocked || $m[1] === 'sales_invoices';
+    };
+    DB::connection()->beforeExecuting(fn (string $sql) => $record($sql));
 
     $error = null;
 
@@ -70,20 +86,41 @@ function issueWhileLinesMove(object $test): array
         SalesKit::in($test->w->company, fn () => app(InvoiceService::class)->issue(SalesInvoice::query()->findOrFail($test->invoice['id']), null, null, false, $test->w->user));
     } catch (Throwable $e) {
         $error = $e;
+    } finally {
+        DB::statement('SET lock_timeout = 0');
     }
 
-    return [$locks, $error];
+    return [$after, $error];
 }
 
-it('never locks a source after the invoice when the lines moved before the invoice lock', function (): void {
-    [$locks, $error] = issueWhileLinesMove($this);
-    $invoiceAt = array_search('sales_invoices', $locks, true);
+it('answers VERSION_CONFLICT instead of waiting for a moved source while holding the invoice', function (): void {
+    $holder = DB::connection('sales_lock_holder');
+    $holder->beginTransaction();
+    $holder->select('select id from sales_orders where id = ? for update', [$this->o2['id']]);
 
-    expect($invoiceAt)->not->toBeFalse()
-        ->and(array_slice($locks, (int) $invoiceAt + 1))->not->toContain('sales_orders')
-        ->and(array_slice($locks, (int) $invoiceAt + 1))->not->toContain('sales_deliveries')
-        ->and($error)->toBeInstanceOf(VersionConflictException::class)
+    try {
+        [$after, $error] = issueWhileLinesMove($this);
+    } finally {
+        $holder->rollBack();
+    }
+
+    $sources = array_filter($after, fn (array $lock): bool => $lock[0] !== 'sales_invoices');
+
+    expect($error)->toBeInstanceOf(VersionConflictException::class)
+        ->and($sources)->not->toBeEmpty()
+        ->and(array_filter($sources, fn (array $lock): bool => ! $lock[1]))->toBe([])
         ->and(DB::table('sales_invoices')->where('id', $this->invoice['id'])->value('status'))->toBe('draft');
+});
+
+it('issues against the moved sources when they are free, still without waiting', function (): void {
+    [$after, $error] = issueWhileLinesMove($this);
+    $sources = array_values(array_filter($after, fn (array $lock): bool => $lock[0] !== 'sales_invoices'));
+
+    // The moved source is acquired with NOWAIT; later re-locks of rows already held never wait.
+    expect($error)->toBeNull()
+        ->and($sources[0] ?? null)->toBe(['sales_orders', true])
+        ->and(DB::table('sales_invoices')->where('id', $this->invoice['id'])->value('status'))->toBe('issued')
+        ->and((string) DB::table('sales_order_lines')->where('id', $this->o2['lines'][0]['id'])->value('invoiced_quantity'))->toBe('1.000000');
 });
 
 it('issues normally when nothing moved', function (): void {
