@@ -70,7 +70,6 @@ pub struct Permission(pub String);
 
 /// Per-resource keyset position.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Cursor {
     pub txid: Xid8,
     pub after_id: Option<Uuid>,
@@ -99,7 +98,6 @@ pub struct Requires {
 
 /// The `errors` object of an error body.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ApiError {
     pub message: String,
     pub code: ErrorCode,
@@ -109,7 +107,6 @@ pub struct ApiError {
 
 /// `error.response.schema.json`: `{errors: {...}}`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ErrorResponse {
     pub errors: ApiError,
 }

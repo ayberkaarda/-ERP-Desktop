@@ -1,9 +1,10 @@
 //! Device login and refresh (`device-*.schema.json`). Secrets are redacted
-//! from `Debug` output.
+//! from `Debug` output and zeroed on drop.
 
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 use super::{Meta, Timestamp};
 
@@ -55,7 +56,6 @@ impl fmt::Debug for DeviceRefreshRequest {
 
 /// Success body of both device login and refresh.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct DeviceTokenResponse {
     pub data: DeviceToken,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -64,7 +64,6 @@ pub struct DeviceTokenResponse {
 
 /// Access token (60 min) and single-use refresh token (sliding 30 days).
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct DeviceToken {
     pub token: String,
     pub expires_at: Timestamp,
@@ -80,5 +79,27 @@ impl fmt::Debug for DeviceToken {
             .field("refresh_token", &"<redacted>")
             .field("refresh_expires_at", &self.refresh_expires_at)
             .finish()
+    }
+}
+
+impl Drop for DeviceLoginRequest {
+    fn drop(&mut self) {
+        self.password.zeroize();
+        if let Some(Some(code)) = self.two_factor_code.as_mut() {
+            code.zeroize();
+        }
+    }
+}
+
+impl Drop for DeviceRefreshRequest {
+    fn drop(&mut self) {
+        self.refresh_token.zeroize();
+    }
+}
+
+impl Drop for DeviceToken {
+    fn drop(&mut self) {
+        self.token.zeroize();
+        self.refresh_token.zeroize();
     }
 }

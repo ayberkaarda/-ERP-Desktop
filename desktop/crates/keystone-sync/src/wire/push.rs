@@ -80,21 +80,18 @@ pub enum ResolutionChoice {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PushResponse {
     pub data: PushData,
     pub meta: Meta,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PushData {
     /// One per mutation, same order as the request.
     pub results: Vec<PushResult>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct PushResult {
     pub idempotency_key: Uuid,
     pub resource: ResourceName,
@@ -130,7 +127,6 @@ pub enum PushStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Conflict {
     pub code: ConflictCode,
     #[serde(default, skip_serializing_if = "Option::is_none")]

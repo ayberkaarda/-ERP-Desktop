@@ -7,11 +7,16 @@
 //!
 //! Optional nullable properties use `Option<Option<T>>` so an explicit
 //! `null` survives a round trip.
+//!
+//! Forward compatibility: response types ignore unknown fields and an
+//! unknown `errors.code` decodes to `ErrorCode::Unknown`. Request types keep
+//! `deny_unknown_fields` (they are only written by this client).
 
 mod common;
 mod device;
 mod from_schema;
 mod manifest;
+mod meta;
 mod pull;
 mod push;
 pub mod serde_util;
@@ -25,6 +30,7 @@ pub use from_schema::{ErrorCode, SCHEMA_DIGESTS};
 pub use manifest::{
     Limits, Manifest, ManifestResource, ManifestResponse, ReadMode, Source, WriteCapability,
 };
+pub use meta::{DesktopMeta, ReverbMeta, ServerMeta, ServerMetaResponse, SyncMeta};
 pub use pull::{
     PullData, PullRequest, PullResource, PullResourceResult, PullResponse, ResetReason, Tombstone,
     TombstoneReason,
