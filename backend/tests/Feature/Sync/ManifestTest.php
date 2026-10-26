@@ -2,7 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Modules\Identity\Services\UserAdministration;
+use App\Modules\Organization\Models\Company;
+use App\Modules\Sync\Services\Visibility;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\Feature\Sync\Support\SyncKit;
+use Tests\Fixtures\Sync\FixtureNote;
 use Tests\Fixtures\Sync\SyncDatabase;
 use Tests\Support\Actors;
 use Tests\Support\Identity;
@@ -85,4 +91,66 @@ it('needs the company header and a membership', function (): void {
     [$other] = SyncKit::actor();
     $headers['X-Company-Id'] = $other->id;
     expect(SyncKit::wire(SyncKit::manifestOf($this, $headers)->assertForbidden(), 'sync/error.response.schema.json')['errors']['code'])->toBe('COMPANY_FORBIDDEN');
+});
+
+it('resets cursors when membership is revoked and granted again between two syncs', function (): void {
+    [$company, $user] = SyncKit::actor(['fixtures.view']);
+    $headers = SyncKit::headers($user, $company);
+    $cursor = SyncKit::wire(SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => null]], $headers)->assertOk(), 'sync/pull.response.schema.json')['data']['resources'][0]['next_cursor'];
+
+    // No manifest or pull in between: only the membership event can tell.
+    app(UserAdministration::class)->syncRoles(null, $user, $company->id, []);
+    Actors::grant($user, $company->id, ['fixtures.view']);
+
+    $page = SyncKit::wire(SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => $cursor]], $headers)->assertOk(), 'sync/pull.response.schema.json')['data']['resources'][0];
+
+    expect($page['reset'])->toBeTrue()
+        ->and($page['reset_reason'])->toBe('visibility_changed')
+        ->and($page['next_cursor']['gen'])->toBe(1);
+});
+
+it('refuses a schema_version that is not a strict supported integer', function (string $endpoint, mixed $version, int $status, string $code): void {
+    [$company, $user] = SyncKit::actor();
+    $body = $endpoint === 'pull'
+        ? ['schema_version' => $version, 'resources' => [['resource' => 'fixture-notes', 'cursor' => null]]]
+        : ['schema_version' => $version, 'mutations' => [SyncKit::mutation('create', (string) Str::uuid7(), ['title' => 'x'])]];
+
+    $response = SyncKit::post($this, $endpoint, $body, SyncKit::headers($user, $company))->assertStatus($status);
+
+    expect(SyncKit::wire($response, 'sync/error.response.schema.json')['errors']['code'])->toBe($code)
+        ->and(FixtureNote::withoutCompanyScope()->count())->toBe(0);
+})->with([
+    'pull "99"' => ['pull', '99', 422, 'VALIDATION_ERROR'],
+    'pull "1"' => ['pull', '1', 422, 'VALIDATION_ERROR'],
+    'pull 1.5' => ['pull', 1.5, 422, 'VALIDATION_ERROR'],
+    'pull 99' => ['pull', 99, 409, 'SYNC_SCHEMA_MISMATCH'],
+    'push "99"' => ['push', '99', 422, 'VALIDATION_ERROR'],
+    'push 99' => ['push', 99, 409, 'SYNC_SCHEMA_MISMATCH'],
+]);
+
+it('removes generations, resolutions and download cursors with their user and company', function (): void {
+    [$company, $user] = SyncKit::actor(['fixtures.view']);
+    SyncKit::manifestOf($this, SyncKit::headers($user, $company))->assertOk();
+    $resolution = fn (string $userId, string $companyId): bool => DB::table('sync_push_resolutions')->insert([
+        'resolved_scope_hash' => hash('sha256', $userId.$companyId), 'resolved_key' => (string) Str::uuid7(), 'superseded_by' => (string) Str::uuid7(),
+        'user_id' => $userId, 'company_id' => $companyId, 'created_at' => now(),
+    ]);
+    $resolution($user->id, $company->id);
+    expect(DB::table('sync_visibility_generations')->where('user_id', $user->id)->count())->toBeGreaterThan(0);
+
+    DB::table('users')->where('id', $user->id)->delete();
+    expect(DB::table('sync_visibility_generations')->where('user_id', $user->id)->count())->toBe(0)
+        ->and(DB::table('sync_push_resolutions')->where('user_id', $user->id)->count())->toBe(0);
+
+    // A bare company (no seeded fiscal data that would restrict its delete).
+    $bare = Company::factory()->create();
+    [, $other] = SyncKit::actor();
+    $resolution($other->id, $bare->id);
+    app(Visibility::class)->observe($other->id, $bare->id, 'fixture-notes', true);
+    DB::statement("INSERT INTO sync_full_downloads (cursor_hash, token_id, company_id, resource, started_horizon, created_at) VALUES (?, '1', ?, 'fixture-notes', '5'::xid8, now())", [str_repeat('d', 64), $bare->id]);
+    DB::table('companies')->where('id', $bare->id)->delete();
+
+    expect(DB::table('sync_push_resolutions')->where('company_id', $bare->id)->count())->toBe(0)
+        ->and(DB::table('sync_visibility_generations')->where('company_id', $bare->id)->count())->toBe(0)
+        ->and(DB::table('sync_full_downloads')->where('company_id', $bare->id)->count())->toBe(0);
 });

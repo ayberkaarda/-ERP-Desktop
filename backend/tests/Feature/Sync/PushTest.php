@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Core\Http\ApiException;
+use App\Core\Http\ErrorCode;
+use App\Core\Sync\WriteOutcome;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -292,4 +295,47 @@ it('keeps the batch non-atomic: one failure does not undo the others', function 
 
     expect(array_column($results, 'status'))->toBe(['applied', 'rejected', 'applied'])
         ->and(app(CompanyContext::class)->runAs($this->company->id, fn () => FixtureNote::query()->orderBy('title')->pluck('title')->all()))->toBe(['First', 'Third']);
+});
+
+it('does not wait on the row lock of another company', function (): void {
+    [$other] = SyncKit::actor();
+    $foreign = SyncKit::note($other);
+    config(['database.connections.sync_lock' => config('database.connections.'.config('database.default'))]);
+    $holder = DB::connection('sync_lock');
+    $holder->beginTransaction();
+    $holder->select('SELECT id FROM sync_fixture_notes WHERE id = ? FOR UPDATE', [$foreign->id]);
+    DB::statement("SET lock_timeout = '1s'");
+
+    try {
+        $results = pushAll($this, [
+            SyncKit::mutation('update', $foreign->id, ['title' => 'x'], 1),
+            SyncKit::mutation('delete', $foreign->id, [], 1),
+            SyncKit::mutation('create', $foreign->id, ['title' => 'x']),
+        ]);
+    } finally {
+        DB::statement('RESET lock_timeout');
+        $holder->rollBack();
+        $holder->disconnect();
+    }
+
+    expect(array_map(fn (array $r): string => $r['error']['code'], $results))->toBe(['NOT_FOUND', 'NOT_FOUND', 'VALIDATION_ERROR'])
+        ->and(array_keys($results[2]['error']['fields']))->toBe(['id'])
+        ->and($results[2])->not->toHaveKey('data');
+});
+
+it('stores nothing for transient writer errors and keeps their headers', function (): void {
+    $note = SyncKit::note($this->company);
+    $update = SyncKit::mutation('update', $note->id, ['title' => 'Mine'], 1);
+
+    ScriptedNoteWriter::$replaceUpdate = static fn (): WriteOutcome => throw new ApiException(ErrorCode::TooManyAttempts, headers: ['Retry-After' => '30']);
+    $limited = SyncKit::push($this, [$update], $this->headers)->assertStatus(429)->assertHeader('Retry-After', '30');
+    expect(SyncKit::wire($limited, 'sync/error.response.schema.json')['errors']['code'])->toBe('TOO_MANY_ATTEMPTS');
+
+    ScriptedNoteWriter::$replaceUpdate = static fn (): WriteOutcome => WriteOutcome::rejected(ErrorCode::ServerError);
+    $failed = SyncKit::push($this, [$update], $this->headers)->assertStatus(500);
+    expect(SyncKit::wire($failed, 'sync/error.response.schema.json')['errors']['code'])->toBe('SERVER_ERROR')
+        ->and(DB::table('idempotency_keys')->where('key', $update['idempotency_key'])->exists())->toBeFalse();
+
+    ScriptedNoteWriter::$replaceUpdate = null;
+    expect(pushOne($this, $update))->toMatchArray(['status' => 'applied', 'replayed' => false, 'version' => 2]);
 });
