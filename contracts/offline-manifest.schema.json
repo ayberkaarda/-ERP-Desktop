@@ -67,16 +67,36 @@
     "writeOp": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["op", "route", "requires"],
       "properties": {
         "op": { "enum": ["create", "update", "delete", "action"] },
         "action": { "type": "string", "pattern": "^[a-z][a-z-]*$" },
         "route": { "$ref": "#/$defs/routeRef" },
-        "requires": { "$ref": "sync/common.schema.json#/$defs/requires" }
+        "requires": { "$ref": "sync/common.schema.json#/$defs/requires" },
+        "version_check": {
+          "description": "none: create (sürüm yok). field-merge: eski base_version'da kesişmeyen alanlar uygulanır. exact: base_version sunucu sürümüne eşit olmalı; değilse VERSION_CONFLICT. delete ve action her zaman exact'tir.",
+          "enum": ["none", "field-merge", "exact"]
+        }
       },
-      "if": { "properties": { "op": { "const": "action" } } },
-      "then": { "required": ["action"] },
-      "else": { "not": { "required": ["action"] } }
+      "required": ["op", "route", "requires", "version_check"],
+      "allOf": [
+        {
+          "if": { "properties": { "op": { "const": "action" } } },
+          "then": { "required": ["action"] },
+          "else": { "not": { "required": ["action"] } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "create" } } },
+          "then": { "properties": { "version_check": { "const": "none" } } }
+        },
+        {
+          "if": { "properties": { "op": { "enum": ["delete", "action"] } } },
+          "then": { "properties": { "version_check": { "const": "exact" } } }
+        },
+        {
+          "if": { "properties": { "op": { "const": "update" } } },
+          "then": { "properties": { "version_check": { "enum": ["field-merge", "exact"] } } }
+        }
+      ]
     },
     "write": {
       "type": "object",
@@ -99,8 +119,17 @@
             "value": { "type": "string" }
           }
         },
+        "target_constraints": {
+          "description": "update/delete/action'da hedef kaydın sunucudaki mevcut değerleri, satır kilidi altında okunarak bu listelerde olmalıdır (ör. yalnızca doc_type=count olan stok belgesi). İhlal SYNC_OFFLINE_WRITE_NOT_ALLOWED; draft_only ihlali ise DOCUMENT_LOCKED.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" }
+          }
+        },
         "payload_constraints": {
-          "description": "Çevrimdışı oluşturulan kayıtta alanın alabileceği değerler (ör. stok belgesinde yalnızca doc_type=count). İhlal SYNC_OFFLINE_WRITE_NOT_ALLOWED.",
+          "description": "create ve update payload'ında alan bulunuyorsa alabileceği değerler (ör. stok belgesinde yalnızca doc_type=count). İhlal SYNC_OFFLINE_WRITE_NOT_ALLOWED.",
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -121,10 +150,21 @@
     "resource": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resource", "module", "path", "requires", "read", "source"],
+      "required": ["resource", "module", "scope", "path", "requires", "read", "source"],
       "properties": {
         "resource": { "$ref": "sync/common.schema.json#/$defs/resourceName" },
         "module": { "type": "string", "pattern": "^[A-Z][A-Za-z]+$" },
+        "scope": { "$ref": "sync/common.schema.json#/$defs/scope" },
+        "activation": {
+          "description": "scope=global_with_company_activation için şirkete özel durum tablosu ve global tabloya bağlayan kolon.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["table", "key"],
+          "properties": {
+            "table": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+          }
+        },
         "description": { "type": "string" },
         "path": { "$ref": "#/$defs/path" },
         "detail_path": { "$ref": "#/$defs/path" },
@@ -176,7 +216,12 @@
         },
         {
           "if": { "required": ["write"] },
-          "then": { "properties": { "read": { "const": "local-first" } } }
+          "then": { "properties": { "read": { "const": "local-first" }, "scope": { "const": "company" } } }
+        },
+        {
+          "if": { "properties": { "scope": { "const": "global_with_company_activation" } } },
+          "then": { "required": ["activation"] },
+          "else": { "not": { "required": ["activation"] } }
         }
       ]
     },

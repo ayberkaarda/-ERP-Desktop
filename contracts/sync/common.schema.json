@@ -10,6 +10,8 @@
     "uuidv7": { "$ref": "#/$defs/uuidv7" },
     "xid8": { "$ref": "#/$defs/xid8" },
     "cursor": { "$ref": "#/$defs/cursor" },
+    "visibility_generation": { "$ref": "#/$defs/visibilityGeneration" },
+    "scope": { "$ref": "#/$defs/scope" },
     "resource_name": { "$ref": "#/$defs/resourceName" },
     "timestamp": { "$ref": "#/$defs/timestamp" },
     "schema_version": { "$ref": "#/$defs/schemaVersion" },
@@ -35,16 +37,26 @@
       "pattern": "^(0|[1-9][0-9]{0,19})$"
     },
     "cursor": {
-      "description": "Kaynak başına keyset konumu: (sync_txid, id). after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır.",
+      "description": "Kaynak başına keyset konumu: (sync_txid, id) ve görünürlük nesli. after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır. gen, sunucudaki (kullanıcı, şirket, kaynak) görünürlük neslinden farklıysa kaynak reset alır.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["txid", "after_id"],
+      "required": ["txid", "after_id", "gen"],
       "properties": {
         "txid": { "$ref": "#/$defs/xid8" },
         "after_id": {
           "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
-        }
+        },
+        "gen": { "$ref": "#/$defs/visibilityGeneration" }
       }
+    },
+    "visibilityGeneration": {
+      "description": "Sunucuda (kullanıcı, şirket, kaynak) başına tutulan, görünürlüğü etkileyen her değişiklikte (rol, izin, şirket üyeliği, kapsam) artan sayaç. Tüketilen bir bayrak değildir; her cihaz kendi cursor'ındaki değeri bununla karşılaştırır.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "scope": {
+      "description": "Kaynağın şirket kapsamı. company: company_id = etkin şirket. company_or_global: company_id IS NULL (sistem satırı, ör. TCMB kuru, resmî vergi kodu) veya etkin şirket. global_with_company_activation: satırlar globaldir (company_id yok); şirkete özel durum ayrı aktivasyon tablosundadır ve satırın etkin değişiklik konumu ikisinin büyüğüdür (currencies + company_currencies).",
+      "enum": ["company", "company_or_global", "global_with_company_activation"]
     },
     "resourceName": {
       "description": "Senkron kaynak adı. /api/v1 sonrasındaki yolun parametresiz bölümlerinin '.' ile birleşimidir: 'parties', 'items.variants', 'treasury-reports.receivables-ageing'.",

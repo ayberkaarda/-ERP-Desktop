@@ -9,11 +9,13 @@ Masaüstü istemci ana verileri ve son belgeleri yerelde tutar ve yalnızca değ
 
 ## Karar
 
-Senkronlanan tablolara `syncable()` migration makrosuyla `sync_txid xid8` kolonu, index ve `BEFORE INSERT OR UPDATE` trigger'ı eklenir; trigger `pg_current_xact_id()` yazar. Silme ve soft delete, aynı değerle `sync_tombstones` tablosuna satır ekler.
+Senkronlanan tablolara `syncable()` migration makrosuyla `sync_txid xid8` kolonu, index ve `BEFORE INSERT OR UPDATE` trigger'ı eklenir; trigger `pg_current_xact_id()` yazar. Silme ve soft delete, aynı değerle `sync_tombstones` tablosuna `(resource, id)` başına tek satır olarak upsert edilir; restore tombstone'u siler.
 
-Pull her istekte `horizon = pg_snapshot_xmin(pg_current_snapshot())` alır ve kaynak başına `sync_txid < horizon` olan satırları ve tombstone'ları `(sync_txid, id)` keyset sayfalamasıyla döner. Cursor `{txid, after_id}` nesnesidir; `xid8` değerleri ondalık string olarak taşınır.
+Pull her istekte `horizon = pg_snapshot_xmin(pg_current_snapshot())` alır ve kaynak başına `sync_txid < horizon` olan olayları `(sync_txid, id)` keyset sayfalamasıyla döner. Olay akışı sayfalamadan önce tekilleştirilir: canlı satır, aynı `id`'nin tombstone'una her zaman üstündür. Cursor `{txid, after_id, gen}` nesnesidir; `xid8` değerleri ondalık string olarak taşınır.
 
-Satırlar REST API Resource JSON'u olarak döner; ayrı senkron DTO'su yoktur. Tombstone'lar 90 gün saklanır. Daha eski cursor, görünürlük değişimi veya uyumsuz şema değişimi kaynak için `reset` üretir.
+Kaynaklar şirket kapsamını açıkça bildirir: `company`, `company_or_global` (sistem satırları `company_id IS NULL`) ve `global_with_company_activation` (`currencies` + `company_currencies`; konum iki tablonun `sync_txid`'lerinin büyüğüdür).
+
+Satırlar REST API Resource JSON'u olarak döner; ayrı senkron DTO'su yoktur. Tombstone'lar 90 gün saklanır; temizlik `(company, resource)` başına yalnızca büyüyen bir `tombstone_floor_txid` bırakır ve bundan küçük cursor reset alır. Görünürlük, sunucuda `(user, company, resource)` başına tutulan ve yalnızca artan bir nesille izlenir; cursor'daki nesil güncel değilse kaynak reset alır. Nesil tüketilen bir bayrak olmadığından her cihaz kendi başına doğru sonuca varır. Uyumsuz şema değişimi de reset üretir.
 
 Hesaplanmış bakiyeler (stok bakiyesi, cari yaşlandırma) syncable değildir; REST ucundan anlık görüntü olarak alınır.
 

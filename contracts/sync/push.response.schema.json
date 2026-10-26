@@ -24,18 +24,26 @@
     "result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["idempotency_key", "resource", "id", "status"],
+      "required": ["idempotency_key", "resource", "id", "status", "replayed"],
       "properties": {
         "idempotency_key": { "$ref": "common.schema.json#/$defs/uuidv7" },
         "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
         "id": { "$ref": "common.schema.json#/$defs/uuidv7" },
         "status": {
-          "description": "applied: uygulandı. duplicate: aynı idempotency_key daha önce uygulanmıştı; ilk sonucun version/data'sı döner. conflict: kullanıcı kararı gerekir (Conflict Inbox). rejected: kalıcı hata; outbox kaydı hata koduyla işaretlenir.",
+          "description": "applied: uygulandı. duplicate: aynı idempotency_key ile daha önce applied olmuş bir mutasyonun tekrarı; ilk sonucun version/data'sı aynen döner. conflict: kullanıcı kararı gerekir (Conflict Inbox). rejected: kalıcı hata. Daha önce conflict veya rejected olmuş bir anahtar tekrar gelirse saklanan sonuç aynı statüyle ve replayed=true ile döner; duplicate yalnızca başarılı tekrarlar içindir.",
           "enum": ["applied", "duplicate", "conflict", "rejected"]
         },
-        "version": { "type": "integer", "minimum": 1 },
+        "replayed": {
+          "description": "Sonuç bu istekte üretilmedi, saklanan sonuçtan döndü. duplicate için her zaman true, applied için her zaman false.",
+          "type": "boolean"
+        },
+        "version": {
+          "description": "Yazma sonrası sürüm. delete dışında applied/duplicate için zorunlu.",
+          "type": "integer",
+          "minimum": 1
+        },
         "data": {
-          "description": "Yazma sonrası REST API Resource JSON'u; delete için null.",
+          "description": "Yazma sonrası REST API Resource JSON'u, manifestteki embeds yüklenmiş olarak (ör. lines). İstemci yerel satırı bununla tümüyle değiştirir. delete için null.",
           "anyOf": [{ "$ref": "common.schema.json#/$defs/resourceRow" }, { "type": "null" }]
         },
         "merged_fields": {
@@ -52,21 +60,33 @@
           "if": { "properties": { "status": { "enum": ["applied", "duplicate"] } } },
           "then": {
             "required": ["data"],
-            "not": { "anyOf": [{ "required": ["conflict"] }, { "required": ["error"] }] }
+            "not": { "anyOf": [{ "required": ["conflict"] }, { "required": ["error"] }] },
+            "anyOf": [
+              { "properties": { "data": { "type": "null" } }, "not": { "required": ["version"] } },
+              { "properties": { "data": { "type": "object" } }, "required": ["version"] }
+            ]
           }
+        },
+        {
+          "if": { "properties": { "status": { "const": "applied" } } },
+          "then": { "properties": { "replayed": { "const": false } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "duplicate" } } },
+          "then": { "properties": { "replayed": { "const": true } } }
         },
         {
           "if": { "properties": { "status": { "const": "conflict" } } },
           "then": {
             "required": ["conflict"],
-            "not": { "anyOf": [{ "required": ["error"] }, { "required": ["merged_fields"] }] }
+            "not": { "anyOf": [{ "required": ["error"] }, { "required": ["merged_fields"] }, { "required": ["version"] }, { "required": ["data"] }] }
           }
         },
         {
           "if": { "properties": { "status": { "const": "rejected" } } },
           "then": {
             "required": ["error"],
-            "not": { "anyOf": [{ "required": ["conflict"] }, { "required": ["merged_fields"] }] }
+            "not": { "anyOf": [{ "required": ["conflict"] }, { "required": ["merged_fields"] }, { "required": ["version"] }, { "required": ["data"] }] }
           }
         }
       ]
@@ -85,7 +105,7 @@
           "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }]
         },
         "conflicting_fields": {
-          "description": "VERSION_CONFLICT: changed_fields ile base_version'dan beri sunucuda değişen alanların kesişimi.",
+          "description": "VERSION_CONFLICT: changed_fields ile base_version'dan beri sunucuda değişen alanların kesişimi; delete ve action için sürüm farkı yeterlidir ve liste boş olabilir.",
           "type": "array",
           "uniqueItems": true,
           "items": { "type": "string" }
@@ -97,10 +117,11 @@
         "candidates": {
           "description": "DUPLICATE_RECORD: mükerrer aday kayıtların kimlikleri (GET /parties/duplicates sonucu).",
           "type": "array",
+          "minItems": 1,
           "items": { "$ref": "common.schema.json#/$defs/uuid" }
         },
         "choices": {
-          "description": "İstemcinin sunacağı çözüm seçenekleri.",
+          "description": "İstemcinin sunacağı çözüm seçenekleri; çakışma türüne göre sınırlıdır.",
           "type": "array",
           "minItems": 1,
           "uniqueItems": true,
@@ -109,8 +130,39 @@
       },
       "allOf": [
         {
+          "if": { "properties": { "code": { "const": "VERSION_CONFLICT" } } },
+          "then": {
+            "properties": {
+              "base_version": { "type": "integer" },
+              "server_version": { "type": "integer" },
+              "server_data": { "type": "object" },
+              "choices": { "type": "array", "items": { "enum": ["keep_mine", "take_server", "merge"] } }
+            },
+            "not": { "required": ["candidates"] }
+          }
+        },
+        {
+          "if": { "properties": { "code": { "const": "DOCUMENT_LOCKED" } } },
+          "then": {
+            "properties": {
+              "server_version": { "type": "integer" },
+              "server_data": { "type": "object" },
+              "choices": { "type": "array", "items": { "enum": ["save_as_new_draft", "discard"] } }
+            },
+            "not": { "required": ["candidates"] }
+          }
+        },
+        {
           "if": { "properties": { "code": { "const": "DUPLICATE_RECORD" } } },
-          "then": { "required": ["candidates"] }
+          "then": {
+            "required": ["candidates"],
+            "properties": {
+              "base_version": { "type": "null" },
+              "server_version": { "type": "null" },
+              "server_data": { "type": "null" },
+              "choices": { "type": "array", "items": { "enum": ["use_existing", "keep_mine", "discard"] } }
+            }
+          }
         }
       ]
     }

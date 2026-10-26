@@ -6,6 +6,7 @@
         "resource": "sales-quotes",
         "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a22",
         "status": "rejected",
+        "replayed": true,
         "error": {
           "message": "Gönderilen veri geçersiz.",
           "code": "VALIDATION_ERROR",
@@ -17,9 +18,43 @@
         "resource": "sales-quotes",
         "id": "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a22",
         "status": "rejected",
+        "replayed": false,
         "error": {
           "message": "Aynı kaydın önceki değişikliği uygulanamadı.",
           "code": "SYNC_DEPENDENCY_FAILED"
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000b",
+        "resource": "sales-orders",
+        "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c42",
+        "status": "rejected",
+        "replayed": false,
+        "error": {
+          "message": "Bildirilen değişen alanlar gönderilen alanlarla uyuşmuyor.",
+          "code": "SYNC_CHANGED_FIELDS_MISMATCH",
+          "fields": { "changed_fields": ["payload içinde bildirilmeyen alan: internal_notes"] }
+        }
+      },
+      {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000c",
+        "resource": "purchase-requests",
+        "id": "0193b1e9-1200-7e40-9444-8b9c0d1e2f71",
+        "status": "conflict",
+        "replayed": false,
+        "conflict": {
+          "code": "VERSION_CONFLICT",
+          "message": "Kayıt siz çevrimdışıyken değişti; silme uygulanmadı.",
+          "base_version": 2,
+          "server_version": 3,
+          "conflicting_fields": [],
+          "server_data": {
+            "id": "0193b1e9-1200-7e40-9444-8b9c0d1e2f71",
+            "document_type": "request",
+            "status": "draft",
+            "version": 3
+          },
+          "choices": ["keep_mine", "take_server"]
         }
       },
       {
@@ -27,6 +62,7 @@
         "resource": "sales-orders",
         "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c41",
         "status": "applied",
+        "replayed": false,
         "version": 8,
         "merged_fields": ["notes"],
         "data": { "id": "0193b1e6-4d00-7f10-a111-5e6f7a8b9c41", "status": "draft", "version": 8 }

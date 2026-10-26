@@ -7,7 +7,11 @@
         "resource": "parties",
         "rows": [],
         "tombstones": [],
-        "next_cursor": { "txid": "48214001", "after_id": null },
+        "next_cursor": {
+          "txid": "48214001",
+          "after_id": null,
+          "gen": 1
+        },
         "has_more": false,
         "reset": true
       }

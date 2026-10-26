@@ -34,6 +34,9 @@
     { "const": "SYNC_RESOURCE_UNSUPPORTED", "description": "Önerilen. 422. İstenen kaynak offline-manifest'te yok veya bu işlem için tanımlı değil." },
     { "const": "SYNC_OFFLINE_WRITE_NOT_ALLOWED", "description": "Önerilen. 422. Mutasyon offline-manifest'teki write tanımının dışında (ONLINE_ONLY işlem, izin verilmeyen alan değeri)." },
     { "const": "SYNC_BATCH_TOO_LARGE", "description": "Önerilen. 413. Pull kaynak sayısı veya push mutasyon sayısı manifest limitini aşıyor." },
-    { "const": "SYNC_DEPENDENCY_FAILED", "description": "Önerilen. Yalnızca push sonucu. Aynı partide aynı kaydın önceki mutasyonu uygulanamadığı için bu mutasyon denenmedi." }
+    { "const": "SYNC_DEPENDENCY_FAILED", "description": "Önerilen. Yalnızca push sonucu. Aynı kaydın önceki mutasyonu ya da depends_on ile bildirilen mutasyon applied/duplicate değil; bu mutasyon denenmedi." },
+    { "const": "SYNC_BASE_VERSION_AHEAD", "description": "Önerilen. 422. Yalnızca push sonucu. base_version sunucudaki sürümden büyük; istemci durumu bozuk, kayıt yeniden indirilmeli." },
+    { "const": "SYNC_CHANGED_FIELDS_MISMATCH", "description": "Önerilen. 422. Yalnızca push sonucu. changed_fields, payload'ın üst düzey anahtar kümesine eşit değil." },
+    { "const": "SYNC_RESOLUTION_INVALID", "description": "Önerilen. 422. Yalnızca push sonucu. resolution, aynı kullanıcı/şirket/kayıt için saklanan bir conflict sonucuna karşılık gelmiyor ya da seçim o çakışma türünde geçersiz." }
   ]
 }

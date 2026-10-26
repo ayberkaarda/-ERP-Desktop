@@ -2,6 +2,22 @@
   "schema_version": 1,
   "mutations": [
     {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000004",
+      "op": "create",
+      "resource": "parties",
+      "id": "0193b1e8-0000-7d30-8333-7a8b9c0d1e60",
+      "base_version": null,
+      "changed_fields": [],
+      "occurred_at": "2026-10-25T18:00:30+03:00",
+      "payload": {
+        "name": "Ege Hırdavat",
+        "type": "company",
+        "roles": ["customer"],
+        "tax_number": "9876543210",
+        "country": "TR"
+      }
+    },
+    {
       "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000001",
       "op": "create",
       "resource": "sales-quotes",
@@ -11,12 +27,19 @@
       "occurred_at": "2026-10-25T18:02:11+03:00",
       "payload": {
         "document_date": "2026-10-25",
-        "party_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+        "party_id": "0193b1e8-0000-7d30-8333-7a8b9c0d1e60",
         "currency_code": "TRY",
+        "valid_until": "2026-11-24",
         "lines": [
-          { "item_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b30", "quantity": "12", "unit_price": "149.90" }
+          {
+            "item_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b30",
+            "quantity": "12",
+            "unit_price": "149.90",
+            "tax_code_id": "0193a000-0000-7000-8000-00000000c020"
+          }
         ]
-      }
+      },
+      "depends_on": ["0193b1f0-1111-7aaa-8bbb-000000000004"]
     },
     {
       "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000002",
@@ -35,23 +58,45 @@
       "resource": "stock-documents",
       "id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d50",
       "base_version": 2,
-      "changed_fields": ["lines"],
+      "changed_fields": ["counts"],
       "occurred_at": "2026-10-25T18:10:00+03:00",
       "payload": {
-        "lines": [
-          { "id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d51", "counted_quantity": "38" }
+        "counts": [
+          { "line_id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d51", "counted_quantity": "38" },
+          { "line_id": "0193b1e7-9a00-7c20-b222-6f7a8b9c0d52", "counted_quantity": null }
         ]
       }
     },
     {
-      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000004",
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-000000000008",
+      "op": "delete",
+      "resource": "purchase-requests",
+      "id": "0193b1e9-1200-7e40-9444-8b9c0d1e2f70",
+      "base_version": 3,
+      "changed_fields": [],
+      "occurred_at": "2026-10-25T18:15:00+03:00",
+      "payload": {}
+    },
+    {
+      "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000a",
       "op": "create",
       "resource": "parties",
-      "id": "0193b1e8-0000-7d30-8333-7a8b9c0d1e60",
+      "id": "0193b1e8-0000-7d30-8333-7a8b9c0d1e61",
       "base_version": null,
       "changed_fields": [],
-      "occurred_at": "2026-10-25T18:12:30+03:00",
-      "payload": { "name": "Anadolu Yapi Market", "type": "company", "roles": ["customer"], "tax_number": "1234567890", "country": "TR" }
+      "occurred_at": "2026-10-26T09:20:00+03:00",
+      "payload": {
+        "name": "Anadolu Yapı Market Şube",
+        "type": "company",
+        "roles": ["customer"],
+        "tax_number": "1234567890",
+        "country": "TR"
+      },
+      "resolution": {
+        "resolves": "0193b1f0-1111-7aaa-8bbb-000000000009",
+        "code": "DUPLICATE_RECORD",
+        "choice": "keep_mine"
+      }
     }
   ]
 }

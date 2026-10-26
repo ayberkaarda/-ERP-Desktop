@@ -66,9 +66,14 @@
     "resource": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["resource", "read", "source", "window_days", "writable"],
+      "required": ["resource", "scope", "read", "source", "window_days", "writable", "visibility_generation"],
       "properties": {
         "resource": { "$ref": "common.schema.json#/$defs/resourceName" },
+        "scope": { "$ref": "common.schema.json#/$defs/scope" },
+        "visibility_generation": {
+          "description": "Kaynağın bu kullanıcı-şirket için güncel görünürlük nesli. İstemcinin cursor.gen değeri farklıysa bir sonraki pull bu kaynak için reset döner.",
+          "$ref": "common.schema.json#/$defs/visibilityGeneration"
+        },
         "read": { "enum": ["local-first", "online-first", "offline-fallback"] },
         "source": {
           "description": "pull: /sync/pull ile artımlı. snapshot: REST ucundan tümüyle alınan, 'şu tarih itibarıyla' etiketli anlık görüntü.",

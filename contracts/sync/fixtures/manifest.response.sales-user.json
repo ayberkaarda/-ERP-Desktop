@@ -8,6 +8,7 @@
     "user_id": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
     "device_id": "01937a2c-6f22-7e04-a1b3-9c8d7e6f5a03",
     "permissions": [
+      "currencies.view",
       "items.view",
       "parties.create",
       "parties.view",
@@ -17,19 +18,114 @@
       "sales.orders.view",
       "sales.quotes.create",
       "sales.quotes.update",
-      "sales.quotes.view"
+      "sales.quotes.view",
+      "tax_codes.view"
     ],
     "resources": [
-      { "resource": "parties", "read": "local-first", "source": "pull", "window_days": null, "writable": ["create"] },
-      { "resource": "items", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
-      { "resource": "items.variants", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
-      { "resource": "items.barcodes", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
-      { "resource": "price-lists", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
-      { "resource": "price-lists.lines", "read": "local-first", "source": "pull", "window_days": null, "writable": [] },
-      { "resource": "sales-quotes", "read": "local-first", "source": "pull", "window_days": 30, "writable": ["create", "update"] },
-      { "resource": "sales-orders", "read": "local-first", "source": "pull", "window_days": 30, "writable": ["create", "update"] }
+      {
+        "resource": "parties",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [
+          "create"
+        ],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "items",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "items.variants",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 4
+      },
+      {
+        "resource": "items.barcodes",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "price-lists",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "price-lists.lines",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "sales-quotes",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": 30,
+        "writable": [
+          "create",
+          "update"
+        ],
+        "visibility_generation": 2
+      },
+      {
+        "resource": "sales-orders",
+        "scope": "company",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": 30,
+        "writable": [
+          "create",
+          "update"
+        ],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "currencies",
+        "scope": "global_with_company_activation",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 0
+      },
+      {
+        "resource": "tax-codes",
+        "scope": "company_or_global",
+        "read": "local-first",
+        "source": "pull",
+        "window_days": null,
+        "writable": [],
+        "visibility_generation": 0
+      }
     ],
-    "online_only": ["finalizeSalesQuote", "confirmSalesOrder", "serverCalculation"],
+    "online_only": [
+      "finalizeSalesQuote",
+      "confirmSalesOrder",
+      "serverCalculation"
+    ],
     "limits": {
       "pull_resources_max": 20,
       "pull_page_default": 200,

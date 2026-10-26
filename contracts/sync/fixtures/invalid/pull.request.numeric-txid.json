@@ -1,6 +1,13 @@
 {
   "schema_version": 1,
   "resources": [
-    { "resource": "parties", "cursor": { "txid": 48213907, "after_id": null } }
+    {
+      "resource": "parties",
+      "cursor": {
+        "txid": 48213907,
+        "after_id": null,
+        "gen": 0
+      }
+    }
   ]
 }

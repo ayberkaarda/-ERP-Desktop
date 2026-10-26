@@ -41,7 +41,7 @@
           "items": { "$ref": "tombstone.schema.json" }
         },
         "next_cursor": {
-          "description": "Bir sonraki istekte gönderilecek cursor. has_more=false ise {txid: horizon, after_id: null}.",
+          "description": "Bir sonraki istekte gönderilecek cursor. has_more=false ise {txid: horizon, after_id: null}. gen her zaman kaynağın güncel görünürlük neslidir; tam indirme sırasında nesil değişirse sonraki sayfa yeniden reset alır.",
           "$ref": "common.schema.json#/$defs/cursor"
         },
         "has_more": { "type": "boolean" },
@@ -50,6 +50,7 @@
           "type": "boolean"
         },
         "reset_reason": {
+          "description": "cursor_expired: cursor.txid, şirketin tombstone tabanından (tombstone_floor_txid) küçük. visibility_changed: cursor.gen güncel görünürlük nesline eşit değil. schema_changed: kaynağın Resource şekli uyumsuz değişti.",
           "enum": ["cursor_expired", "visibility_changed", "schema_changed"]
         }
       },

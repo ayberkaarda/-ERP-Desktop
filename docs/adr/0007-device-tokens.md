@@ -16,4 +16,4 @@ Masaüstü istemci tarayıcı oturum çerezi kullanamaz ve uzun süre çevrimdı
 
 ## Sonuçlar
 
-İptal edilen cihaz bir sonraki istekte `UNAUTHENTICATED` alır; yerel outbox kullanıcı yeniden giriş yapana kadar bekler. Bugünkü uygulama tek, 30 günlük token verir; refresh token ve yenileme ucu masaüstü fazında eklenir (`docs/SYNC-PROTOCOL.md`, Açık konular).
+İptal edilen cihaz bir sonraki istekte `UNAUTHENTICATED` alır; yerel outbox kullanıcı yeniden giriş yapana kadar bekler. Bugünkü uygulama tek, 30 günlük token verir. Yenileme ucunun istek/yanıt şeması, süreler (erişim 15 dakika, refresh 30 gün kayan), refresh ailesi ve eşzamanlı yenileme penceresi D1'de Identity OpenAPI sözleşmesi olarak tamamlanır; bağlayıcı çerçeve `docs/SYNC-PROTOCOL.md` Açık konular madde 14'tedir.

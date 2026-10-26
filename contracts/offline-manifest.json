@@ -11,6 +11,7 @@
     {
       "resource": "parties",
       "module": "Parties",
+      "scope": "company",
       "description": "Cari kartları; adres, ilgili kişi ve banka hesapları gömülü gelir.",
       "path": "/api/v1/parties",
       "detail_path": "/api/v1/parties/{party}",
@@ -22,7 +23,12 @@
       "write": {
         "mode": "draft-outbox",
         "ops": [
-          { "op": "create", "route": "POST /api/v1/parties", "requires": { "all_of": ["parties.create"] } }
+          {
+            "op": "create",
+            "route": "POST /api/v1/parties",
+            "requires": { "all_of": ["parties.create"] },
+            "version_check": "none"
+          }
         ],
         "conflict": "field-merge",
         "duplicate_check": "GET /api/v1/parties/duplicates"
@@ -31,6 +37,7 @@
     {
       "resource": "items",
       "module": "Catalog",
+      "scope": "company",
       "description": "Stok/hizmet kartları; temel birim, kategori ve birim dönüşümleri gömülü gelir.",
       "path": "/api/v1/items",
       "detail_path": "/api/v1/items/{id}",
@@ -57,6 +64,7 @@
     {
       "resource": "item-categories",
       "module": "Catalog",
+      "scope": "company",
       "path": "/api/v1/item-categories",
       "detail_path": "/api/v1/item-categories/{id}",
       "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\ItemCategoryResource",
@@ -67,6 +75,7 @@
     {
       "resource": "units",
       "module": "Catalog",
+      "scope": "company",
       "path": "/api/v1/units",
       "detail_path": "/api/v1/units/{id}",
       "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\UnitResource",
@@ -77,6 +86,7 @@
     {
       "resource": "unit-conversions",
       "module": "Catalog",
+      "scope": "company",
       "path": "/api/v1/unit-conversions",
       "detail_path": "/api/v1/unit-conversions/{id}",
       "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\UnitConversionResource",
@@ -87,6 +97,7 @@
     {
       "resource": "price-lists",
       "module": "Catalog",
+      "scope": "company",
       "path": "/api/v1/price-lists",
       "detail_path": "/api/v1/price-lists/{id}",
       "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\PriceListResource",
@@ -105,6 +116,8 @@
     {
       "resource": "currencies",
       "module": "Reference",
+      "scope": "global_with_company_activation",
+      "activation": { "table": "company_currencies", "key": "currency_code" },
       "path": "/api/v1/currencies",
       "detail_path": "/api/v1/currencies/{id}",
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
@@ -115,6 +128,7 @@
     {
       "resource": "exchange-rates",
       "module": "Reference",
+      "scope": "company_or_global",
       "description": "Kurlar. Belge tarihindeki kur çevrimdışıyken yerel tablodan seçilir; sunucu push'ta yeniden doğrular.",
       "path": "/api/v1/exchange-rates",
       "detail_path": "/api/v1/exchange-rates/{id}",
@@ -128,6 +142,7 @@
     {
       "resource": "tax-codes",
       "module": "Reference",
+      "scope": "company_or_global",
       "path": "/api/v1/tax-codes",
       "detail_path": "/api/v1/tax-codes/{id}",
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
@@ -138,6 +153,7 @@
     {
       "resource": "payment-terms",
       "module": "Reference",
+      "scope": "company",
       "path": "/api/v1/payment-terms",
       "detail_path": "/api/v1/payment-terms/{id}",
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
@@ -148,6 +164,7 @@
     {
       "resource": "warehouses",
       "module": "Reference",
+      "scope": "company",
       "path": "/api/v1/warehouses",
       "detail_path": "/api/v1/warehouses/{id}",
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
@@ -166,6 +183,7 @@
     {
       "resource": "cost-centers",
       "module": "Reference",
+      "scope": "company",
       "path": "/api/v1/cost-centers",
       "detail_path": "/api/v1/cost-centers/{id}",
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
@@ -176,6 +194,7 @@
     {
       "resource": "projects",
       "module": "Reference",
+      "scope": "company",
       "path": "/api/v1/projects",
       "detail_path": "/api/v1/projects/{id}",
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
@@ -186,6 +205,7 @@
     {
       "resource": "sales-quotes",
       "module": "Sales",
+      "scope": "company",
       "description": "Satış teklifleri; taslaklar çevrimdışı oluşturulup düzenlenebilir.",
       "path": "/api/v1/sales-quotes",
       "detail_path": "/api/v1/sales-quotes/{id}",
@@ -199,9 +219,24 @@
       "write": {
         "mode": "draft-outbox",
         "ops": [
-          { "op": "create", "route": "POST /api/v1/sales-quotes", "requires": { "all_of": ["sales.quotes.create"] } },
-          { "op": "update", "route": "PATCH /api/v1/sales-quotes/{id}", "requires": { "all_of": ["sales.quotes.update"] } },
-          { "op": "delete", "route": "DELETE /api/v1/sales-quotes/{id}", "requires": { "all_of": ["sales.quotes.delete"] } }
+          {
+            "op": "create",
+            "route": "POST /api/v1/sales-quotes",
+            "requires": { "all_of": ["sales.quotes.create"] },
+            "version_check": "none"
+          },
+          {
+            "op": "update",
+            "route": "PATCH /api/v1/sales-quotes/{id}",
+            "requires": { "all_of": ["sales.quotes.update"] },
+            "version_check": "field-merge"
+          },
+          {
+            "op": "delete",
+            "route": "DELETE /api/v1/sales-quotes/{id}",
+            "requires": { "all_of": ["sales.quotes.delete"] },
+            "version_check": "exact"
+          }
         ],
         "draft_only": { "field": "status", "value": "draft" },
         "conflict": "field-merge"
@@ -210,6 +245,7 @@
     {
       "resource": "sales-orders",
       "module": "Sales",
+      "scope": "company",
       "description": "Satış siparişleri; taslaklar çevrimdışı oluşturulup düzenlenebilir, onay çevrimiçidir.",
       "path": "/api/v1/sales-orders",
       "detail_path": "/api/v1/sales-orders/{id}",
@@ -223,9 +259,24 @@
       "write": {
         "mode": "draft-outbox",
         "ops": [
-          { "op": "create", "route": "POST /api/v1/sales-orders", "requires": { "all_of": ["sales.orders.create"] } },
-          { "op": "update", "route": "PATCH /api/v1/sales-orders/{id}", "requires": { "all_of": ["sales.orders.update"] } },
-          { "op": "delete", "route": "DELETE /api/v1/sales-orders/{id}", "requires": { "all_of": ["sales.orders.delete"] } }
+          {
+            "op": "create",
+            "route": "POST /api/v1/sales-orders",
+            "requires": { "all_of": ["sales.orders.create"] },
+            "version_check": "none"
+          },
+          {
+            "op": "update",
+            "route": "PATCH /api/v1/sales-orders/{id}",
+            "requires": { "all_of": ["sales.orders.update"] },
+            "version_check": "field-merge"
+          },
+          {
+            "op": "delete",
+            "route": "DELETE /api/v1/sales-orders/{id}",
+            "requires": { "all_of": ["sales.orders.delete"] },
+            "version_check": "exact"
+          }
         ],
         "draft_only": { "field": "status", "value": "draft" },
         "conflict": "field-merge"
@@ -234,6 +285,7 @@
     {
       "resource": "sales-deliveries",
       "module": "Sales",
+      "scope": "company",
       "path": "/api/v1/sales-deliveries",
       "detail_path": "/api/v1/sales-deliveries/{id}",
       "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
@@ -247,6 +299,7 @@
     {
       "resource": "sales-invoices",
       "module": "Sales",
+      "scope": "company",
       "path": "/api/v1/sales-invoices",
       "detail_path": "/api/v1/sales-invoices/{id}",
       "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
@@ -260,6 +313,7 @@
     {
       "resource": "sales-returns",
       "module": "Sales",
+      "scope": "company",
       "path": "/api/v1/sales-returns",
       "detail_path": "/api/v1/sales-returns/{id}",
       "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
@@ -273,6 +327,7 @@
     {
       "resource": "purchase-requests",
       "module": "Purchasing",
+      "scope": "company",
       "description": "Satınalma talepleri; taslaklar çevrimdışı oluşturulup düzenlenebilir, gönderim çevrimiçidir.",
       "path": "/api/v1/purchase-requests",
       "detail_path": "/api/v1/purchase-requests/{id}",
@@ -286,9 +341,24 @@
       "write": {
         "mode": "draft-outbox",
         "ops": [
-          { "op": "create", "route": "POST /api/v1/purchase-requests", "requires": { "all_of": ["purchasing.requests.create"] } },
-          { "op": "update", "route": "PATCH /api/v1/purchase-requests/{id}", "requires": { "all_of": ["purchasing.requests.update"] } },
-          { "op": "delete", "route": "DELETE /api/v1/purchase-requests/{id}", "requires": { "all_of": ["purchasing.requests.delete"] } }
+          {
+            "op": "create",
+            "route": "POST /api/v1/purchase-requests",
+            "requires": { "all_of": ["purchasing.requests.create"] },
+            "version_check": "none"
+          },
+          {
+            "op": "update",
+            "route": "PATCH /api/v1/purchase-requests/{id}",
+            "requires": { "all_of": ["purchasing.requests.update"] },
+            "version_check": "field-merge"
+          },
+          {
+            "op": "delete",
+            "route": "DELETE /api/v1/purchase-requests/{id}",
+            "requires": { "all_of": ["purchasing.requests.delete"] },
+            "version_check": "exact"
+          }
         ],
         "draft_only": { "field": "status", "value": "draft" },
         "conflict": "field-merge"
@@ -297,6 +367,7 @@
     {
       "resource": "purchase-rfqs",
       "module": "Purchasing",
+      "scope": "company",
       "path": "/api/v1/purchase-rfqs",
       "detail_path": "/api/v1/purchase-rfqs/{id}",
       "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\RfqResource",
@@ -310,6 +381,7 @@
     {
       "resource": "purchase-orders",
       "module": "Purchasing",
+      "scope": "company",
       "path": "/api/v1/purchase-orders",
       "detail_path": "/api/v1/purchase-orders/{id}",
       "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
@@ -323,6 +395,7 @@
     {
       "resource": "purchase-receipts",
       "module": "Purchasing",
+      "scope": "company",
       "path": "/api/v1/purchase-receipts",
       "detail_path": "/api/v1/purchase-receipts/{id}",
       "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
@@ -336,6 +409,7 @@
     {
       "resource": "purchase-invoices",
       "module": "Purchasing",
+      "scope": "company",
       "path": "/api/v1/purchase-invoices",
       "detail_path": "/api/v1/purchase-invoices/{id}",
       "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
@@ -349,6 +423,7 @@
     {
       "resource": "purchase-returns",
       "module": "Purchasing",
+      "scope": "company",
       "path": "/api/v1/purchase-returns",
       "detail_path": "/api/v1/purchase-returns/{id}",
       "api_resource": "App\\Modules\\Purchasing\\Http\\Resources\\DocumentResource",
@@ -362,6 +437,7 @@
     {
       "resource": "stock-documents",
       "module": "Inventory",
+      "scope": "company",
       "description": "Stok belgeleri. Çevrimdışı yalnızca sayım (doc_type=count) taslağı oluşturulur ve sayım miktarları girilir; kaydetme (post) çevrimiçidir.",
       "path": "/api/v1/stock-documents",
       "detail_path": "/api/v1/stock-documents/{id}",
@@ -375,12 +451,34 @@
       "write": {
         "mode": "draft-outbox",
         "ops": [
-          { "op": "create", "route": "POST /api/v1/stock-documents", "requires": { "all_of": ["inventory.documents.create"] } },
-          { "op": "update", "route": "PATCH /api/v1/stock-documents/{id}", "requires": { "all_of": ["inventory.documents.create"] } },
-          { "op": "delete", "route": "DELETE /api/v1/stock-documents/{id}", "requires": { "all_of": ["inventory.documents.create"] } },
-          { "op": "action", "action": "counts", "route": "PATCH /api/v1/stock-documents/{id}/counts", "requires": { "all_of": ["inventory.documents.create"] } }
+          {
+            "op": "create",
+            "route": "POST /api/v1/stock-documents",
+            "requires": { "all_of": ["inventory.documents.create"] },
+            "version_check": "none"
+          },
+          {
+            "op": "update",
+            "route": "PATCH /api/v1/stock-documents/{id}",
+            "requires": { "all_of": ["inventory.documents.create"] },
+            "version_check": "field-merge"
+          },
+          {
+            "op": "delete",
+            "route": "DELETE /api/v1/stock-documents/{id}",
+            "requires": { "all_of": ["inventory.documents.create"] },
+            "version_check": "exact"
+          },
+          {
+            "op": "action",
+            "action": "counts",
+            "route": "PATCH /api/v1/stock-documents/{id}/counts",
+            "requires": { "all_of": ["inventory.documents.create"] },
+            "version_check": "exact"
+          }
         ],
         "draft_only": { "field": "status", "value": "draft" },
+        "target_constraints": { "doc_type": ["count"] },
         "payload_constraints": { "doc_type": ["count"] },
         "conflict": "field-merge"
       }
@@ -388,6 +486,7 @@
     {
       "resource": "stock-balances",
       "module": "Inventory",
+      "scope": "company",
       "description": "Depo bazında stok bakiyeleri; 'şu tarih itibarıyla' anlık görüntü.",
       "path": "/api/v1/stock-balances",
       "requires": { "all_of": ["inventory.stock.view"] },
@@ -397,6 +496,7 @@
     {
       "resource": "treasury-reports.receivables-ageing",
       "module": "Treasury",
+      "scope": "company",
       "description": "Cari alacak bakiyeleri (yaşlandırma); 'şu tarih itibarıyla' anlık görüntü.",
       "path": "/api/v1/treasury-reports/receivables-ageing",
       "requires": { "all_of": ["treasury.reports.view", "sales.invoices.view"] },
@@ -406,6 +506,7 @@
     {
       "resource": "treasury-reports.payables-ageing",
       "module": "Treasury",
+      "scope": "company",
       "description": "Cari borç bakiyeleri (yaşlandırma); 'şu tarih itibarıyla' anlık görüntü.",
       "path": "/api/v1/treasury-reports/payables-ageing",
       "requires": { "all_of": ["treasury.reports.view", "purchasing.invoices.view"] },
@@ -563,9 +664,7 @@
       "action": "decideApproval",
       "i18n_key": "desktop.onlineOnly.decideApproval",
       "category": "approve",
-      "routes": [
-        "POST /api/v1/approvals/{id}/decisions"
-      ]
+      "routes": ["POST /api/v1/approvals/{id}/decisions"]
     },
     {
       "action": "treasuryPayment",
@@ -602,10 +701,7 @@
       "action": "postJournalEntry",
       "i18n_key": "desktop.onlineOnly.postJournalEntry",
       "category": "finalize",
-      "routes": [
-        "POST /api/v1/journal-entries/{id}/post",
-        "POST /api/v1/journal-entries/{id}/reverse"
-      ]
+      "routes": ["POST /api/v1/journal-entries/{id}/post", "POST /api/v1/journal-entries/{id}/reverse"]
     },
     {
       "action": "closePeriod",

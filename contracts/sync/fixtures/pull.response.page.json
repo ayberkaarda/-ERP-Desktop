@@ -13,7 +13,9 @@
             "name": "Anadolu Yapı Market",
             "legal_name": "Anadolu Yapı Market Ltd. Şti.",
             "type": "company",
-            "roles": ["customer"],
+            "roles": [
+              "customer"
+            ],
             "tax_office": "Kadıköy",
             "tax_number": "1234567890",
             "country": "TR",
@@ -34,7 +36,11 @@
           }
         ],
         "tombstones": [],
-        "next_cursor": { "txid": "48213120", "after_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10" },
+        "next_cursor": {
+          "txid": "48213120",
+          "after_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+          "gen": 0
+        },
         "has_more": true,
         "reset": false
       },
@@ -50,7 +56,11 @@
             "reason": "deleted"
           }
         ],
-        "next_cursor": { "txid": "48214001", "after_id": null },
+        "next_cursor": {
+          "txid": "48214001",
+          "after_id": null,
+          "gen": 0
+        },
         "has_more": false,
         "reset": false
       },
@@ -58,7 +68,11 @@
         "resource": "items.variants",
         "rows": [],
         "tombstones": [],
-        "next_cursor": { "txid": "48214001", "after_id": null },
+        "next_cursor": {
+          "txid": "48214001",
+          "after_id": null,
+          "gen": 4
+        },
         "has_more": false,
         "reset": true,
         "reset_reason": "visibility_changed"
