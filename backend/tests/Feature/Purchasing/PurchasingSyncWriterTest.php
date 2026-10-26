@@ -221,7 +221,7 @@ it('declares the fields the service derives on every write in the manifest', fun
     expect($outcome->data)->toHaveKeys($derived)->and(array_intersect($sent, $derived))->toBe([]);
     expect($declared)->toHaveKey('estimated_total')->and($declared['estimated_total'])->toBe(['lines'])
         ->and(array_values(array_diff($derived, array_keys($declared))))->toBe([]);
-})->skip('contracts/offline-manifest.json does not declare currency_code (base currency set by RequestService::write) as derived yet; tracked for P8');
+});
 
 it('puts a lines-only edit into the audit trail so a stale edit of the lines conflicts', function (): void {
     $w = $this->w;

@@ -144,13 +144,20 @@
           }
         },
         "draft_only": {
-          "description": "Yalnızca bu alan bu değerdeyken update/delete/action uygulanır; değilse DOCUMENT_LOCKED.",
+          "description": "Yalnızca bu alan bu değerdeyken (veya also listesindeki bir değerdeyken) update/delete/action uygulanır; değilse DOCUMENT_LOCKED.",
           "type": "object",
           "additionalProperties": false,
           "required": ["field", "value"],
           "properties": {
             "field": { "type": "string" },
-            "value": { "type": "string" }
+            "value": { "type": "string" },
+            "also": {
+              "description": "value dışında düzenlenebilir sayılan değerler (ör. reddedilen satınalma talebi web'deki gibi düzenlenir; kaydedilince taslağa döner).",
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string" }
+            }
           }
         },
         "target_constraints": {

@@ -315,10 +315,7 @@ it('re-derives line tax rates and totals when only the document date changes', f
 it('declares the document_date derivation of lines and totals in the manifest', function (): void {
     expect(salesEffectiveWriteSet('sales-quotes', ['document_date']))->toContain('lines', 'tax_total', 'total', 'tax_total_local', 'total_local')
         ->and(salesEffectiveWriteSet('sales-orders', ['document_date']))->toContain('lines', 'tax_total', 'total', 'tax_total_local', 'total_local');
-})->skip(
-    fn (): bool => ! in_array('tax_total', salesEffectiveWriteSet('sales-quotes', ['document_date']), true),
-    'contracts/offline-manifest.json (P0) lacks {when: [document_date], derives: [lines]} for sales-quotes/sales-orders; until then a stale merge touching document_date conflicts (undeclared derivation).',
-);
+});
 
 /**
  * changed_fields closed over the manifest's derived_fields (SYNC-PROTOCOL "Etkin yazma kümesi").
