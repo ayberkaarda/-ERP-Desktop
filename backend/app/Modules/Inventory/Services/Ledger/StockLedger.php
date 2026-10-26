@@ -81,7 +81,7 @@ final class StockLedger
             }
 
             if (! $doc->isDraft()) {
-                Messages::fail('document', 'document_not_draft');
+                Messages::locked();
             }
 
             // Judged on the locked row: a concurrent edit cannot switch the flag on after a check.

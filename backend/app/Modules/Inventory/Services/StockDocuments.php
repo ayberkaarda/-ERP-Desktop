@@ -38,6 +38,11 @@ final class StockDocuments
             $this->fill($doc, $data);
             $doc->created_by = $actor;
 
+            // A client-generated key (offline drafts); the request has checked it is a free UUIDv7.
+            if (is_string($data['id'] ?? null)) {
+                $doc->id = $data['id'];
+            }
+
             if ($doc->doc_type === DocumentType::Count) {
                 $doc->frozen_at = now();
             }
@@ -330,7 +335,7 @@ final class StockDocuments
         }
 
         if (! $doc->isDraft()) {
-            Messages::fail('document', 'document_not_draft');
+            Messages::locked();
         }
 
         return $doc;
