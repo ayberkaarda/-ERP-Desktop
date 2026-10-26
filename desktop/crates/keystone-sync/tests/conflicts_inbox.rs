@@ -346,3 +346,139 @@ fn same_row_successor_cannot_block_resolution_and_resolution_validation_is_atomi
     assert_eq!(batch.len(), 1);
     assert_eq!(batch[0].idempotency_key, key);
 }
+
+#[test]
+fn duplicate_keep_mine_rejects_changed_payload_atomically() {
+    let (_dir, _store, q, inbox, m) = setup(ConflictCode::DuplicateRecord);
+    let valid = enqueue_action(
+        inbox
+            .resolve(m.idempotency_key, ConflictChoice::KeepMine)
+            .unwrap(),
+    );
+    let mut changed = valid.clone();
+    changed.payload.insert("notes".into(), json!("tampered"));
+    assert!(q.enqueue(changed).is_err());
+    assert_eq!(inbox.count().unwrap(), 1);
+    assert_eq!(q.list().unwrap()[0].mutation, m);
+    q.enqueue(valid).unwrap();
+    assert_eq!(q.next_batch(1).unwrap()[0].payload, m.payload);
+}
+
+#[test]
+fn resolution_rejects_dependency_cycle_atomically() {
+    let (_dir, _store, q, inbox, m) = setup(ConflictCode::VersionConflict);
+    let mut child = draft(MutationOp::Create, Uuid::now_v7(), json!({}));
+    child.depends_on = vec![m.idempotency_key];
+    let child_key = q.enqueue(child).unwrap();
+    let mut resolution = enqueue_action(
+        inbox
+            .resolve(m.idempotency_key, ConflictChoice::KeepMine)
+            .unwrap(),
+    );
+    resolution.depends_on = vec![child_key];
+    assert!(q.enqueue(resolution).is_err());
+    assert_eq!(inbox.count().unwrap(), 1);
+    assert_eq!(q.list().unwrap().len(), 2);
+}
+
+#[test]
+fn merge_rejects_version_field_before_enqueue() {
+    let (_dir, _store, _q, inbox, m) = setup(ConflictCode::VersionConflict);
+    assert!(
+        inbox
+            .resolve_merge(
+                m.idempotency_key,
+                json!({"notes":"merged","version":7})
+                    .as_object()
+                    .unwrap()
+                    .clone()
+            )
+            .is_err()
+    );
+    assert_eq!(inbox.count().unwrap(), 1);
+}
+
+#[test]
+fn use_existing_remaps_parent_same_row_and_future_writes_after_reopen() {
+    let (dir, store, q, inbox, m) = setup(ConflictCode::DuplicateRecord);
+    let candidate = inbox.list().unwrap()[0]
+        .conflict
+        .candidates
+        .as_ref()
+        .unwrap()[0];
+    let mut child = draft(
+        MutationOp::Create,
+        Uuid::now_v7(),
+        json!({"parent_id":m.id,"nested":[{"party_id":m.id}]}),
+    );
+    child.parent_id = Some(m.id);
+    child.depends_on = vec![m.idempotency_key];
+    let child_key = q.enqueue(child).unwrap();
+    q.enqueue(draft(MutationOp::Update, m.id, json!({"notes":"later"})))
+        .unwrap();
+    inbox
+        .resolve_use_existing(m.idempotency_key, candidate)
+        .unwrap();
+    let entries = q.list().unwrap();
+    let child = entries
+        .iter()
+        .find(|e| e.mutation.idempotency_key == child_key)
+        .unwrap();
+    assert_eq!(child.mutation.parent_id, Some(candidate));
+    assert_eq!(
+        child.mutation.payload["nested"][0]["party_id"],
+        candidate.to_string()
+    );
+    assert!(entries.iter().any(|e| e.mutation.id == candidate));
+    drop(inbox);
+    drop(q);
+    drop(store);
+    let store =
+        Arc::new(Store::open(dir.path().join("inbox.db"), &DbKey::from_bytes([8; 32])).unwrap());
+    let q = Outbox::new(store);
+    let mut future = draft(
+        MutationOp::Create,
+        Uuid::now_v7(),
+        json!({"parent_id":m.id}),
+    );
+    future.parent_id = Some(m.id);
+    let key = q.enqueue(future).unwrap();
+    let entries = q.list().unwrap();
+    let future = entries
+        .iter()
+        .find(|e| e.mutation.idempotency_key == key)
+        .unwrap();
+    assert_eq!(future.mutation.parent_id, Some(candidate));
+    assert_eq!(future.mutation.payload["parent_id"], candidate.to_string());
+    q.enqueue(draft(MutationOp::Update, m.id, json!({"notes":"future"})))
+        .unwrap();
+    assert!(q.list().unwrap().iter().all(|e| e.mutation.id != m.id));
+}
+
+#[test]
+fn new_draft_rebinds_children_and_waits_for_ack() {
+    let (_dir, _store, q, inbox, m) = setup(ConflictCode::DocumentLocked);
+    let mut child = draft(
+        MutationOp::Create,
+        Uuid::now_v7(),
+        json!({"parent_id":m.id}),
+    );
+    child.parent_id = Some(m.id);
+    child.depends_on = vec![m.idempotency_key];
+    let child_key = q.enqueue(child).unwrap();
+    let action = enqueue_action(
+        inbox
+            .resolve(m.idempotency_key, ConflictChoice::SaveAsNewDraft)
+            .unwrap(),
+    );
+    let new_id = action.id;
+    let key = q.enqueue(action).unwrap();
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(batch.len(), 1);
+    assert_eq!(batch[0].idempotency_key, key);
+    q.record_results(&[applied(&batch[0])]).unwrap();
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(batch[0].idempotency_key, child_key);
+    assert_eq!(batch[0].parent_id, Some(new_id));
+    assert_eq!(batch[0].payload["parent_id"], new_id.to_string());
+}

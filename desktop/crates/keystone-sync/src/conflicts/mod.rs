@@ -234,66 +234,112 @@ pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &Mutation) -> Resul
         {
             return Err(invalid("invalid new draft target"));
         }
-        cancel(tx, key, false)?;
+        release_edges_to(
+            tx,
+            key,
+            Some((record.id, mutation.id)),
+            Some(mutation.idempotency_key),
+        )?;
+        cancel(tx, key, true)?;
         tx.execute("DELETE FROM conflict_records WHERE key=?1", [old])?;
     }
     Ok(())
 }
 
-// Rewrite only drafts connected by explicit edges; never infer dependencies
-// by searching serialized payload text, and never edit a previously sent body.
+// Sent bodies remain immutable; all unsent identity references follow replacements.
 fn release_edges(tx: &Transaction<'_>, key: Uuid, replacement: Option<(Uuid, Uuid)>) -> Result<()> {
-    let entries = crate::outbox::load(tx)?;
-    let mut connected = std::collections::HashSet::from([key]);
-    loop {
-        let before = connected.len();
-        for entry in &entries {
-            if entry
-                .mutation
-                .depends_on
-                .as_ref()
-                .is_some_and(|edges| edges.iter().any(|e| connected.contains(e)))
-            {
-                connected.insert(entry.mutation.idempotency_key);
-            }
+    release_edges_to(tx, key, replacement, None)
+}
+
+fn release_edges_to(
+    tx: &Transaction<'_>,
+    key: Uuid,
+    replacement: Option<(Uuid, Uuid)>,
+    prerequisite: Option<Uuid>,
+) -> Result<()> {
+    if let Some((old, new)) = replacement {
+        // Resolve the destination before insertion to reject alias cycles atomically.
+        let mut probe = NewMutation {
+            op: MutationOp::Create,
+            action: None,
+            resource: get(tx, key)?.resource,
+            id: new,
+            parent_id: None,
+            base_version: None,
+            payload: Map::new(),
+            depends_on: vec![],
+            occurred_at: Timestamp(String::new()),
+            resolution: None,
+        };
+        crate::outbox::remap_draft(tx, &mut probe)?;
+        if probe.id == old {
+            return Err(invalid("identity remap cycle"));
         }
-        if before == connected.len() {
-            break;
-        }
+        tx.execute(
+            "INSERT INTO outbox_id_remaps(old_id,new_id) VALUES (?1,?2)",
+            params![old.to_string(), probe.id.to_string()],
+        )?;
     }
+    if let Some(new_key) = prerequisite {
+        tx.execute(
+            "INSERT INTO outbox_key_remaps(old_key,new_key) VALUES (?1,?2)",
+            params![key.to_string(), new_key.to_string()],
+        )?;
+    }
+    let entries = crate::outbox::load(tx)?;
     for entry in entries {
-        if entry.attempts != 0 || entry.state != crate::outbox::OutboxState::Pending {
+        if entry.sent || entry.state != crate::outbox::OutboxState::Pending {
             continue;
         }
         let mut mutation = entry.mutation;
+        let explicit = mutation
+            .depends_on
+            .as_ref()
+            .is_some_and(|edges| edges.contains(&key));
+        let identity = replacement.is_some_and(|(old, _)| {
+            mutation.id == old
+                || mutation.parent_id == Some(old)
+                || mutation
+                    .payload
+                    .values()
+                    .any(|v| crate::outbox::references_id(v, old))
+        });
+        if let Some((old, new)) = replacement {
+            if mutation.id == old {
+                mutation.id = new;
+            }
+            if mutation.parent_id == Some(old) {
+                mutation.parent_id = Some(new);
+            }
+            for value in mutation.payload.values_mut() {
+                replace_id(value, old, new);
+            }
+        }
         if let Some(edges) = &mut mutation.depends_on {
             edges.retain(|dep| *dep != key);
-            if edges.is_empty() {
-                mutation.depends_on = None;
-            }
         }
-        if let Some((old_id, new_id)) = replacement
-            && connected.contains(&mutation.idempotency_key)
+        if let Some(new_key) = prerequisite
+            && (explicit || identity)
         {
-            for value in mutation.payload.values_mut() {
-                replace_id(value, old_id, new_id);
-            }
-            if mutation.parent_id == Some(old_id) {
-                mutation.parent_id = Some(new_id);
-            }
+            mutation
+                .depends_on
+                .get_or_insert_with(Vec::new)
+                .push(new_key);
         }
-        tx.execute(
-            "UPDATE outbox_entries SET mutation=?1,last_error=NULL WHERE key=?2",
-            params![
-                serde_json::to_string(&mutation)?,
-                mutation.idempotency_key.to_string()
-            ],
-        )?;
+        if mutation
+            .depends_on
+            .as_ref()
+            .is_some_and(|edges| edges.is_empty())
+        {
+            mutation.depends_on = None;
+        }
+        tx.execute("UPDATE outbox_entries SET mutation=?1,last_error=CASE WHEN ?3 THEN NULL ELSE last_error END WHERE key=?2",
+            params![serde_json::to_string(&mutation)?,mutation.idempotency_key.to_string(),explicit || identity])?;
     }
     Ok(())
 }
 
-fn replace_id(value: &mut Value, old: Uuid, new: Uuid) {
+pub(crate) fn replace_id(value: &mut Value, old: Uuid, new: Uuid) {
     match value {
         Value::String(text) if Uuid::parse_str(text).ok() == Some(old) => *text = new.to_string(),
         Value::Array(values) => {
@@ -379,7 +425,10 @@ pub(crate) fn validate_resolution(conn: &Connection, mutation: &Mutation) -> Res
         || (expected == ResolutionCode::VersionConflict
             && mutation.base_version != record.conflict.server_version)
         || (choice == ConflictChoice::KeepMine
-            && (mutation.payload != record.local.payload || mutation.op != record.local.op))
+            && (mutation.payload != record.local.payload
+                || mutation.op != record.local.op
+                || mutation.action != record.local.action
+                || mutation.parent_id != record.local.parent_id))
         || (choice == ConflictChoice::Merge && mutation.op != MutationOp::Update)
     {
         return Err(invalid("invalid conflict resolution"));

@@ -2,7 +2,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use rusqlite::{Connection, Transaction, params};
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde_json::{Map, Value};
 use uuid::Uuid;
 
@@ -26,6 +26,12 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
         last_error TEXT
     ) STRICT;
     CREATE TABLE outbox_settled (key TEXT PRIMARY KEY, success INTEGER NOT NULL) STRICT;",
+}, Migration {
+    id: 101, module: "outbox", name: "retry_and_remaps",
+    sql: "ALTER TABLE outbox_entries ADD COLUMN sent INTEGER NOT NULL DEFAULT 0;
+    UPDATE outbox_entries SET sent=1 WHERE attempts>0 OR state!='pending';
+    CREATE TABLE outbox_key_remaps(old_key TEXT PRIMARY KEY,new_key TEXT NOT NULL) STRICT;
+    CREATE TABLE outbox_id_remaps(old_id TEXT PRIMARY KEY,new_id TEXT NOT NULL) STRICT;",
 }];
 
 pub const MAX_ATTEMPTS: u32 = 5;
@@ -55,6 +61,7 @@ pub enum OutboxState {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutboxEntry {
+    pub sent: bool,
     pub seq: i64,
     pub mutation: Mutation,
     pub state: OutboxState,
@@ -71,8 +78,24 @@ pub struct PushOutcome {
     pub results: Vec<PushResult>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnqueueOutcome {
+    Queued(Uuid),
+    Cancelled(Uuid),
+}
+
 pub trait OutboxQueue {
-    fn enqueue(&self, mutation: NewMutation) -> Result<Uuid>;
+    fn enqueue_outcome(&self, mutation: NewMutation) -> Result<EnqueueOutcome>;
+    fn transient_failure(&self, key: Uuid) -> Result<()>;
+    fn retry(&self, key: Uuid) -> Result<()>;
+    fn discard(&self, key: Uuid) -> Result<()>;
+    /// Cancellation is committed before this compatibility API returns an error.
+    fn enqueue(&self, mutation: NewMutation) -> Result<Uuid> {
+        match self.enqueue_outcome(mutation)? {
+            EnqueueOutcome::Queued(key) => Ok(key),
+            EnqueueOutcome::Cancelled(_) => Err(invalid("create cancelled by delete; no live key")),
+        }
+    }
     /// `max` is the manifest's push_batch_max; the wire ceiling is 500.
     fn next_batch(&self, max: usize) -> Result<Vec<Mutation>>;
     fn record_results(&self, results: &[PushResult]) -> Result<PushOutcome>;
@@ -102,7 +125,7 @@ pub(crate) fn invalid(message: &str) -> SyncError {
 }
 
 pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
-    let mut stmt = conn.prepare("SELECT seq, mutation, state, attempts, last_error FROM outbox_entries ORDER BY julianday(json_extract(mutation, '$.occurred_at')), seq")?;
+    let mut stmt = conn.prepare("SELECT seq, mutation, state, attempts, last_error, sent FROM outbox_entries ORDER BY julianday(json_extract(mutation, '$.occurred_at')), seq")?;
     let rows = stmt.query_map([], |r| {
         Ok((
             r.get::<_, i64>(0)?,
@@ -110,11 +133,12 @@ pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
             r.get::<_, String>(2)?,
             r.get::<_, u32>(3)?,
             r.get::<_, Option<String>>(4)?,
+            r.get::<_, bool>(5)?,
         ))
     })?;
     let mut entries = Vec::new();
     for row in rows {
-        let (seq, json, state, attempts, last_error) = row?;
+        let (seq, json, state, attempts, last_error, sent) = row?;
         let state = match state.as_str() {
             "pending" => OutboxState::Pending,
             "in_flight" => OutboxState::InFlight,
@@ -124,6 +148,7 @@ pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
             _ => return Err(invalid("invalid outbox state")),
         };
         entries.push(OutboxEntry {
+            sent,
             seq,
             mutation: serde_json::from_str(&json)?,
             state,
@@ -154,6 +179,11 @@ fn dependencies(entry: &OutboxEntry, all: &[OutboxEntry]) -> Vec<Uuid> {
                         && other.mutation.resource == entry.mutation.resource
                         && other.mutation.id == entry.mutation.id
                         && other.seq != entry.seq
+                        && !other
+                            .mutation
+                            .depends_on
+                            .as_ref()
+                            .is_some_and(|edges| edges.contains(&entry.mutation.idempotency_key))
                 })
                 .map(|e| e.mutation.idempotency_key),
         );
@@ -178,7 +208,7 @@ fn reaches(start: Uuid, target: Uuid, all: &[OutboxEntry]) -> bool {
 }
 
 impl OutboxQueue for Outbox {
-    fn enqueue(&self, draft: NewMutation) -> Result<Uuid> {
+    fn enqueue_outcome(&self, mut draft: NewMutation) -> Result<EnqueueOutcome> {
         self.store.write(|tx| {
             if draft.id.get_version_num() != 7
                 || draft.payload.contains_key("version")
@@ -192,13 +222,63 @@ impl OutboxQueue for Outbox {
                 return Err(invalid("invalid mutation body"));
             }
             let all = load(tx)?;
+            let original = draft.clone();
+            remap_draft(tx, &mut draft)?;
             let mut deps = draft.depends_on.clone();
+            for dep in &mut deps {
+                let mut seen = HashSet::new();
+                loop {
+                    if !seen.insert(*dep) {
+                        return Err(invalid("dependency remap cycle"));
+                    }
+                    let mapped: Option<String> = tx
+                        .query_row(
+                            "SELECT new_key FROM outbox_key_remaps WHERE old_key=?1",
+                            [dep.to_string()],
+                            |r| r.get(0),
+                        )
+                        .optional()?;
+                    match mapped {
+                        Some(mapped) => {
+                            *dep = Uuid::parse_str(&mapped)
+                                .map_err(|_| invalid("invalid dependency remap"))?
+                        }
+                        None => break,
+                    }
+                }
+            }
+            if draft != original {
+                for entry in &all {
+                    if entry.mutation.op == MutationOp::Create
+                        && (draft.id == entry.mutation.id
+                            || draft.parent_id == Some(entry.mutation.id)
+                            || draft
+                                .payload
+                                .values()
+                                .any(|v| references_id(v, entry.mutation.id)))
+                    {
+                        deps.push(entry.mutation.idempotency_key);
+                    }
+                }
+            }
             deps.sort();
             deps.dedup();
             if deps.len() > 50 {
                 return Err(invalid("too many dependencies"));
             }
             for key in &deps {
+                let dead = all.iter().any(|e| {
+                    e.mutation.idempotency_key == *key
+                        && (matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)
+                            || e.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED"))
+                }) || tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1 AND success=0)",
+                    [key.to_string()],
+                    |r| r.get::<_, bool>(0),
+                )?;
+                if dead {
+                    return Err(invalid("dependency failed or cancelled"));
+                }
                 let known = all.iter().any(|e| e.mutation.idempotency_key == *key)
                     || tx.query_row(
                         "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1)",
@@ -217,7 +297,7 @@ impl OutboxQueue for Outbox {
             if draft.resolution.is_none()
                 && let Some(old) = previous.filter(|e| {
                     e.state == OutboxState::Pending
-                        && e.attempts == 0
+                        && !e.sent
                         && e.mutation.resolution.is_none()
                         && e.mutation.parent_id == draft.parent_id
                 })
@@ -225,7 +305,7 @@ impl OutboxQueue for Outbox {
                 let pair = (old.mutation.op, draft.op);
                 if matches!(pair, (MutationOp::Create, MutationOp::Delete)) {
                     cancel(tx, old.mutation.idempotency_key, false)?;
-                    return Ok(old.mutation.idempotency_key);
+                    return Ok(EnqueueOutcome::Cancelled(old.mutation.idempotency_key));
                 }
                 if matches!(
                     pair,
@@ -258,7 +338,7 @@ impl OutboxQueue for Outbox {
                         "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
                         params![serde_json::to_string(&merged)?, old_key.to_string()],
                     )?;
-                    return Ok(old_key);
+                    return Ok(EnqueueOutcome::Queued(old_key));
                 }
             }
             let key = Uuid::now_v7();
@@ -297,7 +377,7 @@ impl OutboxQueue for Outbox {
                 }
                 // Replace explicit edges before deleting the old entry. Never alter sent bodies.
                 for entry in &all {
-                    if entry.state == OutboxState::Pending && entry.attempts == 0 {
+                    if entry.state == OutboxState::Pending && !entry.sent {
                         let mut rewritten = entry.mutation.clone();
                         if let Some(edges) = &mut rewritten.depends_on {
                             for edge in edges {
@@ -326,7 +406,7 @@ impl OutboxQueue for Outbox {
                 "INSERT INTO outbox_entries(key,mutation,state) VALUES (?1,?2,'pending')",
                 params![key.to_string(), serde_json::to_string(&mutation)?],
             )?;
-            Ok(key)
+            Ok(EnqueueOutcome::Queued(key))
         })
     }
 
@@ -345,10 +425,10 @@ impl OutboxQueue for Outbox {
             // successive batches so a conflict never leaks dependent writes to the server.
             for entry in &all {
                 if batch.len() >= max.min(500) { break; }
-                if entry.state != OutboxState::Pending { continue; }
+                if entry.state != OutboxState::Pending || entry.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED") { continue; }
                 let deps = dependencies(entry, &all);
                 if deps.iter().all(|key| done.contains(key)) {
-                    tx.execute("UPDATE outbox_entries SET state='in_flight' WHERE key=?1", [entry.mutation.idempotency_key.to_string()])?;
+                    tx.execute("UPDATE outbox_entries SET state='in_flight',sent=1 WHERE key=?1", [entry.mutation.idempotency_key.to_string()])?;
                     batch.push(entry.mutation.clone());
                 } else {
                     let mut failed = false;
@@ -434,8 +514,40 @@ impl OutboxQueue for Outbox {
         })
     }
 
+    /// Crash/transport recovery does not count mutation failures.
     fn requeue_in_flight(&self) -> Result<usize> {
-        self.store.write(|tx| Ok(tx.execute("UPDATE outbox_entries SET attempts=attempts+1, state=CASE WHEN attempts+1 >= ?1 THEN 'quarantined' ELSE 'pending' END, last_error='NETWORK_ERROR' WHERE state='in_flight'", [MAX_ATTEMPTS])?))
+        self.store.write(|tx| {
+            Ok(tx.execute(
+                "UPDATE outbox_entries SET state='pending' WHERE state='in_flight'",
+                [],
+            )?)
+        })
+    }
+    /// Call only for a sent mutation that received a transient failure.
+    fn transient_failure(&self, key: Uuid) -> Result<()> {
+        self.store.write(|tx| {
+            if tx.execute("UPDATE outbox_entries SET attempts=attempts+1,state=CASE WHEN attempts+1>=?1 THEN 'quarantined' ELSE 'pending' END,last_error='NETWORK_ERROR' WHERE key=?2 AND state='in_flight'", params![MAX_ATTEMPTS,key.to_string()])? != 1 { return Err(invalid("mutation is not in flight")); }
+            Ok(())
+        })
+    }
+    fn retry(&self, key: Uuid) -> Result<()> {
+        self.store.write(|tx| {
+            if tx.execute("UPDATE outbox_entries SET state='pending',attempts=0,last_error=NULL WHERE key=?1 AND state IN ('rejected','quarantined')", [key.to_string()])? != 1 { return Err(invalid("entry is not retryable")); }
+            tx.execute("UPDATE outbox_entries SET last_error=NULL WHERE last_error='SYNC_DEPENDENCY_FAILED'", [])?;
+            Ok(())
+        })
+    }
+    fn discard(&self, key: Uuid) -> Result<()> {
+        self.store.write(|tx| {
+            let all = load(tx)?;
+            if !all.iter().any(|e| e.mutation.idempotency_key == key && matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)) { return Err(invalid("entry is not discardable")); }
+            for entry in &all {
+                if entry.mutation.idempotency_key != key && reaches(entry.mutation.idempotency_key,key,&all) {
+                    tx.execute("UPDATE outbox_entries SET last_error='SYNC_DEPENDENCY_FAILED' WHERE key=?1", [entry.mutation.idempotency_key.to_string()])?;
+                }
+            }
+            cancel(tx,key,false)
+        })
     }
     fn pending_count(&self) -> Result<usize> {
         self.store.read(|conn| {
@@ -456,5 +568,40 @@ pub fn changed_fields(op: MutationOp, payload: &Map<String, Value>) -> Vec<Strin
             keys
         }
         MutationOp::Create | MutationOp::Delete => Vec::new(),
+    }
+}
+
+pub(crate) fn remap_draft(conn: &Connection, draft: &mut NewMutation) -> Result<()> {
+    let mut stmt = conn.prepare("SELECT old_id,new_id FROM outbox_id_remaps")?;
+    let pairs = stmt
+        .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    for _ in 0..=pairs.len() {
+        let before = draft.clone();
+        for (old, new) in &pairs {
+            let old = Uuid::parse_str(old).map_err(|_| invalid("invalid remap"))?;
+            let new = Uuid::parse_str(new).map_err(|_| invalid("invalid remap"))?;
+            if draft.id == old {
+                draft.id = new;
+            }
+            if draft.parent_id == Some(old) {
+                draft.parent_id = Some(new);
+            }
+            for value in draft.payload.values_mut() {
+                crate::conflicts::replace_id(value, old, new);
+            }
+        }
+        if *draft == before {
+            return Ok(());
+        }
+    }
+    Err(invalid("identity remap cycle"))
+}
+pub(crate) fn references_id(value: &Value, id: Uuid) -> bool {
+    match value {
+        Value::String(text) => Uuid::parse_str(text).ok() == Some(id),
+        Value::Array(values) => values.iter().any(|v| references_id(v, id)),
+        Value::Object(values) => values.values().any(|v| references_id(v, id)),
+        _ => false,
     }
 }
