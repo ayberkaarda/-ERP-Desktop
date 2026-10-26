@@ -24,6 +24,11 @@ mod http;
 mod retry_after;
 mod url;
 
+/// Seals [`SyncApi`]: the supertrait is reachable only inside the crate.
+pub(crate) mod sealed {
+    pub trait Sealed {}
+}
+
 pub use http::{ClientOptions, HttpClient, fetch_server_meta};
 pub use retry_after::parse_retry_after;
 pub use url::ServerUrl;
@@ -51,6 +56,14 @@ pub struct ApiConfig {
 
 /// Sync endpoints. Calls need a valid access token; the implementation gets
 /// it from [`crate::auth`] and refreshes once on 401 before failing.
+///
+/// Sealed: only this crate implements it ([`HttpClient`], and test fakes
+/// inside the crate). The contract every implementation keeps, and that
+/// the engine relies on: [`SyncApi::session`] returns the same
+/// [`Session`] for the whole life of the client, and every call of the
+/// client (sync, refresh, login) reads and writes tokens through that
+/// session and no other. Outside the crate the trait can be used as a
+/// bound but not implemented, so no other session can be smuggled in.
 ///
 /// The generation-bound calls (`*_in`) and [`SyncApi::session`] have no
 /// default: an implementation must decide how it keeps a call to its
@@ -83,7 +96,7 @@ pub struct ApiConfig {
 /// }
 /// ```
 ///
-/// ```no_run
+/// ```compile_fail
 /// use std::sync::Arc;
 /// use keystone_sync::auth::Session;
 /// use keystone_sync::client::SyncApi;
@@ -100,10 +113,19 @@ pub struct ApiConfig {
 ///     async fn push_in(&self, _: &PushRequest, _: u64) -> Result<PushResponse> { unimplemented!() }
 /// }
 /// ```
-pub trait SyncApi: Send + Sync {
+///
+/// As a bound it is usable (positive control of the blocks above):
+///
+/// ```no_run
+/// use keystone_sync::client::{HttpClient, SyncApi};
+/// fn session_of<A: SyncApi>(api: &A) -> String { api.session().profile().to_owned() }
+/// fn with_client(client: &HttpClient) -> String { session_of(client) }
+/// ```
+pub trait SyncApi: sealed::Sealed + Send + Sync {
     /// The profile session the client works in (its token store handle,
-    /// profile id, token lock and sign-in gate). The engine of the client
-    /// is built over this same session ([`crate::engine::SyncEngine::new`]).
+    /// profile id, token lock and sign-in gate): fixed for the life of the
+    /// client, and the one all its calls use. The engine of the client is
+    /// built over this same session ([`crate::engine::SyncEngine::new`]).
     fn session(&self) -> &Arc<Session>;
 
     fn manifest(&self) -> impl Future<Output = Result<ManifestResponse>> + Send;

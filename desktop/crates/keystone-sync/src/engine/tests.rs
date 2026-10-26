@@ -73,6 +73,8 @@ fn manifest() -> ManifestResponse {
     .expect("manifest")
 }
 
+impl crate::client::sealed::Sealed for FakeApi {}
+
 impl SyncApi for FakeApi {
     fn session(&self) -> &Arc<Session> {
         &self.session

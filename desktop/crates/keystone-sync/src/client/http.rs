@@ -350,6 +350,8 @@ impl HttpClient {
     }
 }
 
+impl super::sealed::Sealed for HttpClient {}
+
 impl SyncApi for HttpClient {
     fn session(&self) -> &Arc<Session> {
         &self.session
