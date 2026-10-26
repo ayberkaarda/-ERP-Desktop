@@ -1,0 +1,84 @@
+{
+  "list": {
+    "title": "Satış siparişleri",
+    "description": "Müşteri siparişleri, onay durumu, sevk ve fatura ilerlemesi.",
+    "new": "Yeni sipariş",
+    "exportName": "satis-siparisleri"
+  },
+  "palette": {
+    "list": "Satış siparişleri",
+    "new": "Yeni satış siparişi"
+  },
+  "actions": {
+    "confirm": "Onayla",
+    "revise": "Revize et",
+    "cancel": "Siparişi iptal et",
+    "close": "Siparişi kapat",
+    "createDelivery": "İrsaliye oluştur",
+    "createInvoice": "Fatura oluştur",
+    "confirmed": "Sipariş onaylandı.",
+    "sentForApproval": "Sipariş onaya gönderildi.",
+    "cancelled": "Sipariş iptal edildi.",
+    "closed": "Sipariş kapatıldı.",
+    "failed": "İşlem tamamlanamadı."
+  },
+  "confirm": {
+    "title": "Sipariş onaylansın mı?",
+    "body": "{{customer}} için {{number}} ({{total}}) onaylanır; kredi limiti kontrol edilir ve stok rezerve edilir. Tutar onay sınırını aşıyorsa sipariş onaya gönderilir."
+  },
+  "cancel": {
+    "title": "Sipariş iptal edilsin mi?",
+    "body": "Rezervasyonlar serbest bırakılır. İptal geri alınamaz."
+  },
+  "closeOrder": {
+    "title": "Sipariş kapatılsın mı?",
+    "body": "Kalan miktarlar sevk ve fatura edilmez; açık rezervasyonlar serbest bırakılır."
+  },
+  "approval": {
+    "tab": "Onay süreci",
+    "pending": "Sipariş onay bekliyor. Onaylandığında otomatik olarak onaylı duruma geçer.",
+    "rejected": "Onay reddedildi: {{comment}}",
+    "unavailable": "Onay süreci görüntülenemiyor."
+  },
+  "creditOverridden": "Kredi limiti aşılarak onaylandı. Gerekçe: {{reason}}",
+  "wizard": {
+    "close": "Kapat",
+    "step": "Adım {{step}}/{{total}}",
+    "step1": "Miktarlar",
+    "step2": "Tarih ve özet",
+    "linesLabel": "Sipariş satırları",
+    "item": "Stok kartı",
+    "ordered": "Sipariş",
+    "delivered": "Sevk edilen",
+    "invoiced": "Faturalanan",
+    "remaining": "Kalan",
+    "service": "(hizmet)",
+    "quantityFor": "Miktar: {{item}}",
+    "fillAll": "Kalanların tümünü doldur",
+    "clear": "Temizle",
+    "exceeds": "En çok {{max}} girilebilir.",
+    "invalid": "Geçerli bir miktar girin.",
+    "nothingChosen": "En az bir satıra miktar girin.",
+    "tolerance": "Fazla sevk toleransı: %{{percent}}",
+    "deliverOnInvoice": "Sevk edilmemiş stok satırlarını faturayla birlikte sevk et",
+    "deliverOnInvoiceHelp": "Fatura kesilirken irsaliye otomatik oluşturulur ve stoktan düşülür.",
+    "documentDate": "Belge tarihi",
+    "warehouse": "Depo",
+    "summary": "Özet",
+    "back": "Geri",
+    "next": "İleri",
+    "failed": "Belge oluşturulamadı.",
+    "delivery": {
+      "title": "{{number}} için irsaliye",
+      "quantity": "Sevk miktarı",
+      "create": "Taslak irsaliye oluştur",
+      "created": "İrsaliye {{number}} taslak olarak oluşturuldu."
+    },
+    "invoice": {
+      "title": "{{number}} için fatura",
+      "quantity": "Fatura miktarı",
+      "create": "Taslak fatura oluştur",
+      "created": "Fatura {{number}} taslak olarak oluşturuldu."
+    }
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "add": "Add",
+    "close": "Close",
+    "retry": "Try again",
+    "clear": "Clear",
+    "reset": "Reset",
+    "open": "Open",
+    "back": "Back"
+  },
+  "states": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "errorTitle": "Something went wrong",
+    "errorBody": "The data could not be loaded. Check your connection and try again."
+  },
+  "validation": {
+    "required": "This field is required.",
+    "number": "Enter a valid number.",
+    "scale": "Too many decimal places.",
+    "positive": "The value must be greater than zero.",
+    "nonNegative": "The value cannot be negative.",
+    "min": "The value is below the allowed minimum.",
+    "max": "The value is above the allowed maximum.",
+    "date": "Enter a valid date.",
+    "invalid": "Invalid value."
+  },
+  "dataTable": {
+    "search": "Search this list",
+    "searchPlaceholder": "Search…",
+    "columns": "Columns",
+    "density": "Row density",
+    "densityComfortable": "Comfortable",
+    "densityCompact": "Compact",
+    "resetView": "Reset view",
+    "sortedAsc": "Sorted ascending",
+    "sortedDesc": "Sorted descending",
+    "sortBy": "Sort by {{column}}",
+    "selectPage": "Select all rows on this page",
+    "selectRow": "Select row",
+    "selected_one": "{{count}} record selected",
+    "selected_other": "{{count}} records selected",
+    "clearSelection": "Clear selection",
+    "bulkActions": "Bulk actions",
+    "emptyTitle": "No records found",
+    "emptyBody": "Change the search or filters and try again.",
+    "errorTitle": "The list could not be loaded",
+    "loading": "Loading records…",
+    "range": "{{from}}–{{to}} of {{total}}",
+    "perPage": "Records per page",
+    "page": "Page {{page}} of {{pages}}",
+    "pagination": "Pagination",
+    "firstPage": "First page",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "lastPage": "Last page",
+    "filterAll": "All",
+    "clearFilters": "Clear filters",
+    "resizeColumn": "{{column}} column width",
+    "keyboardHint": "Use the arrow keys to move between rows; Enter opens, Space selects."
+  },
+  "form": {
+    "errorSummaryTitle": "The record could not be saved",
+    "errorSummaryBody": "Please correct the fields below.",
+    "optional": "optional",
+    "required": "required"
+  },
+  "combobox": {
+    "placeholder": "Select…",
+    "noResults": "No results",
+    "searching": "Searching…",
+    "typeToSearch": "Start typing to search",
+    "loadFailed": "Options could not be loaded",
+    "clear": "Clear selection",
+    "toggle": "Show options"
+  },
+  "date": {
+    "openCalendar": "Open calendar",
+    "calendar": "Calendar",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today"
+  },
+  "lines": {
+    "title": "Document lines",
+    "add": "Add line",
+    "remove": "Remove line {{index}}",
+    "lineNo": "No.",
+    "row": "Line {{index}}",
+    "empty": "No lines yet. Use “Add line” to start.",
+    "hint": "Enter moves to the next cell and opens a new line on the last one. Ctrl+Delete removes the line.",
+    "actions": "Action"
+  },
+  "status": {
+    "draft": "Draft",
+    "pending": "Pending",
+    "pending_approval": "Awaiting approval",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "cancelled": "Cancelled",
+    "posted": "Posted",
+    "completed": "Completed",
+    "closed": "Closed",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "approval": {
+    "title": "Approval process",
+    "step": "Step {{order}}",
+    "approvers": "Can approve: {{names}}",
+    "threshold": "Amount threshold: {{amount}}",
+    "approvedBy": "Approved by {{name}}",
+    "rejectedBy": "Rejected by {{name}}",
+    "state": {
+      "waiting": "Queued",
+      "pending": "Awaiting decision",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "skipped": "Skipped"
+    },
+    "empty": "No approval process has been started for this document."
+  },
+  "attachments": {
+    "title": "Attachments",
+    "drop": "Drop files here",
+    "choose": "Choose file",
+    "hint": "Up to {{size}} per file",
+    "uploading": "Uploading {{name}}…",
+    "empty": "No attachments yet.",
+    "tooLarge": "{{name}} is too large (max {{size}}).",
+    "unsupported": "The file type of {{name}} is not supported.",
+    "uploadFailed": "{{name}} could not be uploaded.",
+    "loadFailed": "Attachments could not be loaded.",
+    "download": "Download {{name}}",
+    "remove": "Delete {{name}}",
+    "removeTitle": "Delete attachment?",
+    "removeBody": "{{name}} will be deleted permanently."
+  },
+  "audit": {
+    "title": "Change history",
+    "empty": "No history for this record.",
+    "system": "System",
+    "event": {
+      "created": "created",
+      "updated": "updated",
+      "deleted": "deleted",
+      "other": "changed"
+    },
+    "field": "Field",
+    "before": "Before",
+    "after": "After",
+    "emptyValue": "(empty)",
+    "loadMore": "Show more"
+  },
+  "confirm": {
+    "title": "Are you sure?",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
+  },
+  "empty": {
+    "title": "Nothing here yet"
+  },
+  "pageHeader": {
+    "breadcrumbs": "Breadcrumbs"
+  },
+  "showcase": {
+    "title": "Component showcase",
+    "description": "Shared ERP components with sample data.",
+    "dataTable": "Data table",
+    "form": "Form kit",
+    "lines": "Document lines",
+    "status": "Status badges",
+    "approval": "Approval timeline",
+    "attachments": "Attachment panel",
+    "audit": "Change history",
+    "dialogs": "Confirm dialog and empty state",
+    "submit": "Submit",
+    "simulateServerError": "Try a server error",
+    "deleteSelected": "Delete selected",
+    "openConfirm": "Open delete confirmation",
+    "fields": {
+      "customer": "Customer",
+      "account": "Account",
+      "amount": "Amount",
+      "quantity": "Quantity",
+      "date": "Document date",
+      "note": "Description",
+      "product": "Product",
+      "unitPrice": "Unit price",
+      "lineTotal": "Line total",
+      "code": "Code",
+      "name": "Name",
+      "status": "Status",
+      "balance": "Balance",
+      "createdAt": "Created"
+    },
+    "total": "Total",
+    "submitted": "The form is valid and was submitted."
+  }
+}

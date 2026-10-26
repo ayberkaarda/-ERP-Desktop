@@ -1,0 +1,234 @@
+{
+  "common": {
+    "nav": {
+      "title": "Stocks",
+      "stock": "État des stocks",
+      "movements": "Mouvements de stock",
+      "lots": "Lots",
+      "serials": "Numéros de série",
+      "warehouses": "Entrepôts"
+    },
+    "commands": {
+      "stock": "État des stocks",
+      "movements": "Mouvements de stock",
+      "lots": "Lots et péremption",
+      "serials": "Numéros de série",
+      "warehouses": "Entrepôts et emplacements"
+    },
+    "actions": "Actions",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "all": "Tous",
+    "allWarehouses": "Tous les entrepôts",
+    "yes": "Oui",
+    "no": "Non",
+    "filters": "Filtres",
+    "clearFilters": "Effacer tous les filtres",
+    "retry": "Réessayer",
+    "loadFailed": "Impossible de charger les données.",
+    "conflictTitle": "Quelqu’un d’autre a modifié cet enregistrement",
+    "conflictBody": "L’enregistrement a été mis à jour pendant votre saisie. Chargez la dernière version et refaites vos modifications.",
+    "reload": "Recharger",
+    "uncertain": "Aucune réponse du serveur ; l’action a peut-être été appliquée. Actualisez la liste pour vérifier.",
+    "savedViews": "Vues enregistrées",
+    "noSavedViews": "Aucune vue enregistrée.",
+    "saveView": "Enregistrer la vue actuelle…",
+    "saveViewBody": "La recherche, les filtres et le regroupement sont conservés pour vous dans ce navigateur.",
+    "viewName": "Nom",
+    "removeView": "Supprimer la vue {{name}}",
+    "export": {
+      "label": "Exporter",
+      "csv": "CSV",
+      "xlsx": "Excel",
+      "failed": "L’export a échoué."
+    }
+  },
+  "fields": {
+    "item": "Article",
+    "warehouse": "Entrepôt",
+    "location": "Emplacement",
+    "lot": "Lot",
+    "serial": "N° de série",
+    "lotSerial": "Lot / série",
+    "expiry": "Péremption",
+    "manufactureDate": "Date de fabrication",
+    "receivedAt": "Entrée",
+    "onHand": "En stock",
+    "reserved": "Réservé",
+    "available": "Disponible",
+    "avgCost": "Coût moyen",
+    "value": "Valeur",
+    "occurredAt": "Date",
+    "movementType": "Type de mouvement",
+    "direction": "Sens",
+    "quantity": "Quantité",
+    "cost": "Coût",
+    "document": "Pièce",
+    "status": "Statut"
+  },
+  "filters": {
+    "dateFrom": "Du",
+    "dateTo": "Au",
+    "invalidDate": "La période n’est pas valide."
+  },
+  "warehouses": {
+    "title": "Entrepôts",
+    "description": "Les entrepôts vus par le stock : politique de réservation et emplacements. La fiche entrepôt et les emplacements se gèrent dans Référentiel.",
+    "editTitle": "Politique de réservation de {{code}}",
+    "viewTitle": "Entrepôt {{code}}",
+    "edit": "Modifier la politique de réservation de {{code}}",
+    "openLocations": "Ouvrir les emplacements de {{code}}",
+    "updated": "Politique de réservation de {{code}} mise à jour.",
+    "default": "Par défaut",
+    "tabs": {
+      "general": "Général",
+      "locations": "Emplacements"
+    },
+    "fields": {
+      "code": "Code",
+      "name": "Nom",
+      "isDefault": "Entrepôt par défaut",
+      "reservationPolicy": "Politique de réservation",
+      "status": "Statut",
+      "negativeStock": "Stock négatif"
+    },
+    "policy": {
+      "none": "Aucune",
+      "soft": "Souple",
+      "hard": "Stricte"
+    },
+    "policyHelp": {
+      "none": "Pas de réservation ; le disponible est égal au stock.",
+      "soft": "Les réservations au-delà du disponible sont permises et signalées.",
+      "hard": "Les réservations au-delà du disponible sont refusées."
+    },
+    "manageInReference": "Gérer dans Référentiel",
+    "openInReference": "Ouvrir {{code}} dans Référentiel",
+    "masterData": "Fiche entrepôt",
+    "masterDataHint": "Le code, le nom, l'adresse, la règle de stock négatif, l'entrepôt par défaut et les emplacements se modifient sur la fiche entrepôt dans Référentiel.",
+    "hasMovements": "Cet entrepôt a des mouvements de stock.",
+    "noMovements": "Aucun mouvement de stock dans cet entrepôt pour l'instant.",
+    "negative": {
+      "allow": "Autorisé",
+      "warn": "Avec alerte",
+      "block": "Bloqué"
+    }
+  },
+  "locations": {
+    "treeLabel": "Emplacements de {{code}}",
+    "count": "{{count}} emplacements",
+    "expand": "Déplier {{code}}",
+    "collapse": "Replier {{code}}",
+    "expandAll": "Tout déplier",
+    "collapseAll": "Tout replier",
+    "emptyTitle": "Aucun emplacement",
+    "emptyBody": "Les emplacements s'ajoutent sur la fiche entrepôt dans Référentiel.",
+    "keyboardHint": "Flèches pour se déplacer, droite/gauche pour déplier et replier.",
+    "types": {
+      "aisle": "Allée",
+      "rack": "Rayonnage",
+      "shelf": "Étagère",
+      "bin": "Casier"
+    }
+  },
+  "stock": {
+    "title": "État des stocks",
+    "description": "Quantités en stock, réservées et disponibles avec coût, par article et entrepôt.",
+    "groupBy": "Détail",
+    "groups": {
+      "warehouse": "Article × entrepôt",
+      "item": "Article (tous les entrepôts)",
+      "detail": "Emplacement et lot"
+    },
+    "noLocation": "Sans emplacement",
+    "openItem": "Ouvrir le détail de stock de {{code}}",
+    "includeZero": "Afficher aussi les soldes nuls"
+  },
+  "drawer": {
+    "title": "Stock de l’article",
+    "description": "Stock par entrepôt, par lot et derniers mouvements.",
+    "byWarehouse": "Par entrepôt",
+    "lots": "Lots",
+    "recent": "Derniers mouvements",
+    "noStock": "Cet article n’a pas de stock.",
+    "noMovements": "Aucun mouvement pour l’instant.",
+    "allMovements": "Afficher tous les mouvements"
+  },
+  "movements": {
+    "title": "Mouvements de stock",
+    "description": "Le journal de stock non modifiable ; les corrections passent par des contre-passations.",
+    "seq": "N°",
+    "reversal": "Contre-passation",
+    "unnumbered": "Sans numéro",
+    "journal": "Écriture comptable",
+    "openDocument": "Ouvrir la pièce {{number}}",
+    "openJournal": "Ouvrir l’écriture de {{number}}",
+    "inQty": "{{qty}} en entrée",
+    "outQty": "{{qty}} en sortie",
+    "directions": {
+      "in": "Entrée",
+      "out": "Sortie"
+    },
+    "loaded": "{{count}} mouvements chargés",
+    "loadMore": "Charger plus",
+    "scoped": "La liste est limitée à une pièce, un lot ou un numéro de série.",
+    "emptyTitle": "Aucun mouvement",
+    "emptyBody": "Les mouvements apparaissent ici à mesure que les pièces de stock sont validées.",
+    "emptyFiltered": "Aucun mouvement ne correspond à ces filtres."
+  },
+  "movementTypes": {
+    "receipt": "Entrée",
+    "issue": "Sortie",
+    "transfer_out": "Transfert sortant",
+    "transfer_in": "Transfert entrant",
+    "count_adjustment": "Écart d’inventaire",
+    "opening": "Stock initial",
+    "return_in": "Retour client",
+    "return_out": "Retour fournisseur",
+    "production_in": "Entrée de production",
+    "production_out": "Sortie vers production",
+    "scrap": "Rebut"
+  },
+  "documentTypes": {
+    "stock_document": "Pièce de stock",
+    "sales_delivery": "Bon de livraison",
+    "purchase_receipt": "Bon de réception",
+    "production_order": "Ordre de fabrication"
+  },
+  "lots": {
+    "title": "Lots",
+    "description": "Stock et péremption par lot ; les lots périmant sous {{days}} jours sont signalés.",
+    "onlyInStock": "En stock uniquement",
+    "noExpiry": "Sans péremption",
+    "expired": "Périmé",
+    "expiresToday": "Périme aujourd’hui",
+    "expiresIn": "{{count}} jours restants",
+    "onlyExpired": "Périmés uniquement",
+    "expiresBefore": "Expire au plus tard le"
+  },
+  "trace": {
+    "title": "Traçabilité du lot",
+    "titleFor": "Lot {{lot}}",
+    "notFound": "Lot introuvable.",
+    "received": "Entré",
+    "issued": "Sorti",
+    "whereNow": "Où il se trouve",
+    "noBalance": "Plus de stock pour ce lot.",
+    "history": "Historique des mouvements",
+    "noMovements": "Aucun mouvement trouvé.",
+    "inLedger": "Afficher dans le journal de stock"
+  },
+  "serials": {
+    "title": "Numéros de série",
+    "description": "Chaque unité des articles suivis en série, avec son statut et sa place.",
+    "history": "Historique des mouvements",
+    "historyTitle": "Historique de {{serial}}",
+    "openHistory": "Ouvrir l’historique de {{serial}}",
+    "status": {
+      "in_stock": "En stock",
+      "reserved": "Réservé",
+      "issued": "Sorti",
+      "scrapped": "Mis au rebut"
+    }
+  }
+}

@@ -1,0 +1,50 @@
+import type edocumentsTr from './locales/edocuments/tr.json'
+import type assistantTr from './locales/assistant/tr.json'
+import type treasuryTr from './locales/treasury/tr.json'
+import 'i18next'
+import type accountingTr from './locales/accounting/tr.json'
+import type accountingJournalTr from './locales/accounting-journal/tr.json'
+import type catalogTr from './locales/catalog/tr.json'
+import type commonTr from './locales/common/tr.json'
+import type inventoryDocsTr from './locales/inventory-docs/tr.json'
+import type inventoryStockTr from './locales/inventory-stock/tr.json'
+import type partiesTr from './locales/parties/tr.json'
+import type purchasingOrdersTr from './locales/purchasing-orders/tr.json'
+import type salesDocsTr from './locales/sales-docs/tr.json'
+import type salesReportsTr from './locales/sales-reports/tr.json'
+import type referenceTr from './locales/reference/tr.json'
+import type salesOrdersTr from './locales/sales-orders/tr.json'
+import type purchasingDocsTr from './locales/purchasing-docs/tr.json'
+import type purchasingReportsTr from './locales/purchasing-reports/tr.json'
+import type salesQuotesTr from './locales/sales-quotes/tr.json'
+import type salesSharedTr from './locales/sales-shared/tr.json'
+import type tr from './locales/tr.json'
+
+// Turkish is the source of truth for keys; t() is type-checked against it.
+declare module 'i18next' {
+  interface CustomTypeOptions {
+    defaultNS: 'translation'
+    resources: {
+      edocuments: typeof edocumentsTr
+      assistant: typeof assistantTr
+      treasury: typeof treasuryTr
+      translation: typeof tr
+      common: typeof commonTr
+      accounting: typeof accountingTr
+      catalog: typeof catalogTr
+      parties: typeof partiesTr
+      reference: typeof referenceTr
+      accountingJournal: typeof accountingJournalTr
+      inventoryDocs: typeof inventoryDocsTr
+      'inventory-stock': typeof inventoryStockTr
+      'sales-docs': typeof salesDocsTr
+      'sales-reports': typeof salesReportsTr
+      'sales-shared': typeof salesSharedTr
+      'sales-quotes': typeof salesQuotesTr
+      'sales-orders': typeof salesOrdersTr
+      'purchasing-orders': typeof purchasingOrdersTr
+      'purchasing-docs': typeof purchasingDocsTr
+      'purchasing-reports': typeof purchasingReportsTr
+    }
+  }
+}

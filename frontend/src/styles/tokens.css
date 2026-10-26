@@ -1,0 +1,248 @@
+/*
+ * Keystone design tokens. Raw values live on :root / .dark; @theme inline maps them to
+ * Tailwind utilities so components never reference a literal color.
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces: warm limestone neutrals */
+  --background: oklch(0.982 0.004 85);
+  --surface: oklch(1 0 0);
+  --surface-sunken: oklch(0.962 0.005 85);
+  --surface-raised: oklch(1 0 0);
+  --foreground: oklch(0.225 0.014 230);
+  --muted-foreground: oklch(0.5 0.014 230);
+  --subtle-foreground: oklch(0.62 0.012 230);
+  --border: oklch(0.9 0.006 85);
+  --border-strong: oklch(0.84 0.008 85);
+  --input: oklch(0.86 0.008 85);
+
+  /* Brand: Petrol (primary), Okra (keystone accent, never a status color) */
+  --primary: oklch(0.47 0.085 212);
+  --primary-hover: oklch(0.42 0.085 212);
+  --primary-foreground: oklch(0.99 0.004 212);
+  --primary-soft: oklch(0.95 0.022 212);
+  --primary-soft-foreground: oklch(0.37 0.075 212);
+  --brand-accent: oklch(0.74 0.135 78);
+  --brand-accent-foreground: oklch(0.24 0.04 70);
+  --ring: oklch(0.56 0.1 212);
+
+  /* Status */
+  --success: oklch(0.52 0.12 155);
+  --success-soft: oklch(0.95 0.035 155);
+  --success-soft-foreground: oklch(0.38 0.09 155);
+  --warning: oklch(0.64 0.15 58);
+  --warning-soft: oklch(0.96 0.04 70);
+  --warning-soft-foreground: oklch(0.45 0.11 55);
+  --danger: oklch(0.55 0.19 27);
+  --danger-hover: oklch(0.5 0.19 27);
+  --danger-foreground: oklch(0.99 0.005 27);
+  --danger-soft: oklch(0.95 0.03 25);
+  --danger-soft-foreground: oklch(0.45 0.16 27);
+  --info: oklch(0.52 0.13 252);
+  --info-soft: oklch(0.95 0.025 252);
+  --info-soft-foreground: oklch(0.4 0.12 252);
+
+  /* Navigation rail stays ink-dark in both themes: the fixed anchor of the layout */
+  --sidebar: oklch(0.215 0.026 222);
+  --sidebar-foreground: oklch(0.86 0.012 220);
+  --sidebar-muted: oklch(0.64 0.02 220);
+  --sidebar-border: oklch(0.29 0.026 222);
+  --sidebar-active: oklch(0.29 0.04 215);
+  --sidebar-active-foreground: oklch(0.98 0.005 85);
+  --sidebar-brand: oklch(0.73 0.1 205);
+
+  /* Categorical chart series, fixed order */
+  --chart-1: oklch(0.5 0.09 212);
+  --chart-2: oklch(0.72 0.135 78);
+  --chart-3: oklch(0.55 0.11 262);
+  --chart-4: oklch(0.62 0.09 150);
+  --chart-5: oklch(0.6 0.13 38);
+  --chart-6: oklch(0.52 0.1 330);
+  --chart-grid: oklch(0.92 0.005 85);
+
+  --shadow-color: 222 30% 15%;
+  --overlay: oklch(0.2 0.02 225 / 0.45);
+
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 320ms;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: oklch(0.165 0.01 225);
+  --surface: oklch(0.2 0.012 225);
+  --surface-sunken: oklch(0.182 0.011 225);
+  --surface-raised: oklch(0.235 0.013 225);
+  --foreground: oklch(0.93 0.006 85);
+  --muted-foreground: oklch(0.7 0.012 225);
+  --subtle-foreground: oklch(0.58 0.012 225);
+  --border: oklch(0.285 0.014 225);
+  --border-strong: oklch(0.35 0.016 225);
+  --input: oklch(0.34 0.016 225);
+
+  --primary: oklch(0.73 0.1 205);
+  --primary-hover: oklch(0.79 0.1 205);
+  --primary-foreground: oklch(0.18 0.03 215);
+  --primary-soft: oklch(0.29 0.045 210);
+  --primary-soft-foreground: oklch(0.86 0.07 205);
+  --brand-accent: oklch(0.8 0.13 80);
+  --brand-accent-foreground: oklch(0.22 0.04 70);
+  --ring: oklch(0.73 0.1 205);
+
+  --success: oklch(0.72 0.13 155);
+  --success-soft: oklch(0.28 0.05 155);
+  --success-soft-foreground: oklch(0.85 0.1 155);
+  --warning: oklch(0.78 0.14 65);
+  --warning-soft: oklch(0.3 0.05 65);
+  --warning-soft-foreground: oklch(0.87 0.11 70);
+  --danger: oklch(0.66 0.19 25);
+  --danger-hover: oklch(0.71 0.18 25);
+  --danger-foreground: oklch(0.16 0.02 25);
+  --danger-soft: oklch(0.3 0.07 25);
+  --danger-soft-foreground: oklch(0.86 0.09 25);
+  --info: oklch(0.72 0.12 252);
+  --info-soft: oklch(0.29 0.05 252);
+  --info-soft-foreground: oklch(0.86 0.07 252);
+
+  --sidebar: oklch(0.14 0.012 225);
+  --sidebar-foreground: oklch(0.84 0.01 220);
+  --sidebar-muted: oklch(0.6 0.015 220);
+  --sidebar-border: oklch(0.23 0.014 225);
+  --sidebar-active: oklch(0.25 0.03 212);
+  --sidebar-active-foreground: oklch(0.98 0.005 85);
+  --sidebar-brand: oklch(0.73 0.1 205);
+
+  --chart-1: oklch(0.72 0.1 205);
+  --chart-2: oklch(0.8 0.13 80);
+  --chart-3: oklch(0.7 0.11 262);
+  --chart-4: oklch(0.74 0.1 150);
+  --chart-5: oklch(0.72 0.12 40);
+  --chart-6: oklch(0.7 0.1 330);
+  --chart-grid: oklch(0.27 0.012 225);
+
+  --shadow-color: 225 40% 3%;
+  --overlay: oklch(0.08 0.01 225 / 0.6);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-raised: var(--surface-raised);
+  --color-foreground: var(--foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-overlay: var(--overlay);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-primary-soft-foreground: var(--primary-soft-foreground);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-foreground: var(--brand-accent-foreground);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-soft-foreground: var(--danger-soft-foreground);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-foreground: var(--info-soft-foreground);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-muted: var(--sidebar-muted);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-active: var(--sidebar-active);
+  --color-sidebar-active-foreground: var(--sidebar-active-foreground);
+  --color-sidebar-brand: var(--sidebar-brand);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-grid: var(--chart-grid);
+
+  --shadow-xs: 0 1px 1px hsl(var(--shadow-color) / 0.05);
+  --shadow-sm: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 1px 1px hsl(var(--shadow-color) / 0.04);
+  --shadow-md:
+    0 4px 10px -2px hsl(var(--shadow-color) / 0.1), 0 2px 4px -2px hsl(var(--shadow-color) / 0.06);
+  --shadow-lg:
+    0 16px 32px -8px hsl(var(--shadow-color) / 0.18), 0 4px 8px -4px hsl(var(--shadow-color) / 0.08);
+}
+
+@theme {
+  --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+
+  /* Dense UI scale: body 14px, tables 13px, captions 12px, micro labels 11px */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-table: 0.8125rem;
+  --text-table--line-height: 1.125rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.375rem;
+  --text-xl--line-height: 1.875rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.25rem;
+
+  --spacing: 0.25rem;
+  --spacing-control-sm: 1.75rem;
+  --spacing-control: 2.25rem;
+  --spacing-control-lg: 2.75rem;
+  --spacing-row-compact: 2rem;
+  --spacing-row: 2.25rem;
+  --spacing-topbar: 3.25rem;
+  --spacing-sidebar: 15rem;
+
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1.15);
+
+  --animate-fade-in: ks-fade-in 180ms cubic-bezier(0.2, 0, 0, 1);
+  --animate-pop-in: ks-pop-in 180ms cubic-bezier(0.2, 0, 0, 1);
+
+  @keyframes ks-fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes ks-pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px) scale(0.98);
+    }
+  }
+}

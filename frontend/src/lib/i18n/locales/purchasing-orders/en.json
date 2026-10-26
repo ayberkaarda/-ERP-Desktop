@@ -1,0 +1,439 @@
+{
+  "nav": {
+    "purchasing": "Purchasing",
+    "requests": "Purchase requests",
+    "rfqs": "Requests for quotation",
+    "orders": "Purchase orders"
+  },
+  "palette": {
+    "requests": "Purchase requests",
+    "newRequest": "New purchase request",
+    "rfqs": "Requests for quotation (RFQ)",
+    "newRfq": "New request for quotation",
+    "orders": "Purchase orders",
+    "newOrder": "New purchase order"
+  },
+  "common": {
+    "new": "New",
+    "unnumbered": "(unnumbered draft)"
+  },
+  "actions": {
+    "cancel": "Cancel"
+  },
+  "status": {
+    "request": {
+      "draft": "Draft",
+      "pending_approval": "Pending approval",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "partially_ordered": "Partially ordered",
+      "ordered": "Ordered",
+      "cancelled": "Cancelled"
+    },
+    "rfq": {
+      "draft": "Draft",
+      "sent": "Sent",
+      "collecting": "Collecting quotes",
+      "awarded": "Awarded",
+      "cancelled": "Cancelled"
+    },
+    "order": {
+      "draft": "Draft",
+      "pending_approval": "Pending approval",
+      "approved": "Approved",
+      "sent": "Sent to supplier",
+      "partially_received": "Partially received",
+      "received": "Received",
+      "partially_invoiced": "Partially invoiced",
+      "invoiced": "Invoiced",
+      "closed": "Closed",
+      "cancelled": "Cancelled"
+    }
+  },
+  "fields": {
+    "number": "Number",
+    "status": "Status",
+    "supplier": "Supplier",
+    "taxNumber": "Tax office / number",
+    "documentDate": "Document date",
+    "dueDate": "Due date",
+    "expectedDate": "Expected delivery",
+    "neededBy": "Needed by",
+    "responseDue": "Response due",
+    "currency": "Currency",
+    "fxRate": "Exchange rate",
+    "fxRateHelp": "Leave empty to use the rate of the document date.",
+    "paymentTerm": "Payment term",
+    "warehouse": "Warehouse",
+    "supplierReference": "Supplier reference",
+    "revision": "Revision",
+    "notes": "Note",
+    "notesHelp": "Shown on the document sent to the supplier.",
+    "internalNotes": "Internal note",
+    "internalNotesHelp": "Visible inside the company only.",
+    "estimatedTotal": "Estimated amount",
+    "lineCount": "Lines",
+    "total": "Total"
+  },
+  "filters": {
+    "title": "Filters",
+    "dateFrom": "From",
+    "dateTo": "To",
+    "supplier": "Supplier",
+    "suggestedSupplier": "Suggested supplier",
+    "invitedSupplier": "Invited supplier",
+    "item": "Item",
+    "number": "Document no.",
+    "clear": "Clear filters"
+  },
+  "editor": {
+    "header": "Document details",
+    "notes": "Notes",
+    "saveDraft": "Save draft",
+    "saved": "Draft saved.",
+    "delete": "Delete draft",
+    "deleteBody": "The draft will be deleted permanently.",
+    "deleted": "Draft deleted.",
+    "readOnly": "You may not edit this document."
+  },
+  "errors": {
+    "generic": "The action could not be completed.",
+    "action": "The action could not be completed; the document is unchanged."
+  },
+  "warnings": {
+    "line": "Line {{index}}"
+  },
+  "view": {
+    "lines": "Lines",
+    "audit": "History",
+    "attachments": "Attachments"
+  },
+  "chain": {
+    "title": "Document chain",
+    "type": {
+      "purchase_request": "Request",
+      "purchase_rfq": "RFQ",
+      "purchase_order": "Order",
+      "purchase_receipt": "Goods receipt",
+      "purchase_invoice": "Purchase invoice",
+      "purchase_debit_note": "Debit note",
+      "purchase_return": "Return"
+    },
+    "status": {
+      "draft": "Draft",
+      "pending_approval": "Pending approval",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "partially_ordered": "Partially ordered",
+      "ordered": "Ordered",
+      "sent": "Sent",
+      "collecting": "Collecting quotes",
+      "awarded": "Awarded",
+      "partially_received": "Partially received",
+      "received": "Received",
+      "partially_invoiced": "Partially invoiced",
+      "invoiced": "Invoiced",
+      "closed": "Closed",
+      "cancelled": "Cancelled",
+      "posted": "Posted",
+      "booked": "Booked",
+      "partially_paid": "Partially paid",
+      "paid": "Paid",
+      "reversed": "Reversed",
+      "shipped": "Shipped",
+      "debited": "Debited"
+    }
+  },
+  "approval": {
+    "tab": "Approval",
+    "pending": "The document is pending approval; actions open once it is approved.",
+    "rejected": "Approval rejected: {{comment}}",
+    "unavailable": "The approval cannot be shown."
+  },
+  "exposure": {
+    "loading": "Loading supplier balance…",
+    "unavailable": "The supplier balance cannot be shown.",
+    "total": "Open balance {{amount}}",
+    "overdue": "Overdue payables {{amount}}",
+    "breakdown": "Open payables {{payables}} · uninvoiced orders {{orders}}",
+    "after": "with this document {{amount}}"
+  },
+  "totals": {
+    "withholdingTitle": "Withholding",
+    "withholding": "VAT withholding",
+    "payable": "Payable to supplier"
+  },
+  "lines": {
+    "title": "Lines",
+    "item": "Item",
+    "description": "Description",
+    "quantity": "Quantity",
+    "unit": "Unit",
+    "unitPrice": "Unit price",
+    "estimatedPrice": "Estimated price",
+    "estimatedTotal": "Estimated amount",
+    "suggestedSupplier": "Suggested supplier",
+    "neededBy": "Needed by",
+    "discountPercent": "Disc. %",
+    "discountAmount": "Disc. amount",
+    "tax": "VAT",
+    "withholding": "Withholding",
+    "lineTotal": "Line total",
+    "net": "Net",
+    "netTax": "Net {{net}} · VAT {{rate}}%",
+    "withheld": "withheld {{amount}}",
+    "ordered": "Ordered",
+    "received": "Received",
+    "invoiced": "Invoiced",
+    "priceSource": {
+      "quote": "Quoted price",
+      "request": "Estimated price of the request"
+    },
+    "taxInclusive": "Price includes VAT"
+  },
+  "validation": {
+    "supplier": "Choose a supplier.",
+    "suppliersRequired": "Choose at least one supplier.",
+    "suppliersMax": "At most 100 suppliers can be invited.",
+    "currency": "Choose a currency.",
+    "minLines": "Enter at least one line.",
+    "maxLines": "At most {{max}} lines are allowed.",
+    "item": "Choose an item.",
+    "unit": "Choose a unit.",
+    "quantity": "Enter a quantity above zero (at most 6 decimals).",
+    "price": "Enter a valid price (at most 6 decimals).",
+    "discountPercent": "The discount must be between 0 and 100.",
+    "discountAmount": "Enter a valid discount amount.",
+    "fxRate": "The rate must be above zero.",
+    "expectedDate": "The expected delivery cannot be before the document date.",
+    "neededBy": "The needed-by date cannot be before the document date.",
+    "responseDue": "The response date cannot be before the document date.",
+    "leadTime": "The lead time must be between 0 and 3650 days."
+  },
+  "requests": {
+    "listTitle": "Purchase requests",
+    "listDescription": "Needs raised by departments; approved ones become RFQs or orders.",
+    "exportName": "purchase-requests",
+    "new": "New request",
+    "newTitle": "New purchase request",
+    "editTitle": "Request {{number}}",
+    "viewTitle": "Request {{number}}",
+    "deleteTitle": "Delete the request draft?",
+    "actions": {
+      "submit": "Submit for approval",
+      "cancel": "Cancel request",
+      "toRfq": "Create RFQ",
+      "toOrder": "Create order"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Submit the request for approval?",
+        "body": "{{number}} gets its number; below the approval limit it is approved at once."
+      },
+      "cancel": {
+        "title": "Cancel the request?",
+        "body": "{{number}} is cancelled; draft orders taken from it must be deleted first."
+      }
+    },
+    "done": {
+      "approved": "Request approved.",
+      "pendingApproval": "Request submitted for approval.",
+      "cancel": "Request cancelled."
+    }
+  },
+  "convert": {
+    "linesLabel": "Lines to take over",
+    "quantity": "Quantity to take",
+    "priceFor": "Unit price of {{item}}",
+    "rfq": {
+      "title": "RFQ for {{number}}",
+      "description": "The open quantities of the request are asked from the chosen suppliers in a draft RFQ.",
+      "create": "Create draft RFQ",
+      "created": "Draft RFQ created."
+    },
+    "order": {
+      "title": "Order for {{number}}",
+      "description": "A draft order with the open quantities of the request is created for the chosen supplier.",
+      "currencyHelp": "Leave empty to use the supplier's currency.",
+      "create": "Create draft order",
+      "created": "Draft order created."
+    }
+  },
+  "rfqs": {
+    "listTitle": "Requests for quotation",
+    "listDescription": "Collect prices from suppliers, compare them and award.",
+    "exportName": "requests-for-quotation",
+    "new": "New RFQ",
+    "newTitle": "New request for quotation",
+    "editTitle": "RFQ {{number}}",
+    "viewTitle": "RFQ {{number}}",
+    "deleteTitle": "Delete the RFQ draft?",
+    "suppliers": "Invited suppliers",
+    "suppliersTab": "Suppliers and quotes",
+    "suppliersHelp": "At least one supplier is needed to send it.",
+    "addSupplier": "Add supplier…",
+    "removeSupplier": "Remove {{name}} from the invitation",
+    "currencyHelp": "Quotes are entered in this currency.",
+    "notesHelp": "Shown on the request sent to the suppliers.",
+    "awardedTo": "Awarded to",
+    "quotedLines": "{{quoted}}/{{total}} lines priced",
+    "supplierStatus": {
+      "invited": "Invited",
+      "responded": "Responded",
+      "declined": "Declined"
+    },
+    "actions": {
+      "send": "Send",
+      "cancel": "Cancel RFQ",
+      "award": "Award"
+    },
+    "confirm": {
+      "send": {
+        "title": "Send the RFQ?",
+        "body": "It gets its number and counts as sent to the invited suppliers ({{count}}); the lines are fixed from then on."
+      },
+      "cancel": {
+        "title": "Cancel the RFQ?",
+        "body": "Entered quotes are kept; it can no longer be awarded."
+      }
+    },
+    "done": {
+      "send": "{{number}} sent.",
+      "cancel": "RFQ cancelled."
+    },
+    "quotes": {
+      "enter": "Enter quote of {{supplier}}",
+      "title": "Quote of {{supplier}}",
+      "description": "Prices are in {{currency}}; lines without a price count as not quoted.",
+      "declined": "The supplier declined to quote",
+      "declinedHelp": "Removes the prices entered before.",
+      "linesLabel": "Quote lines",
+      "leadTime": "Lead (days)",
+      "validUntil": "Valid until",
+      "lineTotal": "Line amount",
+      "priceFor": "Unit price of {{item}}",
+      "discountFor": "Discount rate of {{item}}",
+      "leadTimeFor": "Lead time of {{item}} (days)",
+      "validUntilFor": "Quote validity of {{item}}",
+      "nothingPriced": "Price at least one line or mark that the supplier declined.",
+      "save": "Save quote",
+      "saved": "Quote saved.",
+      "declinedSaved": "The supplier's decline was recorded."
+    },
+    "comparison": {
+      "title": "Comparison",
+      "empty": "No quotes entered yet.",
+      "noQuote": "No quote",
+      "lowest": "Lowest",
+      "fastest": "Fastest",
+      "days": "{{count}}-day lead",
+      "total": "Total",
+      "complete": "All lines",
+      "partial": "{{quoted}}/{{total}} lines",
+      "awardedTo": "Awarded: {{supplier}}"
+    },
+    "award": {
+      "title": "Award {{number}}",
+      "description": "One draft order per supplier is created at the quoted prices.",
+      "mode": "Award mode",
+      "wholeSupplier": "One supplier (all lines it quoted)",
+      "perLine": "Choose a supplier per line",
+      "supplier": "Supplier",
+      "lowestTotal": "lowest total",
+      "pickFor": "{{supplier}} for {{item}}",
+      "expectedHelp": "Leave empty to derive it from the lead time.",
+      "summary": "Orders to create",
+      "orderFor": "{{supplier}} — lines: {{count}}",
+      "create": "Create orders ({{count}})",
+      "done": "Draft orders created ({{count}}): {{suppliers}}"
+    },
+    "linesFromRequest": "Lines taken from a purchase request cannot be changed here; the link to the request is kept."
+  },
+  "orders": {
+    "listTitle": "Purchase orders",
+    "listDescription": "Supplier orders with approval, sending, receiving and invoicing state.",
+    "exportName": "purchase-orders",
+    "new": "New order",
+    "newTitle": "New purchase order",
+    "editTitle": "Order {{number}}",
+    "viewTitle": "Order {{number}}",
+    "reviseTitle": "Revision of {{number}}",
+    "reviseHelp": "Once the revision is saved the order goes through approval again.",
+    "saveRevise": "Save revision",
+    "cancelRevise": "Leave revision",
+    "revised": "Revision saved.",
+    "revisedPending": "Revision saved; the order is pending approval.",
+    "deleteTitle": "Delete the order draft?",
+    "actions": {
+      "submit": "Submit for approval",
+      "send": "Mark as sent",
+      "revise": "Revise",
+      "cancel": "Cancel order",
+      "close": "Close order",
+      "createReceipt": "Create goods receipt",
+      "createInvoice": "Create invoice"
+    },
+    "confirm": {
+      "submit": {
+        "title": "Submit the order for approval?",
+        "body": "{{number}} ({{supplier}}, {{total}}) gets its number; below the approval limit it is approved at once."
+      },
+      "send": {
+        "title": "Mark the order as sent?",
+        "body": "Records that {{number}} was passed to {{supplier}}."
+      },
+      "cancel": {
+        "title": "Cancel the order?",
+        "body": "{{number}} ({{supplier}}, {{total}}) is cancelled; not possible once goods receipts or invoices exist."
+      },
+      "close": {
+        "title": "Close the order?",
+        "body": "Remaining quantities of {{number}} are no longer received or invoiced."
+      }
+    },
+    "done": {
+      "submit": "Order approved.",
+      "pendingApproval": "Order submitted for approval.",
+      "send": "Order marked as sent.",
+      "cancel": "Order cancelled.",
+      "close": "Order closed."
+    }
+  },
+  "wizard": {
+    "close": "Close",
+    "step": "Step {{step}}/{{total}}",
+    "step1": "Quantities",
+    "step2": "Details and summary",
+    "linesLabel": "Order lines",
+    "remaining": "Remaining",
+    "service": "(service)",
+    "quantityFor": "Quantity of {{item}}",
+    "exceeds": "At most {{max}} can be entered.",
+    "invalid": "Enter a valid quantity.",
+    "nothingChosen": "Enter a quantity on at least one line.",
+    "fillAll": "All remaining",
+    "clear": "Clear",
+    "tolerance": "Over-receipt tolerance: {{percent}}%",
+    "receiveOnInvoice": "Receive the goods not yet received with the invoice",
+    "receiveOnInvoiceHelp": "Booking the invoice also posts the goods receipt (not for lot or serial tracked items).",
+    "documentDate": "Document date",
+    "supplierInvoiceNo": "Supplier invoice no.",
+    "supplierInvoiceNoHelp": "Required for booking; may stay empty for now.",
+    "summary": "Summary",
+    "back": "Back",
+    "next": "Next",
+    "failed": "The document could not be created.",
+    "receipt": {
+      "title": "Goods receipt for {{number}}",
+      "quantity": "Received",
+      "create": "Create draft goods receipt",
+      "created": "Draft goods receipt created {{number}}"
+    },
+    "invoice": {
+      "title": "Purchase invoice for {{number}}",
+      "quantity": "Invoiced",
+      "create": "Create draft invoice",
+      "created": "Draft invoice created {{number}}"
+    }
+  }
+}

@@ -1,0 +1,128 @@
+{
+    "retrieved_at":  "2026-10-23",
+    "schematron_revision":  "20260701",
+    "ubl_version":  "2.1",
+    "customization_id":  "TR1.2.1",
+    "compiler_commit":  "77dcd36c53d12ed786c144ece3b2af7694abdc56",
+    "packages":  [
+                     {
+                         "sha256":  "12901476cd424fd65c779a4fb44cee798f9921ce55b003f8a076c936ddf8b583",
+                         "url":  "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/e-FaturaPaketi%20%2829%29.zip"
+                     },
+                     {
+                         "sha256":  "cb583941b8a8a239c59902c6bc455c0f75d48f2bb81d7d3fbe1ae827f981f7db",
+                         "url":  "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/UBL-TR1.2.1_Paketi.zip"
+                     },
+                     {
+                         "scope":  "reference_only_reporting",
+                         "url":  "https://ebelge.gib.gov.tr/dosyalar/kilavuzlar/earsiv_paket_v1.1_9.zip",
+                         "sha256":  "37cb15b2564782372d83ca54646e2562a00980cb8d6029b409b14f01692c7c56"
+                     }
+                 ],
+    "files":  [
+                  {
+                      "path":  "runtime-manifest.json",
+                      "sha256":  "9cb8934c3417487a9170a5c2eb4de030fc57875b8228f6130a5c17ae846d4729"
+                  },
+                  {
+                      "path":  "schematron/compiler/iso_abstract_expand.xsl",
+                      "sha256":  "c5267f124abf23eeb6669884e40a98607c055bfaa1f39e73b7d578feceeb6e46"
+                  },
+                  {
+                      "path":  "schematron/compiler/iso_dsdl_include.xsl",
+                      "sha256":  "43ff20a1afd89d8a744d1c0b8df94ac5559ffa6a820d1ffbf508d6431ee4fdd9"
+                  },
+                  {
+                      "path":  "schematron/compiler/iso_schematron_skeleton_for_saxon.xsl",
+                      "sha256":  "95f3195d9f437ea8ff5f75d1a27f4e68ae20b236fe0d4a217bb4209f498a10a3"
+                  },
+                  {
+                      "path":  "schematron/compiler/iso_svrl_for_xslt2.xsl",
+                      "sha256":  "0588d617924a0686255f6d182633d434c7986d561be8fcc3b363907d3f671b26"
+                  },
+                  {
+                      "path":  "schematron/source/UBL-TR_Codelist.xml",
+                      "sha256":  "b6809ae4d38401b6d3f35e63e52d9ab3a0e014d746e3883514895e919e23b8b2"
+                  },
+                  {
+                      "path":  "schematron/source/UBL-TR_Common_Schematron.xml",
+                      "sha256":  "90501b6ad503479d445c16dcbac33146ec458d06ad6e2204afdc517fddce609f"
+                  },
+                  {
+                      "path":  "schematron/source/UBL-TR_Main_Schematron.xml",
+                      "sha256":  "324d6b8e96d4a83c102a335feee1907625bf5125199b0a8b2e62aff4521d23dc"
+                  },
+                  {
+                      "path":  "schematron/UBL-TR-20260701.xsl",
+                      "sha256":  "ddaa17b985bdd8de79a3987d232c3bfd4fad28106486baf7ffa4c5c878ed9f0d"
+                  },
+                  {
+                      "path":  "SecureSchematron.java",
+                      "sha256":  "34c4cdc114db779a3d94b55c76671d7ae78c23b182c2d6f131f39aaf2f628747"
+                  },
+                  {
+                      "path":  "xsd/common/CCTS_CCT_SchemaModule-2.1.xsd",
+                      "sha256":  "dd546e4809df86b6445589f69f0d6c9df162840ae386574ddfc1da7638103e15"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-CommonAggregateComponents-2.1.xsd",
+                      "sha256":  "186085d67e0daf5bbe78427259ee3df15b3043bd6676b50b0652d264e10bed91"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-CommonBasicComponents-2.1.xsd",
+                      "sha256":  "9e7eb96aaba1bf2092c52d3ccb8c881a710cc48111c568e3eae29746dd6b1cab"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-CommonExtensionComponents-2.1.xsd",
+                      "sha256":  "1829b0a0dd61589edf59f400cd299e59edd42a6b33360026956f52aed4f83a74"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-CommonSignatureComponents-2.1.xsd",
+                      "sha256":  "4fa9e2370100040fe14c43e135ef77e2eb66b21cb8dbfc2ffb8d82ae991fe92e"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-CoreComponentParameters-2.1.xsd",
+                      "sha256":  "8be3379dbdcbcc7802fafdd16bac72c48fff1c0bb364213a31a17911dd06100b"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-ExtensionContentDataType-2.1.xsd",
+                      "sha256":  "fcee77a11870208e6377ea6311b9f2a050bca24bdad8606ea02d71e9f9e72f8d"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-QualifiedDataTypes-2.1.xsd",
+                      "sha256":  "7dcb156e610239c97ae70940cf4653b88e48c3595bf5f56a2204a32e2893e6cf"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-SignatureAggregateComponents-2.1.xsd",
+                      "sha256":  "9234c2ca48dbfa9a22a786112bb075c5922a305170920eaab1e3c04fa0b7344b"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-SignatureBasicComponents-2.1.xsd",
+                      "sha256":  "0fbe2d7afff0c1e11164b8ec83e13f18801021c3c87e390a9d76f9cf862f6a64"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-UnqualifiedDataTypes-2.1.xsd",
+                      "sha256":  "09052d406b4293e2a5f9c2bfee6df10ad4d8d5f0b36e24a6349d7f7936d89eb6"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-XAdESv132-2.1.xsd",
+                      "sha256":  "a4f726bcf8cc3f7d9ffa4dab99e005535a8e8b60dced1e5d94578d2e05afa96e"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-XAdESv141-2.1.xsd",
+                      "sha256":  "3f9d50cd07e6ee9b81adfe198e43bed5ee945995511c13a41b4f07667d619625"
+                  },
+                  {
+                      "path":  "xsd/common/UBL-xmldsig-core-schema-2.1.xsd",
+                      "sha256":  "101909c9f06456d61ddcc4fb982f1d40dc357b439f393b1a2eb46e42acd60809"
+                  },
+                  {
+                      "path":  "xsd/maindoc/UBL-DespatchAdvice-2.1.xsd",
+                      "sha256":  "5ed0dd52359da01ae8bd3d63b3134ad510a333b534f9df057aafdbb8c0f194bb"
+                  },
+                  {
+                      "path":  "xsd/maindoc/UBL-Invoice-2.1.xsd",
+                      "sha256":  "b68a25ae3d99435f4e4a39809939183dc8b5d687aeebf2d023f4d4c2a436749e"
+                  }
+              ]
+}

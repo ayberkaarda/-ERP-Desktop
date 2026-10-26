@@ -1,0 +1,516 @@
+// Shapes of the sales quote/order screens. Wire* types mirror the Sales API resources
+// (DocumentResource, LineResource, links, preview-totals); api.ts turns them into the screen
+// shapes (party snapshot object, links as a list, labels resolved from Catalog and Reference).
+// Ids, money (scale 4), quantities and rates (scale 6) are decimal strings; dates YYYY-MM-DD.
+
+export interface Pagination {
+  current_page: number
+  per_page: number
+  total: number
+  last_page: number
+}
+
+export interface Envelope<T, M = Record<string, unknown>> {
+  data: T
+  meta?: M
+}
+
+export interface Paginated<T> {
+  data: T[]
+  meta: { pagination: Pagination }
+}
+
+export const QUOTE_STATUSES = [
+  'draft',
+  'sent',
+  'accepted',
+  'rejected',
+  'expired',
+  'converted',
+  'cancelled',
+] as const
+export type QuoteStatus = (typeof QUOTE_STATUSES)[number]
+
+export const ORDER_STATUSES = [
+  'draft',
+  'pending_approval',
+  'confirmed',
+  'partially_delivered',
+  'delivered',
+  'partially_invoiced',
+  'invoiced',
+  'closed',
+  'cancelled',
+] as const
+export type OrderStatus = (typeof ORDER_STATUSES)[number]
+
+export type SalesKind = 'quote' | 'order'
+
+/** Document types of the chain (links); credit notes are invoices with their own type in links. */
+export type SalesDocumentType =
+  | 'sales_quote'
+  | 'sales_order'
+  | 'sales_delivery'
+  | 'sales_invoice'
+  | 'sales_return'
+  | 'sales_credit_note'
+
+/** Price source the server records per line. */
+export const PRICE_SOURCES = [
+  'party_price_list',
+  'default_price_list',
+  'manual',
+  'source',
+  'none',
+] as const
+export type PriceSource = (typeof PRICE_SOURCES)[number]
+
+/** Warning of a preview, a saved document or an action response. */
+export interface SalesWarning {
+  code: string
+  message: string
+  /** Client key of the line (preview: derived from the API's line index). */
+  line_key?: string | null
+  line_no?: number | null
+  severity?: 'info' | 'warning' | 'danger'
+  /** Structured context (credit check breakdown). */
+  details?: Record<string, unknown> | null
+}
+
+/** A warning as the API sends it; `line` is the index of the line in the request body. */
+export interface WireWarning {
+  code: string
+  message: string
+  line?: number | null
+  details?: Record<string, unknown> | null
+}
+
+/** One document linked to this one in the quote -> order -> delivery -> invoice -> return chain. */
+export interface SalesDocumentLink {
+  type: SalesDocumentType
+  id: string
+  number: string | null
+  status: string
+  document_date: string
+  total?: string | null
+  currency_code?: string | null
+  /** upstream = a source of this document; downstream = created from it. */
+  direction: 'upstream' | 'downstream'
+}
+
+/** One entry of the API's `links` object. */
+export interface WireLink {
+  id: string
+  document_type: SalesDocumentType
+  number: string | null
+  status: string
+  document_date: string
+  total: string | null
+  currency_code: string | null
+}
+
+/** `links` of GET /{res}/{id}: one document, a list or null per relation name. */
+export type WireLinks = Record<string, WireLink | WireLink[] | null>
+
+export interface PartySnapshot {
+  name: string
+  tax_office: string | null
+  tax_number: string | null
+  billing_address?: Record<string, unknown> | null
+}
+
+/** `audit` rows of GET /{res}/{id} (activity log; only the causer id is sent). */
+export interface ApiAuditRow {
+  event: string | null
+  description?: string | null
+  causer_id?: string | null
+  causer_name?: string | null
+  created_at?: string | null
+  properties?: Record<string, unknown> | null
+}
+
+/** LineResource (quotes and orders). */
+export interface WireLine {
+  id: string
+  line_no: number
+  item_id: string
+  variant_id: string | null
+  item_type: 'stock' | 'service' | null
+  description: string | null
+  quantity: string
+  unit_id: string
+  base_quantity: string
+  unit_price: string
+  tax_inclusive: boolean
+  discount_percent: string
+  discount_amount: string
+  gross_amount: string
+  line_discount: string
+  net_amount: string
+  tax_code_id: string | null
+  tax_rate: string
+  tax_amount: string
+  line_total: string
+  warehouse_id: string | null
+  source_line_id: string | null
+  price_source: string | null
+}
+
+export interface WireOrderLine extends WireLine {
+  delivered_quantity: string
+  invoiced_quantity: string
+  reservation_id: string | null
+}
+
+/** Screen line: the API line plus labels resolved from Catalog (empty when not readable). */
+export interface SalesLine {
+  id: string
+  line_no: number
+  item_id: string
+  item_code?: string | null
+  item_name?: string | null
+  /** Catalog item type; service lines may be invoiced without delivery. */
+  item_type?: 'stock' | 'service' | null
+  variant_id: string | null
+  description: string | null
+  quantity: string
+  unit_id: string
+  unit_code?: string | null
+  base_quantity: string
+  base_unit_id?: string | null
+  base_unit_code?: string | null
+  unit_price: string
+  tax_inclusive?: boolean
+  /** Where the price came from (manual = typed, source = copied from the previous document). */
+  price_source: string | null
+  discount_percent: string
+  discount_amount: string
+  net_amount: string
+  tax_code_id: string | null
+  tax_code?: string | null
+  tax_rate: string
+  tax_amount: string
+  line_total: string
+  warehouse_id: string | null
+  source_line_id: string | null
+}
+
+export interface SalesOrderLine extends SalesLine {
+  delivered_quantity: string
+  invoiced_quantity: string
+  reservation_id: string | null
+}
+
+export interface TaxBreakdownRow {
+  tax_code_id: string | null
+  tax_code?: string | null
+  rate: string
+  base: string
+  amount: string
+}
+
+/** DocumentResource common header (+ links, warnings and audit on GET /{id}). */
+interface WireDocumentBase {
+  id: string
+  document_type: SalesDocumentType
+  number: string | null
+  document_date: string
+  party_id: string
+  party_name: string
+  party_tax_office: string | null
+  party_tax_number: string | null
+  billing_address: Record<string, unknown> | null
+  currency_code: string
+  fx_rate: string
+  payment_term_id: string | null
+  due_date: string | null
+  price_list_id: string | null
+  warehouse_id: string | null
+  cost_center_id: string | null
+  project_id: string | null
+  notes: string | null
+  internal_notes: string | null
+  source_type: string | null
+  source_id: string | null
+  subtotal: string
+  discount_total: string
+  tax_total: string
+  total: string
+  subtotal_local: string
+  discount_total_local: string
+  tax_total_local: string
+  total_local: string
+  version: number
+  created_by: string | null
+  created_at: string | null
+  updated_at: string | null
+  line_count?: number
+  links?: WireLinks
+  warnings?: WireWarning[]
+  audit?: ApiAuditRow[]
+}
+
+export interface WireQuote extends WireDocumentBase {
+  status: QuoteStatus
+  valid_until: string | null
+  revision: number
+  previous_revision_id: string | null
+  converted_order_id: string | null
+  sent_at: string | null
+  accepted_at: string | null
+  rejected_at: string | null
+  rejection_reason: string | null
+  lines?: WireLine[]
+}
+
+export interface WireOrder extends WireDocumentBase {
+  status: OrderStatus
+  requested_delivery_date: string | null
+  quote_id: string | null
+  revision: number
+  credit_override_reason: string | null
+  credit_override_by: string | null
+  approval_request_id: string | null
+  approval_comment: string | null
+  confirmed_at: string | null
+  confirmed_by: string | null
+  cancelled_at: string | null
+  closed_at: string | null
+  lines?: WireOrderLine[]
+}
+
+interface SalesDocumentBase {
+  id: string
+  number: string | null
+  document_date: string
+  party_id: string
+  party: PartySnapshot
+  currency_code: string
+  /** Company currency (the *_local totals are in it); null when it cannot be told. */
+  local_currency_code?: string | null
+  fx_rate: string
+  payment_term_id: string | null
+  due_date: string | null
+  price_list_id: string | null
+  warehouse_id: string | null
+  cost_center_id: string | null
+  project_id: string | null
+  notes: string | null
+  internal_notes: string | null
+  source_type: string | null
+  source_id: string | null
+  subtotal: string
+  discount_total: string
+  tax_total: string
+  total: string
+  total_local: string
+  /** Derived from the lines (per tax code and rate). */
+  tax_breakdown?: TaxBreakdownRow[]
+  warnings?: SalesWarning[]
+  links?: SalesDocumentLink[]
+  version: number
+  created_by: string | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface ApiSalesQuote extends SalesDocumentBase {
+  status: QuoteStatus
+  valid_until: string | null
+  revision: number
+  previous_revision_id: string | null
+  rejection_reason?: string | null
+  lines: SalesLine[]
+  audit?: ApiAuditRow[]
+}
+
+export interface ApiSalesOrder extends SalesDocumentBase {
+  status: OrderStatus
+  requested_delivery_date: string | null
+  revision?: number
+  /** Workflow ApprovalRequest while (or after) the order waited for approval. */
+  approval_request_id: string | null
+  /** Why an approval sent the order back to draft. */
+  approval_comment?: string | null
+  /**
+   * Over-delivery tolerance (company setting sales.allow_over_delivery_percent) when the user may
+   * read settings; null = unknown, the server alone bounds deliveries.
+   */
+  over_delivery_percent?: string | null
+  credit_override_reason?: string | null
+  lines: SalesOrderLine[]
+  audit?: ApiAuditRow[]
+}
+
+/** List rows (DocumentResource without lines). */
+export interface SalesQuoteSummary {
+  id: string
+  number: string | null
+  status: QuoteStatus
+  document_date: string
+  valid_until: string | null
+  party_id: string
+  party_name: string
+  currency_code: string
+  total: string
+  total_local: string
+  revision: number
+  version: number
+}
+
+export interface SalesOrderSummary {
+  id: string
+  number: string | null
+  status: OrderStatus
+  document_date: string
+  requested_delivery_date: string | null
+  party_id: string
+  party_name: string
+  currency_code: string
+  total: string
+  total_local: string
+  version: number
+}
+
+/** Line of a create/PATCH/revise body; unit_price null lets the server resolve the price. */
+export interface SalesLineInput {
+  /** Id of a stored line of the edited draft (PATCH / revise). */
+  id?: string
+  item_id: string
+  variant_id: string | null
+  description: string | null
+  quantity: string
+  unit_id: string
+  unit_price: string | null
+  discount_percent: string
+  discount_amount: string
+  /** null = untaxed (the server applies the item default only when the key is absent). */
+  tax_code_id: string | null
+  warehouse_id: string | null
+}
+
+export interface SalesDocumentInput {
+  party_id: string
+  document_date: string
+  currency_code: string
+  fx_rate: string | null
+  payment_term_id: string | null
+  price_list_id: string | null
+  warehouse_id: string | null
+  notes: string | null
+  internal_notes: string | null
+  /** Quotes only. */
+  valid_until?: string | null
+  /** Orders only. */
+  requested_delivery_date?: string | null
+  /** Absent on a PATCH that leaves the stored lines (and their prices) as they are. */
+  lines?: SalesLineInput[]
+}
+
+/** The editor's preview request; `key` maps the answer back to the form (not sent). */
+export interface PreviewTotalsInput {
+  document_type: SalesKind
+  party_id: string | null
+  document_date: string
+  currency_code: string
+  fx_rate: string | null
+  price_list_id: string | null
+  warehouse_id: string | null
+  lines: (Omit<SalesLineInput, 'description'> & { key: string })[]
+}
+
+/** POST /sales-documents/preview-totals response (`data`). */
+export interface WirePreview {
+  header: { currency_code: string; fx_rate: string } & Record<string, unknown>
+  /** In request order; `pricing` is the price list answer (null for copied lines). */
+  lines: (Omit<WireLine, 'id'> & { pricing: { unit_price: string | null } | null })[]
+  taxes: {
+    tax_code_id: string | null
+    rate: string
+    base: string
+    tax: string
+    base_local: string
+    tax_local: string
+  }[]
+  totals: {
+    subtotal: string
+    discount_total: string
+    tax_total: string
+    total: string
+    subtotal_local: string
+    discount_total_local: string
+    tax_total_local: string
+    total_local: string
+  }
+  price_overrides: { line: number; resolved: string | null; given: string }[]
+}
+
+export interface PreviewLine {
+  key: string
+  unit_price: string
+  price_source: string | null
+  /** The price list price (null when none resolves); differs from unit_price for overrides. */
+  resolved_price?: string | null
+  base_quantity: string
+  net_amount: string
+  tax_code_id: string | null
+  tax_rate: string
+  tax_amount: string
+  line_total: string
+}
+
+export interface PreviewTotals {
+  lines: PreviewLine[]
+  subtotal: string
+  discount_total: string
+  tax_total: string
+  total: string
+  total_local: string
+  fx_rate: string
+  local_currency_code?: string | null
+  tax_breakdown: TaxBreakdownRow[]
+  warnings: SalesWarning[]
+}
+
+/** GET /customers/{id}/exposure: amounts in the party's risk currency (scale 2). */
+export interface CustomerExposure {
+  party_id: string
+  /** null = no risk limit (unlimited). */
+  limit: string | null
+  currency: string
+  open_invoices: string
+  open_orders: string
+  total: string
+  available: string | null
+  /** With ?document_id=: what that document adds to the exposure in the risk currency. */
+  document_amount?: string | null
+}
+
+/** errors.details of 422 sales.credit_limit_exceeded (risk currency). */
+export interface CreditBreakdown {
+  mode: string | null
+  limit: string | null
+  exposure: string | null
+  document: string | null
+  total: string | null
+  available: string | null
+  currency: string | null
+}
+
+/** POST /sales-orders/{id}/deliveries and /invoices: partial quantities per order line. */
+export interface FulfilmentInput {
+  document_date: string
+  warehouse_id?: string | null
+  /** Invoice of stock lines not delivered yet: the server posts the delivery itself. */
+  deliver_on_invoice?: boolean
+  lines: { order_line_id: string; quantity: string }[]
+}
+
+/** The draft delivery or invoice the conversion created (fe-sales2 opens it). */
+export interface CreatedDocument {
+  id: string
+  number: string | null
+  status: string
+}
+
+export const MAX_LINES = 500

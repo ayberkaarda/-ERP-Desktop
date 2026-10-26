@@ -1,0 +1,204 @@
+{
+  "actions": {
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "confirm": "Bestätigen",
+    "delete": "Löschen",
+    "add": "Hinzufügen",
+    "close": "Schließen",
+    "retry": "Erneut versuchen",
+    "clear": "Leeren",
+    "reset": "Zurücksetzen",
+    "open": "Öffnen",
+    "back": "Zurück"
+  },
+  "states": {
+    "loading": "Wird geladen…",
+    "saving": "Wird gespeichert…",
+    "errorTitle": "Etwas ist schiefgelaufen",
+    "errorBody": "Die Daten konnten nicht geladen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+  },
+  "validation": {
+    "required": "Dieses Feld ist erforderlich.",
+    "number": "Geben Sie eine gültige Zahl ein.",
+    "scale": "Zu viele Nachkommastellen.",
+    "positive": "Der Wert muss größer als null sein.",
+    "nonNegative": "Der Wert darf nicht negativ sein.",
+    "min": "Der Wert liegt unter dem zulässigen Minimum.",
+    "max": "Der Wert liegt über dem zulässigen Maximum.",
+    "date": "Geben Sie ein gültiges Datum ein.",
+    "invalid": "Ungültiger Wert."
+  },
+  "dataTable": {
+    "search": "In dieser Liste suchen",
+    "searchPlaceholder": "Suchen…",
+    "columns": "Spalten",
+    "density": "Zeilendichte",
+    "densityComfortable": "Komfortabel",
+    "densityCompact": "Kompakt",
+    "resetView": "Ansicht zurücksetzen",
+    "sortedAsc": "Aufsteigend sortiert",
+    "sortedDesc": "Absteigend sortiert",
+    "sortBy": "Nach {{column}} sortieren",
+    "selectPage": "Alle Zeilen dieser Seite auswählen",
+    "selectRow": "Zeile auswählen",
+    "selected_one": "{{count}} Datensatz ausgewählt",
+    "selected_other": "{{count}} Datensätze ausgewählt",
+    "clearSelection": "Auswahl aufheben",
+    "bulkActions": "Sammelaktionen",
+    "emptyTitle": "Keine Datensätze gefunden",
+    "emptyBody": "Ändern Sie Suche oder Filter und versuchen Sie es erneut.",
+    "errorTitle": "Die Liste konnte nicht geladen werden",
+    "loading": "Datensätze werden geladen…",
+    "range": "{{from}}–{{to}} von {{total}}",
+    "perPage": "Datensätze pro Seite",
+    "page": "Seite {{page}} von {{pages}}",
+    "pagination": "Seitennavigation",
+    "firstPage": "Erste Seite",
+    "prevPage": "Vorherige Seite",
+    "nextPage": "Nächste Seite",
+    "lastPage": "Letzte Seite",
+    "filterAll": "Alle",
+    "clearFilters": "Filter zurücksetzen",
+    "resizeColumn": "Breite der Spalte {{column}}",
+    "keyboardHint": "Mit den Pfeiltasten zwischen Zeilen wechseln; Enter öffnet, Leertaste wählt aus."
+  },
+  "form": {
+    "errorSummaryTitle": "Der Datensatz konnte nicht gespeichert werden",
+    "errorSummaryBody": "Bitte korrigieren Sie die folgenden Felder.",
+    "optional": "optional",
+    "required": "erforderlich"
+  },
+  "combobox": {
+    "placeholder": "Auswählen…",
+    "noResults": "Keine Ergebnisse",
+    "searching": "Suche läuft…",
+    "typeToSearch": "Zum Suchen tippen",
+    "loadFailed": "Optionen konnten nicht geladen werden",
+    "clear": "Auswahl aufheben",
+    "toggle": "Optionen anzeigen"
+  },
+  "date": {
+    "openCalendar": "Kalender öffnen",
+    "calendar": "Kalender",
+    "prevMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "today": "Heute"
+  },
+  "lines": {
+    "title": "Belegzeilen",
+    "add": "Zeile hinzufügen",
+    "remove": "Zeile {{index}} entfernen",
+    "lineNo": "Pos.",
+    "row": "Zeile {{index}}",
+    "empty": "Noch keine Zeilen. Mit „Zeile hinzufügen“ beginnen.",
+    "hint": "Enter springt zur nächsten Zelle und legt in der letzten eine neue Zeile an. Strg+Entf entfernt die Zeile.",
+    "actions": "Aktion"
+  },
+  "status": {
+    "draft": "Entwurf",
+    "pending": "Ausstehend",
+    "pending_approval": "Wartet auf Freigabe",
+    "approved": "Freigegeben",
+    "rejected": "Abgelehnt",
+    "cancelled": "Storniert",
+    "posted": "Gebucht",
+    "completed": "Abgeschlossen",
+    "closed": "Geschlossen",
+    "active": "Aktiv",
+    "inactive": "Inaktiv"
+  },
+  "approval": {
+    "title": "Freigabeprozess",
+    "step": "Schritt {{order}}",
+    "approvers": "Freigabeberechtigt: {{names}}",
+    "threshold": "Betragsschwelle: {{amount}}",
+    "approvedBy": "Freigegeben von {{name}}",
+    "rejectedBy": "Abgelehnt von {{name}}",
+    "state": {
+      "waiting": "In Warteschlange",
+      "pending": "Entscheidung ausstehend",
+      "approved": "Freigegeben",
+      "rejected": "Abgelehnt",
+      "skipped": "Übersprungen"
+    },
+    "empty": "Für diesen Beleg wurde kein Freigabeprozess gestartet."
+  },
+  "attachments": {
+    "title": "Anhänge",
+    "drop": "Dateien hier ablegen",
+    "choose": "Datei auswählen",
+    "hint": "Bis zu {{size}} pro Datei",
+    "uploading": "{{name}} wird hochgeladen…",
+    "empty": "Noch keine Anhänge.",
+    "tooLarge": "{{name}} ist zu groß (max. {{size}}).",
+    "unsupported": "Der Dateityp von {{name}} wird nicht unterstützt.",
+    "uploadFailed": "{{name}} konnte nicht hochgeladen werden.",
+    "loadFailed": "Anhänge konnten nicht geladen werden.",
+    "download": "{{name}} herunterladen",
+    "remove": "{{name}} löschen",
+    "removeTitle": "Anhang löschen?",
+    "removeBody": "{{name}} wird dauerhaft gelöscht."
+  },
+  "audit": {
+    "title": "Änderungsverlauf",
+    "empty": "Kein Verlauf für diesen Datensatz.",
+    "system": "System",
+    "event": {
+      "created": "hat erstellt",
+      "updated": "hat geändert",
+      "deleted": "hat gelöscht",
+      "other": "hat bearbeitet"
+    },
+    "field": "Feld",
+    "before": "Vorher",
+    "after": "Nachher",
+    "emptyValue": "(leer)",
+    "loadMore": "Mehr anzeigen"
+  },
+  "confirm": {
+    "title": "Sind Sie sicher?",
+    "confirm": "Bestätigen",
+    "cancel": "Abbrechen"
+  },
+  "empty": {
+    "title": "Hier ist noch nichts"
+  },
+  "pageHeader": {
+    "breadcrumbs": "Brotkrumennavigation"
+  },
+  "showcase": {
+    "title": "Komponentenübersicht",
+    "description": "Gemeinsame ERP-Komponenten mit Beispieldaten.",
+    "dataTable": "Datentabelle",
+    "form": "Formularbausteine",
+    "lines": "Belegzeilen",
+    "status": "Statusabzeichen",
+    "approval": "Freigabe-Zeitleiste",
+    "attachments": "Anhangbereich",
+    "audit": "Änderungsverlauf",
+    "dialogs": "Bestätigungsdialog und leerer Zustand",
+    "submit": "Absenden",
+    "simulateServerError": "Serverfehler ausprobieren",
+    "deleteSelected": "Ausgewählte löschen",
+    "openConfirm": "Löschbestätigung öffnen",
+    "fields": {
+      "customer": "Kunde",
+      "account": "Konto",
+      "amount": "Betrag",
+      "quantity": "Menge",
+      "date": "Belegdatum",
+      "note": "Beschreibung",
+      "product": "Artikel",
+      "unitPrice": "Einzelpreis",
+      "lineTotal": "Zeilensumme",
+      "code": "Code",
+      "name": "Name",
+      "status": "Status",
+      "balance": "Saldo",
+      "createdAt": "Erstellt"
+    },
+    "total": "Summe",
+    "submitted": "Das Formular ist gültig und wurde abgesendet."
+  }
+}

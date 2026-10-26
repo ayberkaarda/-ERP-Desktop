@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'general.default_locale' => 'Varsayılan dil',
+    'general.timezone' => 'Saat dilimi',
+    'general.date_format' => 'Tarih biçimi',
+    'security.session_timeout_minutes' => 'Oturum zaman aşımı (dakika)',
+    'security.require_two_factor' => 'İki adımlı doğrulamayı zorunlu kıl',
+    'notifications.email_enabled' => 'E-posta bildirimleri',
+    'company.base_currency' => 'Ana para birimi',
+    'accounting.expense_scheme' => 'Gider muhasebe şeması',
+    'accounting.account_code_prefix_rule' => 'Hesap kodu önek kuralını uygula',
+    'accounting.closing_mapping' => 'Yıl sonu kapanış eşlemesi',
+    'inventory.valuation_method' => 'Stok değerleme yöntemi',
+    'inventory.cost_rounding_scale' => 'Birim maliyet ondalık basamağı',
+    'sales.allow_direct_delivery' => 'Siparişsiz irsaliyeye izin ver',
+    'sales.credit_check_mode' => 'Risk limiti kontrolü',
+    'sales.reserve_on_confirm' => 'Sipariş onayında stok rezerve et',
+    'sales.require_approval_over' => 'Bu tutarın üzerindeki siparişler onay gerektirir',
+    'sales.default_warehouse_id' => 'Varsayılan satış deposu',
+    'sales.quote_validity_days' => 'Teklif geçerlilik süresi (gün)',
+    'sales.allow_over_delivery_percent' => 'İzin verilen fazla teslim yüzdesi',
+    'sales.rounding' => 'Satış belgesi yuvarlama yöntemi',
+    'purchasing.allow_direct_receipt' => 'Siparişsiz mal kabulüne izin ver',
+    'purchasing.match_mode' => 'Üçlü eşleştirme',
+    'purchasing.match_qty_tolerance_percent' => 'Eşleştirme miktar toleransı (%)',
+    'purchasing.match_price_tolerance_percent' => 'Eşleştirme fiyat toleransı (%)',
+    'purchasing.allow_over_receipt_percent' => 'İzin verilen fazla teslim alma yüzdesi',
+    'purchasing.require_approval_over' => 'Bu tutarın üzerindeki satın alma siparişleri onay gerektirir',
+    'purchasing.request_approval_over' => 'Bu tutarın üzerindeki satın alma talepleri onay gerektirir',
+    'purchasing.invoice_approval_over' => 'Bu tutarın üzerindeki alış faturaları onay gerektirir',
+    'purchasing.default_warehouse_id' => 'Varsayılan satın alma deposu',
+    'purchasing.rounding' => 'Satın alma belgesi yuvarlaması',
+];

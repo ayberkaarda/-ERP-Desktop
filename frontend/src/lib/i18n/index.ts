@@ -1,0 +1,227 @@
+import edocumentsTr from './locales/edocuments/tr.json'
+import edocumentsEn from './locales/edocuments/en.json'
+import edocumentsDe from './locales/edocuments/de.json'
+import edocumentsFr from './locales/edocuments/fr.json'
+import assistantTr from './locales/assistant/tr.json'
+import assistantEn from './locales/assistant/en.json'
+import assistantDe from './locales/assistant/de.json'
+import assistantFr from './locales/assistant/fr.json'
+import treasuryTr from './locales/treasury/tr.json'
+import treasuryEn from './locales/treasury/en.json'
+import treasuryDe from './locales/treasury/de.json'
+import treasuryFr from './locales/treasury/fr.json'
+import i18n from 'i18next'
+import { initReactI18next } from 'react-i18next'
+import accountingDe from './locales/accounting/de.json'
+import accountingEn from './locales/accounting/en.json'
+import accountingFr from './locales/accounting/fr.json'
+import accountingTr from './locales/accounting/tr.json'
+import accountingJournalDe from './locales/accounting-journal/de.json'
+import accountingJournalEn from './locales/accounting-journal/en.json'
+import accountingJournalFr from './locales/accounting-journal/fr.json'
+import accountingJournalTr from './locales/accounting-journal/tr.json'
+import catalogDe from './locales/catalog/de.json'
+import catalogEn from './locales/catalog/en.json'
+import catalogFr from './locales/catalog/fr.json'
+import catalogTr from './locales/catalog/tr.json'
+import inventoryDocsDe from './locales/inventory-docs/de.json'
+import inventoryDocsEn from './locales/inventory-docs/en.json'
+import inventoryDocsFr from './locales/inventory-docs/fr.json'
+import inventoryDocsTr from './locales/inventory-docs/tr.json'
+import commonDe from './locales/common/de.json'
+import commonEn from './locales/common/en.json'
+import commonFr from './locales/common/fr.json'
+import commonTr from './locales/common/tr.json'
+import inventoryStockDe from './locales/inventory-stock/de.json'
+import inventoryStockEn from './locales/inventory-stock/en.json'
+import inventoryStockFr from './locales/inventory-stock/fr.json'
+import inventoryStockTr from './locales/inventory-stock/tr.json'
+import partiesDe from './locales/parties/de.json'
+import partiesEn from './locales/parties/en.json'
+import partiesFr from './locales/parties/fr.json'
+import partiesTr from './locales/parties/tr.json'
+import referenceDe from './locales/reference/de.json'
+import referenceEn from './locales/reference/en.json'
+import referenceFr from './locales/reference/fr.json'
+import referenceTr from './locales/reference/tr.json'
+import salesDocsDe from './locales/sales-docs/de.json'
+import salesDocsEn from './locales/sales-docs/en.json'
+import salesDocsFr from './locales/sales-docs/fr.json'
+import salesDocsTr from './locales/sales-docs/tr.json'
+import salesReportsDe from './locales/sales-reports/de.json'
+import salesReportsEn from './locales/sales-reports/en.json'
+import salesReportsFr from './locales/sales-reports/fr.json'
+import salesReportsTr from './locales/sales-reports/tr.json'
+import salesSharedDe from './locales/sales-shared/de.json'
+import salesSharedEn from './locales/sales-shared/en.json'
+import salesSharedFr from './locales/sales-shared/fr.json'
+import salesSharedTr from './locales/sales-shared/tr.json'
+import salesQuotesDe from './locales/sales-quotes/de.json'
+import salesQuotesEn from './locales/sales-quotes/en.json'
+import salesQuotesFr from './locales/sales-quotes/fr.json'
+import salesQuotesTr from './locales/sales-quotes/tr.json'
+import salesOrdersDe from './locales/sales-orders/de.json'
+import salesOrdersEn from './locales/sales-orders/en.json'
+import salesOrdersFr from './locales/sales-orders/fr.json'
+import salesOrdersTr from './locales/sales-orders/tr.json'
+import purchasingOrdersDe from './locales/purchasing-orders/de.json'
+import purchasingOrdersEn from './locales/purchasing-orders/en.json'
+import purchasingOrdersFr from './locales/purchasing-orders/fr.json'
+import purchasingOrdersTr from './locales/purchasing-orders/tr.json'
+import purchasingDocsDe from './locales/purchasing-docs/de.json'
+import purchasingDocsEn from './locales/purchasing-docs/en.json'
+import purchasingDocsFr from './locales/purchasing-docs/fr.json'
+import purchasingDocsTr from './locales/purchasing-docs/tr.json'
+import purchasingReportsDe from './locales/purchasing-reports/de.json'
+import purchasingReportsEn from './locales/purchasing-reports/en.json'
+import purchasingReportsFr from './locales/purchasing-reports/fr.json'
+import purchasingReportsTr from './locales/purchasing-reports/tr.json'
+import de from './locales/de.json'
+import en from './locales/en.json'
+import fr from './locales/fr.json'
+import tr from './locales/tr.json'
+
+export const SUPPORTED_LANGUAGES = ['tr', 'en', 'de', 'fr'] as const
+export type Language = (typeof SUPPORTED_LANGUAGES)[number]
+
+const STORAGE_KEY = 'keystone.lang'
+
+function storedLanguage(): Language {
+  try {
+    const value = localStorage.getItem(STORAGE_KEY)
+    return SUPPORTED_LANGUAGES.find((l) => l === value) ?? 'tr'
+  } catch {
+    return 'tr'
+  }
+}
+
+void i18n.use(initReactI18next).init({
+  resources: {
+    tr: {
+      edocuments: edocumentsTr,
+      assistant: assistantTr,
+      treasury: treasuryTr,
+      translation: tr,
+      common: commonTr,
+      accounting: accountingTr,
+      catalog: catalogTr,
+      parties: partiesTr,
+      reference: referenceTr,
+      accountingJournal: accountingJournalTr,
+      inventoryDocs: inventoryDocsTr,
+      'inventory-stock': inventoryStockTr,
+      'sales-docs': salesDocsTr,
+      'sales-reports': salesReportsTr,
+      'sales-shared': salesSharedTr,
+      'sales-quotes': salesQuotesTr,
+      'sales-orders': salesOrdersTr,
+      'purchasing-orders': purchasingOrdersTr,
+      'purchasing-docs': purchasingDocsTr,
+      'purchasing-reports': purchasingReportsTr,
+    },
+    en: {
+      edocuments: edocumentsEn,
+      assistant: assistantEn,
+      treasury: treasuryEn,
+      translation: en,
+      common: commonEn,
+      accounting: accountingEn,
+      catalog: catalogEn,
+      parties: partiesEn,
+      reference: referenceEn,
+      accountingJournal: accountingJournalEn,
+      inventoryDocs: inventoryDocsEn,
+      'inventory-stock': inventoryStockEn,
+      'sales-docs': salesDocsEn,
+      'sales-reports': salesReportsEn,
+      'sales-shared': salesSharedEn,
+      'sales-quotes': salesQuotesEn,
+      'sales-orders': salesOrdersEn,
+      'purchasing-orders': purchasingOrdersEn,
+      'purchasing-docs': purchasingDocsEn,
+      'purchasing-reports': purchasingReportsEn,
+    },
+    de: {
+      edocuments: edocumentsDe,
+      assistant: assistantDe,
+      treasury: treasuryDe,
+      translation: de,
+      common: commonDe,
+      accounting: accountingDe,
+      catalog: catalogDe,
+      parties: partiesDe,
+      reference: referenceDe,
+      accountingJournal: accountingJournalDe,
+      inventoryDocs: inventoryDocsDe,
+      'inventory-stock': inventoryStockDe,
+      'sales-docs': salesDocsDe,
+      'sales-reports': salesReportsDe,
+      'sales-shared': salesSharedDe,
+      'sales-quotes': salesQuotesDe,
+      'sales-orders': salesOrdersDe,
+      'purchasing-orders': purchasingOrdersDe,
+      'purchasing-docs': purchasingDocsDe,
+      'purchasing-reports': purchasingReportsDe,
+    },
+    fr: {
+      edocuments: edocumentsFr,
+      assistant: assistantFr,
+      treasury: treasuryFr,
+      translation: fr,
+      common: commonFr,
+      accounting: accountingFr,
+      catalog: catalogFr,
+      parties: partiesFr,
+      reference: referenceFr,
+      accountingJournal: accountingJournalFr,
+      inventoryDocs: inventoryDocsFr,
+      'inventory-stock': inventoryStockFr,
+      'sales-docs': salesDocsFr,
+      'sales-reports': salesReportsFr,
+      'sales-shared': salesSharedFr,
+      'sales-quotes': salesQuotesFr,
+      'sales-orders': salesOrdersFr,
+      'purchasing-orders': purchasingOrdersFr,
+      'purchasing-docs': purchasingDocsFr,
+      'purchasing-reports': purchasingReportsFr,
+    },
+  },
+  ns: [
+    'edocuments',
+    'assistant',
+    'translation',
+    'common',
+    'accounting',
+    'accountingJournal',
+    'catalog',
+    'parties',
+    'reference',
+    'inventoryDocs',
+    'inventory-stock',
+    'sales-docs',
+    'sales-reports',
+    'sales-shared',
+    'sales-quotes',
+    'sales-orders',
+    'purchasing-orders',
+    'purchasing-docs',
+    'purchasing-reports',
+    'treasury',
+  ],
+  lng: storedLanguage(),
+  fallbackLng: 'tr',
+  supportedLngs: SUPPORTED_LANGUAGES,
+  interpolation: { escapeValue: false },
+  returnNull: false,
+})
+
+i18n.on('languageChanged', (lng) => {
+  document.documentElement.lang = lng
+  try {
+    localStorage.setItem(STORAGE_KEY, lng)
+  } catch {
+    // Storage may be unavailable (private mode); language still applies for the session.
+  }
+})
+
+export default i18n

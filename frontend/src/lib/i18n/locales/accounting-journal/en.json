@@ -1,0 +1,252 @@
+{
+  "nav": {
+    "accounting": "Accounting",
+    "entries": "Journal entries",
+    "reports": "Reports",
+    "trialBalance": "Trial balance",
+    "generalLedger": "General ledger",
+    "journalBook": "Journal book"
+  },
+  "palette": {
+    "newEntry": "New journal entry"
+  },
+  "actions": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "ok": "OK",
+    "retry": "Try again",
+    "save": "Save"
+  },
+  "status": {
+    "draft": "Draft",
+    "posted": "Posted",
+    "reversed": "Reversed"
+  },
+  "entryType": {
+    "opening": "Opening",
+    "general": "General",
+    "receipt": "Receipt",
+    "payment": "Payment",
+    "adjustment": "Adjustment",
+    "revaluation": "FX revaluation",
+    "closing": "Closing",
+    "reversal": "Reversal",
+    "system": "System"
+  },
+  "fields": {
+    "number": "Entry no.",
+    "entryDate": "Date",
+    "entryType": "Entry type",
+    "description": "Description",
+    "status": "Status",
+    "source": "Source",
+    "totalDebit": "Total debit",
+    "totalCredit": "Total credit"
+  },
+  "list": {
+    "title": "Journal entries",
+    "description": "Draft, posted and reversed accounting entries.",
+    "new": "New entry",
+    "filters": "Entry filters",
+    "unnumbered": "Draft"
+  },
+  "filters": {
+    "dateFrom": "From date",
+    "dateTo": "To date",
+    "account": "Account",
+    "party": "Party",
+    "amountMin": "Minimum amount",
+    "amountMax": "Maximum amount",
+    "clear": "Clear all filters"
+  },
+  "presets": {
+    "views": "Saved views",
+    "params": "Saved parameters",
+    "empty": "Nothing saved yet.",
+    "remove": "Delete {{name}}",
+    "saveCurrent": "Save current settings…",
+    "saveTitle": "Save settings",
+    "saveBody": "The selected filters and parameters are kept in this browser under this name.",
+    "name": "Name"
+  },
+  "export": {
+    "label": "Export",
+    "csv": "CSV",
+    "xlsx": "Excel",
+    "failed": "The file could not be downloaded."
+  },
+  "lines": {
+    "title": "Entry lines",
+    "account": "Account",
+    "description": "Description",
+    "debit": "Debit",
+    "credit": "Credit",
+    "fxAmount": "FX amount",
+    "fxRate": "Rate",
+    "baseAmount": "Base amount",
+    "applyBase": "Write the base amount to line {{index}}",
+    "party": "Party",
+    "costCenter": "Cost center",
+    "project": "Project",
+    "dimensions": "Dimensions",
+    "required": "Required",
+    "optional": "Optional",
+    "notApplicable": "Not applicable for this account",
+    "count": "Lines: {{count}} / {{max}}",
+    "keys": "F9 or = : put the difference on this line · Enter after a debit skips credit · Ctrl+S saves the draft",
+    "maxReached": "An entry can have at most {{max}} lines."
+  },
+  "balance": {
+    "balanced": "Entry is balanced",
+    "empty": "No amounts yet",
+    "creditShort": "Credit short: {{amount}}",
+    "debitShort": "Debit short: {{amount}}",
+    "debitTotal": "Debit",
+    "creditTotal": "Credit",
+    "difference": "Difference",
+    "totals": "Total"
+  },
+  "validation": {
+    "account": "Choose an account.",
+    "amountRequired": "Enter a debit or a credit amount.",
+    "bothSides": "A line cannot carry both a debit and a credit.",
+    "party": "This account requires a party.",
+    "costCenter": "This account requires a cost center.",
+    "project": "This account requires a project.",
+    "fxAmount": "A foreign-currency account needs an FX amount.",
+    "fxRate": "A foreign-currency account needs a rate.",
+    "minLines": "Enter at least one line.",
+    "maxLines": "An entry can have at most {{max}} lines.",
+    "descriptionTooLong": "The description can be at most 500 characters."
+  },
+  "editor": {
+    "newTitle": "New journal entry",
+    "editTitle": "Draft entry",
+    "description": "Enter the lines with the keyboard; post once the entry balances.",
+    "saveDraft": "Save draft",
+    "post": "Post",
+    "postNeedsBalance": "Debit and credit totals must be equal to post.",
+    "showAllDimensions": "Show all dimension columns",
+    "saved": "Draft saved.",
+    "delete": "Delete draft",
+    "deleteTitle": "Delete the draft?",
+    "deleteBody": "The draft entry and its lines are deleted permanently.",
+    "deleted": "Draft deleted."
+  },
+  "post": {
+    "title": "Post the entry?",
+    "body": "A posted entry gets its journal number; it cannot be changed afterwards, only corrected with a reversal.",
+    "summary": "{{date}} · {{count}} lines · Debit {{debit}} · Credit {{credit}}",
+    "confirm": "Post",
+    "doneTitle": "Entry posted",
+    "doneBody": "The entry was given journal number {{number}}.",
+    "unbalancedNow": "The entry no longer balances and was not posted. Reload it and check."
+  },
+  "reverse": {
+    "action": "Reverse",
+    "title": "Reverse {{number}}",
+    "body": "A new entry with debits and credits swapped is created and linked to this one.",
+    "date": "Reversal date",
+    "reason": "Reason",
+    "reasonRequired": "The reason must be at least 3 characters.",
+    "confirm": "Create reversal",
+    "done": "Reversal {{number}} created."
+  },
+  "view": {
+    "title": "Entry {{number}}",
+    "noNumber": "unnumbered",
+    "postedAt": "Posted",
+    "manual": "Manual",
+    "reverses": "This entry reverses:",
+    "reversedBy": "Reversed by:",
+    "openEntry": "open entry",
+    "reason": "Reason",
+    "audit": "History",
+    "user": "User"
+  },
+  "conflict": {
+    "title": "Someone else changed this entry",
+    "body": "Load the latest version before saving; your edits are not merged.",
+    "reload": "Load latest version"
+  },
+  "errors": {
+    "generic": "The action could not be completed.",
+    "loadFailed": "The data could not be loaded.",
+    "refreshFailed": "The latest version could not be fetched; what you see may be out of date."
+  },
+  "reports": {
+    "parameters": "Report parameters",
+    "rangeMode": "Range selection",
+    "mode": {
+      "range": "Date range",
+      "period": "Accounting period"
+    },
+    "period": "Period",
+    "choosePeriod": "Choose a period",
+    "loading": "Loading…",
+    "periodOption": "{{year}} / {{number}} ({{from}} – {{to}})",
+    "run": "Run report",
+    "choose": "Choose the parameters and run the report.",
+    "noRows": "No rows for these parameters.",
+    "periodsFailed": "The periods could not be loaded."
+  },
+  "trialBalance": {
+    "title": "Trial balance",
+    "description": "Opening, period movements and balances per account; debit and credit totals are checked.",
+    "level": "Level",
+    "levelOption": "Level {{level}}",
+    "includeZero": "Show accounts without balance",
+    "compare": "Compare with previous year",
+    "account": "Account",
+    "opening": "Opening",
+    "movements": "Movements",
+    "balance": "Balance",
+    "previousBalance": "Previous year balance",
+    "debit": "Debit",
+    "credit": "Credit",
+    "totals": "Grand total",
+    "balanced": "Debit = Credit",
+    "unbalanced": "Out of balance · movement difference {{movement}} · balance difference {{balance}}",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all",
+    "expand": "Expand sub-accounts of {{code}}",
+    "collapse": "Collapse sub-accounts of {{code}}",
+    "group": "{{group}} · {{name}}"
+  },
+  "ledger": {
+    "title": "General ledger",
+    "description": "Opening balance, movements and running balance of one account.",
+    "account": "Account",
+    "choose": "Choose an account and a date range, then run the report.",
+    "opening": "Opening balance (brought forward)",
+    "closing": "Totals and closing balance",
+    "balance": "Balance",
+    "debitSide": "Dr",
+    "creditSide": "Cr",
+    "noMovements": "No movements in this range.",
+    "rows": "Movements: {{count}}",
+    "loadMore": "Load more ({{loaded}} / {{total}})"
+  },
+  "book": {
+    "title": "Journal book",
+    "description": "Posted entries in number order; every page shows brought and carried forward totals.",
+    "pageSize": "Rows per page",
+    "pageSizeOption": "{{count}} rows",
+    "print": "Print",
+    "page": "Page {{number}} / {{total}}",
+    "accountCode": "Account code",
+    "accountName": "Account name",
+    "entryNo": "Journal no. {{number}}",
+    "broughtForward": "Brought forward",
+    "pageTotal": "Page total",
+    "carriedForward": "Carried forward",
+    "grandTotal": "Grand total",
+    "empty": "No posted entries in this range.",
+    "tooLarge": "The range is too large to show on screen; narrow it or export.",
+    "changed": "New entries were booked while the journal book was loading, so the totals do not match. Reload it."
+  },
+  "changed": {
+    "title": "The entry changed elsewhere",
+    "body": "A newer version was saved while you were editing. Load the latest version before saving your changes."
+  }
+}

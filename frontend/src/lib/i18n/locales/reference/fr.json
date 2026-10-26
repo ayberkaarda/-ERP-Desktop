@@ -1,0 +1,233 @@
+{
+  "actions": {
+    "editNamed": "Modifier {{name}}",
+    "deleteNamed": "Supprimer {{name}}",
+    "deleteTitle": "Supprimer cet enregistrement ?",
+    "deleteBody": "{{name}} sera supprimé. S’il est utilisé ailleurs, la suppression est refusée ; désactivez-le alors.",
+    "delete": "Supprimer",
+    "retry": "Réessayer",
+    "save": "Enregistrer"
+  },
+  "errors": {
+    "generic": "L’action n’a pas pu être effectuée. Veuillez réessayer.",
+    "load": "Les données n’ont pas pu être chargées.",
+    "uncertain": "Résultat inconnu : aucune réponse reçue. Les listes ont été actualisées ; vérifiez si l’enregistrement a été créé. Renvoyer les mêmes données est sans risque.",
+    "limitExceeded": "Trop d’enregistrements pour charger cette liste. Utilisez la recherche ou les filtres."
+  },
+  "states": {
+    "loading": "Chargement…"
+  },
+  "conflict": {
+    "title": "Cet enregistrement a été modifié par quelqu’un d’autre",
+    "body": "Chargez la dernière version et appliquez de nouveau votre modification.",
+    "reload": "Recharger",
+    "reloadFailed": "L’enregistrement n’a pas pu être rechargé. Réessayez."
+  },
+  "fields": {
+    "code": "Code",
+    "name": "Nom",
+    "active": "Actif",
+    "inactive": "Inactif",
+    "status": "Statut",
+    "actions": "Actions"
+  },
+  "nav": {
+    "title": "Données de référence",
+    "currencies": "Devises",
+    "exchangeRates": "Taux de change",
+    "taxCodes": "Codes de taxe",
+    "paymentTerms": "Conditions de paiement",
+    "warehouses": "Entrepôts",
+    "costCenters": "Centres de coûts",
+    "projects": "Projets",
+    "settings": "Paramètres"
+  },
+  "tree": {
+    "collapse": "Réduire {{name}}",
+    "expand": "Développer {{name}}",
+    "noParent": "Aucun parent (racine)"
+  },
+  "currencies": {
+    "title": "Devises",
+    "subtitle": "Activez les devises utilisées par votre société.",
+    "base": "Devise de base",
+    "symbol": "Symbole",
+    "decimals": "Décimales",
+    "activeForCompany": "Utilisée par la société",
+    "toggle": "Activer {{code}} pour cette société"
+  },
+  "rates": {
+    "title": "Taux de change",
+    "subtitle": "Les taux de la TCMB sont récupérés chaque jour ; saisissez un taux manuellement si nécessaire.",
+    "manualAction": "Saisir un taux manuellement",
+    "manualTitle": "Saisie manuelle d’un taux",
+    "manualHint": "Les taux comptent jusqu’à 6 décimales. Un taux manuel est enregistré avec la source « Manuel ».",
+    "latest": "Derniers taux",
+    "history": "Historique des taux",
+    "currency": "Devise",
+    "date": "Date",
+    "forexBuying": "Change achat",
+    "forexSelling": "Change vente",
+    "banknoteBuying": "Billets achat",
+    "banknoteSelling": "Billets vente",
+    "source": "Source",
+    "sources": {
+      "tcmb": "TCMB",
+      "manual": "Manuel"
+    },
+    "allCurrencies": "Toutes les devises",
+    "from": "Date de début",
+    "to": "Date de fin",
+    "emptyLatest": "Aucun taux de change pour le moment",
+    "latestCaption": "Derniers taux par rapport à {{base}}",
+    "status": {
+      "never": "Aucun taux n’a encore été récupéré. Saisissez les taux manuellement en attendant ceux de la TCMB.",
+      "fresh": "Les taux ont été mis à jour pour la dernière fois le {{date}}.",
+      "stale": "Les taux sont périmés : dernière mise à jour le {{date}} (il y a {{days}} jours). Pensez à saisir un taux manuellement.",
+      "unavailable": "Le statut des taux est indisponible."
+    }
+  },
+  "taxCodes": {
+    "title": "Codes de taxe",
+    "subtitle": "Les codes globaux sont en lecture seule ; vous pouvez ajouter des codes propres à la société.",
+    "new": "Code de taxe personnalisé",
+    "edit": "Modifier le code de taxe",
+    "customHint": "Un code personnalisé n’est valable que pour cette société.",
+    "type": "Type",
+    "types": {
+      "vat": "TVA",
+      "withholding": "Retenue à la source",
+      "excise": "Accise",
+      "exemption": "Exonération",
+      "other": "Autre"
+    },
+    "rate": "Taux",
+    "numerator": "Numérateur",
+    "denominator": "Dénominateur",
+    "effectiveFrom": "Valide à partir du",
+    "effectiveTo": "Valide jusqu’au",
+    "search": "Rechercher par code ou nom",
+    "asOf": "Valide le",
+    "onlyEffective": "Uniquement les codes valides à cette date",
+    "empty": "Aucun code de taxe correspondant",
+    "global": "Code global (lecture seule)",
+    "globalHint": "Code global : non modifiable",
+    "period": "Période de validité",
+    "noPeriod": "Sans limite",
+    "validity": {
+      "active": "Valide",
+      "upcoming": "À venir",
+      "expired": "Expiré",
+      "inactive": "Inactif"
+    }
+  },
+  "paymentTerms": {
+    "title": "Conditions de paiement",
+    "subtitle": "Échéances et escomptes pour paiement anticipé.",
+    "new": "Nouvelle condition de paiement",
+    "edit": "Modifier la condition de paiement",
+    "dueDays": "Échéance (jours)",
+    "discountPercent": "Taux d’escompte",
+    "discountDays": "Jours d’escompte"
+  },
+  "warehouses": {
+    "title": "Entrepôts",
+    "subtitle": "Entrepôts et leurs emplacements.",
+    "new": "Nouvel entrepôt",
+    "edit": "Modifier l’entrepôt",
+    "negativeStock": "Politique de stock négatif",
+    "policies": {
+      "allow": "Autoriser",
+      "warn": "Avertir",
+      "block": "Bloquer"
+    },
+    "default": "Par défaut",
+    "locations": "Emplacements",
+    "address": {
+      "title": "Adresse",
+      "line1": "Adresse ligne 1",
+      "line2": "Adresse ligne 2",
+      "district": "District",
+      "city": "Ville",
+      "postalCode": "Code postal",
+      "country": "Pays (2 lettres)"
+    }
+  },
+  "locations": {
+    "title": "Emplacements de l’entrepôt",
+    "new": "Nouvel emplacement",
+    "edit": "Modifier l’emplacement",
+    "type": "Type",
+    "types": {
+      "aisle": "Allée",
+      "rack": "Rayonnage",
+      "shelf": "Étagère",
+      "bin": "Casier"
+    },
+    "parent": "Emplacement parent",
+    "newParent": "Nouvel emplacement parent",
+    "barcode": "Code-barres",
+    "empty": "Cet entrepôt n’a pas encore d’emplacement",
+    "emptyHint": "Ajoutez des allées, rayonnages, étagères et casiers pour organiser l’entrepôt en arbre.",
+    "addChild": "Ajouter un emplacement sous {{name}}",
+    "moveNamed": "Déplacer {{name}}",
+    "moveTitle": "Déplacer {{name}}",
+    "move": "Déplacer",
+    "deactivateNamed": "Désactiver {{name}}",
+    "activateNamed": "Activer {{name}}"
+  },
+  "costCenters": {
+    "title": "Centres de coûts",
+    "subtitle": "Gérez les centres de coûts sous forme d’arbre.",
+    "new": "Nouveau centre de coûts",
+    "edit": "Modifier le centre de coûts",
+    "parent": "Centre de coûts parent",
+    "empty": "Aucun centre de coûts pour le moment",
+    "addChild": "Ajouter un centre de coûts sous {{name}}",
+    "deactivateNamed": "Désactiver {{name}}",
+    "activateNamed": "Activer {{name}}"
+  },
+  "projects": {
+    "title": "Projets",
+    "subtitle": "Projets pour le suivi des coûts.",
+    "new": "Nouveau projet",
+    "edit": "Modifier le projet",
+    "status": "Statut",
+    "statuses": {
+      "planned": "Planifié",
+      "active": "En cours",
+      "on_hold": "En attente",
+      "closed": "Clôturé"
+    },
+    "startDate": "Début",
+    "endDate": "Fin",
+    "costCenter": "Centre de coûts"
+  },
+  "settings": {
+    "title": "Paramètres de référence",
+    "subtitle": "Paramètres des données de référence, comme la devise de base de la société.",
+    "saved": "Paramètre enregistré.",
+    "readOnly": "Vous n’êtes pas autorisé à modifier ce paramètre.",
+    "baseCurrency": {
+      "title": "Devise de base",
+      "description": "La devise utilisée pour les rapports et les conversions de taux de change.",
+      "label": "Devise de base",
+      "hint": "Seules les devises activées pour la société peuvent être choisies.",
+      "impact": "Changer la devise de base affecte les rapports et les conversions de taux.",
+      "confirmTitle": "Changer la devise de base ?",
+      "confirmBody": "La devise de base passera de {{from}} à {{to}}. Les rapports et conversions de taux sont affectés.",
+      "confirm": "Changer"
+    }
+  },
+  "commands": {
+    "currencies": "Devises",
+    "exchangeRates": "Taux de change",
+    "taxCodes": "Codes de taxe",
+    "paymentTerms": "Conditions de paiement",
+    "warehouses": "Entrepôts",
+    "costCenters": "Centres de coûts",
+    "projects": "Projets",
+    "settings": "Paramètres de référence",
+    "rateEntry": "Saisir un taux de change manuellement"
+  }
+}
