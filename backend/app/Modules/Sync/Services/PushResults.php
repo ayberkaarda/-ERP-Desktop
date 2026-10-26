@@ -58,7 +58,7 @@ final readonly class PushResults
     public static function payloadHash(array $payload): string
     {
         $sort = static function (mixed &$value) use (&$sort): void {
-            if (is_float($value) && is_finite($value) && floor($value) === $value && abs($value) < 9007199254740992.0) {
+            if (is_float($value) && is_finite($value) && floor($value) === $value && abs($value) < 9.2233720368547758E18) {
                 $value = (int) $value;
 
                 return;

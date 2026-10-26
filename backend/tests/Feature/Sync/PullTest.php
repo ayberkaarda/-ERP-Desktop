@@ -186,12 +186,12 @@ it('resets a cursor whose generation is behind and refuses one ahead', function 
 it('refuses malformed cursors and cursors beyond the horizon', function (array $cursor): void {
     expect(pullError($this, ['schema_version' => 1, 'resources' => [['resource' => 'fixture-notes', 'cursor' => $cursor]]], 422))->toBe('SYNC_CURSOR_INVALID');
 })->with([
-    'numeric txid' => [['txid' => 5, 'after_id' => null, 'gen' => 0]],
-    'not a number' => [['txid' => 'abc', 'after_id' => null, 'gen' => 0]],
-    'bad after_id' => [['txid' => '5', 'after_id' => 'not-a-uuid', 'gen' => 0]],
+    'numeric txid' => [['txid' => 5, 'after_id' => null, 'gen' => 0, 'session' => null]],
+    'not a number' => [['txid' => 'abc', 'after_id' => null, 'gen' => 0, 'session' => null]],
+    'bad after_id' => [['txid' => '5', 'after_id' => 'not-a-uuid', 'gen' => 0, 'session' => null]],
     'missing gen' => [['txid' => '5', 'after_id' => null]],
     'extra key' => [['txid' => '5', 'after_id' => null, 'gen' => 0, 'x' => 1]],
-    'ahead of horizon' => [['txid' => '18446744073709551615', 'after_id' => null, 'gen' => 0]],
+    'ahead of horizon' => [['txid' => '18446744073709551615', 'after_id' => null, 'gen' => 0, 'session' => null]],
 ]);
 
 it('answers request-level errors in the error envelope', function (): void {

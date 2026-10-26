@@ -21,6 +21,7 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 /**
  * POST /sync/pull (SYNC-PROTOCOL "POST /api/v1/sync/pull").
@@ -85,37 +86,51 @@ final class PullService
                 throw new ApiException(ErrorCode::Forbidden);
             }
 
-            // xid8 travels as a decimal string only (a JSON number loses precision in clients).
-            if (is_array($request['cursor']) && ! is_string($request['cursor']['txid'] ?? null)) {
+            $wire = $request['cursor'];
+
+            // xid8 travels as a decimal string only (a JSON number loses precision in clients);
+            // session is required on every cursor: null, or the opaque id this server issued.
+            if (is_array($wire) && (! is_string($wire['txid'] ?? null) || ! array_key_exists('session', $wire) || ! self::sessionValue($wire['session']))) {
                 throw new ApiException(ErrorCode::SyncCursorInvalid, fields: ["resources.{$i}.cursor" => [__('sync::sync.cursor_invalid')]]);
             }
 
-            $cursor = $request['cursor'] === null ? null : Cursor::fromWire($request['cursor']);
+            $sessionKey = is_array($wire) && is_string($wire['session']) ? $wire['session'] : null;
+
+            if (is_array($wire)) {
+                unset($wire['session']);
+            }
+
+            $cursor = $wire === null ? null : Cursor::fromWire($wire);
 
             if ($cursor !== null && ($cursor->isAheadOf($horizon) || $cursor->gen > $generation)) {
                 throw new ApiException(ErrorCode::SyncCursorInvalid, fields: ["resources.{$i}.cursor" => [__('sync::sync.cursor_invalid')]]);
             }
 
             $limit = min($request['limit'] ?? $config->pullPageDefault, $config->pullPageMax);
-            $session = $cursor === null || $device === null ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $cursor);
-            $plans[] = [$resource, $adapter, $cursor, $session, $generation, max(1, $limit)];
+            $session = $cursor === null || $device === null || $sessionKey === null ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $sessionKey, $cursor);
+            // A cursor naming a session that is gone (finished, replaced by a newer download of
+            // the device) or that never issued this position continues nothing: it resets.
+            $orphan = $sessionKey !== null && $session === null;
+            $observed = $device === null ? null : $this->downloads->observe($device, $user->id, $companyId, $resource->name);
+            $plans[] = [$resource, $adapter, $cursor, $session, $orphan, $observed, $generation, max(1, $limit)];
         }
 
         // Floor, live rows and tombstones of every resource come from one REPEATABLE READ
         // snapshot, so a sync:prune committing meanwhile is either wholly seen (floor raised:
         // the cursor expires) or not at all (its tombstones are still read). The horizon is
         // read again inside: it can only be at or above the one the cursors were checked against.
-        [$horizon, $results, $continuations] = $this->snapshot(function () use ($plans, $companyId): array {
+        [$horizon, $results, $continuations] = $this->snapshot(function () use ($plans, $companyId, $device): array {
             $horizon = $this->horizon->current();
             $results = [];
             $continuations = [];
 
-            foreach ($plans as [$resource, $adapter, $cursor, $session, $generation, $limit]) {
-                [$page, $continuation] = $this->page($resource, $adapter, $companyId, $cursor, $session?->started, $generation, $limit, $horizon);
+            foreach ($plans as [$resource, $adapter, $cursor, $session, $orphan, $observed, $generation, $limit]) {
+                $newSession = $device !== null ? (string) Str::uuid7() : null;
+                [$page, $continuation] = $this->page($resource, $adapter, $companyId, $cursor, $session, $orphan, $newSession, $generation, $limit, $horizon);
                 $results[] = $page;
 
                 if ($continuation !== null) {
-                    $continuations[] = [$resource->name, ...$continuation, $session];
+                    $continuations[] = [$resource->name, ...$continuation, $session, $observed, $newSession];
                 }
             }
 
@@ -123,14 +138,16 @@ final class PullService
         });
 
         if ($device !== null) {
-            // A page that began a download replaces the session; any other page only touches
-            // the session it continued, compared on its id and cursor, so a late request of an
-            // older download never moves or removes a newer one.
-            foreach ($continuations as [$name, $next, $started, $fresh, $session]) {
+            // Every session write is compare-and-swap against what this request read: a page
+            // that began a download replaces (or, done in one page, removes) the session only if
+            // it is still the one observed before the read; a continuation only moves or removes
+            // the session it continued, at the version it read. A late request never changes a
+            // newer session.
+            foreach ($continuations as [$name, $next, $started, $fresh, $session, $observed, $newSession]) {
                 if ($fresh || $session === null) {
-                    $next === null
-                        ? $this->downloads->forget($device, $user->id, $companyId, $name)
-                        : $this->downloads->start($device, $user->id, $companyId, $name, $next, $started);
+                    $next === null || $newSession === null
+                        ? $this->downloads->forget($device, $user->id, $companyId, $name, $observed)
+                        : $this->downloads->start($device, $user->id, $companyId, $name, $observed, $newSession, $next, $started);
                 } else {
                     $next === null
                         ? $this->downloads->finish($session)
@@ -172,16 +189,20 @@ final class PullService
      * download older than the floor can have missed a delete. Incremental cursors are checked
      * by their position.
      *
+     * The next cursor's session is the download's session id while a full download has more
+     * pages ($newSession when the download begins on this page), and null otherwise.
+     *
      * @return array{0: array<string, mixed>, 1: array{0: Cursor|null, 1: Xid8, 2: bool}|null} page, and for a full download its continuation (null cursor: finished) and whether it began here
      */
-    private function page(ManifestResource $resource, SyncResource $adapter, string $companyId, ?Cursor $cursor, ?Xid8 $started, int $generation, int $limit, Xid8 $horizon): array
+    private function page(ManifestResource $resource, SyncResource $adapter, string $companyId, ?Cursor $cursor, ?DownloadSession $session, bool $orphan, ?string $newSession, int $generation, int $limit, Xid8 $horizon): array
     {
         $reset = null;
+        $started = $session?->started;
         $floor = $cursor !== null ? $this->floor($adapter, $companyId) : null;
 
         if ($cursor !== null && $cursor->gen !== $generation) {
             $reset = ResetReason::VisibilityChanged;
-        } elseif ($cursor !== null && ($started !== null ? Cursor::atHorizon($started, $generation) : $cursor)->expiredBy($floor)) {
+        } elseif ($cursor !== null && ($orphan || ($started !== null ? Cursor::atHorizon($started, $generation) : $cursor)->expiredBy($floor))) {
             $reset = ResetReason::CursorExpired;
         }
 
@@ -220,7 +241,7 @@ final class PullService
             'resource' => $resource->name,
             'rows' => $rows,
             'tombstones' => $tombstones,
-            'next_cursor' => $next->toArray(),
+            'next_cursor' => [...$next->toArray(), 'session' => null],
             'has_more' => $hasMore,
             'reset' => $reset !== null,
         ];
@@ -230,6 +251,10 @@ final class PullService
         }
 
         $fresh = $cursor === null || $reset !== null;
+
+        if ($full && $hasMore) {
+            $out['next_cursor']['session'] = $fresh ? $newSession : $session?->sessionId;
+        }
 
         return [$out, $full && $started !== null ? [$hasMore ? $next : null, $started, $fresh] : null];
     }
@@ -415,6 +440,11 @@ final class PullService
 
         /** @var literal-string $fragment */
         return new Expression($fragment);
+    }
+
+    private static function sessionValue(mixed $value): bool
+    {
+        return $value === null || (is_string($value) && preg_match('/\A[A-Za-z0-9_-]{1,64}\z/', $value) === 1);
     }
 
     private function softDeletes(string $table): bool
