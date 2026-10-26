@@ -1,0 +1,19 @@
+name: Drift Guard
+# Upstream main, merge-base sonrasındaki commit'lerle masaüstünden ileride olabilir.
+# Bu yüzden yalnızca HEAD'deki üç klasörü merge-base commit'indeki halleriyle karşılaştırırız.
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  drift-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add web repository as upstream
+        run: git remote add upstream https://github.com/ayberkaarda/-ERP.git
+      - name: Check shared directories for drift
+        run: sh desktop/scripts/drift-guard.sh upstream
