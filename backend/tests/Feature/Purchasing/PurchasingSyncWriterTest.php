@@ -137,7 +137,10 @@ it('reports an edit of a request that left draft as DOCUMENT_LOCKED, never as a 
 
     expect($this->writer->isDraft($target))->toBeFalse()
         ->and($this->writer->targetSatisfies($target, ['status' => 'approved']))->toBeTrue()
-        ->and($this->writer->targetSatisfies($target, ['status' => 'draft']))->toBeFalse();
+        ->and($this->writer->targetSatisfies($target, ['status' => 'draft']))->toBeFalse()
+        // Manifest constraints are lists of allowed values (offline-manifest.schema.json).
+        ->and($this->writer->targetSatisfies($target, ['status' => ['draft', 'approved']]))->toBeTrue()
+        ->and($this->writer->targetSatisfies($target, ['status' => ['draft', 'rejected']]))->toBeFalse();
 
     $edit = requestMutation(['op' => 'update', 'id' => $m->id, 'base_version' => $target->version, 'changed_fields' => ['notes'], 'payload' => ['notes' => 'late']]);
     $outcome = syncWrite($w, fn () => $this->writer->update($w->user, $edit, $this->writer->find($m->id), $target->version));

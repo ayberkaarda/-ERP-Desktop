@@ -95,6 +95,17 @@ it('rejects an id that is already taken', function (): void {
         ->and($again->errorFields)->toHaveKey('id');
 });
 
+it('reads target constraints as a scalar or a list of allowed values', function (): void {
+    $mutation = partyMutation();
+    $this->writer->create($this->manager, $mutation);
+    $party = $this->writer->find($mutation->id);
+
+    expect($this->writer->targetSatisfies($party, ['type' => 'company']))->toBeTrue()
+        ->and($this->writer->targetSatisfies($party, ['type' => ['person', 'company']]))->toBeTrue()
+        ->and($this->writer->targetSatisfies($party, ['type' => ['person']]))->toBeFalse()
+        ->and($this->writer->targetSatisfies($party, ['type' => 'person']))->toBeFalse();
+});
+
 it('refuses a caller without parties.create and reveals no candidates', function (): void {
     $this->writer->create($this->manager, partyMutation());
 

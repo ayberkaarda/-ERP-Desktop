@@ -281,6 +281,9 @@ it('has no offline actions and declares status locked and the audited fields', f
         ->and($writer->auditFields())->toBe(['number', 'status', 'document_date', 'party_id', 'currency_code', 'fx_rate', 'total', 'total_local', 'notes', 'version'])
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => 'draft'])))->toBeTrue()
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => 'sent'])))->toBeFalse()
+        // Manifest constraints are lists of allowed values (offline-manifest.schema.json).
+        ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => ['sent', 'draft']])))->toBeTrue()
+        ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => ['sent']])))->toBeFalse()
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): int => $w->currentVersion($w->find($quote['id']))))->toBe(1);
 });
 

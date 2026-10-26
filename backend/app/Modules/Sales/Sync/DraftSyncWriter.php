@@ -9,6 +9,7 @@ use App\Core\Http\ErrorCode;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
+use App\Core\Sync\TargetConstraints;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
 use App\Modules\Sales\Http\Requests\DocumentRequest;
@@ -19,7 +20,6 @@ use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Sales\Policies\SalesPolicy;
 use App\Modules\Sales\Services\OrderService;
 use App\Modules\Sales\Services\QuoteService;
-use BackedEnum;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
@@ -89,16 +89,7 @@ final class DraftSyncWriter implements SyncWriter
 
     public function targetSatisfies(Model $target, array $constraints): bool
     {
-        foreach ($constraints as $field => $value) {
-            $actual = $target->getAttribute($field);
-            $actual = $actual instanceof BackedEnum ? $actual->value : $actual;
-
-            if ($actual !== $value) {
-                return false;
-            }
-        }
-
-        return true;
+        return TargetConstraints::satisfiedBy($target, $constraints);
     }
 
     public function create(Authenticatable $user, Mutation $mutation): WriteOutcome
