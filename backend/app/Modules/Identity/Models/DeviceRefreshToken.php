@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
  * @property string $device_id
  * @property string $token_hash
  * @property string $family_id
+ * @property int $auth_version
  * @property Carbon $expires_at
  * @property Carbon|null $used_at
  */

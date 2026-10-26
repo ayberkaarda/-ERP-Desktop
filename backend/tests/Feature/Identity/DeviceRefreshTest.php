@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 use App\Modules\Identity\Models\DeviceRefreshToken;
 use App\Modules\Identity\Models\UserDevice;
+use App\Modules\Identity\Services\DeviceTokens;
+use App\Modules\Identity\Services\TwoFactorService;
+use App\Modules\Organization\Contracts\CompanyDirectory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
+use PragmaRX\Google2FA\Google2FA;
 use Tests\Support\Identity;
 
 uses(RefreshDatabase::class);
@@ -166,21 +170,124 @@ it('removes refresh tokens on admin password reset', function (): void {
     refreshWith((string) $login->json('data.refresh_token'))->assertStatus(401);
 });
 
-it('removes the refresh tokens of other devices on password change', function (): void {
+it('voids every old refresh token on password change and gives the changing device a new family', function (): void {
     $current = refreshLogin('fp-aaaaaaaaaaaaaaaa');
     $other = refreshLogin('fp-bbbbbbbbbbbbbbbb');
 
     Identity::fresh();
-    $this->withToken((string) $current->json('data.token'))->postJson('/api/v1/auth/password/change', [
+    $changed = $this->withToken((string) $current->json('data.token'))->postJson('/api/v1/auth/password/change', [
+        'current_password' => Identity::PASSWORD,
+        'password' => 'a-brand-new-passphrase',
+        'password_confirmation' => 'a-brand-new-passphrase',
+    ], Identity::headers())->assertOk()
+        ->assertJsonStructure(['data' => ['token', 'expires_at', 'refresh_token', 'refresh_expires_at']]);
+
+    expect(UserDevice::query()->count())->toBe(1)
+        ->and(DeviceRefreshToken::query()->count())->toBe(1);
+
+    // The copied pre-change refresh tokens are dead, including the one of the changing device.
+    refreshWith((string) $other->json('data.refresh_token'))->assertStatus(401);
+    refreshWith((string) $current->json('data.refresh_token'))->assertStatus(401);
+
+    meWith((string) $current->json('data.token'))->assertStatus(401);
+    meWith((string) $changed->json('data.token'))->assertOk();
+    refreshWith((string) $changed->json('data.refresh_token'))->assertOk();
+});
+
+it('answers a browser password change without tokens', function (): void {
+    refreshLogin();
+
+    Identity::fresh();
+    $this->actingAs($this->user)->postJson('/api/v1/auth/password/change', [
         'current_password' => Identity::PASSWORD,
         'password' => 'a-brand-new-passphrase',
         'password_confirmation' => 'a-brand-new-passphrase',
     ], Identity::headers())->assertNoContent();
 
-    expect(UserDevice::query()->count())->toBe(1)
-        ->and(DeviceRefreshToken::query()->count())->toBe(1);
-    refreshWith((string) $other->json('data.refresh_token'))->assertStatus(401);
-    refreshWith((string) $current->json('data.refresh_token'))->assertOk();
+    expect(DeviceRefreshToken::query()->count())->toBe(0);
+});
+
+it('voids refresh tokens when two-factor is enabled and then demands TOTP at login', function (): void {
+    $login = refreshLogin();
+    $google = app(Google2FA::class);
+
+    Identity::fresh();
+    $setup = app(TwoFactorService::class)->beginSetup($this->user);
+    $secret = (string) ($setup['secret'] ?? $this->user->fresh()?->two_factor_secret);
+    app(TwoFactorService::class)->confirm($this->user->fresh(), $google->getCurrentOtp($secret));
+
+    refreshWith((string) $login->json('data.refresh_token'))->assertStatus(401)->assertJsonPath('errors.code', 'UNAUTHENTICATED');
+    expect(UserDevice::query()->count())->toBe(0);
+
+    Identity::fresh();
+    $this->postJson('/api/v1/auth/device', [
+        'email' => 'deniz@example.com', 'password' => Identity::PASSWORD,
+        'device_name' => 'Office PC', 'fingerprint' => 'fp-0123456789abcdef',
+    ])->assertStatus(401)->assertJsonPath('errors.code', 'TWO_FACTOR_REQUIRED');
+});
+
+it('keeps spent refresh tokens so a stale replay revokes a long-lived family', function (): void {
+    $t0 = refreshLogin();
+    $this->travel(20)->days();
+    $t1 = refreshWith((string) $t0->json('data.refresh_token'))->assertOk();
+    $this->travel(20)->days();
+    $t2 = refreshWith((string) $t1->json('data.refresh_token'))->assertOk();
+
+    // t0 is 40 days old and expired; it is still remembered as spent.
+    expect(DeviceRefreshToken::query()->count())->toBe(3);
+    refreshWith((string) $t0->json('data.refresh_token'))->assertStatus(401);
+
+    expect(UserDevice::query()->count())->toBe(0);
+    meWith((string) $t2->json('data.token'))->assertStatus(401);
+    refreshWith((string) $t2->json('data.refresh_token'))->assertStatus(401);
+});
+
+it('revokes the access token minted by a refresh that ran before the revoke took its lock', function (): void {
+    $login = refreshLogin();
+    $stale = UserDevice::query()->sole();
+
+    $refreshed = refreshWith((string) $login->json('data.refresh_token'))->assertOk();
+    // The revoke still holds the device as read before the refresh (old token_id).
+    app(DeviceTokens::class)->revoke($this->user, $stale);
+
+    expect($this->user->tokens()->count())->toBe(0);
+    meWith((string) $refreshed->json('data.token'))->assertStatus(401);
+    refreshWith((string) $refreshed->json('data.refresh_token'))->assertStatus(401);
+});
+
+it('isolates users and devices from each other', function (): void {
+    $mine = refreshLogin('fp-aaaaaaaaaaaaaaaa');
+    $other = Identity::member($this->company, ['Sales'], ['email' => 'mia@example.com']);
+    Identity::fresh();
+    $theirs = $this->postJson('/api/v1/auth/device', [
+        'email' => 'mia@example.com', 'password' => Identity::PASSWORD,
+        'device_name' => 'Mia PC', 'fingerprint' => 'fp-mmmmmmmmmmmmmmmm',
+    ])->assertOk();
+
+    // Reuse on my device never touches hers.
+    $old = (string) $mine->json('data.refresh_token');
+    refreshWith($old)->assertOk();
+    refreshWith($old)->assertStatus(401);
+    expect(UserDevice::query()->where('user_id', $other->id)->count())->toBe(1);
+    refreshWith((string) $theirs->json('data.refresh_token'))->assertOk();
+
+    // My token cannot delete her device.
+    $device = UserDevice::query()->where('user_id', $other->id)->sole();
+    $again = refreshLogin('fp-cccccccccccccccc');
+    Identity::fresh();
+    $this->withToken((string) $again->json('data.token'))->deleteJson("/api/v1/me/devices/{$device->id}")->assertNotFound();
+    expect(UserDevice::query()->where('user_id', $other->id)->count())->toBe(1);
+});
+
+it('lets a refreshed token pair stop at company access once membership is lost', function (): void {
+    $login = refreshLogin();
+    app(CompanyDirectory::class)->setMembership($this->user->id, $this->company->id, false);
+
+    $refreshed = refreshWith((string) $login->json('data.refresh_token'))->assertOk();
+
+    Identity::fresh();
+    $this->withToken((string) $refreshed->json('data.token'))->getJson('/api/v1/users', Identity::headers($this->company))
+        ->assertStatus(403);
 });
 
 it('removes refresh tokens when the device is revoked or logs out', function (): void {
@@ -208,10 +315,33 @@ it('replaces the refresh token of a device that logs in again', function (): voi
     refreshWith((string) $second->json('data.refresh_token'))->assertOk();
 });
 
-it('throttles the refresh endpoint', function (): void {
-    for ($i = 0; $i < 20; $i++) {
+it('limits failed refresh attempts per IP without blocking other devices behind the same IP', function (): void {
+    $logins = [];
+    foreach (range(1, 5) as $n) {
+        $logins[] = refreshLogin('fp-device-'.str_pad((string) $n, 10, '0', STR_PAD_LEFT));
+    }
+
+    // Many devices sharing one IP refresh fine.
+    foreach ($logins as $login) {
+        refreshWith((string) $login->json('data.refresh_token'))->assertOk();
+    }
+
+    for ($i = 0; $i < 30; $i++) {
         refreshWith('guess-'.$i)->assertStatus(401);
     }
 
-    refreshWith('guess-final')->assertStatus(429);
+    refreshWith('guess-final')->assertStatus(429)->assertJsonPath('errors.code', 'TOO_MANY_ATTEMPTS');
+});
+
+it('limits successful refreshes per device', function (): void {
+    $token = (string) refreshLogin()->json('data.refresh_token');
+
+    for ($i = 0; $i < 10; $i++) {
+        $token = (string) refreshWith($token)->assertOk()->json('data.refresh_token');
+    }
+
+    refreshWith($token)->assertStatus(429)->assertJsonPath('errors.code', 'TOO_MANY_ATTEMPTS');
+
+    // Another device is unaffected.
+    refreshWith((string) refreshLogin('fp-other-device-0001')->json('data.refresh_token'))->assertOk();
 });

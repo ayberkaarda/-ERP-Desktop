@@ -84,7 +84,7 @@ final class DeviceController
      */
     public function refresh(DeviceRefreshRequest $request): JsonResponse
     {
-        return ApiResponse::success($this->tokens->refresh($request->string('refresh_token')->toString()));
+        return ApiResponse::success($this->tokens->refresh($request->string('refresh_token')->toString(), $request->ip()));
     }
 
     public function index(Request $request): JsonResponse

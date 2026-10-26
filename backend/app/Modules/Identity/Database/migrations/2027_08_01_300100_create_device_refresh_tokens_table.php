@@ -17,6 +17,8 @@ return new class extends Migration
             $table->uuid('device_id');
             $table->char('token_hash', 64)->unique();
             $table->uuid('family_id');
+            // users.auth_version at issue time; a bump (password, 2FA) invalidates the family.
+            $table->unsignedInteger('auth_version');
             $table->timestampTz('expires_at');
             $table->timestampTz('used_at')->nullable();
             $table->timestampsTz();
