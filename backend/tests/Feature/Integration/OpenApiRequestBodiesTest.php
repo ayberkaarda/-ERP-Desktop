@@ -66,7 +66,7 @@ it('documents distinct create and update bodies: version is required on PATCH on
         $create = requestBody($doc, $collection, 'post');
         $update = requestBody($doc, $record, 'patch');
 
-        expect($create['required'])->not->toContain('version', "POST {$collection}")
+        expect($create['required'])->not->toContain('version')
             ->and($create['required'])->toContain(...$required)
             ->and($update['required'])->toBe(['version'], "PATCH {$record}")
             // The update body still documents the editable fields, as optional.
