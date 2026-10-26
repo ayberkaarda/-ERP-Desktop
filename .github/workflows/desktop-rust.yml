@@ -3,9 +3,15 @@ on:
   push:
     paths:
       - 'desktop/**'
+      - 'contracts/sync/**'
+      - 'contracts/offline-manifest.json'
+      - '.github/workflows/desktop-rust.yml'
   pull_request:
     paths:
       - 'desktop/**'
+      - 'contracts/sync/**'
+      - 'contracts/offline-manifest.json'
+      - '.github/workflows/desktop-rust.yml'
 permissions:
   contents: read
 jobs:
