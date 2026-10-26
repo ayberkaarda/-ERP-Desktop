@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Sync\Services;
 
 use App\Models\User;
+use App\Modules\Identity\Contracts\CompanyAuthorizer;
 use App\Modules\Identity\Events\AccessChanged;
 use Illuminate\Database\ConnectionInterface;
 
@@ -24,6 +25,7 @@ final readonly class VisibilityRefresh
         private ConnectionInterface $db,
         private ManifestService $manifests,
         private Visibility $visibility,
+        private CompanyAuthorizer $authorizer,
     ) {}
 
     public function handle(AccessChanged $event): void
@@ -45,16 +47,21 @@ final readonly class VisibilityRefresh
             fn ($resource): bool => $resource->isPull() && $this->manifests->served($resource),
         ));
 
-        foreach ($pairs->groupBy('user_id') as $userId => $rows) {
-            $user = User::query()->find((string) $userId);
+        // Pairs in (user, company) order, so two refreshes never take these locks crosswise.
+        foreach ($pairs as $row) {
+            $userId = (string) $row->user_id;
+            $companyId = (string) $row->company_id;
+            // One refresh of a pair at a time, until the transaction ends: a concurrent change
+            // of the same pair waits here and then reads permissions with this one committed.
+            // Without it, two transactions taking away one of two granting roles each would both
+            // still see the other role and leave the generation unchanged.
+            $this->db->select('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', ["sync.visibility:{$userId}:{$companyId}"]);
+            $this->authorizer->forget($userId);
+            $user = User::query()->find($userId);
+            $granted = $user instanceof User ? $this->manifests->granted($user, $companyId) : [];
 
-            foreach ($rows as $row) {
-                $companyId = (string) $row->company_id;
-                $granted = $user instanceof User ? $this->manifests->granted($user, $companyId) : [];
-
-                foreach ($resources as $resource) {
-                    $this->visibility->observe((string) $userId, $companyId, $resource->name, $resource->requires->satisfiedBy($granted));
-                }
+            foreach ($resources as $resource) {
+                $this->visibility->observe($userId, $companyId, $resource->name, $resource->requires->satisfiedBy($granted));
             }
         }
     }

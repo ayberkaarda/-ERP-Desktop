@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
 use App\Models\User;
+use App\Modules\Identity\Contracts\CompanyAuthorizer;
 use App\Modules\Identity\Models\Role;
 use App\Modules\Identity\Services\RoleAdministration;
 use App\Modules\Identity\Services\UserAdministration;
+use App\Modules\Organization\Contracts\CompanyDirectory;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\PermissionRegistrar;
 use Tests\Feature\Sync\Support\SyncKit;
 use Tests\Fixtures\Sync\SyncDatabase;
 use Tests\Support\Actors;
@@ -135,6 +138,81 @@ it('touches no generation of a user who never synced', function (): void {
     asCompany($this, fn () => app(UserAdministration::class)->syncRoles($this->admin, $fresh, $this->company->id, [$this->role->id]));
 
     expect(DB::table('sync_visibility_generations')->where('user_id', $fresh->id)->count())->toBe(0);
+});
+
+it('raises the generation when two transactions each take away one of two granting roles', function (): void {
+    // A second role that also grants fixtures.view.
+    $second = asCompany($this, function (): Role {
+        $role = new Role(['name' => 'Second readers', 'guard_name' => 'web']);
+        $role->save();
+        $role->givePermissionTo('fixtures.view');
+        $this->user->unsetRelation('roles');
+        $this->user->assignRole($role);
+
+        return $role;
+    });
+    app(CompanyAuthorizer::class)->forget();
+    $cursor = visibilityPull($this, null)['next_cursor'];
+
+    // The child empties the second role and keeps its transaction open; meanwhile this process
+    // empties the first one. Each alone still sees the other role granting the resource.
+    $config = config('database.connections.'.config('database.default'));
+    $env = array_merge(getenv(), [
+        'APP_ENV' => 'testing', 'DB_CONNECTION' => 'pgsql', 'DB_URL' => '', 'CACHE_STORE' => 'array', 'QUEUE_CONNECTION' => 'sync',
+        'DB_HOST' => (string) $config['host'], 'DB_PORT' => (string) $config['port'],
+        'DB_DATABASE' => (string) $config['database'], 'DB_USERNAME' => (string) $config['username'],
+        'DB_PASSWORD' => (string) $config['password'], 'APP_KEY' => (string) config('app.key'),
+    ]);
+    $marker = (string) tempnam(sys_get_temp_dir(), 'vis');
+    unlink($marker);
+    $out = $marker.'.out';
+    $process = proc_open(
+        [PHP_BINARY, base_path('tests/Feature/Sync/Support/visibility_worker.php'), $this->company->id, $second->id, $this->admin->id, $marker],
+        [1 => ['file', $out, 'w'], 2 => ['file', $out.'.err', 'w']], $pipes, base_path(), $env,
+    );
+    expect(is_resource($process))->toBeTrue();
+
+    for ($i = 0; $i < 300 && ! is_file($marker); $i++) {
+        usleep(100_000);
+    }
+    expect(is_file($marker))->toBeTrue('the child did not change its role: '.(string) @file_get_contents($out.'.err'));
+
+    asCompany($this, fn () => app(RoleAdministration::class)->update($this->admin, $this->role, ['permissions' => ['fixtures.create']]));
+
+    for ($i = 0; $i < 300 && (proc_get_status($process)['running'] ?? false); $i++) {
+        usleep(100_000);
+    }
+    proc_close($process);
+    $child = (string) @file_get_contents($out);
+    $error = (string) @file_get_contents($out.'.err');
+    @unlink($marker);
+    @unlink($out);
+    @unlink($out.'.err');
+    expect($child)->toContain('"ok"', $error);
+
+    // Access comes back before any sync, without an Identity event (raw role permission).
+    DB::table('role_has_permissions')->insert([
+        'role_id' => $this->role->id,
+        'permission_id' => DB::table('permissions')->where('name', 'fixtures.view')->value('id'),
+    ]);
+    app(PermissionRegistrar::class)->forgetCachedPermissions();
+    app(CompanyAuthorizer::class)->forget();
+
+    expect(visibilityPull($this, $cursor)['reset_reason'] ?? null)->toBe('visibility_changed');
+});
+
+it('resets the cursor when the membership is switched off and on between two syncs', function (): void {
+    $directory = app(CompanyDirectory::class);
+
+    DB::transaction(fn () => $directory->setMembership($this->user->id, $this->company->id, false));
+    $hidden = generationOf($this);
+    DB::transaction(fn () => $directory->setMembership($this->user->id, $this->company->id, true));
+    // An unchanged membership changes nothing.
+    DB::transaction(fn () => $directory->setMembership($this->user->id, $this->company->id, true));
+
+    expect($hidden)->toBe(1)
+        ->and(generationOf($this))->toBe(2)
+        ->and(visibilityPull($this, $this->cursor)['reset_reason'] ?? null)->toBe('visibility_changed');
 });
 
 it('resets the cursors of a super admin flag change', function (): void {
