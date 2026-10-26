@@ -680,8 +680,11 @@ async fn login_errors_are_fully_redacted() {
     let validation = client.login(&login_request()).await.expect_err("422");
     assert_eq!(validation.code(), "VALIDATION_ERROR");
     match &validation {
-        SyncError::Api { fields, .. } => {
-            assert!(fields.contains_key("email"), "field names are kept");
+        SyncError::Api {
+            fields, message, ..
+        } => {
+            assert!(fields.is_empty(), "auth path drops field names");
+            assert!(message.contains("2 field"), "{message}");
         }
         other => panic!("{other:?}"),
     }
@@ -692,4 +695,58 @@ async fn login_errors_are_fully_redacted() {
             assert!(!text.contains(leak), "{text}");
         }
     }
+}
+
+// Round 3 ----------------------------------------------------------------------
+
+#[tokio::test]
+async fn retry_after_a_new_login_uses_the_retry_snapshot_generation() {
+    let server = MockServer::start().await;
+    // First attempt: old token, answered 401 only after the re-login.
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .and(header("authorization", bearer(1)))
+        .respond_with(
+            ResponseTemplate::new(401)
+                .set_body_json(error_body("UNAUTHENTICATED", "Expired."))
+                .set_delay(Duration::from_millis(400)),
+        )
+        .mount(&server)
+        .await;
+    // Retry: new session's token, user now deactivated.
+    Mock::given(method("GET"))
+        .and(path(MANIFEST))
+        .and(header("authorization", bearer(3)))
+        .respond_with(
+            ResponseTemplate::new(403).set_body_json(error_body("USER_DEACTIVATED", "Disabled.")),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(LOGIN))
+        .respond_with(ResponseTemplate::new(200).set_body_json(token_body(3)))
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(REFRESH))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(0)
+        .mount(&server)
+        .await;
+    let store = signed_in(1);
+    let client = Arc::new(client(&server, &store));
+    let syncer = {
+        let client = Arc::clone(&client);
+        tokio::spawn(async move { client.manifest().await })
+    };
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    client.login(&login_request()).await.expect("login");
+    let error = syncer.await.expect("join").expect_err("deactivated");
+    assert_eq!(error.code(), "USER_DEACTIVATED");
+    let record = store.load_record(PROFILE).expect("record");
+    assert!(
+        record.deactivated,
+        "the new session's deactivation is recorded"
+    );
+    assert_eq!(record.tokens, None);
 }

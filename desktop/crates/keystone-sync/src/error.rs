@@ -9,6 +9,8 @@ use crate::wire::{ApiError, ErrorCode};
 
 pub type Result<T, E = SyncError> = std::result::Result<T, E>;
 
+const REDACTED: &str = "server message redacted)";
+
 /// Codes for failures that never come from the server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LocalCode {
@@ -106,9 +108,10 @@ impl SyncError {
         if redact { error.redacted() } else { error }
     }
 
-    /// Same error without server-provided text: for `Api`, `message` becomes
-    /// a fixed text and every field message becomes the code (identifier-shaped
-    /// field names are kept). Used for everything on the sign-in path.
+    /// Same error without any server-provided text: for `Api`, `message`
+    /// becomes the code plus the number of field errors, and `fields` is
+    /// emptied (names could carry text too). Used for the sign-in path and
+    /// auth or unknown codes; the UI shows a generic "check your credentials".
     pub fn redacted(self) -> Self {
         match self {
             Self::Api {
@@ -116,19 +119,28 @@ impl SyncError {
                 code,
                 fields,
                 retry_after,
-                ..
+                message,
             } => {
                 let ui = code.ui_code();
-                let fields = fields
-                    .into_keys()
-                    .filter(|name| is_field_name(name))
-                    .map(|name| (name, vec![ui.to_owned()]))
-                    .collect();
+                if fields.is_empty() && is_redacted_form(ui, &message) {
+                    // Already redacted (keeps the field count).
+                    return Self::Api {
+                        status,
+                        message,
+                        code,
+                        fields,
+                        retry_after,
+                    };
+                }
+                let message = match fields.len() {
+                    0 => format!("{ui} ({REDACTED}"),
+                    n => format!("{ui} ({n} field error(s), {REDACTED}"),
+                };
                 Self::Api {
                     status,
-                    message: format!("{ui} (server message redacted)"),
+                    message,
                     code,
-                    fields,
+                    fields: BTreeMap::new(),
                     retry_after,
                 }
             }
@@ -170,6 +182,26 @@ impl SyncError {
     }
 }
 
+/// Exactly a message written by [`SyncError::redacted`]: `{ui} (<REDACTED>`
+/// or `{ui} (<n> field error(s), <REDACTED>`. Server text never matches.
+fn is_redacted_form(ui: &str, message: &str) -> bool {
+    let Some(rest) = message
+        .strip_prefix(ui)
+        .and_then(|rest| rest.strip_prefix(" ("))
+    else {
+        return false;
+    };
+    if rest == REDACTED {
+        return true;
+    }
+    let Some((count, tail)) = rest.split_once(' ') else {
+        return false;
+    };
+    !count.is_empty()
+        && count.bytes().all(|b| b.is_ascii_digit())
+        && tail.strip_prefix("field error(s), ") == Some(REDACTED)
+}
+
 /// Codes of sign-in and account failures, whose text is never kept.
 fn is_auth_code(code: &ErrorCode) -> bool {
     matches!(
@@ -181,16 +213,6 @@ fn is_auth_code(code: &ErrorCode) -> bool {
             | ErrorCode::PasswordChangeRequired
             | ErrorCode::CompanyForbidden
     )
-}
-
-/// Request field names: lower snake case with dots (`items.0.qty`), at most
-/// 64 bytes. Anything else is dropped, a name could also carry text.
-fn is_field_name(name: &str) -> bool {
-    name.len() <= 64
-        && name.bytes().next().is_some_and(|b| b.is_ascii_lowercase())
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'_' | b'.'))
 }
 
 #[cfg(test)]
@@ -232,5 +254,27 @@ mod tests {
         );
         assert_eq!(error.code(), "DOCUMENT_LOCKED");
         assert_eq!(error.kind(), Code::Server(ErrorCode::DocumentLocked));
+    }
+
+    #[test]
+    fn redaction_is_not_fooled_by_server_text_that_looks_redacted() {
+        let crafted = SyncError::from_api(
+            401,
+            ApiError {
+                message: "SECRET-1 (server message redacted)".into(),
+                code: ErrorCode::Unauthenticated,
+                fields: Some(BTreeMap::from([("mysecret123".into(), vec!["x".into()])])),
+            },
+            None,
+        );
+        let text = format!("{crafted} {crafted:?}");
+        assert!(
+            !text.contains("SECRET-1") && !text.contains("mysecret123"),
+            "{text}"
+        );
+        assert!(text.contains("1 field error"), "{text}");
+        // Redacting twice keeps the count.
+        let again = format!("{}", crafted.redacted());
+        assert!(again.contains("1 field error"), "{again}");
     }
 }

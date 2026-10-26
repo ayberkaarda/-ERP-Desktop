@@ -381,7 +381,12 @@ async fn invalid_two_factor_code_is_reported() {
     );
     assert_eq!(error.code(), "INVALID_TWO_FACTOR_CODE");
     match &error {
-        SyncError::Api { fields, .. } => assert!(fields.contains_key("two_factor_code")),
+        SyncError::Api {
+            fields, message, ..
+        } => {
+            assert!(fields.is_empty(), "auth path drops field names");
+            assert!(message.contains("1 field"), "{message}");
+        }
         other => panic!("{other:?}"),
     }
 }

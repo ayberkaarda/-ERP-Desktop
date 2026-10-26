@@ -190,17 +190,19 @@ impl<T: TokenStore> HttpClient<T> {
         if record.deactivated {
             return Err(deactivated());
         }
-        let generation = record.generation;
+        let mut generation = record.generation;
         let access = record
             .tokens
             .map(|tokens| tokens.access_token.clone())
             .ok_or_else(|| sign_in_required("not signed in"))?;
+        // Each attempt reports the generation of its own snapshot.
         let result = async {
             let mut raw = self
                 .send_authorized(method.clone(), url.clone(), body.clone(), &access)
                 .await?;
             if raw.status == 401 {
-                let fresh = self.refresh_after_unauthorized(&access).await?;
+                let (fresh, fresh_generation) = self.refresh_after_unauthorized(&access).await?;
+                generation = fresh_generation;
                 raw = self.send_authorized(method, url, body, &fresh).await?;
             }
             decode(&raw)
@@ -257,7 +259,8 @@ impl<T: TokenStore> HttpClient<T> {
         }
     }
 
-    async fn refresh_after_unauthorized(&self, rejected: &Secret) -> Result<Secret> {
+    /// Token and generation for the retry, from one snapshot under the lock.
+    async fn refresh_after_unauthorized(&self, rejected: &Secret) -> Result<(Secret, u64)> {
         let _gate = self.session.lock().await;
         let record = self.store().load_record(self.profile())?;
         if record.deactivated {
@@ -267,15 +270,16 @@ impl<T: TokenStore> HttpClient<T> {
             .tokens
             .ok_or_else(|| sign_in_required("not signed in"))?;
         if current.access_token != *rejected {
-            // Another caller refreshed while this request was in flight.
-            return Ok(current.access_token.clone());
+            // Another caller refreshed, or a sign-in happened, meanwhile.
+            return Ok((current.access_token.clone(), record.generation));
         }
         let taken = self
             .store()
             .take(self.profile())?
             .ok_or_else(|| sign_in_required("not signed in"))?;
         let response = self.rotate_locked(taken).await?;
-        Ok(Secret::new(response.data.token.clone()))
+        // A refresh keeps the generation; the lock rules out a sign-in.
+        Ok((Secret::new(response.data.token.clone()), record.generation))
     }
 
     /// Sends one refresh with `taken`, already removed from the store. The
