@@ -6,10 +6,16 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Mutex, PoisonError};
 
+use zeroize::Zeroize;
+
 use crate::error::Result;
 use crate::wire::{DeviceToken, Timestamp};
 
-/// A string that never shows up in `Debug` output.
+mod session;
+
+pub use session::Session;
+
+/// A string that never shows up in `Debug` output. Zeroed on drop.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
 
@@ -20,6 +26,12 @@ impl Secret {
 
     pub fn expose(&self) -> &str {
         &self.0
+    }
+}
+
+impl Drop for Secret {
+    fn drop(&mut self) {
+        self.0.zeroize();
     }
 }
 
@@ -38,12 +50,12 @@ pub struct StoredTokens {
 }
 
 impl From<DeviceToken> for StoredTokens {
-    fn from(token: DeviceToken) -> Self {
+    fn from(mut token: DeviceToken) -> Self {
         Self {
-            access_token: Secret(token.token),
-            access_expires_at: token.expires_at,
-            refresh_token: Secret(token.refresh_token),
-            refresh_expires_at: token.refresh_expires_at,
+            access_token: Secret(std::mem::take(&mut token.token)),
+            access_expires_at: token.expires_at.clone(),
+            refresh_token: Secret(std::mem::take(&mut token.refresh_token)),
+            refresh_expires_at: token.refresh_expires_at.clone(),
         }
     }
 }
@@ -57,6 +69,14 @@ pub trait TokenStore: Send + Sync {
 
     /// Removes the tokens; succeeds when there are none.
     fn clear(&self, profile: &str) -> Result<()>;
+
+    /// Removes and returns the tokens in one step. Implementations backed by a
+    /// shared medium must make this atomic; the default is load + clear.
+    fn take(&self, profile: &str) -> Result<Option<StoredTokens>> {
+        let tokens = self.load(profile)?;
+        self.clear(profile)?;
+        Ok(tokens)
+    }
 }
 
 #[derive(Debug, Default)]
@@ -80,6 +100,11 @@ impl TokenStore for MemoryTokenStore {
         let mut map = self.tokens.lock().unwrap_or_else(PoisonError::into_inner);
         map.remove(profile);
         Ok(())
+    }
+
+    fn take(&self, profile: &str) -> Result<Option<StoredTokens>> {
+        let mut map = self.tokens.lock().unwrap_or_else(PoisonError::into_inner);
+        Ok(map.remove(profile))
     }
 }
 

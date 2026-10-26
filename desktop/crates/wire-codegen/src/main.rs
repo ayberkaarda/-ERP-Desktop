@@ -143,7 +143,7 @@ fn error_code_rs(schema: &Value) -> Result<String, String> {
          ///\n\
          /// A code missing from the schema (a newer server) decodes to [`ErrorCode::Unknown`]\n\
          /// instead of failing, and counts as a generic server error.\n\
-         #[derive(Debug, Clone, PartialEq, Eq, Hash)]\n\
+         #[derive(Clone, PartialEq, Eq, Hash)]\n\
          pub enum ErrorCode {\n",
     );
     for code in &codes {
@@ -217,9 +217,24 @@ fn error_code_rs(schema: &Value) -> Result<String, String> {
     }
     s.push_str(
         "            Self::Unknown(_) => false,\n        }\n    }\n}\n\n\
+         /// `SCREAMING_SNAKE_CASE`, at most 64 bytes: safe to show.\n\
+         fn is_code_shaped(code: &str) -> bool {\n    \
+         code.len() <= 64\n        \
+         && code.bytes().next().is_some_and(|b| b.is_ascii_uppercase())\n        \
+         && code.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')\n}\n\n\
+         /// An unknown code is shown only when it looks like a code: server text\n\
+         /// in that position could carry anything.\n\
          impl std::fmt::Display for ErrorCode {\n    \
          fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        \
-         f.write_str(self.as_str())\n    }\n}\n\n\
+         match self {\n            \
+         Self::Unknown(code) if !is_code_shaped(code) => f.write_str(\"<redacted>\"),\n            \
+         other => f.write_str(other.as_str()),\n        }\n    }\n}\n\n\
+         impl std::fmt::Debug for ErrorCode {\n    \
+         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {\n        \
+         match self {\n            \
+         Self::Unknown(code) if is_code_shaped(code) => write!(f, \"Unknown({code:?})\"),\n            \
+         Self::Unknown(_) => f.write_str(\"Unknown(<redacted>)\"),\n            \
+         known => f.write_str(known.ui_code()),\n        }\n    }\n}\n\n\
          impl Serialize for ErrorCode {\n    \
          fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {\n        \
          serializer.serialize_str(self.as_str())\n    }\n}\n\n\

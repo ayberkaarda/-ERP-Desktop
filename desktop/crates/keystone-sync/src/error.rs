@@ -58,7 +58,9 @@ pub enum Code {
 #[derive(Debug, thiserror::Error)]
 pub enum SyncError {
     /// Request-level error body from the server.
-    #[error("{code}: {message}")]
+    /// For auth failures and unknown codes `message` and `fields` hold fixed
+    /// text, never server-provided content (see [`SyncError::from_api`]).
+    #[error("{}: {message}", code.ui_code())]
     Api {
         status: u16,
         code: ErrorCode,
@@ -88,13 +90,32 @@ pub enum SyncError {
 }
 
 impl SyncError {
-    /// Builds `Api` from an error body.
+    /// Builds `Api` from an error body. Auth failures (401, sign-in and
+    /// account codes) and unknown codes are redacted: the server text could
+    /// echo a credential, so `message` becomes a fixed text and each field
+    /// message becomes the code. Field names are kept when identifier-shaped.
     pub fn from_api(status: u16, error: ApiError, retry_after: Option<Duration>) -> Self {
+        let fields = error.fields.unwrap_or_default();
+        if !(status == 401 || is_auth_code(&error.code) || !error.code.is_known()) {
+            return Self::Api {
+                status,
+                code: error.code,
+                message: error.message,
+                fields,
+                retry_after,
+            };
+        }
+        let ui = error.code.ui_code();
+        let fields = fields
+            .into_keys()
+            .filter(|name| is_field_name(name))
+            .map(|name| (name, vec![ui.to_owned()]))
+            .collect();
         Self::Api {
             status,
+            message: format!("{ui} (server message redacted)"),
             code: error.code,
-            message: error.message,
-            fields: error.fields.unwrap_or_default(),
+            fields,
             retry_after,
         }
     }
@@ -131,6 +152,27 @@ impl SyncError {
             _ => None,
         }
     }
+}
+
+/// Codes of sign-in and account failures, whose text is never kept.
+fn is_auth_code(code: &ErrorCode) -> bool {
+    matches!(
+        code,
+        ErrorCode::Unauthenticated
+            | ErrorCode::TwoFactorRequired
+            | ErrorCode::InvalidTwoFactorCode
+            | ErrorCode::UserDeactivated
+            | ErrorCode::PasswordChangeRequired
+            | ErrorCode::CompanyForbidden
+    )
+}
+
+fn is_field_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'.' | b'-'))
 }
 
 #[cfg(test)]

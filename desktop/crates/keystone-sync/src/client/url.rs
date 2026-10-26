@@ -18,7 +18,21 @@ impl ServerUrl {
     /// `https://erp.example.com`. A trailing `/` is accepted; any other path,
     /// a query, a fragment or credentials are rejected.
     pub fn parse(base_url: &str, allow_http_localhost: bool) -> Result<Self> {
-        let url = Url::parse(base_url.trim()).map_err(|e| invalid(format!("{e}")))?;
+        let raw = base_url.trim();
+        // Checked on the raw text: `Url` would normalize `/a/..` or `/%2e%2e` to `/`.
+        let after_scheme = raw
+            .split_once("://")
+            .map(|(_, rest)| rest)
+            .ok_or_else(|| invalid("scheme is missing"))?;
+        let tail = after_scheme
+            .find(['/', '\\', '?', '#'])
+            .map_or("", |at| &after_scheme[at..]);
+        if !matches!(tail, "" | "/") {
+            return Err(invalid(
+                "the base URL must be scheme://host[:port] (no path, query or fragment)",
+            ));
+        }
+        let url = Url::parse(raw).map_err(|e| invalid(format!("{e}")))?;
         match url.scheme() {
             "https" => {}
             "http" if allow_http_localhost && is_loopback(&url) => {}

@@ -526,7 +526,7 @@ async fn lost_refresh_response_never_resends_the_refresh_token() {
 }
 
 #[tokio::test]
-async fn throttled_refresh_keeps_the_unused_token() {
+async fn throttled_refresh_spends_the_token() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path(MANIFEST))
@@ -547,9 +547,12 @@ async fn throttled_refresh_keeps_the_unused_token() {
     let store = signed_in(1);
     let client = client_with(&server, &store, &options());
     let error = expect_api(client.manifest().await);
-    assert_eq!(error.code(), "TOO_MANY_ATTEMPTS");
-    assert_eq!(error.retry_after(), Some(Duration::from_secs(60)));
-    assert_eq!(store.load(PROFILE).expect("load"), Some(tokens(1)));
+    assert_eq!(error.code(), "UNAUTHENTICATED");
+    // The server may have rotated before throttling: the token is spent.
+    assert_eq!(store.load(PROFILE).expect("load"), None);
+    let again = expect_api(client.manifest().await);
+    assert_eq!(again.code(), "UNAUTHENTICATED");
+    assert_eq!(requests_to(&server, REFRESH).await.len(), 1);
 }
 
 #[tokio::test]

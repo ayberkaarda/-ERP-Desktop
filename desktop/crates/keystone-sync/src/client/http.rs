@@ -2,20 +2,24 @@
 //!
 //! Refresh rules (the server revokes the whole device when a used refresh
 //! token comes back):
-//! - Refreshes are single-flight: one `tokio` mutex guards every token read
-//!   for a request and every refresh. A caller whose 401 came with an access
-//!   token that is no longer current reuses the new one instead of refreshing.
-//! - The refresh token leaves the [`TokenStore`] *before* it is sent. It is put
-//!   back only when the server provably did not consume it (connection never
-//!   established, or a 4xx other than 401/403, or 503). A lost response
-//!   (timeout, dropped connection, unreadable 2xx, other 5xx) leaves the
-//!   store empty: the token is treated as spent, the call fails with
-//!   `UNAUTHENTICATED` and the user signs in again (the outbox is kept). A
-//!   crash mid-refresh ends the same way. The same refresh token is never
-//!   sent twice.
+//! - Single flight per profile: all clients of one token store + profile
+//!   share one [`Session`] (lock, generation, deactivation flag). A caller
+//!   whose 401 came with an access token that is no longer current reuses
+//!   the new one instead of refreshing.
+//! - The refresh token is taken out of the [`TokenStore`] atomically
+//!   ([`TokenStore::take`]) before it is sent. It is put back only when the
+//!   connection was never established. Every other outcome (timeout,
+//!   dropped connection, any HTTP status, unreadable 2xx) treats it as spent:
+//!   the store stays empty and the call fails with `UNAUTHENTICATED`, so the
+//!   user signs in again (the outbox is kept). A crash mid-refresh ends the
+//!   same way. An explicit [`DeviceAuthApi::refresh`] only sends the token
+//!   that is currently stored; a spent or foreign token is refused unsent.
 //! - A 401 on a sync call triggers at most one refresh and one retry.
-//! - 403 `USER_DEACTIVATED` on any call clears the tokens and is returned as
-//!   is (`Code::Server(ErrorCode::UserDeactivated)`); the engine wipes data.
+//! - 403 `USER_DEACTIVATED` from any call (sync, refresh, login, meta) marks
+//!   the session deactivated, then clears the tokens under the session lock.
+//!   A refresh answer arriving after the mark is not saved. Until the next
+//!   successful sign-in, sync calls fail locally with `USER_DEACTIVATED`.
+//!   A failed cleanup is returned as `TOKEN_STORE_ERROR`.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -26,7 +30,7 @@ use reqwest::{Method, Url};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::auth::{Secret, StoredTokens, TokenStore};
+use crate::auth::{Secret, Session, StoredTokens, TokenStore};
 use crate::error::{Result, SyncError};
 use crate::wire::{
     ApiError, DeviceLoginRequest, DeviceRefreshRequest, DeviceTokenResponse, ErrorCode,
@@ -64,17 +68,14 @@ pub struct HttpClient<T> {
     http: reqwest::Client,
     server: ServerUrl,
     company_id: HeaderValue,
-    profile: String,
-    tokens: Arc<T>,
-    /// Single-flight gate for token reads and refreshes.
-    gate: tokio::sync::Mutex<()>,
+    session: Arc<Session<T>>,
 }
 
 impl<T> std::fmt::Debug for HttpClient<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HttpClient")
             .field("server", &self.server.origin())
-            .field("profile", &self.profile)
+            .field("session", &self.session)
             .finish_non_exhaustive()
     }
 }
@@ -106,8 +107,9 @@ impl From<Transport> for SyncError {
     }
 }
 
-impl<T: TokenStore> HttpClient<T> {
-    /// `profile` is the [`TokenStore`] key of this server profile.
+impl<T: TokenStore + 'static> HttpClient<T> {
+    /// `profile` is the [`TokenStore`] key of this server profile. Clients
+    /// built with the same `tokens` (same `Arc`) and profile share a session.
     pub fn new(
         config: &ApiConfig,
         profile: impl Into<String>,
@@ -121,21 +123,38 @@ impl<T: TokenStore> HttpClient<T> {
             http: build_http(&config.user_agent, options)?,
             server,
             company_id,
-            profile: profile.into(),
-            tokens,
-            gate: tokio::sync::Mutex::new(()),
+            session: Session::shared(&profile.into(), &tokens),
         })
     }
+}
 
+impl<T: TokenStore> HttpClient<T> {
     pub fn server(&self) -> &ServerUrl {
         &self.server
     }
 
+    pub fn session(&self) -> &Arc<Session<T>> {
+        &self.session
+    }
+
+    fn store(&self) -> &T {
+        self.session.store()
+    }
+
+    fn profile(&self) -> &str {
+        self.session.profile()
+    }
+
     /// `GET /api/v1/meta` (public).
     pub async fn server_meta(&self) -> Result<ServerMetaResponse> {
-        let url = self.server.endpoint(paths::META)?;
-        let raw = send(&self.http, Method::GET, url, None, None, None).await?;
-        decode(&raw)
+        let generation = self.session.generation();
+        let result = async {
+            let url = self.server.endpoint(paths::META)?;
+            let raw = send(&self.http, Method::GET, url, None, None, None).await?;
+            decode(&raw)
+        }
+        .await;
+        self.settle(result, generation).await
     }
 
     /// Sync call with bearer token, one refresh + retry on 401.
@@ -149,17 +168,25 @@ impl<T: TokenStore> HttpClient<T> {
         Req: Serialize + Sync,
         Resp: DeserializeOwned,
     {
-        let url = self.server.endpoint(path)?;
-        let body = body.map(serde_json::to_vec).transpose()?;
-        let access = self.current_access().await?;
-        let mut raw = self
-            .send_authorized(method.clone(), url.clone(), body.clone(), &access)
-            .await?;
-        if raw.status == 401 {
-            let fresh = self.refresh_after_unauthorized(&access).await?;
-            raw = self.send_authorized(method, url, body, &fresh).await?;
+        if self.session.is_deactivated() {
+            return Err(deactivated());
         }
-        self.finish(&raw)
+        let generation = self.session.generation();
+        let result = async {
+            let url = self.server.endpoint(path)?;
+            let body = body.map(serde_json::to_vec).transpose()?;
+            let access = self.current_access().await?;
+            let mut raw = self
+                .send_authorized(method.clone(), url.clone(), body.clone(), &access)
+                .await?;
+            if raw.status == 401 {
+                let fresh = self.refresh_after_unauthorized(&access).await?;
+                raw = self.send_authorized(method, url, body, &fresh).await?;
+            }
+            decode(&raw)
+        }
+        .await;
+        self.settle(result, generation).await
     }
 
     async fn send_authorized(
@@ -186,92 +213,119 @@ impl<T: TokenStore> HttpClient<T> {
         .await?)
     }
 
-    /// Decodes a final response; 403 `USER_DEACTIVATED` clears the tokens.
-    fn finish<Resp: DeserializeOwned>(&self, raw: &RawResponse) -> Result<Resp> {
-        let result = decode(raw);
-        if let Err(SyncError::Api {
-            code: ErrorCode::UserDeactivated,
-            ..
-        }) = &result
-        {
-            // Best effort: the error itself already tells the engine to wipe.
-            let _ = self.tokens.clear(&self.profile);
+    /// The one place that reacts to `USER_DEACTIVATED`. `generation` is the
+    /// session generation when the call started: a deactivation answered to
+    /// a call older than the last sign-in is reported but changes nothing.
+    async fn settle<R>(&self, result: Result<R>, generation: u64) -> Result<R> {
+        let error = match result {
+            Err(
+                error @ SyncError::Api {
+                    code: ErrorCode::UserDeactivated,
+                    ..
+                },
+            ) => error,
+            other => return other,
+        };
+        if !self.session.mark_deactivated(generation) {
+            return Err(error);
         }
-        result
-    }
-
-    fn load(&self) -> Result<Option<StoredTokens>> {
-        self.tokens.load(&self.profile)
+        let _gate = self.session.lock().await;
+        if !self.session.is_deactivated() {
+            return Err(error);
+        }
+        match self.store().clear(self.profile()) {
+            Ok(()) => Err(error),
+            Err(clear) => Err(SyncError::TokenStore(format!(
+                "clearing tokens after USER_DEACTIVATED failed: {clear}"
+            ))),
+        }
     }
 
     /// Access token, waiting for a refresh in flight.
     async fn current_access(&self) -> Result<Secret> {
-        let _gate = self.gate.lock().await;
-        self.load()?
-            .map(|tokens| tokens.access_token)
+        let _gate = self.session.lock().await;
+        if self.session.is_deactivated() {
+            return Err(deactivated());
+        }
+        self.store()
+            .load(self.profile())?
+            .map(|tokens| tokens.access_token.clone())
             .ok_or_else(|| sign_in_required("not signed in"))
     }
 
     async fn refresh_after_unauthorized(&self, rejected: &Secret) -> Result<Secret> {
-        let _gate = self.gate.lock().await;
+        let _gate = self.session.lock().await;
+        if self.session.is_deactivated() {
+            return Err(deactivated());
+        }
         let current = self
-            .load()?
+            .store()
+            .load(self.profile())?
             .ok_or_else(|| sign_in_required("not signed in"))?;
         if current.access_token != *rejected {
             // Another caller refreshed while this request was in flight.
-            return Ok(current.access_token);
+            return Ok(current.access_token.clone());
         }
-        let refresh = current.refresh_token.clone();
-        let response = self.rotate_locked(&refresh, Some(current)).await?;
-        Ok(Secret::new(response.data.token))
+        let taken = self
+            .store()
+            .take(self.profile())?
+            .ok_or_else(|| sign_in_required("not signed in"))?;
+        let response = self.rotate_locked(taken).await?;
+        Ok(Secret::new(response.data.token.clone()))
     }
 
-    /// Sends one refresh. The caller holds `gate`. `taken` is the stored pair
-    /// when `refresh` came from the store; it is removed before sending.
-    async fn rotate_locked(
-        &self,
-        refresh: &Secret,
-        taken: Option<StoredTokens>,
-    ) -> Result<DeviceTokenResponse> {
+    /// Sends one refresh with `taken`, already removed from the store. The
+    /// caller holds the session lock.
+    async fn rotate_locked(&self, taken: StoredTokens) -> Result<DeviceTokenResponse> {
         let url = self.server.endpoint(paths::DEVICE_REFRESH)?;
-        let body = serde_json::to_vec(&DeviceRefreshRequest {
-            refresh_token: refresh.expose().to_owned(),
-        })?;
-        if taken.is_some() {
-            self.tokens.clear(&self.profile)?;
-        }
-        let restore = |tokens: &Option<StoredTokens>| -> Result<()> {
-            match tokens {
-                Some(tokens) => self.tokens.save(&self.profile, tokens),
-                None => Ok(()),
-            }
+        let request = DeviceRefreshRequest {
+            refresh_token: taken.refresh_token.expose().to_owned(),
         };
+        let body = serde_json::to_vec(&request)?;
+        drop(request);
 
         let raw = match send(&self.http, Method::POST, url, Some(body), None, None).await {
             Ok(raw) => raw,
             Err(Transport::NotSent(e)) => {
-                restore(&taken)?;
+                if !self.session.is_deactivated() {
+                    self.store().save(self.profile(), &taken)?;
+                }
                 return Err(SyncError::Network(e.to_string()));
             }
             Err(Transport::Lost(_)) => {
                 return Err(sign_in_required(
-                    "refresh response was lost; the refresh token is spent, sign in again",
+                    "refresh outcome unknown (no answer); the refresh token is spent, sign in again",
                 ));
             }
         };
-        if raw.is_success() {
-            let response = decode_token(&raw)?;
-            self.tokens
-                .save(&self.profile, &StoredTokens::from(response.data.clone()))?;
-            return Ok(response);
+        if !raw.is_success() {
+            let error = decode::<()>(&raw)
+                .err()
+                .unwrap_or_else(|| sign_in_required("refresh failed"));
+            if matches!(
+                error,
+                SyncError::Api {
+                    code: ErrorCode::UserDeactivated,
+                    ..
+                }
+            ) {
+                return Err(error);
+            }
+            return Err(sign_in_required(&format!(
+                "refresh answered HTTP {} ({}); the refresh token is spent, sign in again",
+                raw.status,
+                error.code()
+            )));
         }
-        let error = decode::<DeviceTokenResponse>(&raw)
-            .err()
-            .unwrap_or_else(|| sign_in_required("refresh failed"));
-        if refresh_not_consumed(raw.status) {
-            restore(&taken)?;
+        let response = decode_token(&raw).map_err(|_| {
+            sign_in_required("refresh answer unreadable; the refresh token is spent, sign in again")
+        })?;
+        if self.session.is_deactivated() {
+            return Err(deactivated());
         }
-        Err(error)
+        self.store()
+            .save(self.profile(), &StoredTokens::from(response.data.clone()))?;
+        Ok(response)
     }
 }
 
@@ -293,34 +347,58 @@ impl<T: TokenStore> SyncApi for HttpClient<T> {
 }
 
 impl<T: TokenStore> DeviceAuthApi for HttpClient<T> {
-    /// Saves the new tokens on success. 401 `TWO_FACTOR_REQUIRED` and 422
+    /// Saves the new tokens on success and starts a new session generation
+    /// (clears a deactivation mark). 401 `TWO_FACTOR_REQUIRED` and 422
     /// `INVALID_TWO_FACTOR_CODE` come back as `SyncError::Api`; resend with
     /// `two_factor_code`. A lost login response is harmless: logging in
     /// again with the same fingerprint replaces the device.
     async fn login(&self, request: &DeviceLoginRequest) -> Result<DeviceTokenResponse> {
-        let url = self.server.endpoint(paths::DEVICE_LOGIN)?;
-        let body = serde_json::to_vec(request)?;
-        let raw = send(&self.http, Method::POST, url, Some(body), None, None).await?;
-        if !raw.is_success() {
-            return decode(&raw);
+        let generation = self.session.generation();
+        let result = async {
+            let url = self.server.endpoint(paths::DEVICE_LOGIN)?;
+            let body = serde_json::to_vec(request)?;
+            let raw = send(&self.http, Method::POST, url, Some(body), None, None).await?;
+            if !raw.is_success() {
+                return decode(&raw);
+            }
+            let response = decode_token(&raw)?;
+            let _gate = self.session.lock().await;
+            self.store()
+                .save(self.profile(), &StoredTokens::from(response.data.clone()))?;
+            self.session.signed_in();
+            Ok(response)
         }
-        let response = decode_token(&raw)?;
-        let _gate = self.gate.lock().await;
-        self.tokens
-            .save(&self.profile, &StoredTokens::from(response.data.clone()))?;
-        Ok(response)
+        .await;
+        self.settle(result, generation).await
     }
 
-    /// Serialized with the automatic refresh. When `request` carries the
-    /// stored refresh token, the store follows the rules in the module docs;
-    /// either way a successful refresh is saved.
+    /// Serialized with the automatic refresh. Only the refresh token that is
+    /// currently stored is sent (taken out of the store first); any other
+    /// token, including one already spent, is refused without a request.
     async fn refresh(&self, request: &DeviceRefreshRequest) -> Result<DeviceTokenResponse> {
-        let _gate = self.gate.lock().await;
-        let refresh = Secret::new(request.refresh_token.clone());
-        let taken = self
-            .load()?
-            .filter(|stored| stored.refresh_token == refresh);
-        self.rotate_locked(&refresh, taken).await
+        let generation = self.session.generation();
+        let result = async {
+            let _gate = self.session.lock().await;
+            if self.session.is_deactivated() {
+                return Err(deactivated());
+            }
+            let current = self
+                .store()
+                .load(self.profile())?
+                .is_some_and(|stored| stored.refresh_token.expose() == request.refresh_token);
+            if !current {
+                return Err(sign_in_required(
+                    "refresh token is not the current one; it was not sent",
+                ));
+            }
+            let taken = self
+                .store()
+                .take(self.profile())?
+                .ok_or_else(|| sign_in_required("not signed in"))?;
+            self.rotate_locked(taken).await
+        }
+        .await;
+        self.settle(result, generation).await
     }
 }
 
@@ -445,19 +523,23 @@ fn code_for_status(status: u16) -> ErrorCode {
     }
 }
 
-/// A refresh answered with this status left the token unused on the server.
-/// 401/403: the token (or user) is gone anyway. 5xx other than 503: the
-/// request may have been processed before the failure.
-fn refresh_not_consumed(status: u16) -> bool {
-    matches!(status, 400..=499 if status != 401 && status != 403) || status == 503
-}
-
 /// Local stand-in for a 401: the engine moves to `AuthRequired`.
 fn sign_in_required(message: &str) -> SyncError {
     SyncError::Api {
         status: 401,
         code: ErrorCode::Unauthenticated,
         message: message.to_owned(),
+        fields: BTreeMap::new(),
+        retry_after: None,
+    }
+}
+
+/// Local stand-in for 403 `USER_DEACTIVATED` once the session is marked.
+fn deactivated() -> SyncError {
+    SyncError::Api {
+        status: 403,
+        code: ErrorCode::UserDeactivated,
+        message: "account deactivated".to_owned(),
         fields: BTreeMap::new(),
         retry_after: None,
     }
