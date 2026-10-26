@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Core\Company\CompanyContext;
 use App\Core\Http\ErrorCode;
 use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Contracts\SyncWriter;
@@ -306,6 +307,31 @@ it('is tagged for the sync module and scopes the read side to the company', func
         ->and($resource->windowField())->toBe('document_date')
         ->and(invWriter()->find((string) Str::uuid7()))->toBeNull()
         ->and(invWriter()->lockedFields())->toContain('status');
+});
+
+it('embeds the lines of the explicit company whatever the ambient company context', function (): void {
+    $created = ($this->create)()->data;
+    $other = Inv::company();
+    $resource = app(StockDocumentSyncResource::class);
+    $expected = DB::table('stock_document_lines')->where('document_id', $created['id'])->pluck('id')->all();
+    expect($expected)->toHaveCount(1);
+
+    $read = function () use ($resource, $created): array {
+        $doc = $resource->query($this->company)->whereKey($created['id'])->firstOrFail();
+
+        return (new StockDocumentResource($doc))->resolve(request());
+    };
+
+    app(CompanyContext::class)->clear();
+    $none = $read();
+    $foreign = Inv::in($other, $read);
+
+    foreach ([$none, $foreign] as $body) {
+        expect(array_column($body['lines'], 'id'))->toBe($expected)
+            ->and($body['lines'][0]['item_id'])->toBe($this->item)
+            ->and($body['lines'][0]['system_quantity'])->toBe('10.000000')
+            ->and($body['lines'][0]['avg_cost'])->toBe('2.000000');
+    }
 });
 
 /** Resolved late: Inv::as() refreshes the app's company-bound singletons. */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Sync;
 
+use App\Core\Company\CompanyScope;
 use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\SyncScope;
 use App\Modules\Inventory\Http\Resources\StockDocumentResource;
@@ -41,11 +42,14 @@ final class StockDocumentSyncResource implements SyncResource
      */
     public function query(string $companyId): Builder
     {
+        // Lines follow the explicit company too, never the ambient CompanyContext.
+        $lines = static fn ($query) => $query->withoutGlobalScope(CompanyScope::class)->where('stock_document_lines.company_id', $companyId);
+
         /** @var Builder<Model> */
         return StockDocument::query()
             ->withoutCompanyScope()
             ->where('stock_documents.company_id', $companyId)
-            ->with($this->embeds());
+            ->with(['lines' => $lines]);
     }
 
     public function positionColumn(): string
