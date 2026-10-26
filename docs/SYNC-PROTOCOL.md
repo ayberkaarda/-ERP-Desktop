@@ -128,12 +128,12 @@ LIMIT :limit + 1
 - Cursor her zaman dört alan taşır: `txid`, `after_id`, `gen`, `session`. İstemci aldığı `next_cursor`'ı bütün olarak, değiştirmeden geri gönderir; `session` alanı eksik olan cursor `SYNC_CURSOR_INVALID` alır.
 - `next_cursor.gen` her zaman kaynağın güncel görünürlük neslidir.
 - İstemci sayfaları sırayla uygular ve `next_cursor`'ı sayfayı yerel depoya yazdığı transaction içinde saklar.
-- Satırlar policy ve şirket kapsamından geçer. Kullanıcının göremediği satır dönmez.
+- Görünürlük kaynak düzeyindedir: pull, kaynağın manifest `requires` iznini denetler ve satırları adaptör sorgusunun şirket kapsamıyla okur; satır başına Policy çalışmaz. `requires` sağlanmıyorsa istek `FORBIDDEN` alır.
 - `window_days` tanımlı kaynaklarda yalnızca `window_field` değeri pencere içinde olan satırlar `rows` içinde döner. Pencere **filtre değil dönüşümdür**: konumu cursor aralığında olan (yani değişmiş) ama `window_field` değeri pencerenin dışında kalan canlı satır, `reason: out_of_scope` tombstone'u olarak döner. Böylece belge tarihi pencere dışına değiştirildiğinde istemci, eski tarihi bilse bile kaydı kaldırır. Değişmeden yaşlanarak pencereden çıkan belgeler için olay üretilmez; istemci bunları yerelde bildiği `window_field` değerine göre kendisi budar. Pencereye geri giren satır, değiştiği için normal satır olayı olarak gelir.
 
 ### Görünürlük nesli
 
-Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir **görünürlük nesli** sayacıyla izlenir. Rol ataması, rol izinleri, şirket üyeliği veya kaynağın kapsamını etkileyen ayar değiştiğinde ilgili kullanıcıların etkilenen kaynaklardaki nesli bir artar.
+Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir **görünürlük nesli** sayacıyla izlenir. Nesil gözlemle artar: manifest ve pull her istekte kaynağın `requires` koşulunun sağlanıp sağlanmadığını hesaplar ve `(user_id, company_id, resource)` için saklanan durumla (`visible`/`hidden`) karşılaştırır; durum değiştiyse nesil bir artar, aynıysa değişmez. Rol ataması veya rol izinleri değişikliği nesli doğrudan artırmaz; etkisi, bir sonraki gözlemde görünürlük durumu değişmişse yansır. İki gözlem arasında gizlenip yeniden açılan kaynağın nesli bu yüzden değişmez. Doğrudan artış yalnızca şirket üyeliğinin kaldırılmasındadır: Identity'nin `MembershipRevoked` olayı kullanıcının o şirketteki tüm nesillerini bir artırır.
 
 - Nesil tüketilen bir bayrak değildir. Her cihaz kendi cursor'ındaki `gen` değerini sunucunun güncel nesliyle karşılaştırır; bir cihazın reset alması diğer cihazların durumunu değiştirmez.
 - `cursor.gen` güncel nesilden farklıysa sunucu o kaynak için `reset: true, reset_reason: visibility_changed` döner. `rows`, yeni tam indirmenin ilk sayfasıdır ve `next_cursor.gen` güncel nesildir.
@@ -331,9 +331,9 @@ Numara verme sunucudadır. Çevrimdışı oluşturulan taslak numarasızdır; nu
 | `sales-quotes` | create (`none`), update (`field-merge`), delete (`exact`) | Hedef `status = draft`. |
 | `sales-orders` | create, update, delete | Hedef `status = draft`. |
 | `purchase-requests` | create, update, delete | Hedef `status` `draft` veya `rejected`. |
+| `stock-documents` | create, update, delete, action `counts` (`exact`) | Payload ve hedef `doc_type = count`; hedef `status = draft`. |
 
 `purchase-requests` için reddedilmiş talep de taslak gibi düzenlenir ve silinir; bu, web'deki "revize et" akışıyla aynı kuraldır (`RequestService::update`/`delete`, `PurchaseRequestSyncWriter::isDraft`). `rejected` bir talebin update'i talebi yeniden `draft` durumuna alır. Diğer durumlarda sonuç `conflict` / `DOCUMENT_LOCKED`'dır. Manifestteki `draft_only` bugün `{field: status, value: draft}` yazar; sunucu kuralı yazarın `isDraft` kararıdır ve manifest bu kurala hizalanacaktır.
-| `stock-documents` | create, update, delete, action `counts` (`exact`) | Payload ve hedef `doc_type = count`; hedef `status = draft`. |
 
 ## ONLINE_ONLY
 
@@ -418,7 +418,7 @@ D1 sonrası durum. Kontrol `backend/` kaynak kodu (main) üzerinde yapıldı. Nu
 
 **Senkron altyapısı (A6)**
 
-1. **Kapandı.** `syncable()` Blueprint makrosu `backend/app/Core/Sync/Schema/Syncable.php`'dedir: `sync_txid xid8` kolonu, `(company_id, sync_txid, id)` index'i (şirket kolonu yoksa `(sync_txid, id)`) ve `zz_sync_touch` trigger'ı. Trigger fonksiyonları `backend/database/migrations/2027_08_01_100000_create_sync_functions.php`'dedir. Modül tabloları `Modules/<Ad>/Database/migrations/2027_08_01_2001xx_add_sync_to_<modül>.php` migration'larıyla bağlanır (Parties, Catalog, Reference, Sales, Purchasing, Inventory).
+1. **Kapandı.** `syncable()` Blueprint makrosu `backend/app/Core/Sync/Schema/Syncable.php`'dedir: `sync_txid xid8` kolonu, `(company_id, sync_txid, id)` index'i (şirket kolonu yoksa `(sync_txid, id)`) ve `zz_sync_touch` trigger'ı. Trigger fonksiyonları `backend/database/migrations/2027_08_01_100000_create_sync_functions.php`'dedir. Modül tabloları `Modules/<Ad>/Database/migrations/2027_08_01_200N00_add_sync_to_<modül>.php` migration'larıyla bağlanır: Parties `200100`, Catalog `200200`, Reference `200300`, Sales `200400`, Purchasing `200500`, Inventory `200600`.
 2. **Kapandı.** `sync_tombstones` tablosu `2027_08_01_100100` migration'ındadır. `sync_tombstone()` trigger'ı silmede `deleted`, `deleted_at` dolduğunda `soft_deleted` nedeniyle `(resource_table, row_id)` başına upsert yapar; restore'da tombstone'u siler.
 3. **Kapandı.** Sözleşme `backend/app/Core/Sync/`, sunucu `backend/app/Modules/Sync/`'tedir. `GET /sync/manifest`, `POST /sync/pull`, `POST /sync/push` uçları `Modules/Sync/routes.php`'de `auth:sanctum`, `EnsureDesktopToken`, `password.changed` ve `company` middleware'lerinin arkasındadır.
 4. **Kapandı.** Alt tablolar `syncable(parent: ..., parentKey: [...])` ile bağlanır. Deyim düzeyindeki `sync_touch_parent()` trigger'ları alt satır yazmasında üst satırın `sync_txid`'ini yeniler (ör. `party_addresses`/`party_contacts`/`party_bank_accounts` → `parties`, belge satırları → belge başlığı). Satıra gömülü ama tablo yazması olmayan türetilmiş değerler için bkz. Bilinen sınırlamalar.
@@ -441,7 +441,7 @@ D1 sonrası durum. Kontrol `backend/` kaynak kodu (main) üzerinde yapıldı. Nu
 
 **Pull**
 
-- **Kapandı.** Tam indirme sayfasının tekrarı: aynı `limit` ve alınan `next_cursor` (`session` dahil) aynen gönderilir. Sunucu oturumun son ve bir önceki cursor'ını tanır (`Modules/Sync/Services/FullDownloads.php`); kural Tam indirme oturumu bölümündedir.
+- **Kapandı.** Tam indirme sayfasının tekrarı: tekrarlanan isteğin kendi cursor'ı (`session` dahil) aynı `limit` ile aynen yeniden gönderilir; alınan `next_cursor` tekrar değil, sonraki sayfanın isteğidir. Sunucu oturumun son verdiği cursor'ı ve bir öncekini tanır (`Modules/Sync/Services/FullDownloads.php`); önceki cursor'la yapılan tekrar okur ama oturumu ilerletmez. İndirmenin son sayfası (`has_more = false`) oturumu siler; bu sayfanın tekrarı `reset: true, reset_reason: cursor_expired` alır ve yeni bir tam indirme başlar. Kural Tam indirme oturumu bölümündedir.
 
 **Kapsam**
 
