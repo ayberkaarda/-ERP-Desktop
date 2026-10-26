@@ -8,6 +8,7 @@ use App\Core\Sync\Xid8;
 use App\Modules\Sales\Http\Resources\DocumentResource;
 use App\Modules\Sales\Models\SalesInvoice;
 use App\Modules\Sales\Models\SalesReturn;
+use App\Modules\Sales\Services\InvoiceService;
 use App\Modules\Sales\Services\ReturnService;
 use App\Modules\Sales\Sync\DocumentSyncResource;
 use Illuminate\Database\QueryException;
@@ -338,4 +339,75 @@ it('does not deadlock a return cancel against an invoice-first path', function (
 
     // Released: the cancel goes through.
     SalesKit::post($this->w->user, $this->w->company, "sales-returns/{$return['id']}/cancel", ['reason' => 'x'])->assertOk()->assertJsonPath('data.status', 'cancelled');
+});
+
+/**
+ * A credited return: invoice, received return and its issued credit note.
+ *
+ * @return array{0: array<string, mixed>, 1: array<string, mixed>, 2: string}
+ */
+function salesCreditedReturn(object $w): array
+{
+    $order = SalesKit::confirmedOrder($w, [[$w->item->id, '2', '120']]);
+    $delivery = SalesKit::deliver($w, $order['id'], [$order['lines'][0]['id'] => '2']);
+    $invoice = SalesKit::invoiceDelivery($w, $delivery['id']);
+    $return = SalesKit::post($w->user, $w->company, "sales-invoices/{$invoice['id']}/returns", [
+        'lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1']],
+    ])->assertCreated()->json('data');
+    SalesKit::post($w->user, $w->company, "sales-returns/{$return['id']}/approve")->assertOk();
+    SalesKit::post($w->user, $w->company, "sales-returns/{$return['id']}/receive")->assertOk();
+    $note = SalesKit::post($w->user, $w->company, "sales-returns/{$return['id']}/credit")->assertOk()->json('data.credit_invoice_id');
+
+    return [$invoice, $return, $note];
+}
+
+it('locks the original invoice before the return when a credit note is reversed', function (): void {
+    [$invoice, $return, $note] = salesCreditedReturn($this->w);
+
+    $locks = [];
+    DB::listen(function ($query) use (&$locks, $invoice, $return): void {
+        if (str_contains($query->sql, 'for update')) {
+            foreach (['original' => $invoice['id'], 'return' => $return['id']] as $name => $id) {
+                if (in_array($id, $query->bindings, true)) {
+                    $locks[] = $name;
+                }
+            }
+        }
+    });
+
+    SalesKit::post($this->w->user, $this->w->company, "sales-invoices/{$note}/reverse", ['reason' => 'Wrong credit', 'date' => SalesKit::TODAY])
+        ->assertOk()->assertJsonPath('data.status', 'reversed');
+
+    expect(array_values(array_unique($locks)))->toBe(['original', 'return'])
+        ->and(DB::table('sales_returns')->where('id', $return['id'])->value('status'))->toBe('received');
+});
+
+it('waits on the original invoice, before holding the return, when a credit note is reversed', function (): void {
+    [$invoice, $return, $note] = salesCreditedReturn($this->w);
+
+    // A second connection holds the original invoice, as ReturnService credit/receive do first.
+    config(['database.connections.sales_lock_probe' => config('database.connections.'.config('database.default'))]);
+    $other = DB::connection('sales_lock_probe');
+    $other->beginTransaction();
+    $other->select('select id from sales_invoices where id = ? for update', [$invoice['id']]);
+
+    // Fails on the explicit lock of the original invoice; the return-first order would fail
+    // later, inside the UPDATE of sales_returns whose trigger touches that invoice.
+    DB::statement("SET lock_timeout = '300ms'");
+    $failed = null;
+    try {
+        SalesKit::in($this->w->company, fn () => app(InvoiceService::class)->reverse(SalesInvoice::query()->findOrFail($note), null, SalesKit::TODAY, 'Wrong credit', false, $this->w->user));
+    } catch (QueryException $e) {
+        $failed = $e;
+    } finally {
+        DB::statement('SET lock_timeout = 0');
+        $other->rollBack();
+        DB::disconnect('sales_lock_probe');
+    }
+
+    expect($failed)->not->toBeNull()
+        ->and($failed->errorInfo[0] ?? null)->toBe('55P03')
+        ->and($failed->getSql())->toContain('from "sales_invoices"')->toContain('for update')
+        ->and($failed->getBindings())->toContain($invoice['id'])
+        ->and(DB::table('sales_invoices')->where('id', $note)->value('status'))->toBe('issued');
 });

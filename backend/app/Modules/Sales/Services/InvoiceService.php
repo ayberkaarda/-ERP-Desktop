@@ -310,6 +310,14 @@ final class InvoiceService extends DocumentService
             $this->applyToOrders($lines, $orders, -1, $actor);
 
             if ($invoice->return_id !== null) {
+                // Original invoice before the return, as on every ReturnService path: the return's
+                // transition touches that invoice (sales_returns_touch_invoice_*).
+                $original = SalesReturn::query()->whereKey($invoice->return_id)->value('invoice_id');
+
+                if (is_string($original)) {
+                    SalesInvoice::query()->whereKey($original)->lockForUpdate()->value('id');
+                }
+
                 $return = SalesReturn::query()->whereKey($invoice->return_id)->lockForUpdate()->first();
 
                 if ($return !== null && $return->status === ReturnStatus::Credited) {
