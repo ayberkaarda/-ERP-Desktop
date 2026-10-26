@@ -19,6 +19,7 @@ final class SalesViolation extends ApiException
         'KS001' => 'violation_invoice_immutable',
         'KS002' => 'violation_invoice_lines_immutable',
         'KS003' => 'violation_delivery_immutable',
+        'KS005' => 'violation_order_immutable',
     ];
 
     public function __construct(public readonly string $sqlState, QueryException $previous)

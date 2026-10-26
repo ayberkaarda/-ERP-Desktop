@@ -82,6 +82,7 @@ return [
     'violation_delivery_immutable' => 'Ein gebuchter Lieferschein kann nicht geändert werden.',
     'violation_invoice_immutable' => 'Eine ausgestellte Rechnung kann nicht geändert werden.',
     'violation_invoice_lines_immutable' => 'Die Positionen einer ausgestellten Rechnung können nicht geändert werden.',
+    'violation_order_immutable' => 'Dieser Verkaufsauftrag kann nicht mehr geändert werden.',
     'warehouse_required' => 'Ein Lager ist erforderlich.',
     'warehouse_unavailable' => 'Das Lager existiert nicht oder ist inaktiv.',
     'settlement_date_order' => 'Das Ausgleichsdatum darf nicht vor dem letzten Ausgleich oder dessen Storno liegen.',
