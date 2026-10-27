@@ -50,6 +50,8 @@ jobs:
             exit 1
           fi
       - run: cargo test --workspace --exclude keystone-desktop --locked
+      # The plain-ws refusal is a release-only gate (debug_assertions off).
+      - run: cargo test --release -p keystone-realtime --lib --locked
       - name: Wire code matches contracts/sync
         run: sh scripts/gen-wire.sh
       - run: cargo deny check
@@ -86,3 +88,20 @@ jobs:
       - run: npm run build
       - run: cargo clippy -p keystone-desktop --all-targets --locked -- -D warnings
       - run: cargo test -p keystone-desktop --locked
+  secrets-macos:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop
+          key: secrets-macos
+      # Compiles the apple-native-keyring-store (Keychain) path of keystone-secrets.
+      - run: cargo check -p keystone-secrets --all-targets --locked
