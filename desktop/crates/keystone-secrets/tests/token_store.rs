@@ -286,6 +286,74 @@ fn a_malformed_entry_fails_without_leaking_or_deleting_it() {
 }
 
 #[test]
+fn sign_in_does_not_overwrite_a_malformed_entry() {
+    with_permit(|w| {
+        let fx = Fixture::new();
+        let bad = br#"{"generation":4,"deactivated":false,"tokens":"leaked-secret"}"#;
+        fx.put_raw(P, bad);
+        let store = store(&fx);
+        assert!(store.sign_in(w, P, &tokens(1)).is_err());
+        assert_eq!(fx.raw(P).as_deref(), Some(&bad[..]));
+    });
+}
+
+#[test]
+fn a_malformed_entry_can_be_removed_and_keeps_a_readable_generation() {
+    with_permit(|w| {
+        let fx = Fixture::new();
+        fx.put_raw(
+            P,
+            br#"{"generation":4,"deactivated":false,"tokens":"leaked-secret"}"#,
+        );
+        let store = store(&fx);
+        assert!(store.load_record(P).is_err());
+        store.remove_profile(P).unwrap();
+        assert_eq!(fx.raw(P), None);
+        let record = store.load_record(P).unwrap();
+        assert_eq!((record.generation, record.tokens), (4, None));
+        assert_eq!(store.sign_in(w, P, &tokens(1)).unwrap(), 5);
+    });
+}
+
+#[test]
+fn an_entry_without_a_readable_generation_can_be_removed() {
+    with_permit(|w| {
+        let fx = Fixture::new();
+        fx.put_raw(P, b"\x00 not json");
+        let store = store(&fx);
+        store.remove_profile(P).unwrap();
+        assert_eq!(fx.raw(P), None);
+        assert_eq!(store.sign_in(w, P, &tokens(1)).unwrap(), 1);
+    });
+}
+
+#[test]
+fn an_unreadable_entry_can_be_removed() {
+    let fx = Fixture::new();
+    fx.put_raw(P, br#"{"generation":2,"deactivated":false}"#);
+    let store = store(&fx);
+    fx.unreadable(true);
+    assert!(store.load_record(P).is_err());
+    store.remove_profile(P).unwrap();
+    fx.unreadable(false);
+    assert_eq!(fx.raw(P), None);
+}
+
+#[test]
+fn a_failed_remove_keeps_the_entry_and_the_cache() {
+    with_permit(|w| {
+        let fx = Fixture::new();
+        let store = store(&fx);
+        store.sign_in(w, P, &tokens(1)).unwrap();
+        fx.fail_writes(true);
+        assert!(store.remove_profile(P).is_err());
+        fx.fail_writes(false);
+        assert!(fx.raw(P).is_some());
+        assert_eq!(store.load(P).unwrap(), Some(tokens(1)));
+    });
+}
+
+#[test]
 fn profile_ids_cannot_reach_other_accounts() {
     let fx = Fixture::new();
     let store = store(&fx);

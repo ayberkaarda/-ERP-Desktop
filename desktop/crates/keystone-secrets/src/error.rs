@@ -8,7 +8,8 @@ pub enum Error {
     #[error("keychain: {0}")]
     Keychain(String),
     /// A record exists but cannot be read back. It is left as it is: the
-    /// caller decides what to do (nothing here deletes it).
+    /// caller decides what to do. Only an explicit removal deletes it
+    /// (`KeychainTokenStore::remove_profile`, `DbKeyStore::remove`).
     #[error("the keychain record `{0}` is malformed")]
     Malformed(&'static str),
     /// The session record would not fit in a keychain entry.

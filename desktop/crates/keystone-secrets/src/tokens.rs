@@ -26,9 +26,11 @@ pub const MAX_RECORD_BYTES: usize = 2560;
 ///   then kept in memory. A write builds the new record, writes it to the
 ///   keychain and only then replaces the cached one; when the keychain write
 ///   fails the method returns the error and the cached record stays.
-/// - The generation only grows: no method deletes the entry or resets the
-///   generation; `clear`, `take`, `sign_out` and `deactivate` remove only the
-///   tokens.
+/// - The generation only grows: no `TokenStore` method deletes the entry or
+///   resets the generation; `clear`, `take`, `sign_out` and `deactivate`
+///   remove only the tokens. A malformed entry fails every method, `sign_in`
+///   too (overwriting it would restart a generation it cannot read); the
+///   way out is [`KeychainTokenStore::remove_profile`].
 /// - [`TokenStore::identity`] is `keychain:<service>` for every handle.
 /// - Writes need the `TokenWrite` permit of `keystone-sync`, like every
 ///   token store: outside that crate the only way in is `Session::sign_in`.
@@ -45,14 +47,25 @@ impl KeychainTokenStore {
     }
 
     /// Deletes the profile's session entry from the keychain, for removing
-    /// a server profile once its engine and sessions are closed. The process
-    /// keeps the generation, so a sign-in of the same id in this process
-    /// still gets a newer one.
+    /// a server profile. The process keeps the generation, so a sign-in of
+    /// the same id in this process still gets a newer one.
+    ///
+    /// The entry is deleted without being decoded: a malformed or unreadable
+    /// entry is removed too (it is the way out of [`Error::Malformed`]). The
+    /// generation kept is the cached one, else the entry's `generation` field
+    /// when that much can be read, else 0.
+    ///
+    /// Close the profile's engine and `Session` first: a later `save` or
+    /// `deactivate` of a live session matches the kept generation and writes
+    /// the entry again.
     pub fn remove_profile(&self, profile: &str) -> Result<(), Error> {
         validate_name(profile)?;
         let inner = &self.keychain.inner;
         let mut state = inner.lock();
-        let generation = cached(inner, &mut state, profile)?.generation;
+        let generation = match state.records.get(profile) {
+            Some(record) => record.generation,
+            None => stored_generation(inner, profile),
+        };
         inner.delete(profile)?;
         state.records.insert(
             profile.to_owned(),
@@ -114,6 +127,21 @@ fn cached<'s>(
         state.records.insert(profile.to_owned(), record);
     }
     Ok(&state.records[profile])
+}
+
+/// The `generation` field of the stored entry, ignoring every other field;
+/// 0 when there is no entry or not even that can be read.
+fn stored_generation(inner: &Inner, profile: &str) -> u64 {
+    #[derive(Deserialize)]
+    struct GenerationIn {
+        generation: u64,
+    }
+    match inner.read(profile) {
+        Ok(Some(bytes)) => serde_json::from_slice::<GenerationIn>(&bytes)
+            .map(|r| r.generation)
+            .unwrap_or(0),
+        _ => 0,
+    }
 }
 
 #[derive(Serialize)]

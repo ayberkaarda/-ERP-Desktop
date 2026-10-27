@@ -30,15 +30,18 @@ pub fn tokens(n: u32) -> StoredTokens {
 }
 
 /// The `keyring-core` mock store with a switch that makes every write and
-/// delete fail (a keychain that is locked, full or denies access).
+/// delete fail (a keychain that is locked, full or denies access) and one
+/// that makes every read fail as unreadable stored data.
 pub struct Flaky {
     mock: Arc<mock::Store>,
     fail: Arc<AtomicBool>,
+    unreadable: Arc<AtomicBool>,
 }
 
 struct FlakyCred {
     entry: Entry,
     fail: Arc<AtomicBool>,
+    unreadable: Arc<AtomicBool>,
 }
 
 fn injected() -> keyring_core::Error {
@@ -54,6 +57,9 @@ impl CredentialApi for FlakyCred {
     }
 
     fn get_secret(&self) -> keyring_core::Result<Vec<u8>> {
+        if self.unreadable.load(Ordering::SeqCst) {
+            return Err(keyring_core::Error::BadEncoding(b"unreadable".to_vec()));
+        }
         self.entry.get_secret()
     }
 
@@ -96,6 +102,7 @@ impl CredentialStoreApi for Flaky {
         Ok(Entry::new_with_credential(Arc::new(FlakyCred {
             entry,
             fail: self.fail.clone(),
+            unreadable: self.unreadable.clone(),
         })))
     }
 
@@ -109,21 +116,25 @@ pub struct Fixture {
     pub store: Arc<CredentialStore>,
     mock: Arc<mock::Store>,
     fail: Arc<AtomicBool>,
+    unreadable: Arc<AtomicBool>,
 }
 
 impl Fixture {
     pub fn new() -> Self {
         let mock = mock::Store::new().unwrap();
         let fail = Arc::new(AtomicBool::new(false));
+        let unreadable = Arc::new(AtomicBool::new(false));
         let store: Arc<CredentialStore> = Arc::new(Flaky {
             mock: mock.clone(),
             fail: fail.clone(),
+            unreadable: unreadable.clone(),
         });
         Self {
             service: unique("keystone-test"),
             store,
             mock,
             fail,
+            unreadable,
         }
     }
 
@@ -154,6 +165,12 @@ impl Fixture {
 
     pub fn fail_writes(&self, on: bool) {
         self.fail.store(on, Ordering::SeqCst);
+    }
+
+    /// Reads through the crate fail as unreadable stored data; `raw` and
+    /// `put_raw` still reach the entry.
+    pub fn unreadable(&self, on: bool) {
+        self.unreadable.store(on, Ordering::SeqCst);
     }
 }
 
