@@ -6,7 +6,18 @@ import tseslint from 'typescript-eslint'
 // Same network ban as frontend/eslint.config.js: the webview reaches the
 // network only through Tauri commands (@tauri-apps/api stays allowed).
 const NET_MSG = 'Use a Tauri command through @tauri-apps/api.'
-const NET_MODULES = ['axios', 'ky', 'node-fetch', 'cross-fetch', 'socket.io-client']
+const NET_MODULES = [
+  'axios',
+  'ky',
+  'node-fetch',
+  'cross-fetch',
+  'socket.io-client',
+  // Tauri plugins that would open a network path around the shell commands.
+  '@tauri-apps/plugin-http',
+  '@tauri-apps/plugin-websocket',
+]
+// Module names inside the esquery regex literal below.
+const NET_PATTERN = NET_MODULES.map((m) => m.replace(/[/.]/g, '\\$&')).join('|')
 const NET_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource']
 const NET_HOSTS = ['window', 'globalThis', 'self']
 
@@ -22,7 +33,7 @@ const networkBan = {
     'error',
     {
       // Dynamic import('axios') is not covered by no-restricted-imports.
-      selector: `ImportExpression[source.value=/^(${NET_MODULES.join('|')})(\\/|$)/]`,
+      selector: `ImportExpression[source.value=/^(${NET_PATTERN})(\\/|$)/]`,
       message: NET_MSG,
     },
   ],

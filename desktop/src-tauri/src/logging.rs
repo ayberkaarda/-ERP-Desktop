@@ -52,12 +52,43 @@ static SECRET_FIELD: LazyLock<Regex> = LazyLock::new(|| {
     .expect("secret field regex")
 });
 
+/// `Authorization: Basic <credentials>` (header text or a JSON field).
+static BASIC_AUTH: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)(\bauthorization"?\s*[:=]\s*"?)basic\s+[A-Za-z0-9+/=._~-]+"#)
+        .expect("basic auth regex")
+});
+
+/// The whole value of a `Cookie` or `Set-Cookie` header, up to the line end.
+static COOKIE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)(\b(?:set-)?cookie"?\s*[:=]\s*"?)[^\r\n"]+"#).expect("cookie regex")
+});
+
+/// Query parameters whose name looks like a credential: `?token=`,
+/// `&client_secret=`, `&password=`, `&code=`, `&api_key=`, `&signature=`.
+static QUERY_SECRET: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?i)([?&][a-z0-9_.\-\[\]]*(?:token|secret|password|passwd|pwd|code|key|signature|auth)[a-z0-9_.\-\[\]]*=)[^&#\s'\x22]*",
+    )
+    .expect("query secret regex")
+});
+
+/// `scheme://user:password@host`: the userinfo part.
+static URL_USERINFO: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s@?#]+@").expect("userinfo regex")
+});
+
 const TIME_FORMAT: &[time::format_description::FormatItem<'_>] =
     format_description!("[[[year]-[month]-[day]][[[hour]:[minute]:[second]]");
 
 /// Fixed placeholders, so the length of the original value is not kept.
+/// Userinfo goes before the email rule, which would otherwise eat
+/// `password@host` only partly.
 pub fn mask(text: &str) -> String {
     let text = SECRET_FIELD.replace_all(text, r#"$1"[redacted]""#);
+    let text = BASIC_AUTH.replace_all(&text, "${1}[redacted]");
+    let text = COOKIE.replace_all(&text, "${1}[redacted]");
+    let text = QUERY_SECRET.replace_all(&text, "${1}[redacted]");
+    let text = URL_USERINFO.replace_all(&text, "${1}[userinfo]@");
     let text = BEARER.replace_all(&text, "Bearer [token]");
     let text = EMAIL.replace_all(&text, "[email]");
     PHONE.replace_all(&text, "[phone]").into_owned()
@@ -107,6 +138,59 @@ mod tests {
                 "{placeholder} missing: {masked}"
             );
         }
+    }
+
+    #[test]
+    fn masks_secret_query_parameters() {
+        let line = "GET https://erp.example.com/api/v1/x?page=2&token=abc123&client_secret=s3cr&password=p4ss&code=c0de5&access_token=a6tok#top";
+        let masked = mask(line);
+        for secret in ["abc123", "s3cr", "p4ss", "c0de5", "a6tok"] {
+            assert!(!masked.contains(secret), "{secret} leaked: {masked}");
+        }
+        assert!(masked.contains("?page=2&token=[redacted]"), "{masked}");
+        assert!(masked.contains("&client_secret=[redacted]"), "{masked}");
+        assert!(masked.ends_with("#top"), "{masked}");
+    }
+
+    #[test]
+    fn masks_basic_authorization() {
+        let masked = mask("headers: Authorization: Basic dXNlcjpodW50ZXIy, Accept: */*");
+        assert!(!masked.contains("dXNlcjpodW50ZXIy"), "{masked}");
+        assert!(masked.contains("Authorization: [redacted]"), "{masked}");
+        assert!(masked.contains("Accept: */*"), "{masked}");
+        let json = mask(r#"{"authorization":"Basic dXNlcjpwYXNz"}"#);
+        assert!(!json.contains("dXNlcjpwYXNz"), "{json}");
+    }
+
+    #[test]
+    fn masks_cookie_and_set_cookie_values() {
+        let masked = mask("Cookie: laravel_session=abc; XSRF-TOKEN=def");
+        assert!(
+            !masked.contains("abc") && !masked.contains("def"),
+            "{masked}"
+        );
+        assert!(masked.contains("Cookie: [redacted]"), "{masked}");
+        let set = mask("set-cookie: keystone_session=s3ss10n; Path=/; HttpOnly\nnext line");
+        assert!(!set.contains("s3ss10n"), "{set}");
+        assert!(set.contains("set-cookie: [redacted]\nnext line"), "{set}");
+    }
+
+    #[test]
+    fn masks_url_userinfo() {
+        let masked = mask(
+            "proxy https://admin:hunter2@erp.example.com/api/v1/meta and ftp://bob@files.example.com/",
+        );
+        for secret in ["admin", "hunter2", "bob@"] {
+            assert!(!masked.contains(secret), "{secret} leaked: {masked}");
+        }
+        assert!(
+            masked.contains("https://[userinfo]@erp.example.com/api/v1/meta"),
+            "{masked}"
+        );
+        assert!(
+            masked.contains("ftp://[userinfo]@files.example.com/"),
+            "{masked}"
+        );
     }
 
     #[test]
