@@ -1,5 +1,5 @@
-//! Apply TakeServer rows through Store::put_push_row to preserve mirror versions.
 //! Durable conflict decisions. Writes are returned for the caller to enqueue.
+
 use std::sync::Arc;
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use crate::error::Result;
-use crate::outbox::{NewMutation, cancel, invalid};
+use crate::outbox::{NewMutation, cancel, ensure_unsealed, invalid};
 use crate::store::{Migration, Store};
 use crate::wire::{
     Conflict, ConflictChoice, ConflictCode, Mutation, MutationOp, Resolution, ResolutionChoice,
@@ -40,6 +40,11 @@ pub struct ConflictRecord {
 pub enum ResolutionAction {
     /// Enqueue atomically retires the original conflict for resolution writes.
     Enqueue(NewMutation),
+    /// The server's answer as recorded with the conflict (`None`: deleted on
+    /// the server). It is already applied to the mirror in the resolving
+    /// transaction, version-checked: it never rolls a newer row back and
+    /// never brings a removed row back. Callers must not write it to the
+    /// mirror themselves; read the row back for the current state.
     TakeServer(Option<ResourceRow>),
     /// Bind the local draft to this selected existing row; fetch its mirror data.
     UseExisting(Uuid),
@@ -79,6 +84,7 @@ impl ConflictStore {
         merged: Option<Map<String, Value>>,
     ) -> Result<ResolutionAction> {
         self.store.write(|tx| {
+            ensure_unsealed(tx)?;
             let record = get(tx, key)?;
             if !allowed_choices(record.conflict.code).contains(&choice)
                 || !record.conflict.choices.contains(&choice)
@@ -209,6 +215,13 @@ impl ConflictStore {
                     if choice == ConflictChoice::Discard {
                         Ok(ResolutionAction::Discard)
                     } else {
+                        Store::take_server_on(
+                            tx,
+                            &record.resource,
+                            record.id,
+                            record.conflict.server_data.as_ref(),
+                            record.conflict.server_version,
+                        )?;
                         Ok(ResolutionAction::TakeServer(record.conflict.server_data))
                     }
                 }
@@ -450,6 +463,7 @@ impl ConflictInbox for ConflictStore {
     }
     fn list(&self) -> Result<Vec<ConflictRecord>> {
         self.store.read(|conn| {
+            ensure_unsealed(conn)?;
             let mut stmt = conn.prepare("SELECT record FROM conflict_records ORDER BY julianday(json_extract(record,'$.detected_at')), key")?;
             let mut records = Vec::new();
             for row in stmt.query_map([], |r| r.get::<_, String>(0))? { records.push(serde_json::from_str(&row?)?); }
@@ -469,8 +483,10 @@ impl ConflictInbox for ConflictStore {
         self.decide(key, choice, None)
     }
     fn resolve_use_existing(&self, key: Uuid, candidate: Uuid) -> Result<ResolutionAction> {
-        self.store
-            .write(|tx| use_existing(tx, &get(tx, key)?, candidate))
+        self.store.write(|tx| {
+            ensure_unsealed(tx)?;
+            use_existing(tx, &get(tx, key)?, candidate)
+        })
     }
     fn resolve_merge(
         &self,

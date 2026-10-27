@@ -116,7 +116,10 @@ impl Outbox {
     }
     /// Includes rejected and quarantined entries for the user-facing queue.
     pub fn list(&self) -> Result<Vec<OutboxEntry>> {
-        self.store.read(load)
+        self.store.read(|conn| {
+            ensure_unsealed(conn)?;
+            load(conn)
+        })
     }
 }
 
@@ -135,6 +138,33 @@ pub fn clear_on(tx: &Connection) -> Result<usize> {
 
 pub(crate) fn invalid(message: &str) -> SyncError {
     SyncError::Store(rusqlite::Error::InvalidParameterName(message.to_owned()))
+}
+
+/// `engine_meta` key set while local work is sealed (deactivation or a
+/// company forbidden for the local data) until the same identity is
+/// verified again.
+pub(crate) const WORK_SEALED: &str = "work_sealed";
+
+/// Refuses access to sealed work for any holder of the store, not only the
+/// engine: the seal lives in the database next to the payloads it guards.
+pub(crate) fn ensure_unsealed(conn: &Connection) -> Result<()> {
+    let has_meta: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='engine_meta')",
+        [],
+        |r| r.get(0),
+    )?;
+    if has_meta
+        && conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM engine_meta WHERE key = ?1 AND value = '1')",
+            [WORK_SEALED],
+            |r| r.get::<_, bool>(0),
+        )?
+    {
+        return Err(SyncError::OfflineUnavailable(
+            "pending work is sealed; sync first".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
@@ -443,6 +473,7 @@ impl OutboxQueue for Outbox {
 
     fn next_batch(&self, max: usize) -> Result<Vec<Mutation>> {
         self.store.write(|tx| {
+            ensure_unsealed(tx)?;
             let all = load(tx)?;
             let mut done = HashSet::new();
             let mut stmt = tx.prepare("SELECT key FROM outbox_settled WHERE success=1")?;

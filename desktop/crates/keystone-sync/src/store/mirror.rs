@@ -122,8 +122,21 @@ impl MirrorStore for Store {
             if full_start {
                 clear(tx, &reg)?;
             }
+            let mut upserted = 0;
             for row in &page.rows {
+                // A push answer may have advanced the row past this page on
+                // the same base: an older version is skipped. Only a full
+                // start replaces rows wholesale.
+                if !full_start
+                    && let Some(incoming) = row.version
+                    && Self::get_row_on(tx, &page.resource, row.id)?
+                        .and_then(|local| local.version)
+                        .is_some_and(|known| incoming < known)
+                {
+                    continue;
+                }
                 upsert(tx, &reg, row)?;
+                upserted += 1;
             }
             let mut removed = 0;
             for tombstone in &page.tombstones {
@@ -146,7 +159,7 @@ impl MirrorStore for Store {
             save_cursor(tx, &page.resource, &page.next_cursor, complete)?;
             retention::count_writes(tx, page.rows.len() + page.tombstones.len(), &policy)?;
             Ok(PageApply::Applied(AppliedPage {
-                upserted: page.rows.len(),
+                upserted,
                 removed,
                 reset: full_start,
             }))
@@ -206,6 +219,43 @@ impl Store {
         )?;
         Ok(())
     }
+
+    /// Applies a `take_server` answer inside the resolving transaction: a
+    /// newer server row replaces the local one, a server delete removes it
+    /// when the local row is not newer, and an absent row stays absent.
+    /// Returns whether the mirror changed.
+    pub(crate) fn take_server_on(
+        tx: &Connection,
+        resource: &ResourceName,
+        id: Uuid,
+        row: Option<&ResourceRow>,
+        server_version: Option<u64>,
+    ) -> Result<bool> {
+        let Some(local) = Self::get_row_on(tx, resource, id)? else {
+            return Ok(false);
+        };
+        let Some(reg) = lookup(tx, resource)? else {
+            return Ok(false);
+        };
+        Ok(match row {
+            Some(row)
+                if row.id == id
+                    && row.version.is_some_and(|version| {
+                        local.version.is_some_and(|known| version > known)
+                    }) =>
+            {
+                upsert(tx, &reg, row)?;
+                true
+            }
+            None if server_version
+                .is_some_and(|version| local.version.is_some_and(|known| known <= version)) =>
+            {
+                delete(tx, &reg, id)?
+            }
+            _ => false,
+        })
+    }
+
     /// Push answers may advance existing rows, but cannot resurrect absent rows.
     pub fn put_push_row(&self, resource: &ResourceName, row: &ResourceRow) -> Result<bool> {
         let policy = self.retention();
