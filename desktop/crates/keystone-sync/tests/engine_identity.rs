@@ -1,6 +1,7 @@
 //! Identity loss: `UNAUTHENTICATED` keeps the outbox and continues for the
 //! same user; another user wipes local data before anything is pushed;
-//! `USER_DEACTIVATED` of the current sign-in generation wipes everything,
+//! `USER_DEACTIVATED` of the current sign-in generation wipes the mirror and
+//! seals unsent work (another user then deletes it),
 //! a stale one nothing; sign-out with pending work needs `force`.
 
 mod engine_support;
@@ -167,7 +168,7 @@ async fn another_user_signing_in_wipes_local_data_before_pushing() {
 }
 
 #[tokio::test]
-async fn deactivation_of_the_current_generation_wipes_everything() {
+async fn deactivation_of_the_current_generation_wipes_the_mirror_and_seals_unsent_work() {
     let env = env().await;
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
@@ -176,13 +177,25 @@ async fn deactivation_of_the_current_generation_wipes_everything() {
         .respond_with(
             move |_: &Request| match seen.fetch_add(1, Ordering::SeqCst) {
                 0 => ResponseTemplate::new(200).set_body_json(simple_manifest(&["parties"])),
-                _ => ResponseTemplate::new(403)
+                1 => ResponseTemplate::new(403)
                     .set_body_json(error_body("USER_DEACTIVATED", "inactive")),
+                // Afterwards another user signs in on this profile.
+                _ => ResponseTemplate::new(200).set_body_json(manifest(
+                    USER_B,
+                    vec![resource("parties", 0)],
+                    200,
+                    100,
+                )),
             },
         )
         .mount(&env.server)
         .await;
     mount_empty_pull(&env.server).await;
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .respond_with(apply_all)
+        .mount(&env.server)
+        .await;
     seed(&env).await;
     // An open conflict too.
     let local = outbox_list(&env.store)[0].mutation.clone();
@@ -206,18 +219,45 @@ async fn deactivation_of_the_current_generation_wipes_everything() {
 
     let error = env.engine.run_once(Trigger::Timer).await.unwrap_err();
     assert_eq!(error.code(), "USER_DEACTIVATED");
+    // The mirror goes; unsent work and the open conflict are sealed: kept,
+    // but neither readable nor sendable until the same user verifies again
+    // (`client_findings::c4_deactivation_keeps_unsent_work_for_the_same_user`).
     assert_eq!(local_rows(&env), 0);
-    assert!(outbox_list(&env.store).is_empty());
-    assert_eq!(inbox(&env.store).count().unwrap(), 0);
+    // Sealed at the outbox layer too: a raw outbox neither lists nor selects
+    // it; the entry itself is still in the database.
+    let raw = keystone_sync::outbox::Outbox::new(env.store.clone());
+    assert!(matches!(
+        raw.list(),
+        Err(keystone_sync::error::SyncError::OfflineUnavailable(_))
+    ));
+    assert!(matches!(
+        keystone_sync::outbox::OutboxQueue::next_batch(&raw, 10),
+        Err(keystone_sync::error::SyncError::OfflineUnavailable(_))
+    ));
+    let stored: i64 = env
+        .store
+        .read(|c| Ok(c.query_row("SELECT count(*) FROM outbox_entries", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(stored, 1);
+    assert_eq!(inbox(&env.store).count().unwrap(), 1);
+    assert!(env.engine.outbox_entries().is_err());
+    assert!(env.engine.conflict_records().is_err());
     let record = env.tokens.load_record(PROFILE).unwrap();
     assert!(record.deactivated && record.tokens.is_none());
-    let status = env.engine.status();
-    assert_eq!((status.state, status.pending), (SyncState::AuthRequired, 0));
+    assert_eq!(env.engine.status().state, SyncState::AuthRequired);
     let mut wiped = Vec::new();
     while let Ok(event) = changes.try_recv() {
         wiped.extend(event.resources);
     }
     assert!(wiped.contains(&name("parties")));
+
+    // Another user signs in: the sealed work is deleted before any push.
+    sign_in_as(&env.tokens, 2).await;
+    env.engine.run_once(Trigger::Manual).await.unwrap();
+    assert_eq!(hits(&env.server, PUSH).await, 0);
+    assert!(outbox_list(&env.store).is_empty());
+    assert_eq!(inbox(&env.store).count().unwrap(), 0);
+    assert_eq!(env.engine.status().pending, 0);
 }
 
 #[tokio::test]

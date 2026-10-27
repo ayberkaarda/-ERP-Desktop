@@ -122,8 +122,21 @@ impl MirrorStore for Store {
             if full_start {
                 clear(tx, &reg)?;
             }
+            let mut upserted = 0;
             for row in &page.rows {
+                // A push answer may have advanced the row past this page on
+                // the same base: an older version is skipped. Only a full
+                // start replaces rows wholesale.
+                if !full_start
+                    && let Some(incoming) = row.version
+                    && Self::get_row_on(tx, &page.resource, row.id)?
+                        .and_then(|local| local.version)
+                        .is_some_and(|known| incoming < known)
+                {
+                    continue;
+                }
                 upsert(tx, &reg, row)?;
+                upserted += 1;
             }
             let mut removed = 0;
             for tombstone in &page.tombstones {
@@ -146,7 +159,7 @@ impl MirrorStore for Store {
             save_cursor(tx, &page.resource, &page.next_cursor, complete)?;
             retention::count_writes(tx, page.rows.len() + page.tombstones.len(), &policy)?;
             Ok(PageApply::Applied(AppliedPage {
-                upserted: page.rows.len(),
+                upserted,
                 removed,
                 reset: full_start,
             }))
@@ -182,6 +195,115 @@ impl MirrorStore for Store {
 /// Mirror administration and snapshots (internal API for the engine and the
 /// D3 offline router).
 impl Store {
+    /// Tracks the local create separately from confirmed mirror rows, atomically
+    /// with its outbox entry. Resets and tombstones invalidate this presence.
+    pub(crate) fn seed_draft_on(tx: &Connection, resource: &ResourceName, id: Uuid) -> Result<()> {
+        ensure(tx, resource)?;
+        if Self::get_row_on(tx, resource, id)?.is_none() {
+            tx.execute(
+                "INSERT OR IGNORE INTO store_local_creates(resource, id) VALUES (?1, ?2)",
+                params![resource.as_str(), id.to_string()],
+            )?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn remove_draft_on(
+        tx: &Connection,
+        resource: &ResourceName,
+        id: Uuid,
+    ) -> Result<()> {
+        tx.execute(
+            "DELETE FROM store_local_creates WHERE resource=?1 AND id=?2",
+            params![resource.as_str(), id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Applies a `take_server` answer inside the resolving transaction: a
+    /// newer server row replaces the local one, a server delete removes it
+    /// when the local row is not newer, and an absent row stays absent.
+    /// Returns whether the mirror changed.
+    pub(crate) fn take_server_on(
+        tx: &Connection,
+        resource: &ResourceName,
+        id: Uuid,
+        row: Option<&ResourceRow>,
+        server_version: Option<u64>,
+    ) -> Result<bool> {
+        let Some(local) = Self::get_row_on(tx, resource, id)? else {
+            return Ok(false);
+        };
+        let Some(reg) = lookup(tx, resource)? else {
+            return Ok(false);
+        };
+        Ok(match row {
+            Some(row)
+                if row.id == id
+                    && row.version.is_some_and(|version| {
+                        local.version.is_some_and(|known| version > known)
+                    }) =>
+            {
+                upsert(tx, &reg, row)?;
+                true
+            }
+            None if server_version
+                .is_some_and(|version| local.version.is_some_and(|known| known <= version)) =>
+            {
+                delete(tx, &reg, id)?
+            }
+            _ => false,
+        })
+    }
+
+    /// Push answers may advance existing rows, but cannot resurrect absent rows.
+    pub fn put_push_row(&self, resource: &ResourceName, row: &ResourceRow) -> Result<bool> {
+        let policy = self.retention();
+        self.write(|tx| {
+            let Some(version) = row.version else {
+                return Ok(false);
+            };
+            match Self::get_row_on(tx, resource, row.id)? {
+                Some(local) if local.version.is_some_and(|known| known < version) => {}
+                None if version > 0 && tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM store_local_creates WHERE resource=?1 AND id=?2)",
+                    params![resource.as_str(), row.id.to_string()], |r| r.get::<_, bool>(0),
+                )? => {}
+                _ => return Ok(false),
+            }
+            let reg = ensure(tx, resource)?;
+            upsert(tx, &reg, row)?;
+            retention::count_writes(tx, 1, &policy)?;
+            Ok(true)
+        })
+    }
+
+    /// A delete answer cannot remove a row newer than the mutation's base.
+    pub fn remove_push_row(
+        &self,
+        resource: &ResourceName,
+        id: Uuid,
+        base_version: Option<u64>,
+    ) -> Result<bool> {
+        let policy = self.retention();
+        self.write(|tx| {
+            let Some(base) = base_version else {
+                return Ok(false);
+            };
+            let Some(local) = Self::get_row_on(tx, resource, id)? else {
+                return Ok(false);
+            };
+            if !local.version.is_some_and(|known| known <= base) {
+                return Ok(false);
+            }
+            let Some(reg) = lookup(tx, resource)? else {
+                return Ok(false);
+            };
+            let removed = delete(tx, &reg, id)?;
+            retention::count_writes(tx, usize::from(removed), &policy)?;
+            Ok(removed)
+        })
+    }
     /// [`MirrorStore::get_row`] on a connection the caller already holds
     /// (inside a [`Store::read`] or [`Store::write`] callback, where calling
     /// back into the store is rejected).
@@ -559,6 +681,7 @@ fn push_scalar(parts: &mut Vec<String>, value: &Value) {
 }
 
 fn upsert(tx: &Connection, reg: &Registered, row: &ResourceRow) -> Result<()> {
+    Store::remove_draft_on(tx, &reg.spec.resource, row.id)?;
     let value = serde_json::to_value(row)?;
     let version = row
         .version
@@ -586,6 +709,7 @@ fn upsert(tx: &Connection, reg: &Registered, row: &ResourceRow) -> Result<()> {
 }
 
 pub(crate) fn delete(tx: &Connection, reg: &Registered, id: Uuid) -> Result<bool> {
+    Store::remove_draft_on(tx, &reg.spec.resource, id)?;
     let k: Option<i64> = tx
         .query_row(
             &format!("DELETE FROM \"{}\" WHERE id = ?1 RETURNING k", reg.table),
@@ -619,6 +743,10 @@ pub(crate) fn delete_where(
 }
 
 fn clear(tx: &Connection, reg: &Registered) -> Result<usize> {
+    tx.execute(
+        "DELETE FROM store_local_creates WHERE resource=?1",
+        [reg.spec.resource.as_str()],
+    )?;
     if let Some(fts) = &reg.fts {
         tx.execute_batch(&format!("DELETE FROM \"{fts}\";"))?;
     }

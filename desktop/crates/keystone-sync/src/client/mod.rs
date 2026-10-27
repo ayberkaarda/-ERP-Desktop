@@ -128,6 +128,13 @@ pub trait SyncApi: sealed::Sealed + Send + Sync {
     /// built over this same session ([`crate::engine::SyncEngine::new`]).
     fn session(&self) -> &Arc<Session>;
 
+    /// Company every request of this client is scoped to. A
+    /// `COMPANY_FORBIDDEN` answer removes local data only when it belongs to
+    /// this company; `None` (scope unknown) never removes any.
+    fn company_id(&self) -> Option<Uuid> {
+        None
+    }
+
     fn manifest(&self) -> impl Future<Output = Result<ManifestResponse>> + Send;
 
     fn pull(&self, request: &PullRequest) -> impl Future<Output = Result<PullResponse>> + Send;

@@ -202,7 +202,9 @@ fn locked_document_new_draft_gets_new_id_and_no_wire_resolution() {
     assert_eq!(action.id.get_version_num(), 7);
     assert_eq!(action.base_version, None);
     assert_eq!(action.resolution, None);
-    assert_eq!(action.payload["status"], "draft");
+    // `status` and `number` are server-locked fields: a create carrying
+    // either is rejected (SYNC_OFFLINE_WRITE_NOT_ALLOWED); it starts as draft.
+    assert!(!action.payload.contains_key("status"));
     assert_eq!(action.payload["notes"], "mine");
     assert!(!action.payload.contains_key("number"));
     assert_eq!(inbox.count().unwrap(), 1);

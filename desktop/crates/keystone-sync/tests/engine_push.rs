@@ -284,37 +284,42 @@ async fn busy_and_rate_limited_pushes_are_resent_with_the_same_keys_after_retry_
     .unwrap();
 
     let started = std::time::Instant::now();
-    for (attempt, (code, wait)) in [("IDEMPOTENCY_IN_PROGRESS", 1), ("TOO_MANY_ATTEMPTS", 2)]
-        .into_iter()
-        .enumerate()
-    {
-        let error = e.run_once(Trigger::Manual).await.unwrap_err();
-        assert_eq!(error.code(), code);
-        let status = e.status();
-        assert_eq!(status.state, SyncState::Failed(code));
-        assert_eq!(
-            status.retry_after,
-            Some(std::time::Duration::from_secs(wait))
-        );
-        // Transient: kept for the next batch, nothing settled or rejected.
-        assert_eq!(
-            (status.pending, status.rejected, status.quarantined),
-            (2, 0, 0)
-        );
-        // Counted as a server-side transient failure (quarantine budget).
-        assert!(
-            outbox_list(&env.store)
-                .iter()
-                .all(|x| x.attempts as usize == attempt + 1)
-        );
-    }
+    let attempts = |id: Uuid| {
+        outbox_list(&env.store)
+            .iter()
+            .find(|x| x.mutation.id == id)
+            .map(|x| x.attempts)
+    };
+    // 1) The whole batch gets the busy lock (55P03): the server may have
+    // committed a prefix, so no mutation is charged; the next requests go
+    // one mutation at a time.
+    let error = e.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "IDEMPOTENCY_IN_PROGRESS");
+    let status = e.status();
+    assert_eq!(status.state, SyncState::Failed("IDEMPOTENCY_IN_PROGRESS"));
+    assert_eq!(status.retry_after, Some(std::time::Duration::from_secs(1)));
+    assert_eq!(
+        (status.pending, status.rejected, status.quarantined),
+        (2, 0, 0)
+    );
+    assert_eq!((attempts(ok), attempts(numbered)), (Some(0), Some(0)));
+    // 2) A single-mutation request is rate limited: only that one is charged.
+    let error = e.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "TOO_MANY_ATTEMPTS");
+    let status = e.status();
+    assert_eq!(status.state, SyncState::Failed("TOO_MANY_ATTEMPTS"));
+    assert_eq!(status.retry_after, Some(std::time::Duration::from_secs(2)));
+    assert_eq!(
+        (status.pending, status.rejected, status.quarantined),
+        (2, 0, 0)
+    );
+    assert_eq!((attempts(ok), attempts(numbered)), (Some(1), Some(0)));
 
     let report = e.run_once(Trigger::Manual).await.unwrap();
     // Each run waited out the previous Retry-After (1 s, then 2 s).
     assert!(started.elapsed() >= std::time::Duration::from_secs(3));
     assert_eq!((report.pushed, report.rejected), (1, 1));
     let sent = bodies(&env.server, PUSH).await;
-    assert_eq!(sent.len(), 3);
     let keys = |b: &Value| -> Vec<Value> {
         b["mutations"]
             .as_array()
@@ -323,8 +328,13 @@ async fn busy_and_rate_limited_pushes_are_resent_with_the_same_keys_after_retry_
             .map(|m| m["idempotency_key"].clone())
             .collect()
     };
-    assert_eq!(keys(&sent[0]), keys(&sent[1]));
-    assert_eq!(keys(&sent[0]), keys(&sent[2]));
+    // Same keys throughout: the full batch once, then one by one.
+    assert_eq!(sent.len(), 4);
+    let first = keys(&sent[0]);
+    assert_eq!(first.len(), 2);
+    assert_eq!(keys(&sent[1]), first[..1]);
+    assert_eq!(keys(&sent[2]), first[..1]);
+    assert_eq!(keys(&sent[3]), first[1..]);
     let entries = outbox_list(&env.store);
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].mutation.id, numbered);

@@ -51,11 +51,12 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 /// [`Store::register`], not by migrations: their shape follows the spec.
 /// Not shipped yet, so this one migration still holds the whole layout;
 /// databases from earlier dev builds must be deleted (no upgrade path).
-pub const MIRROR_MIGRATIONS: &[Migration] = &[Migration {
-    id: 10,
-    module: "store",
-    name: "mirror_registry",
-    sql: "CREATE TABLE store_resources (
+pub const MIRROR_MIGRATIONS: &[Migration] = &[
+    Migration {
+        id: 10,
+        module: "store",
+        name: "mirror_registry",
+        sql: "CREATE TABLE store_resources (
         resource TEXT PRIMARY KEY,
         table_name TEXT NOT NULL UNIQUE,
         spec TEXT NOT NULL
@@ -75,7 +76,18 @@ pub const MIRROR_MIGRATIONS: &[Migration] = &[Migration {
         resource TEXT PRIMARY KEY,
         epoch INTEGER NOT NULL
     ) STRICT;",
-}];
+    },
+    Migration {
+        id: 11,
+        module: "store",
+        name: "local_create_presence",
+        sql: "CREATE TABLE store_local_creates (
+        resource TEXT NOT NULL,
+        id TEXT NOT NULL,
+        PRIMARY KEY(resource, id)
+    ) STRICT;",
+    },
+];
 
 /// Readers opened next to the writer.
 pub const READER_POOL_SIZE: usize = 3;

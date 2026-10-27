@@ -245,6 +245,10 @@ pub(super) fn set_session(
 ) -> Result<()> {
     let resources = serde_json::to_string(resources)?;
     store.write(|tx| {
+        tx.execute(
+            "DELETE FROM engine_meta WHERE key = ?1",
+            [crate::outbox::WORK_SEALED],
+        )?;
         for (key, value) in [
             (IDENTITY, identity.to_owned()),
             (GENERATION, generation.to_string()),
@@ -296,5 +300,52 @@ pub(super) fn set_pending_sign_out(store: &Store, pending: Option<PendingSignOut
             }
         }
         Ok(())
+    })
+}
+
+/// Closes local access while retaining the identity and all data.
+pub(super) fn close(store: &Store) -> Result<()> {
+    store.write(|tx| {
+        tx.execute("DELETE FROM engine_meta WHERE key = ?1", [GENERATION])?;
+        Ok(())
+    })
+}
+
+/// Removes server data and seals work until the same identity is verified again.
+pub(super) fn seal(store: &Store) -> Result<Vec<ResourceName>> {
+    store.write(|tx| {
+        tx.execute(
+            "INSERT OR REPLACE INTO engine_meta (key, value) VALUES (?1, '1')",
+            [crate::outbox::WORK_SEALED],
+        )?;
+        let names = Store::clear_mirror_on(tx)?;
+        tx.execute("DELETE FROM engine_draft_bases", [])?;
+        tx.execute("DELETE FROM engine_meta WHERE key = ?1", [GENERATION])?;
+        Ok(names)
+    })
+}
+
+/// Retains single-mutation sending until the eligible queue drains.
+pub(super) fn isolate_push(store: &Store, enabled: bool) -> Result<()> {
+    store.write(|tx| {
+        if enabled {
+            tx.execute(
+                "INSERT OR REPLACE INTO engine_meta (key, value) VALUES ('push_isolate', '1')",
+                [],
+            )?;
+        } else {
+            tx.execute("DELETE FROM engine_meta WHERE key = 'push_isolate'", [])?;
+        }
+        Ok(())
+    })
+}
+
+pub(super) fn push_isolated(store: &Store) -> Result<bool> {
+    store.read(|conn| {
+        Ok(conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM engine_meta WHERE key = 'push_isolate' AND value = '1')",
+            [],
+            |r| r.get(0),
+        )?)
     })
 }
