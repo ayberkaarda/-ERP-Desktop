@@ -200,6 +200,8 @@ pub enum Mode {
     Deny,
     Unauthenticated,
     Unavailable,
+    /// Never answers.
+    Hang,
 }
 
 #[derive(Clone)]
@@ -247,6 +249,7 @@ impl ChannelAuthorizer for FakeAuthorizer {
                 Mode::Deny => Err(AuthorizeError::Denied),
                 Mode::Unauthenticated => Err(AuthorizeError::Unauthenticated),
                 Mode::Unavailable => Err(AuthorizeError::Unavailable),
+                Mode::Hang => std::future::pending().await,
             }
         }
     }
@@ -257,6 +260,7 @@ pub fn fast_options() -> Options {
         connect_timeout: Duration::from_secs(2),
         max_activity_timeout: Duration::from_secs(30),
         pong_timeout: Duration::from_secs(1),
+        authorize_timeout: Duration::from_secs(2),
         backoff: Backoff {
             initial: Duration::from_millis(50),
             max: Duration::from_millis(200),

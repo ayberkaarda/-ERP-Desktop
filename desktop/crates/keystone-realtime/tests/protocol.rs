@@ -372,6 +372,41 @@ async fn reconnect_now_code_skips_the_backoff() {
 }
 
 #[tokio::test]
+async fn repeated_reconnect_now_codes_fall_back_to_backoff() {
+    let mut server = FakeServer::start().await;
+    let mut options = fast_options();
+    options.backoff.initial = Duration::from_millis(300);
+    options.backoff.max = Duration::from_secs(5);
+    let (_handle, mut events) = start(&server, FakeAuthorizer::new(&[Mode::Sign]), options);
+    let mut conn = server.next_conn().await;
+    conn.accept_client("1.1").await;
+    next_event(&mut events).await;
+
+    let mut gaps = Vec::new();
+    for socket_id in ["2.2", "3.3", "4.4"] {
+        conn.ws
+            .close(Some(CloseFrame {
+                code: CloseCode::from(4200),
+                reason: "reconnect".into(),
+            }))
+            .await
+            .unwrap();
+        let closed = Instant::now();
+        conn = server.next_conn().await;
+        gaps.push(closed.elapsed());
+        conn.accept_client(socket_id).await;
+        assert!(matches!(
+            next_event(&mut events).await,
+            RealtimeEvent::Subscribed { .. }
+        ));
+    }
+    // Only the first 4200 in a row reconnects at once; then 300, 600 ms.
+    assert!(gaps[0] < Duration::from_millis(250), "{gaps:?}");
+    assert!(gaps[1] >= Duration::from_millis(280), "{gaps:?}");
+    assert!(gaps[2] >= Duration::from_millis(580), "{gaps:?}");
+}
+
+#[tokio::test]
 async fn unauthenticated_authorizer_ends_the_session_without_reconnecting() {
     let mut server = FakeServer::start().await;
     let (handle, mut events) = start(
@@ -531,4 +566,68 @@ async fn disabled_without_reverb_and_private_channels_only() {
     )
     .unwrap_err();
     assert_eq!(err, ConfigError::InvalidChannel);
+}
+
+#[tokio::test]
+async fn oversized_message_drops_the_socket_and_reconnects() {
+    let mut server = FakeServer::start().await;
+    let (_handle, mut events) = start(&server, FakeAuthorizer::new(&[Mode::Sign]), fast_options());
+    let mut first = server.next_conn().await;
+    first.accept_client("1.1").await;
+    next_event(&mut events).await;
+
+    // 300 KiB, over the 256 KiB limit: refused, never parsed or delivered.
+    let big = "x".repeat(300 * 1024);
+    first
+        .event(
+            CHANNEL,
+            "notification.created",
+            json!({"id": "big", "type": "t", "data": {"pad": big},
+                   "read_at": null, "created_at": "2026-10-27T10:00:00Z"}),
+        )
+        .await;
+    let mut second = server.next_conn().await;
+    second.accept_client("2.2").await;
+    assert_eq!(
+        next_event(&mut events).await,
+        RealtimeEvent::Subscribed {
+            channel: CHANNEL.into()
+        }
+    );
+
+    // Below the limit still arrives.
+    let fits = "x".repeat(200 * 1024);
+    second
+        .event(
+            CHANNEL,
+            "notification.created",
+            json!({"id": "fits", "type": "t", "data": {"pad": fits},
+                   "read_at": null, "created_at": "2026-10-27T10:00:00Z"}),
+        )
+        .await;
+    match next_event(&mut events).await {
+        RealtimeEvent::NotificationCreated(n) => assert_eq!(n.id, "fits"),
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn stalled_authorizer_times_out_and_retries_on_a_new_socket() {
+    let mut server = FakeServer::start().await;
+    let authorizer = FakeAuthorizer::new(&[Mode::Hang, Mode::Sign]);
+    let mut options = fast_options();
+    options.authorize_timeout = Duration::from_millis(300);
+    let (_handle, mut events) = start(&server, authorizer.clone(), options);
+    let mut first = server.next_conn().await;
+    first.established("1.1", 30).await;
+    let started = Instant::now();
+    assert!(matches!(first.read().await, Read::Close(_) | Read::Ended));
+    assert!(started.elapsed() >= Duration::from_millis(280));
+    let mut second = server.next_conn().await;
+    second.accept_client("2.2").await;
+    assert!(matches!(
+        next_event(&mut events).await,
+        RealtimeEvent::Subscribed { .. }
+    ));
+    assert_eq!(authorizer.calls().len(), 2);
 }

@@ -246,6 +246,7 @@ mod tests {
         }
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     fn plain_ws_with_flag_on_loopback_in_debug() {
         let cfg =
@@ -262,6 +263,22 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(v6.url().as_str().starts_with("ws://[::1]:8080/app/"));
+    }
+
+    /// Pins the `cfg!(debug_assertions)` wiring inside `from_params`: run
+    /// with `cargo test --release -p keystone-realtime --lib`.
+    #[cfg(not(debug_assertions))]
+    #[test]
+    fn release_build_refuses_plain_ws_even_with_flag_on_loopback() {
+        for (scheme, host) in [("http", "localhost"), ("ws", "127.0.0.1"), ("ws", "::1")] {
+            assert!(
+                matches!(
+                    RealtimeConfig::from_params(&params(Some(scheme), host, Some(8080)), "1", true),
+                    Err(ConfigError::PlainTransportRefused)
+                ),
+                "{scheme}://{host}"
+            );
+        }
     }
 
     #[test]

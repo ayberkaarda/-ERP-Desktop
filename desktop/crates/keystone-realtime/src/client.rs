@@ -13,6 +13,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{Instant, sleep, sleep_until, timeout};
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::{Connector, MaybeTlsStream, WebSocketStream};
 
 use crate::auth::{AuthRequest, AuthorizeError, ChannelAuthorizer};
@@ -26,6 +27,9 @@ type Socket = WebSocketStream<MaybeTlsStream<TcpStream>>;
 /// Pusher error code for a refused subscription signature.
 const UNAUTHORIZED_SUBSCRIPTION: u16 = 4009;
 
+/// A second "reconnect now" close (4200-4299) within this window backs off.
+const IMMEDIATE_WINDOW: Duration = Duration::from_secs(30);
+
 /// Timing of the connection task.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Options {
@@ -38,6 +42,10 @@ pub struct Options {
     /// Time allowed for any frame after our `pusher:ping` before the
     /// connection is dropped and reopened.
     pub pong_timeout: Duration,
+    /// Time allowed for one channel authorization (the shell's HTTP call,
+    /// token refresh included). On expiry the socket is dropped and reopened,
+    /// as for `AuthorizeError::Unavailable`; meanwhile the socket is not read.
+    pub authorize_timeout: Duration,
     pub backoff: Backoff,
 }
 
@@ -47,6 +55,7 @@ impl Default for Options {
             connect_timeout: Duration::from_secs(10),
             max_activity_timeout: Duration::from_secs(120),
             pong_timeout: Duration::from_secs(30),
+            authorize_timeout: Duration::from_secs(15),
             backoff: Backoff::default(),
         }
     }
@@ -203,6 +212,7 @@ struct Task<A> {
 impl<A: ChannelAuthorizer> Task<A> {
     async fn run(mut self) {
         let mut failures: u32 = 0;
+        let mut last_immediate: Option<Instant> = None;
         let final_state = loop {
             if *self.shutdown.borrow() {
                 break RealtimeState::Idle;
@@ -225,13 +235,25 @@ impl<A: ChannelAuthorizer> Task<A> {
                     established,
                     immediate,
                 } => {
-                    if established {
-                        failures = 0;
+                    let now = Instant::now();
+                    // 4200-4299 asks for an immediate reconnect. Honour it
+                    // once; another one within IMMEDIATE_WINDOW backs off
+                    // like any failure, so a server closing every socket
+                    // with 4200 cannot drive a connect + authorize storm.
+                    let immediate = immediate && established;
+                    let honour =
+                        immediate && last_immediate.is_none_or(|t| now - t >= IMMEDIATE_WINDOW);
+                    if immediate {
+                        last_immediate = Some(now);
                     }
-                    failures = failures.saturating_add(1);
-                    let delay = if immediate && established {
+                    let delay = if honour {
+                        failures = 0;
                         Duration::ZERO
                     } else {
+                        if established && !immediate {
+                            failures = 0;
+                        }
+                        failures = failures.saturating_add(1);
                         self.options.backoff.delay(failures, jitter_unit())
                     };
                     self.state.send_replace(RealtimeState::Unavailable);
@@ -267,7 +289,7 @@ impl<A: ChannelAuthorizer> Task<A> {
         };
         let connecting = tokio_tungstenite::connect_async_tls_with_config(
             self.config.url().as_str(),
-            None,
+            Some(ws_config()),
             false,
             Some(connector),
         );
@@ -323,7 +345,12 @@ impl<A: ChannelAuthorizer> Task<A> {
                     close(&mut ws).await;
                     return Outcome::Shutdown;
                 }
-                r = self.authorizer.authorize(request) => r,
+                r = timeout(self.options.authorize_timeout, self.authorizer.authorize(request)) => {
+                    r.unwrap_or_else(|_| {
+                        log::warn!("realtime: channel authorization timed out");
+                        Err(AuthorizeError::Unavailable)
+                    })
+                }
             };
             match auth {
                 Ok(auth) => {
@@ -407,7 +434,7 @@ impl<A: ChannelAuthorizer> Task<A> {
                     }
                 }
                 Ok(Incoming::Pong | Incoming::Established { .. }) => {}
-                Ok(Incoming::Other { event }) => log::debug!("realtime: ignored {event}"),
+                Ok(Incoming::Other { event }) => log::debug!("realtime: ignored {event:?}"),
                 Ok(Incoming::Error { code }) => {
                     log::warn!("realtime: server error {code:?}");
                     if code == Some(UNAUTHORIZED_SUBSCRIPTION) {
@@ -444,7 +471,7 @@ impl<A: ChannelAuthorizer> Task<A> {
                         continue;
                     }
                     match user_event(&event, data) {
-                        None => log::debug!("realtime: ignored {event}"),
+                        None => log::debug!("realtime: ignored {event:?}"),
                         Some(Err(())) => log::warn!("realtime: malformed {event} dropped"),
                         Some(Ok(parsed)) => {
                             let revoked = matches!(parsed, RealtimeEvent::SessionRevoked { .. });
@@ -527,4 +554,17 @@ fn tls_config() -> Result<Arc<ClientConfig>, rustls::Error> {
         .with_platform_verifier()?
         .with_no_client_auth();
     Ok(CONFIG.get_or_init(|| Arc::new(config)).clone())
+}
+
+/// Largest message and frame accepted from the server. Pusher caps event
+/// payloads at 10 KB (backend `config/reverb.php` likewise caps client
+/// messages at 10 000 bytes); 256 KiB leaves room for a large notification
+/// while a broken or hostile server can no longer make the shell buffer and
+/// parse the tungstenite default of 64 MiB per message.
+const MAX_MESSAGE_SIZE: usize = 256 * 1024;
+
+fn ws_config() -> WebSocketConfig {
+    WebSocketConfig::default()
+        .max_message_size(Some(MAX_MESSAGE_SIZE))
+        .max_frame_size(Some(MAX_MESSAGE_SIZE))
 }

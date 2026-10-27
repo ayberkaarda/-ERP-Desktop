@@ -70,6 +70,11 @@ async fn no_signature_or_payload_in_logs() {
     first
         .send(json!({"event": "pusher:error", "data": {"code": 4100, "message": "PAYLOAD-MARK"}}))
         .await;
+    // Server-chosen event names cannot forge log lines.
+    first
+        .send(json!({"event": "odd\nFORGED-LINE", "data": "{}"}))
+        .await;
+    first.event(CHANNEL, "odd\nFORGED-LINE", json!({})).await;
     assert!(matches!(
         next_event(&mut events).await,
         RealtimeEvent::NotificationCreated(_)
@@ -95,9 +100,18 @@ async fn no_signature_or_payload_in_logs() {
         "{ours:#?}"
     );
     assert!(ours.iter().any(|l| l.contains("reconnecting")), "{ours:#?}");
+    // Logged, but escaped.
+    assert!(
+        ours.iter().any(|l| l.contains(r"odd\nFORGED-LINE")),
+        "{ours:#?}"
+    );
     for line in &lines {
         assert!(!line.contains("SECRETSIG"), "signature in log: {line}");
         assert!(!line.contains("PAYLOAD-MARK"), "payload in log: {line}");
         assert!(!line.contains("pusher:subscribe"), "frame in log: {line}");
+        assert!(
+            !line.contains("\nFORGED-LINE"),
+            "raw event name in log: {line}"
+        );
     }
 }
