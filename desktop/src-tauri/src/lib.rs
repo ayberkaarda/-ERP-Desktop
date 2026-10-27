@@ -13,7 +13,9 @@
 #[cfg(test)]
 mod build_guard;
 pub mod commands;
+pub mod dto;
 pub mod logging;
+pub mod router;
 pub mod state;
 
 use tauri::Manager;
@@ -47,7 +49,10 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .manage(state::AppState::default())
-        .invoke_handler(tauri::generate_handler![commands::app_info])
+        .invoke_handler(tauri::generate_handler![
+            commands::app_info,
+            commands::api::api_request
+        ])
         .run(tauri::generate_context!())
         .expect("error while running the Keystone desktop shell");
 }

@@ -28,6 +28,10 @@ tauri-plugin-window-state = "2"
 
 serde.workspace = true
 serde_json.workspace = true
+# api_request: binary bodies, the online-first deadline, path ids.
+base64 = "0.22"
+tokio = { workspace = true, features = ["time"] }
+uuid.workspace = true
 
 # Log masking (src/logging.rs). `log` and `fern` are what tauri-plugin-log
 # itself is built on; they are named here because logging.rs uses them.
@@ -52,4 +56,5 @@ linker_messages = "allow"
 
 [dev-dependencies]
 tempfile.workspace = true
-uuid.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+wiremock.workspace = true

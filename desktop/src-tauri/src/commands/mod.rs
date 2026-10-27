@@ -6,6 +6,8 @@
 //! [`SyncError::code`] verbatim (the server `ErrorCode` wire value, or the
 //! crate `LocalCode`), for a shell error one of [`codes`].
 
+pub mod api;
+
 use std::time::Duration;
 
 use keystone_sync::SyncError;

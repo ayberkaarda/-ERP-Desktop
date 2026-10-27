@@ -2322,6 +2322,7 @@ dependencies = [
 name = "keystone-desktop"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "fern",
  "keystone-sync",
  "log",
@@ -2338,7 +2339,9 @@ dependencies = [
  "tauri-plugin-window-state",
  "tempfile",
  "time",
+ "tokio",
  "uuid",
+ "wiremock",
 ]
 
 [[package]]
