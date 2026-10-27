@@ -48,8 +48,8 @@ return [
 
 Masaüstü istemcinin sunucu tarafı üç parçadır. Tel sözleşmesi [Senkron Protokolü](SYNC-PROTOCOL.md)'ndedir; karar [ADR 0008](adr/0008-sync-module-adapters.md)'dedir.
 
-- **Core sözleşmesi** (`backend/app/Core/Sync/`): `Contracts/SyncResource` (okuma), `Contracts/SyncWriter` (yazma), tel tipleri (`Cursor`, `Xid8`, `Mutation`, `WriteOutcome`, `SyncConflict`), `Schema/Syncable` migration makrosu, `Rules/Uuid7` ve `SyncConfig` (`config/sync.php`). Modüller yalnızca bu sözleşmeye bağlanır.
-- **Sync modülü** (`backend/app/Modules/Sync/`): `GET /sync/manifest`, `POST /sync/pull`, `POST /sync/push`, `contracts/offline-manifest.json` okuyucusu, görünürlük nesilleri, tam indirme oturumları ve günlük `sync:prune`. Başka bir modülün modeline dokunmaz.
+- **Core sözleşmesi** (`backend/app/Core/Sync/`): `Contracts/SyncResource` (okuma), `Contracts/SyncWriter` (yazma), tel tipleri (`Cursor`, `Xid8`, `Mutation`, `WriteOutcome`, `SyncConflict`), `Schema/Syncable` migration makrosu ve guard istisnası (`Syncable::GUARD_EXEMPTION`), istemci anahtarı kuralı `Rules/ClientKey`, hedef kısıtı karşılaştırması `TargetConstraints` ve `SyncConfig` (`config/sync.php`). Modüller yalnızca bu sözleşmeye bağlanır.
+- **Sync modülü** (`backend/app/Modules/Sync/`): `GET /sync/manifest`, `POST /sync/pull`, `POST /sync/push`, `contracts/offline-manifest.json` okuyucusu, görünürlük nesilleri, tam indirme oturumları, hız sınırı (`throttle:sync`), eşzamanlı pull sınırı ve pull süresi (`LimitConcurrentPulls`, `PullLease`) ve günlük `sync:prune`. Başka bir modülün modeline dokunmaz.
 - **Modül adaptörleri** (`backend/app/Modules/<Ad>/Sync/`): manifest kaynağının sahibi olan modül adaptörü yazar.
 
 ### Adaptör deseni
@@ -71,7 +71,7 @@ Bugün kayıtlı adaptörler: Parties (`PartySyncResource`, `PartySyncWriter`), 
 
 ### Görünürlük nesli ve tam indirme oturumu
 
-- D1'de satır görünürlüğü kaynak düzeyindedir (manifest `requires`, şirket kapsamı, adaptör sorgusu); satır başına Policy çalışmaz. `Visibility` her manifest ve pull isteğinde `requires` koşulunun durumunu `sync_visibility_generations`'taki durumla karşılaştırır ve değiştiyse nesli artırır. `MembershipRevoked` olayı kullanıcının şirketteki tüm nesillerini artırır.
+- D1'de satır görünürlüğü kaynak düzeyindedir (manifest `requires`, şirket kapsamı, adaptör sorgusu); satır başına Policy çalışmaz. `Visibility` her manifest ve pull isteğinde `requires` koşulunun durumunu `sync_visibility_generations`'taki durumla karşılaştırır ve değiştiyse nesli artırır. Identity'nin `AccessChanged` olayı (rol izinleri, rol ataması, rol silme, süper admin bayrağı, üyelik aktifliği) değişikliğin transaction'ı içinde dağıtılır; dinleyici `VisibilityRefresh` aynı gözlemi yeni izinlerle, `(kullanıcı, şirket)` başına advisory kilitle serileşik olarak yapar. Commit sonrası `MembershipRevoked` olayı kullanıcının şirketteki tüm nesillerini ayrıca artırır. Ayrıntı: [Senkron Protokolü, Görünürlük nesli](SYNC-PROTOCOL.md#görünürlük-nesli).
 - Tam indirme oturumu `sync_full_downloads`'ta cihaz (`user_devices`), kullanıcı, şirket ve kaynak başına tek satırdır: opak oturum kimliği, sürüm, başladığı horizon, son ve bir önceki cursor'ın özeti. Her yazma okunan sürüme karşı karşılaştır-ve-değiştirdir; geciken istek daha yeni bir oturumu değiştirmez.
 
 ### Satır guard'larında senkron istisnası
@@ -79,9 +79,15 @@ Bugün kayıtlı adaptörler: Parties (`PartySyncResource`, `PartySyncWriter`), 
 Trigger'lar ad sırasıyla çalıştığı için `zz_sync_touch` tablonun kendi `BEFORE UPDATE` guard'larından sonra gelir; guard'ların `to_jsonb(OLD)`/`to_jsonb(NEW)` karşılaştırmaları değişmez. Kesinleşmiş üst satırın her güncellemesini reddeden bir guard ise alt satır yazmasının neden olduğu üst dokunuşunu da reddeder. Bu guard'lar yalnızca konum değişen dokunuşu geçirir:
 
 ```sql
-IF TG_OP = 'UPDATE' AND sync_touching() AND (to_jsonb(NEW) - 'sync_txid') = (to_jsonb(OLD) - 'sync_txid') THEN
-    RETURN NEW;
-END IF;
+IF TG_OP = 'UPDATE' AND sync_touch_only(OLD, NEW) THEN RETURN NEW; END IF;
 ```
 
-`sync_touching()`, üst dokunuşu sırasında açılan `keystone.sync_touch` ayarını okur. Kalıp Sales (`2027_08_01_200400_add_sync_to_sales.php`) ve Purchasing (`2027_08_01_200500_add_sync_to_purchasing.php`) migration'larında kullanılır. `Core/Sync/Contracts/SyncResource.php` ve `Core/Sync/Schema/Syncable.php` doküman yorumları hâlâ daha geniş `IF sync_touching() THEN RETURN NEW; END IF;` biçimini gösterir; yeni guard'larda yukarıdaki dar kalıp kullanılmalıdır.
+Bu satır `Syncable::GUARD_EXEMPTION` sabitidir (`Core/Sync/Schema/Syncable.php:53`); guard fonksiyonu bununla başlar. `sync_touch_only(OLD, NEW)` Core fonksiyonudur (`database/migrations/2027_08_01_100300_create_sync_touch_only_function.php`): `sync_touching()` doğruysa **ve** iki satır `sync_txid` dışında hiçbir kolonda farklı değilse doğru döner. `sync_touching()`, üst dokunuşu sırasında açılan `keystone.sync_touch` ayarını okur; bu ayarı herhangi bir oturum açabildiği için guard hiçbir zaman yalnız bu bayrağa bakarak dönmez. Bayrakla yapılan veri değişikliği diğer değişiklikler gibi reddedilir; sahte bir `sync_txid` de sonra `zz_sync_touch` tarafından yeniden damgalanır. Kalıp Sales teslimat guard'ında (`2027_08_01_200410_use_core_sync_exemption_in_delivery_guard.php`), Purchasing mal kabul guard'ında (`2027_08_01_200510_use_core_sync_exemption_in_receipts_guard.php`) ve satış siparişi guard'ında kullanılır; `Core/Sync/Contracts/SyncResource.php` ve `Syncable.php` doküman yorumları aynı kalıbı gösterir.
+
+**Satış siparişi guard'ı (KS005).** `sales_orders` ve `sales_order_lines` tablolarının guard'ları `OrderService`'in izin verdiğini veritabanında zorlar (`Modules/Sales/Database/migrations/2027_08_01_200420_guard_sales_orders.php`):
+
+- `draft` sipariş serbesttir (silme dahil). `pending_approval` veya `confirmed` olup hiçbir teslimat ya da fatura satırı bağlı olmayan sipariş de güncellenebilir; revizyon, onay ve iptal çalışır (`:48-53`, `sales_order_has_documents`).
+- Diğer siparişlerde başlıkta yalnız `status`, `version`, `updated_at`, `closed_at`, `cancelled_at` değişir ve durum yalnız izinli geçişlerle ilerler: aynı durum; ilerleme durumları (`confirmed`, `partially_delivered`, `delivered`, `partially_invoiced`, `invoiced`) kendi aralarında veya `closed`'a; `confirmed` → `cancelled` (`:54-60`). `draft` veya `pending_approval`'a dönüş serbest dalları yeniden açacağı için reddedilir. `closed` ve `cancelled` sipariş hiç değişmez; silme yoktur.
+- Satır guard'ı: `draft` siparişin ve belgesiz `pending_approval`/`confirmed` siparişin satırları serbesttir (ekleme, silme, her alan); yalnız başka siparişe taşıma reddedilir (`:75-82`). Diğer siparişlerde (`closed` ve `cancelled` dahil, kapanış sonrası iptal ve ters kayıt ilerlemesi için) satırlarda yalnız `delivered_quantity`, `invoiced_quantity` ve `reservation_id` değişir; satır eklenmez, silinmez, taşınmaz (`:83-87`).
+- Satır guard'ı sipariş durumunu `FOR SHARE NOWAIT` ile okur (`:75`): başka bir transaction siparişi tutarken (ör. kapanış sürerken) satır değişikliği beklemeden `55P03` ile reddedilir ve yeniden denenebilir; siparişi zaten kilitleyen servisler kendi kilitleriyle reddedilmez.
+- İhlal SQLSTATE `KS005`'tir. Sales servislerinin transaction sarmalayıcısı (`Sales::transaction`, `Modules/Sales/Support/Sales.php:48-57`) bunu 422 `VALIDATION_ERROR` (`fields.document`, `violation_order_immutable`) olarak döner (`Modules/Sales/Exceptions/SalesViolation.php:22`, `:25-30`). Senkron üst dokunuşu `Syncable::GUARD_EXEMPTION` ile geçer (`:47`).
