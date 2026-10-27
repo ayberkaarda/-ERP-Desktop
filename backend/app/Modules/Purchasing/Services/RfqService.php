@@ -67,8 +67,9 @@ final class RfqService extends DocumentService
     public function update(PurchaseRfq $rfq, array $data, ?array $lines, int $version): PurchaseRfq
     {
         return Purchasing::transaction(function () use ($rfq, $data, $lines, $version): PurchaseRfq {
-            $rfq = $this->lock($rfq, $version);
+            $rfq = $this->lock($rfq);
             $this->assertDraft($rfq);
+            $rfq->assertVersion($version);
             $lines ??= array_values($rfq->lines()->get()->map(static fn (PurchaseRfqLine $l): array => [
                 'item_id' => $l->item_id, 'variant_id' => $l->variant_id, 'unit_id' => $l->unit_id, 'quantity' => (string) $l->quantity,
                 'description' => $l->description, 'needed_by' => $l->needed_by?->format('Y-m-d'), 'request_line_id' => $l->request_line_id,
@@ -84,8 +85,12 @@ final class RfqService extends DocumentService
     public function delete(PurchaseRfq $rfq, ?int $version): void
     {
         Purchasing::transaction(function () use ($rfq, $version): void {
-            $rfq = $this->lock($rfq, $version);
+            $rfq = $this->lock($rfq);
             $this->assertDraft($rfq);
+            if ($version !== null) {
+                $rfq->assertVersion($version);
+            }
+
             $rfq->delete();
         });
     }

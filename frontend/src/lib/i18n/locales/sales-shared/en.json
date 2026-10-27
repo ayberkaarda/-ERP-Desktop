@@ -88,6 +88,10 @@
     "body": "Load the current version before saving. Your unsaved edits will be lost.",
     "reload": "Load current version"
   },
+  "locked": {
+    "title": "The document is no longer a draft",
+    "body": "It was confirmed or moved on meanwhile, so these changes cannot be saved. Load the current version; unsaved edits are lost."
+  },
   "reason": {
     "tooShort": "Enter at least {{min}} characters."
   },

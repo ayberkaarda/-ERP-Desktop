@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Organization\Services;
 
+use App\Modules\Identity\Events\AccessChanged;
 use App\Modules\Organization\Contracts\CompanyDirectory;
 use App\Modules\Organization\Models\Company;
 use Illuminate\Database\ConnectionInterface;
@@ -64,15 +65,26 @@ final class DatabaseCompanyDirectory implements CompanyDirectory
         return $ids;
     }
 
+    /**
+     * A membership that starts or stops being active changes what the user may do in the company:
+     * Identity's AccessChanged goes out in the same transaction (an unchanged one stays silent).
+     */
     public function setMembership(string $userId, string $companyId, bool $active): void
     {
-        $now = Carbon::now();
+        $this->db->transaction(function () use ($userId, $companyId, $active): void {
+            $now = Carbon::now();
+            $before = $this->db->table(self::MEMBERS)->where('company_id', $companyId)->where('user_id', $userId)->lockForUpdate()->value('is_active');
 
-        $this->db->table(self::MEMBERS)->upsert(
-            [['company_id' => $companyId, 'user_id' => $userId, 'is_active' => $active, 'created_at' => $now, 'updated_at' => $now]],
-            ['company_id', 'user_id'],
-            ['is_active', 'updated_at'],
-        );
+            $this->db->table(self::MEMBERS)->upsert(
+                [['company_id' => $companyId, 'user_id' => $userId, 'is_active' => $active, 'created_at' => $now, 'updated_at' => $now]],
+                ['company_id', 'user_id'],
+                ['is_active', 'updated_at'],
+            );
+
+            if ((bool) $before !== $active) {
+                AccessChanged::dispatch([$userId], $companyId);
+            }
+        });
     }
 
     public function constrainToMembers(Builder $query, string $companyId, string $userKeyColumn, bool $activeOnly = false): void

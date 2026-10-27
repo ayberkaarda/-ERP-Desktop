@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Http\Requests;
 
-use App\Core\Sync\Rules\Uuid7;
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Sales\Models\SalesDocument;
-use Illuminate\Validation\Rule;
 
 /**
  * Draft create (POST) / update (PATCH with version) of a document, and the conversion payloads.
@@ -77,7 +76,7 @@ final class DocumentRequest extends SalesRequest
             return [];
         }
 
-        return ['id' => ['sometimes', 'string', new Uuid7, Rule::unique((new $model)->getTable(), 'id')]];
+        return ['id' => ['sometimes', 'bail', new ClientKey((new $model)->getTable()), 'string']];
     }
 
     /**

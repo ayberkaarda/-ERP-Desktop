@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Core\Company\CompanyContext;
+use App\Core\Sync\Cursor;
 use App\Core\Sync\Xid8;
+use App\Modules\Sync\Services\CursorTags;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -46,31 +48,45 @@ function pullPage(object $test, ?array $cursor): array
 }
 
 it('prunes old tombstones, raises the floor past them and expires older cursors', function (): void {
-    $old = deleteNote($this, 'Old', 100);
+    // A real incremental cursor issued while Old was still alive: it has not seen the delete.
+    $old = SyncKit::note($this->company, ['title' => 'Old']);
+    SyncKit::waitVisible();
+    $before = pullPage($this, null)['next_cursor'];
+
+    app(CompanyContext::class)->runAs($this->company->id, fn () => FixtureNote::query()->findOrFail($old->id)->delete());
+    DB::table('sync_tombstones')->where('row_id', $old->id)->update(['deleted_at' => Carbon::now()->subDays(100)]);
     $young = deleteNote($this, 'Young', 10);
     $oldTxid = Xid8::of((string) Sync::tombstone('sync_fixture_notes', $old->id)?->sync_txid);
     SyncKit::waitVisible();
+    // A real incremental cursor issued after both deletes.
+    $after = pullPage($this, null)['next_cursor'];
 
     $this->artisan('sync:prune')->assertSuccessful();
 
     expect(Sync::tombstone('sync_fixture_notes', $old->id))->toBeNull()
         ->and(Sync::tombstone('sync_fixture_notes', $young->id))->not->toBeNull()
-        ->and(floorOf($this->company->id))->toBe($oldTxid->next()->value);
+        ->and(floorOf($this->company->id))->toBe($oldTxid->next()->value)
+        ->and(Xid8::of((string) $before['txid'])->value)->not->toBe($oldTxid->next()->value);
 
-    // A cursor sitting exactly on the pruned delete (with or without after_id) has missed it.
-    foreach ([['txid' => $oldTxid->value, 'after_id' => null, 'gen' => 0, 'session' => null], ['txid' => $oldTxid->value, 'after_id' => $old->id, 'gen' => 0, 'session' => null]] as $cursor) {
-        $page = pullPage($this, $cursor);
-        expect($page['reset'])->toBeTrue()
-            ->and($page['reset_reason'])->toBe('cursor_expired')
-            ->and(array_column($page['tombstones'], 'id'))->toBe([$young->id]);
-    }
+    // The cursor from before the pruned delete has missed it.
+    $page = pullPage($this, $before);
+    expect($page['reset'])->toBeTrue()
+        ->and($page['reset_reason'])->toBe('cursor_expired')
+        ->and(array_column($page['tombstones'], 'id'))->toBe([$young->id]);
 
-    // At the floor nothing was missed; a first download is never expired.
-    expect(pullPage($this, ['txid' => $oldTxid->next()->value, 'after_id' => null, 'gen' => 0, 'session' => null])['reset'])->toBeFalse()
+    // Past the floor nothing was missed; a first download is never expired.
+    expect(pullPage($this, $after)['reset'])->toBeFalse()
         ->and(pullPage($this, null)['reset'])->toBeFalse();
 });
 
 it('only raises the floor and leaves other companies alone', function (): void {
+    // A real cursor of another company, issued before this company's deletes and prunes.
+    [$other, $otherUser] = SyncKit::actor(['fixtures.view']);
+    $headers = SyncKit::headers($otherUser, $other);
+    $otherPull = fn (?array $cursor): array => SyncKit::wire(SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => $cursor]], $headers)->assertOk(), 'sync/pull.response.schema.json')['data']['resources'][0];
+    SyncKit::waitVisible();
+    $otherCursor = $otherPull(null)['next_cursor'];
+
     $first = deleteNote($this, 'First', 100);
     $this->artisan('sync:prune')->assertSuccessful();
     $floor = floorOf($this->company->id);
@@ -82,12 +98,26 @@ it('only raises the floor and leaves other companies alone', function (): void {
 
     expect(floorOf($this->company->id))->toBe($floor)
         ->and(DB::table('sync_watermarks')->count())->toBe(1)
-        ->and(Sync::tombstone('sync_fixture_notes', $first->id))->toBeNull();
+        ->and(Sync::tombstone('sync_fixture_notes', $first->id))->toBeNull()
+        ->and(Xid8::of((string) $otherCursor['txid'])->value)->not->toBe($floor);
 
-    [$other, $otherUser] = SyncKit::actor(['fixtures.view']);
-    $headers = SyncKit::headers($otherUser, $other);
-    $page = SyncKit::wire(SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => ['txid' => '1', 'after_id' => null, 'gen' => 0, 'session' => null]]], $headers)->assertOk(), 'sync/pull.response.schema.json')['data']['resources'][0];
-    expect($page['reset'])->toBeFalse();
+    expect($otherPull($otherCursor)['reset'])->toBeFalse();
+});
+
+it('keeps a tagged cursor at or above the floor valid however long it was not used', function (): void {
+    SyncKit::note($this->company, ['title' => 'Kept']);
+    deleteNote($this, 'Pruned', 100);
+    SyncKit::waitVisible();
+    $cursor = pullPage($this, null)['next_cursor'];
+
+    // A hundred days offline: the retention passes, tombstones and old sessions are pruned,
+    // but the floor stays at or below the cursor, so nothing was missed.
+    Carbon::setTestNow(Carbon::now()->addDays(100));
+    $this->artisan('sync:prune')->assertSuccessful();
+    Carbon::setTestNow();
+
+    expect(Xid8::of((string) floorOf($this->company->id))->lessThan(Xid8::of((string) $cursor['txid'])->next()))->toBeTrue()
+        ->and(pullPage($this, $cursor)['reset'])->toBeFalse();
 });
 
 it('removes expired push results and their resolutions', function (): void {
@@ -109,6 +139,9 @@ it('removes expired push results and their resolutions', function (): void {
 });
 
 it('pages a full download below the floor without resetting again', function (): void {
+    // A real incremental cursor issued before any of the rows below the floor.
+    SyncKit::waitVisible();
+    $expired = pullPage($this, null)['next_cursor'];
     $notes = [];
 
     for ($i = 0; $i < 4; $i++) {
@@ -124,7 +157,7 @@ it('pages a full download below the floor without resetting again', function ():
     $page = fn (?array $cursor): array => SyncKit::wire(SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => $cursor, 'limit' => 1]], $this->headers)->assertOk(), 'sync/pull.response.schema.json')['data']['resources'][0];
 
     // Starting from an expired incremental cursor: one reset, then plain continuation pages.
-    $current = $page(['txid' => '1', 'after_id' => null, 'gen' => 0, 'session' => null]);
+    $current = $page($expired);
     expect($current['reset_reason'])->toBe('cursor_expired');
     $seen = array_column($current['rows'], 'id');
     $pages = 1;
@@ -141,9 +174,10 @@ it('pages a full download below the floor without resetting again', function ():
         ->and($current['has_more'])->toBeFalse()
         ->and($current['next_cursor']['after_id'])->toBeNull();
 
-    // The same position held as an incremental cursor (another device) is still expired.
+    // The same position held as a tagged incremental cursor (another device) is still expired.
     $other = SyncKit::headers($this->user, $this->company);
-    $cursor = ['txid' => (string) Sync::txidOf('sync_fixture_notes', $notes[0]->id), 'after_id' => $notes[0]->id, 'gen' => 0, 'session' => null];
+    $position = ['txid' => (string) Sync::txidOf('sync_fixture_notes', $notes[0]->id), 'after_id' => $notes[0]->id, 'gen' => 0];
+    $cursor = [...$position, 'session' => app(CursorTags::class)->issue($this->user->id, $this->company->id, 'fixture-notes', Cursor::fromWire($position))];
     $incremental = SyncKit::wire(SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => $cursor]], $other)->assertOk(), 'sync/pull.response.schema.json')['data']['resources'][0];
     expect($incremental['reset_reason'])->toBe('cursor_expired');
 });

@@ -874,6 +874,8 @@ const notFound = () => error(404, 'NOT_FOUND', 'Kayıt bulunamadı.')
 const conflict = () =>
   error(409, 'VERSION_CONFLICT', 'Kayıt siz düzenlerken başka biri tarafından değiştirildi.')
 const transition = () => error(422, 'INVALID_STATE_TRANSITION', 'Bu durumda işlem yapılamaz.')
+/** DocumentService::lockDraft: edit or delete past draft, answered before the version check. */
+const locked = () => error(409, 'DOCUMENT_LOCKED', 'Yalnızca taslak belgeler düzenlenebilir.')
 
 function paginate<T>(rows: T[], url: URL, defaultPerPage = 25) {
   const perPage = Math.min(100, Number(url.searchParams.get('per_page') ?? defaultPerPage))
@@ -1496,8 +1498,8 @@ export function salesDocsHandlers(db: SalesDocsDb) {
         }[]
       }
       if (b.version === undefined) return validation({ version: ['Sürüm gerekli.'] })
+      if (d.status !== 'draft') return locked()
       if (b.version !== d.version) return conflict()
-      if (d.status !== 'draft') return transition()
       if (b.document_date) d.document_date = b.document_date
       if (b.warehouse_id !== undefined) d.warehouse_id = b.warehouse_id
       if (b.notes !== undefined) d.notes = b.notes
@@ -1522,6 +1524,7 @@ export function salesDocsHandlers(db: SalesDocsDb) {
       const { url } = await record(request)
       const d = db.deliveries.find((x) => x.id === params.id)
       if (!d) return notFound()
+      if (d.status !== 'draft') return locked()
       if (Number(url.searchParams.get('version')) !== d.version) return conflict()
       db.deliveries = db.deliveries.filter((x) => x !== d)
       return new HttpResponse(null, { status: 204 })
@@ -1664,8 +1667,8 @@ export function salesDocsHandlers(db: SalesDocsDb) {
       if (!inv) return notFound()
       const b = body as Partial<InvoiceBody> & { version?: number }
       if (b.version === undefined) return validation({ version: ['Sürüm gerekli.'] })
+      if (inv.status !== 'draft') return locked()
       if (b.version !== inv.version) return conflict()
-      if (inv.status !== 'draft') return transition()
       if (b.document_date) inv.document_date = b.document_date
       if (b.due_date !== undefined) inv.due_date = b.due_date
       if (b.notes !== undefined) inv.notes = b.notes
@@ -1678,6 +1681,7 @@ export function salesDocsHandlers(db: SalesDocsDb) {
       const { url } = await record(request)
       const inv = db.invoices.find((x) => x.id === params.id)
       if (!inv) return notFound()
+      if (inv.status !== 'draft') return locked()
       if (Number(url.searchParams.get('version')) !== inv.version) return conflict()
       db.invoices = db.invoices.filter((x) => x !== inv)
       return new HttpResponse(null, { status: 204 })
@@ -2047,6 +2051,7 @@ export function salesDocsHandlers(db: SalesDocsDb) {
       const { url } = await record(request)
       const r = db.returns.find((x) => x.id === params.id)
       if (!r) return notFound()
+      if (r.status !== 'draft') return locked()
       const v = url.searchParams.get('version')
       if (v !== null && Number(v) !== r.version) return conflict()
       db.returns = db.returns.filter((x) => x !== r)

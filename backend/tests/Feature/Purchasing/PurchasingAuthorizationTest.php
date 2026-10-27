@@ -157,7 +157,9 @@ it('declares the permissions with default roles', function (): void {
     $role = DB::table('roles')->where('company_id', $this->w->company)->where('name', 'Purchasing')->value('id');
     $granted = DB::table('role_has_permissions as rp')->join('permissions as p', 'p.id', '=', 'rp.permission_id')->where('rp.role_id', $role)->pluck('p.name')->all();
     expect($granted)->toContain('purchasing.orders.approve', 'purchasing.rfqs.award', 'purchasing.requests.create')
-        ->not->toContain('purchasing.invoices.book', 'purchasing.match_override', 'purchasing.price_override');
+        ->not->toContain('purchasing.invoices.book')
+        ->not->toContain('purchasing.match_override')
+        ->not->toContain('purchasing.price_override');
     $accountant = DB::table('roles')->where('company_id', $this->w->company)->where('name', 'Accountant')->value('id');
     $granted = DB::table('role_has_permissions as rp')->join('permissions as p', 'p.id', '=', 'rp.permission_id')->where('rp.role_id', $accountant)->pluck('p.name')->all();
     expect($granted)->toContain('purchasing.invoices.book', 'purchasing.invoices.reverse', 'purchasing.returns.debit');

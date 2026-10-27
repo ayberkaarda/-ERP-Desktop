@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\Company\CompanyContext;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\WriteOutcome;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -319,8 +320,76 @@ it('does not wait on the row lock of another company', function (): void {
     }
 
     expect(array_map(fn (array $r): string => $r['error']['code'], $results))->toBe(['NOT_FOUND', 'NOT_FOUND', 'VALIDATION_ERROR'])
-        ->and(array_keys($results[2]['error']['fields']))->toBe(['id'])
+        ->and($results[2]['error']['fields'])->toBe(['id' => [ClientKey::message()]])
         ->and($results[2])->not->toHaveKey('data');
+});
+
+it('answers a lock timeout on the target row as transient, keeps earlier mutations and replays them on retry', function (): void {
+    $first = SyncKit::note($this->company, ['title' => 'First']);
+    $held = SyncKit::note($this->company, ['title' => 'Held']);
+    $batch = [
+        SyncKit::mutation('update', $first->id, ['title' => 'First mine'], 1),
+        SyncKit::mutation('update', $held->id, ['title' => 'Held mine'], 1),
+    ];
+    config(['database.connections.sync_busy' => config('database.connections.'.config('database.default'))]);
+    $holder = DB::connection('sync_busy');
+    $holder->beginTransaction();
+    // PushService's own FOR UPDATE on the second target waits, then times out (55P03).
+    $holder->select('select id from sync_fixture_notes where id = ? for update', [$held->id]);
+    DB::statement("SET lock_timeout = '300ms'");
+
+    try {
+        $response = SyncKit::push($this, $batch, $this->headers);
+    } finally {
+        DB::statement('SET lock_timeout = 0');
+        $holder->rollBack();
+        DB::disconnect('sync_busy');
+    }
+
+    $response->assertStatus(409)->assertHeader('Retry-After', '1');
+    expect(SyncKit::wire($response, 'sync/error.response.schema.json')['errors']['code'])->toBe('IDEMPOTENCY_IN_PROGRESS')
+        // The first mutation stays committed with its stored result; only the second rolled back.
+        ->and(FixtureNote::withoutCompanyScope()->findOrFail($first->id)->title)->toBe('First mine')
+        ->and(DB::table('idempotency_keys')->where('key', $batch[0]['idempotency_key'])->exists())->toBeTrue()
+        ->and(DB::table('idempotency_keys')->where('key', $batch[1]['idempotency_key'])->exists())->toBeFalse()
+        ->and(FixtureNote::withoutCompanyScope()->findOrFail($held->id)->title)->toBe('Held');
+
+    // The client resends the batch with the same keys: the first is replayed, the second applied.
+    $results = pushAll($this, $batch);
+
+    expect(array_column($results, 'status'))->toBe(['duplicate', 'applied'])
+        ->and(array_column($results, 'replayed'))->toBe([true, false]);
+});
+
+it('answers a busy row lock (55P03) as a transient push error and stores nothing', function (): void {
+    $note = SyncKit::note($this->company);
+    $busy = SyncKit::note($this->company, ['title' => 'Held elsewhere']);
+    $update = SyncKit::mutation('update', $note->id, ['title' => 'Mine'], 1);
+    config(['database.connections.sync_busy' => config('database.connections.'.config('database.default'))]);
+    $holder = DB::connection('sync_busy');
+    $holder->beginTransaction();
+    $holder->select('select id from sync_fixture_notes where id = ? for update', [$busy->id]);
+    // The writer meets a row another transaction holds and does not wait for it.
+    ScriptedNoteWriter::$replaceUpdate = static function () use ($busy): WriteOutcome {
+        DB::select('select id from sync_fixture_notes where id = ? for update nowait', [$busy->id]);
+
+        return WriteOutcome::rejected(ErrorCode::ServerError);
+    };
+
+    try {
+        $response = SyncKit::push($this, [$update], $this->headers);
+    } finally {
+        $holder->rollBack();
+        DB::disconnect('sync_busy');
+    }
+
+    $response->assertStatus(409)->assertHeader('Retry-After', '1');
+    expect(SyncKit::wire($response, 'sync/error.response.schema.json')['errors']['code'])->toBe('IDEMPOTENCY_IN_PROGRESS')
+        ->and(DB::table('idempotency_keys')->where('key', $update['idempotency_key'])->exists())->toBeFalse();
+
+    // Retried with the same key once the row is free.
+    ScriptedNoteWriter::$replaceUpdate = null;
+    expect(pushOne($this, $update))->toMatchArray(['status' => 'applied', 'replayed' => false, 'version' => 2]);
 });
 
 it('stores nothing for transient writer errors and keeps their headers', function (): void {

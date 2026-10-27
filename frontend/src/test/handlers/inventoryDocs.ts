@@ -765,7 +765,13 @@ const validation = (fields: Record<string, string[]>) =>
 const notFound = () => error(404, 'NOT_FOUND', 'Kayıt bulunamadı.')
 const conflict = () =>
   error(409, 'VERSION_CONFLICT', 'Kayıt siz düzenlerken başka biri tarafından değiştirildi.')
-const notDraft = () => validation({ document: ['Yalnızca taslak belge değiştirilebilir.'] })
+// StockDocuments::lockedDraft / Messages::locked: a document past draft, before the version check.
+const notDraft = () =>
+  error(
+    409,
+    'DOCUMENT_LOCKED',
+    'Yalnızca taslak stok belgesi değiştirilebilir veya kaydedilebilir.',
+  )
 
 /** ListQuery: page/per_page (≤ 100), sort against an allow-list, unknown filters refused. */
 function listQuery(url: URL, sorts: string[], filters: string[]): Response | null {
@@ -1351,8 +1357,8 @@ export function invDocsHandlers(db: InvDocsDb) {
           fields[`add.${i}.counted_quantity`] = ['Miktar geçersiz.']
       })
       if (Object.keys(fields).length) return validation(fields)
-      if (body.version !== d.version) return conflict()
       if (d.status !== 'draft') return notDraft()
+      if (body.version !== d.version) return conflict()
       if (d.doc_type !== 'count') return validation({ document: ['Belge bir sayım değil.'] })
       for (const [i, c] of counts.entries()) {
         if (!d.lines.some((l) => l.id === c.line_id))
@@ -1379,8 +1385,8 @@ export function invDocsHandlers(db: InvDocsDb) {
       const body = (await request.json()) as Record<string, unknown>
       const shape = rules(body, false)
       if (Object.keys(shape).length) return validation(shape)
-      if (body.version !== d.version) return conflict()
       if (d.status !== 'draft') return notDraft()
+      if (body.version !== d.version) return conflict()
       if (body.doc_type !== undefined && body.doc_type !== d.doc_type)
         return validation({ doc_type: ['Belge türü değiştirilemez.'] })
       if (d.doc_type === 'count' && body.lines !== undefined)
@@ -1413,8 +1419,8 @@ export function invDocsHandlers(db: InvDocsDb) {
       const raw = new URL(request.url).searchParams.get('version')
       if (raw !== null && !/^\d+$/.test(raw))
         return validation({ version: ['version tam sayı olmalı.'] })
-      if (raw !== null && Number(raw) !== d.version) return conflict()
       if (d.status !== 'draft') return notDraft()
+      if (raw !== null && Number(raw) !== d.version) return conflict()
       db.documents = db.documents.filter((x) => x.id !== d.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -1455,8 +1461,8 @@ export function invDocsHandlers(db: InvDocsDb) {
       if (!d) return notFound()
       const body = (await request.json().catch(() => ({}))) as { version?: number }
       return idempotent(request, { id: d.id, ...body }, () => {
-        if (body.version !== undefined && body.version !== d.version) return conflict()
         if (d.status !== 'draft') return notDraft()
+        if (body.version !== undefined && body.version !== d.version) return conflict()
         const refused = postChecks(d)
         if (refused) return refused
         const n = (db.numberSeq[d.doc_type] ?? 0) + 1

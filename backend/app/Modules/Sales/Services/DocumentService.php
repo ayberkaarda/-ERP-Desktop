@@ -7,6 +7,7 @@ namespace App\Modules\Sales\Services;
 use App\Core\Documents\InvalidStateTransition;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Sales\Models\SalesDocument;
 use App\Modules\Sales\Models\SalesLine;
 use App\Modules\Sales\Services\Composer\Composed;
@@ -108,7 +109,7 @@ abstract class DocumentService
             return Sales::transaction($create);
         } catch (QueryException $e) {
             if ($id !== null && ($e->errorInfo[0] ?? null) === '23505' && str_contains($e->getMessage(), "\"{$table}_pkey\"")) {
-                throw ValidationException::withMessages(['id' => [(string) __('validation.unique', ['attribute' => 'id'])]]);
+                throw ValidationException::withMessages(['id' => [ClientKey::message()]]);
             }
 
             throw $e;

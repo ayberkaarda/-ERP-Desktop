@@ -25,7 +25,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Before binding, check the table's own BEFORE UPDATE guards: comparisons of to_jsonb(OLD) and
  * to_jsonb(NEW) keep working (zz_sync_touch runs last), but a guard that rejects every update
  * of a posted/closed row also rejects the parent touch caused by a line change; such a guard
- * needs `IF sync_touching() THEN RETURN NEW; END IF;` first.
+ * starts with App\Core\Sync\Schema\Syncable::GUARD_EXEMPTION (sync_touch_only(OLD, NEW): the touch
+ * flag AND no column but sync_txid changed), never with a check of the sync_touching() flag alone.
  */
 interface SyncResource
 {

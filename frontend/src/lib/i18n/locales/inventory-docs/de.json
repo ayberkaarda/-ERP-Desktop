@@ -181,6 +181,10 @@
     "body": "Laden Sie vor dem Speichern den neuesten Stand; Ihre Änderungen werden nicht zusammengeführt.",
     "reload": "Neu laden"
   },
+  "locked": {
+    "title": "Der Lagerbeleg ist kein Entwurf mehr",
+    "body": "Er wurde inzwischen gebucht oder storniert, daher können diese Änderungen nicht gespeichert werden. Laden Sie den neuesten Stand; Ihre Änderungen werden nicht zusammengeführt."
+  },
   "errors": {
     "generic": "Die Aktion konnte nicht abgeschlossen werden.",
     "loadFailed": "Laden fehlgeschlagen.",

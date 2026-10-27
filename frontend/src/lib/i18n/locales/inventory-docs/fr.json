@@ -181,6 +181,10 @@
     "body": "Chargez la dernière version avant d'enregistrer ; vos modifications ne sont pas fusionnées.",
     "reload": "Recharger"
   },
+  "locked": {
+    "title": "Le bon de stock n'est plus un brouillon",
+    "body": "Il a été comptabilisé ou annulé entre-temps ; ces modifications ne peuvent pas être enregistrées. Chargez la dernière version ; vos modifications ne sont pas fusionnées."
+  },
   "errors": {
     "generic": "L'action n'a pas pu aboutir.",
     "loadFailed": "Chargement impossible.",

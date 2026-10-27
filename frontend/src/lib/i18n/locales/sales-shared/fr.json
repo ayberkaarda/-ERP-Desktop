@@ -88,6 +88,10 @@
     "body": "Chargez la version actuelle avant d'enregistrer. Vos modifications non enregistrées seront perdues.",
     "reload": "Charger la version actuelle"
   },
+  "locked": {
+    "title": "Le document n'est plus un brouillon",
+    "body": "Il a été confirmé ou a avancé entre-temps ; ces modifications ne peuvent pas être enregistrées. Chargez la version actuelle ; les modifications non enregistrées sont perdues."
+  },
   "reason": {
     "tooShort": "Saisissez au moins {{min}} caractères."
   },

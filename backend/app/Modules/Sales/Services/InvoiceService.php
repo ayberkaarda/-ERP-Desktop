@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Sales\Services;
 
+use App\Core\Documents\VersionConflictException;
 use App\Core\Money\RoundingPolicy;
 use App\Modules\Accounting\Contracts\PeriodGuard;
 use App\Modules\Accounting\Contracts\PostingService;
@@ -33,6 +34,7 @@ use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -793,18 +795,54 @@ final class InvoiceService extends DocumentService
     }
 
     /**
-     * Locks the sources the stored lines name, then the invoice, then again the sources of the
-     * lines as they are once the invoice is locked (a concurrent edit may have changed them before;
-     * now no line can change any more), so progress is applied to the orders actually invoiced.
+     * Locks the sources the stored lines name, then the invoice (the order of update(): sources
+     * before the invoice), then reads the lines again: once the invoice is locked no line can
+     * change any more. A concurrent edit committed in between may have moved lines to sources not
+     * locked yet, so progress has to go to those. Waiting for them now would hold the invoice
+     * while waiting for a source, the reverse of update(), and two such transactions deadlock.
+     * They are therefore taken with NOWAIT: free (the usual case) they are locked at once and the
+     * issue goes on; held by another transaction the call answers VERSION_CONFLICT (retry)
+     * without ever waiting behind the invoice lock.
      *
      * @return array{0: SalesInvoice, 1: array<string, SalesOrder>}
      */
     private function lockWithSources(SalesInvoice $invoice): array
     {
-        $orders = $this->lockSources($this->linesAsInput($invoice));
+        [$orderIds, $deliveryIds] = $this->sourceIds($this->linesAsInput($invoice));
+        $orders = $this->lockSourceIds($orderIds, $deliveryIds);
         $locked = $this->lock($invoice);
+        [$nowOrders, $nowDeliveries] = $this->sourceIds($this->linesAsInput($locked));
+        $newOrders = array_values(array_diff($nowOrders, $orderIds));
+        $newDeliveries = array_values(array_diff($nowDeliveries, $deliveryIds));
 
-        return [$locked, $orders + $this->lockSources($this->linesAsInput($locked))];
+        if ($newOrders === [] && $newDeliveries === []) {
+            return [$locked, $orders];
+        }
+
+        try {
+            // A savepoint, so a refused NOWAIT does not abort the surrounding transaction.
+            $orders += DB::transaction(function () use ($newOrders, $newDeliveries): array {
+                $taken = [];
+
+                foreach ($newOrders as $id) {
+                    $taken[$id] = SalesOrder::query()->whereKey($id)->lock('for update nowait')->firstOrFail();
+                }
+
+                foreach ($newDeliveries as $id) {
+                    SalesDelivery::query()->whereKey($id)->lock('for update nowait')->first();
+                }
+
+                return $taken;
+            });
+        } catch (QueryException $e) {
+            if (($e->errorInfo[0] ?? null) !== '55P03') {
+                throw $e;
+            }
+
+            throw new VersionConflictException($invoice->version, $locked->version);
+        }
+
+        return [$locked, $orders];
     }
 
     /**
@@ -865,20 +903,44 @@ final class InvoiceService extends DocumentService
      */
     private function lockSources(array $lines): array
     {
-        $deliveryLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['delivery_line_id'] ?? null) ? $l['delivery_line_id'] : null, $lines)));
-        $orderLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['order_line_id'] ?? null) ? $l['order_line_id'] : null, $lines)));
-        $deliveryIds = $deliveryLineIds === [] ? [] : SalesDeliveryLine::query()->whereIn('id', $deliveryLineIds)->distinct()->pluck('document_id')->all();
-        $orderIds = $orderLineIds === [] ? [] : SalesOrderLine::query()->whereIn('id', $orderLineIds)->distinct()->pluck('document_id')->all();
-        $orderIds = array_merge($orderIds, $deliveryIds === [] ? [] : SalesDelivery::query()->whereIn('id', $deliveryIds)->whereNotNull('order_id')->pluck('order_id')->all());
-        $orders = $this->lockOrders(array_values(array_unique(array_map('strval', $orderIds))));
-        $deliveryIds = array_values(array_unique(array_map('strval', $deliveryIds)));
-        sort($deliveryIds);
+        return $this->lockSourceIds(...$this->sourceIds($lines));
+    }
+
+    /**
+     * @param  list<string>  $orderIds  sorted
+     * @param  list<string>  $deliveryIds  sorted
+     * @return array<string, SalesOrder>
+     */
+    private function lockSourceIds(array $orderIds, array $deliveryIds): array
+    {
+        $orders = $this->lockOrders($orderIds);
 
         foreach ($deliveryIds as $id) {
             SalesDelivery::query()->whereKey($id)->lockForUpdate()->first();
         }
 
         return $orders;
+    }
+
+    /**
+     * Orders and deliveries referenced by the lines, each list unique and sorted; nothing locked.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return array{0: list<string>, 1: list<string>} order ids, delivery ids
+     */
+    private function sourceIds(array $lines): array
+    {
+        $deliveryLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['delivery_line_id'] ?? null) ? $l['delivery_line_id'] : null, $lines)));
+        $orderLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['order_line_id'] ?? null) ? $l['order_line_id'] : null, $lines)));
+        $deliveryIds = $deliveryLineIds === [] ? [] : SalesDeliveryLine::query()->whereIn('id', $deliveryLineIds)->distinct()->pluck('document_id')->all();
+        $orderIds = $orderLineIds === [] ? [] : SalesOrderLine::query()->whereIn('id', $orderLineIds)->distinct()->pluck('document_id')->all();
+        $orderIds = array_merge($orderIds, $deliveryIds === [] ? [] : SalesDelivery::query()->whereIn('id', $deliveryIds)->whereNotNull('order_id')->pluck('order_id')->all());
+        $orderIds = array_values(array_unique(array_map('strval', $orderIds)));
+        $deliveryIds = array_values(array_unique(array_map('strval', $deliveryIds)));
+        sort($orderIds);
+        sort($deliveryIds);
+
+        return [$orderIds, $deliveryIds];
     }
 
     /**

@@ -44,6 +44,7 @@ final class PullService
         private readonly Horizon $horizon,
         private readonly Rows $rows,
         private readonly FullDownloads $downloads,
+        private readonly CursorTags $tags,
     ) {}
 
     /**
@@ -107,10 +108,13 @@ final class PullService
             }
 
             $limit = min($request['limit'] ?? $config->pullPageDefault, $config->pullPageMax);
-            $session = $cursor === null || $device === null || $sessionKey === null ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $sessionKey, $cursor);
+            $session = $cursor === null || $device === null || $sessionKey === null || $this->tags->isTag($sessionKey) ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $sessionKey, $cursor);
             // A cursor naming a session that is gone (finished, replaced by a newer download of
             // the device) or that never issued this position continues nothing: it resets.
-            $orphan = $sessionKey !== null && $session === null;
+            $orphan = $sessionKey === null ? $cursor !== null
+                : ($cursor !== null && $this->tags->isTag($sessionKey)
+                    ? ! $this->tags->verify($user->id, $companyId, $resource->name, $cursor, $sessionKey)
+                    : $session === null);
             $observed = $device === null ? null : $this->downloads->observe($device, $user->id, $companyId, $resource->name);
             $plans[] = [$resource, $adapter, $cursor, $session, $orphan, $observed, $generation, max(1, $limit)];
         }
@@ -147,12 +151,22 @@ final class PullService
                 if ($fresh || $session === null) {
                     $next === null || $newSession === null
                         ? $this->downloads->forget($device, $user->id, $companyId, $name, $observed)
-                        : $this->downloads->start($device, $user->id, $companyId, $name, $observed, $newSession, $next, $started);
+                        : $this->downloads->start($device, $user->id, $companyId, $name, $observed, $newSession, $next, $started, $tokenId);
                 } else {
                     $next === null
                         ? $this->downloads->finish($session)
                         : $this->downloads->advance($session, $next);
                 }
+            }
+        }
+
+        foreach ($results as $i => $page) {
+            if ($page['next_cursor']['session'] === null) {
+                $position = $page['next_cursor'];
+                unset($position['session']);
+                $results[$i]['next_cursor']['session'] = $this->tags->issue(
+                    $user->id, $companyId, $page['resource'], Cursor::fromWire($position),
+                );
             }
         }
 
@@ -190,7 +204,8 @@ final class PullService
      * by their position.
      *
      * The next cursor's session is the download's session id while a full download has more
-     * pages ($newSession when the download begins on this page), and null otherwise.
+     * pages ($newSession when the download begins on this page); other positions are tagged
+     * by pull() before returning the response.
      *
      * @return array{0: array<string, mixed>, 1: array{0: Cursor|null, 1: Xid8, 2: bool}|null} page, and for a full download its continuation (null cursor: finished) and whether it began here
      */

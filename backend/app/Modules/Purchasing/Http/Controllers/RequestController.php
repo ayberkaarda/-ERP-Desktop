@@ -91,7 +91,7 @@ final class RequestController extends PurchasingController
 
     public function store(DocumentRequest $request): JsonResponse
     {
-        return $this->respond(app(RequestService::class)->create($request->headerData(), $request->lineData() ?? [], $this->actor($request)), status: 201);
+        return $this->respond(app(RequestService::class)->create($request->headerData(), $request->lineData() ?? [], $this->actor($request), $request->clientId()), status: 201);
     }
 
     /** Drafts are rewritten; a rejected request is reopened as a draft by the edit. */

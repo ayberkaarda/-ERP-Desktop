@@ -255,10 +255,10 @@ it('tells an old session cursor from an equal cursor of a new session after a lo
         ->and(array_column($continued['rows'], 'id'))->toBe([$all[4]->id]);
 });
 
-it('marks incremental cursors with a null session and rejects malformed sessions', function (mixed $session): void {
+it('tags incremental cursors with a stream tag and rejects malformed sessions', function (mixed $session): void {
     SyncKit::waitVisible();
     $done = sessionPage($this, null, 10);
-    expect($done['has_more'])->toBeFalse()->and($done['next_cursor']['session'])->toBeNull();
+    expect($done['has_more'])->toBeFalse()->and($done['next_cursor']['session'])->toStartWith('i_');
 
     $response = SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => [...$done['next_cursor'], 'session' => $session], 'limit' => 1]], ($this->headers)($this->issued['token']));
     $missing = SyncKit::pull($this, [['resource' => 'fixture-notes', 'cursor' => array_diff_key($done['next_cursor'], ['session' => 0])]], ($this->headers)($this->issued['token']));

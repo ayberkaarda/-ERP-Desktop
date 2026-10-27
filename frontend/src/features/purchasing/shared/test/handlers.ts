@@ -707,6 +707,8 @@ export function purchHandlers(db: PurchDb) {
   const conflict = () => error(409, 'VERSION_CONFLICT', 'Belge başka biri tarafından değiştirildi.')
   const illegal = () =>
     error(422, 'INVALID_STATE_TRANSITION', 'Bu işlem belgenin durumunda yapılamaz.')
+  // DocumentService::assertEditable: edit or delete past draft, answered before the version check.
+  const locked = () => error(409, 'DOCUMENT_LOCKED', 'Yalnızca taslak belgeler düzenlenebilir.')
   const invalid = (fields: Record<string, string[]>) =>
     error(422, 'VALIDATION_ERROR', 'Belge doğrulanamadı.', fields)
   const forbidden = () => error(403, 'FORBIDDEN', 'Yetkiniz yok.')
@@ -1251,8 +1253,8 @@ export function purchHandlers(db: PurchDb) {
       const r = db.requests.find((x) => x.id === params.id)
       if (!r) return error(404, 'NOT_FOUND', 'Bulunamadı.')
       const body = await json(request)
+      if (r.status !== 'draft' && r.status !== 'rejected') return locked()
       if (stale(r, body)) return conflict()
-      if (r.status !== 'draft' && r.status !== 'rejected') return illegal()
       r.status = 'draft'
       r.needed_by = body.needed_by === undefined ? r.needed_by : str(body.needed_by)
       r.notes = body.notes === undefined ? r.notes : str(body.notes)
@@ -1274,6 +1276,8 @@ export function purchHandlers(db: PurchDb) {
       return HttpResponse.json({ data: bare(r) })
     }),
     http.delete(`${API}/purchase-requests/:id`, ({ params }) => {
+      const r = db.requests.find((x) => x.id === params.id)
+      if (r && r.status !== 'draft' && r.status !== 'rejected') return locked()
       db.requests = db.requests.filter((x) => x.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -1445,6 +1449,8 @@ export function purchHandlers(db: PurchDb) {
       }),
     ),
     http.delete(`${API}/purchase-rfqs/:id`, ({ params }) => {
+      const q = db.rfqs.find((x) => x.id === params.id)
+      if (q && q.status !== 'draft') return locked()
       db.rfqs = db.rfqs.filter((x) => x.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -1452,8 +1458,8 @@ export function purchHandlers(db: PurchDb) {
       const q = db.rfqs.find((x) => x.id === params.id)
       if (!q) return error(404, 'NOT_FOUND', 'Bulunamadı.')
       const body = await json(request)
+      if (q.status !== 'draft') return locked()
       if (stale(q, body)) return conflict()
-      if (q.status !== 'draft') return illegal()
       if (Array.isArray(body.supplier_ids))
         q.suppliers = (body.supplier_ids as string[]).map((sid) => ({
           party_id: sid,
@@ -1604,8 +1610,8 @@ export function purchHandlers(db: PurchDb) {
       const o = db.orders.find((x) => x.id === params.id)
       if (!o) return error(404, 'NOT_FOUND', 'Bulunamadı.')
       const body = await json(request)
+      if (o.status !== 'draft') return locked()
       if (stale(o, body)) return conflict()
-      if (o.status !== 'draft') return illegal()
       const { fields, parts } = composeOrder(o.id, body, o)
       if (Object.keys(fields).length) return invalid(fields)
       Object.assign(o, parts)
@@ -1613,6 +1619,8 @@ export function purchHandlers(db: PurchDb) {
       return HttpResponse.json({ data: bare(o) })
     }),
     http.delete(`${API}/purchase-orders/:id`, ({ params }) => {
+      const o = db.orders.find((x) => x.id === params.id)
+      if (o && o.status !== 'draft') return locked()
       db.orders = db.orders.filter((x) => x.id !== params.id)
       return new HttpResponse(null, { status: 204 })
     }),

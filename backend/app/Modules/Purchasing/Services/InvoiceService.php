@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Modules\Purchasing\Services;
 
 use App\Core\Company\CompanyContext;
+use App\Core\Documents\VersionConflictException;
 use App\Core\Http\ApiException;
 use App\Core\Money\RoundingPolicy;
 use App\Modules\Accounting\Contracts\PeriodGuard;
@@ -20,6 +21,7 @@ use App\Modules\Purchasing\Enums\ReturnStatus;
 use App\Modules\Purchasing\Events\PurchaseInvoiceBooked;
 use App\Modules\Purchasing\Events\PurchaseInvoiceReversed;
 use App\Modules\Purchasing\Exceptions\MatchFailed;
+use App\Modules\Purchasing\Exceptions\SourcesChanged;
 use App\Modules\Purchasing\Models\PurchaseInvoice;
 use App\Modules\Purchasing\Models\PurchaseInvoiceLine;
 use App\Modules\Purchasing\Models\PurchaseOrder;
@@ -36,6 +38,7 @@ use App\Modules\Purchasing\Support\Purchasing;
 use App\Modules\Purchasing\Support\PurchasingSettings;
 use App\Modules\Workflow\Contracts\ApprovalEngine;
 use Brick\Math\BigDecimal;
+use Closure;
 use DateTimeImmutable;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Support\Carbon;
@@ -54,6 +57,9 @@ use Illuminate\Validation\ValidationException;
  */
 final class InvoiceService extends DocumentService
 {
+    /** Attempts of a transaction whose invoice sources changed between the read and the lock. */
+    private const int SOURCE_ATTEMPTS = 3;
+
     public const string APPROVAL_TYPE = 'purchase_invoice';
 
     public function __construct(
@@ -232,11 +238,11 @@ final class InvoiceService extends DocumentService
      */
     public function update(PurchaseInvoice $invoice, array $data, ?array $lines, int $version, ?Authenticatable $actor, bool $canOverridePrice): PurchaseInvoice
     {
-        return Purchasing::transaction(function () use ($invoice, $data, $lines, $version, $actor, $canOverridePrice): PurchaseInvoice {
+        return $this->withSources(function () use ($invoice, $data, $lines, $version, $actor, $canOverridePrice): PurchaseInvoice {
+            [$invoice] = $this->lockWithSources($invoice, $lines ?? []);
             $lines ??= $this->linesAsInput($invoice);
-            $this->lockSources($lines);
-            $invoice = $this->lock($invoice, $version);
             $this->assertDraft($invoice);
+            $invoice->assertVersion($version);
 
             if ($invoice->isDebitNote()) {
                 Messages::fail('document', 'debit_note_not_editable');
@@ -260,17 +266,26 @@ final class InvoiceService extends DocumentService
 
     public function delete(PurchaseInvoice $invoice, ?int $version): void
     {
-        Purchasing::transaction(function () use ($invoice, $version): void {
-            $invoice = $this->lock($invoice, $version);
+        $this->withSources(function () use ($invoice, $version): void {
+            [$invoice] = $this->lockWithSources($invoice);
             $this->assertDraft($invoice);
+            if ($version !== null) {
+                $invoice->assertVersion($version);
+            }
+
             $invoice->delete();
         });
     }
 
     public function cancel(PurchaseInvoice $invoice, ?int $version, ?Authenticatable $actor): PurchaseInvoice
     {
-        return Purchasing::transaction(function () use ($invoice, $version, $actor): PurchaseInvoice {
-            $invoice = $this->lock($invoice, $version);
+        return $this->withSources(function () use ($invoice, $version, $actor): PurchaseInvoice {
+            [$invoice] = $this->lockWithSources($invoice);
+
+            if ($version !== null) {
+                $invoice->assertVersion($version);
+            }
+
             $this->assertStatus($invoice, [InvoiceStatus::Draft, InvoiceStatus::PendingApproval], InvoiceStatus::Cancelled->value);
 
             return $this->machine->transition($invoice, InvoiceStatus::Cancelled, $actor);
@@ -286,7 +301,7 @@ final class InvoiceService extends DocumentService
      */
     public function book(PurchaseInvoice $invoice, ?int $version, ?string $overrideReason, bool $canOverride, ?Authenticatable $actor): array
     {
-        return Purchasing::transaction(function () use ($invoice, $version, $overrideReason, $canOverride, $actor): array {
+        return $this->withSources(function () use ($invoice, $version, $overrideReason, $canOverride, $actor): array {
             [$invoice, $orders] = $this->lockWithSources($invoice);
 
             if (in_array($invoice->status->value, InvoiceStatus::booked(), true) || $invoice->status === InvoiceStatus::Reversed) {
@@ -340,7 +355,7 @@ final class InvoiceService extends DocumentService
      */
     public function reverse(PurchaseInvoice $invoice, ?int $version, string $date, string $reason, bool $reverseStock, ?Authenticatable $actor): array
     {
-        return Purchasing::transaction(function () use ($invoice, $version, $date, $reason, $reverseStock, $actor): array {
+        return $this->withSources(function () use ($invoice, $version, $date, $reason, $reverseStock, $actor): array {
             [$invoice, $orders] = $this->lockWithSources($invoice);
 
             if ($invoice->status === InvoiceStatus::Reversed) {
@@ -440,7 +455,7 @@ final class InvoiceService extends DocumentService
         $result = null;
 
         try {
-            $result = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
+            $result = $this->withSources(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
                 $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->first();
 
                 if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
@@ -458,11 +473,15 @@ final class InvoiceService extends DocumentService
 
                 return $invoice;
             });
+        } catch (VersionConflictException $e) {
+            // The sources kept changing under the lock (withSources gave up): a transient race, not a
+            // booking failure. No fallback to draft; the approval sees the error and can be retried.
+            throw $e;
         } catch (ValidationException|MatchFailed|ApiException $e) {
             // The invoice can no longer be booked (period closed, sources changed, match block): back to draft.
             Log::info('purchase invoice approval could not book', ['invoice' => $invoiceId, 'error' => $e->getMessage()]);
-            $invoice = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
-                $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->lockForUpdate()->first();
+            $invoice = $this->withSources(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
+                $invoice = $this->lockPending($invoiceId);
 
                 if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
                     return null;
@@ -488,8 +507,8 @@ final class InvoiceService extends DocumentService
     /** Approval rejected: back to draft with a comment. */
     public function approvalRejected(string $invoiceId, string $approvalRequestId): void
     {
-        $invoice = Purchasing::transaction(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
-            $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->lockForUpdate()->first();
+        $invoice = $this->withSources(function () use ($invoiceId, $approvalRequestId): ?PurchaseInvoice {
+            $invoice = $this->lockPending($invoiceId);
 
             if ($invoice === null || $invoice->status !== InvoiceStatus::PendingApproval || ! self::isCurrentApproval($invoice->approval_request_id, $approvalRequestId)) {
                 return null;
@@ -914,17 +933,76 @@ final class InvoiceService extends DocumentService
     }
 
     /**
-     * Locks the sources the stored lines name, then the invoice, then again the sources of the
-     * lines as they are once the invoice is locked.
+     * Locks the sources (orders, then receipts, by id) the stored lines name, with $extra lines
+     * (an update's new lines), then the original invoice (for a debit note), then the invoice.
+     * Never locks a source while holding the invoice: if the lines name other sources once the
+     * invoice is locked, it throws SourcesChanged and withSources() retries the whole transaction.
+     * Also used by returns, which must lock receipts before their (booked) source invoice.
      *
+     * @param  list<array<string, mixed>>  $extra
      * @return array{0: PurchaseInvoice, 1: array<string, PurchaseOrder>}
      */
-    private function lockWithSources(PurchaseInvoice $invoice): array
+    public function lockWithSources(PurchaseInvoice $invoice, array $extra = []): array
     {
-        $orders = $this->lockSources($this->linesAsInput($invoice));
-        $locked = $this->lock($invoice);
+        $original = $invoice->original_invoice_id === null ? null : PurchaseInvoice::query()->whereKey($invoice->original_invoice_id)->first();
+        $read = $this->withOriginalLines($original, $this->linesAsInput($invoice), $extra);
+        $orders = $this->lockSources($read);
 
-        return [$locked, $orders + $this->lockSources($this->linesAsInput($locked))];
+        if ($original !== null) {
+            $this->lock($original);
+        }
+
+        $locked = $this->lock($invoice);
+        [$readOrders, $readReceipts] = $this->sourceIds($read);
+        [$nowOrders, $nowReceipts] = $this->sourceIds($this->withOriginalLines($original, $this->linesAsInput($locked), $extra));
+
+        if (array_diff($nowOrders, $readOrders) !== [] || array_diff($nowReceipts, $readReceipts) !== []) {
+            throw new SourcesChanged($locked->version);
+        }
+
+        return [$locked, $orders];
+    }
+
+    /**
+     * The lines whose sources an invoice lock covers: the original invoice's (debit note), its own, extra.
+     *
+     * @param  list<array<string, mixed>>  $own
+     * @param  list<array<string, mixed>>  $extra
+     * @return list<array<string, mixed>>
+     */
+    private function withOriginalLines(?PurchaseInvoice $original, array $own, array $extra): array
+    {
+        return [...($original === null ? [] : $this->linesAsInput($original)), ...$own, ...$extra];
+    }
+
+    /** A pending invoice of an approval callback, locked after its sources (null when gone). */
+    private function lockPending(string $invoiceId): ?PurchaseInvoice
+    {
+        $invoice = PurchaseInvoice::query()->whereKey($invoiceId)->first();
+
+        return $invoice === null ? null : $this->lockWithSources($invoice)[0];
+    }
+
+    /**
+     * A transaction that locks an invoice with its sources, retried when the sources changed under
+     * it; after the last attempt a controlled VERSION_CONFLICT.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $fn
+     * @return T
+     */
+    public function withSources(Closure $fn): mixed
+    {
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return Purchasing::transaction($fn);
+            } catch (SourcesChanged $e) {
+                if ($attempt >= self::SOURCE_ATTEMPTS) {
+                    throw new VersionConflictException($e->version, $e->version);
+                }
+            }
+        }
     }
 
     /**
@@ -986,20 +1064,35 @@ final class InvoiceService extends DocumentService
      */
     private function lockSources(array $lines): array
     {
-        $receiptLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['receipt_line_id'] ?? null) ? $l['receipt_line_id'] : null, $lines)));
-        $orderLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['order_line_id'] ?? null) ? $l['order_line_id'] : null, $lines)));
-        $receiptIds = $receiptLineIds === [] ? [] : PurchaseReceiptLine::query()->whereIn('id', $receiptLineIds)->distinct()->pluck('document_id')->all();
-        $orderIds = $orderLineIds === [] ? [] : PurchaseOrderLine::query()->whereIn('id', $orderLineIds)->distinct()->pluck('document_id')->all();
-        $orderIds = array_merge($orderIds, $receiptIds === [] ? [] : PurchaseReceipt::query()->whereIn('id', $receiptIds)->whereNotNull('order_id')->pluck('order_id')->all());
-        $orders = $this->lockOrders(array_values(array_unique(array_map('strval', $orderIds))));
-        $receiptIds = array_values(array_unique(array_map('strval', $receiptIds)));
-        sort($receiptIds);
+        [$orderIds, $receiptIds] = $this->sourceIds($lines);
+        $orders = $this->lockOrders($orderIds);
 
         foreach ($receiptIds as $id) {
             PurchaseReceipt::query()->whereKey($id)->lockForUpdate()->first();
         }
 
         return $orders;
+    }
+
+    /**
+     * Ids of the orders and receipts the lines reference, each list unique and sorted.
+     *
+     * @param  list<array<string, mixed>>  $lines
+     * @return array{0: list<string>, 1: list<string>}
+     */
+    private function sourceIds(array $lines): array
+    {
+        $receiptLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['receipt_line_id'] ?? null) ? $l['receipt_line_id'] : null, $lines)));
+        $orderLineIds = array_values(array_filter(array_map(static fn (array $l): ?string => is_string($l['order_line_id'] ?? null) ? $l['order_line_id'] : null, $lines)));
+        $receiptIds = $receiptLineIds === [] ? [] : PurchaseReceiptLine::query()->whereIn('id', $receiptLineIds)->distinct()->pluck('document_id')->all();
+        $orderIds = $orderLineIds === [] ? [] : PurchaseOrderLine::query()->whereIn('id', $orderLineIds)->distinct()->pluck('document_id')->all();
+        $orderIds = array_merge($orderIds, $receiptIds === [] ? [] : PurchaseReceipt::query()->whereIn('id', $receiptIds)->whereNotNull('order_id')->pluck('order_id')->all());
+        $orderIds = array_values(array_unique(array_map('strval', $orderIds)));
+        $receiptIds = array_values(array_unique(array_map('strval', $receiptIds)));
+        sort($orderIds);
+        sort($receiptIds);
+
+        return [$orderIds, $receiptIds];
     }
 
     /**

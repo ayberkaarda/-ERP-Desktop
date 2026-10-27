@@ -32,8 +32,11 @@ use LogicException;
  * Existing row guards: PostgreSQL fires BEFORE triggers in name order, so the stamping trigger
  * is called zz_sync_touch and runs after guards such as treasury_payments_immutable; they see
  * sync_txid unchanged and their to_jsonb(OLD)/to_jsonb(NEW) comparisons keep working. A guard
- * that refuses every update of a closed parent row must let the parent touch through:
- * `IF sync_touching() THEN RETURN NEW; END IF;` (that UPDATE changes only the sync position).
+ * that refuses every update of a closed parent row must let the parent touch through, and only
+ * it: such a guard starts with self::GUARD_EXEMPTION, which returns NEW for an UPDATE made inside
+ * a sync touch that changes no column but sync_txid (sync_touch_only(OLD, NEW)). A guard never
+ * returns on the sync_touching() flag alone: any session can set it, and the closed row would
+ * then accept any change.
  *
  * parentKey lists the child columns that reference the parent's `id`; a string key maps a
  * child column to another parent column, and several entries match as one row value.
@@ -41,6 +44,13 @@ use LogicException;
 final class Syncable
 {
     public const string COLUMN = 'sync_txid';
+
+    /**
+     * First statement of a plpgsql row guard (BEFORE UPDATE OR DELETE) of a closed record: lets
+     * the parent touch through and nothing else. sync_touch_only() comes from the
+     * 2027_08_01_100300 migration.
+     */
+    public const string GUARD_EXEMPTION = "IF TG_OP = 'UPDATE' AND sync_touch_only(OLD, NEW) THEN RETURN NEW; END IF;";
 
     private const string IDENTIFIER = '/\A[a-z_][a-z0-9_]{0,62}\z/';
 

@@ -6,6 +6,7 @@ namespace App\Modules\Sync\Services;
 
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Http\ExceptionRenderer;
 use App\Core\Idempotency\ClaimStatus;
 use App\Core\Sync\ConflictChoice;
 use App\Core\Sync\Contracts\SyncResource;
@@ -13,6 +14,7 @@ use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\MutationOp;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\SyncConflict;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
@@ -139,6 +141,17 @@ final class PushService
             return $this->db->transaction(fn (): array => $this->locked($user, $companyId, $mutation, $index, $resource->write, $op, $adapter, $writer));
         } catch (Interrupt $interrupt) {
             return $interrupt->outcome->toResult($mutation);
+        } catch (QueryException $e) {
+            // A row lock another transaction holds (55P03: NOWAIT refused or lock_timeout, on the
+            // target lock or inside the writer) is no answer to the mutation: transient, like
+            // IDEMPOTENCY_IN_PROGRESS (SYNC-PROTOCOL). Only this mutation's transaction (claim
+            // included) rolls back; mutations before it stay committed with their stored results,
+            // and the client's retry with the same keys replays them and runs this one again.
+            if (ExceptionRenderer::lockNotAvailable($e)) {
+                throw new ApiException(ErrorCode::IdempotencyInProgress, headers: ['Retry-After' => '1']);
+            }
+
+            throw $e;
         }
     }
 
@@ -149,6 +162,8 @@ final class PushService
      */
     private function locked(User $user, string $companyId, Mutation $mutation, int $index, WriteDefinition $write, WriteOp $op, SyncResource $adapter, SyncWriter $writer): array
     {
+        $timeout = max(1, (int) config('sync.push.lock_timeout_ms', 2000));
+        $this->db->statement("SET LOCAL lock_timeout = '{$timeout}ms'");
         $gate = $this->gate->forUser($user);
         $table = $adapter->table();
         $modelClass = $adapter->query($companyId)->getModel()::class;
@@ -206,7 +221,7 @@ final class PushService
         }
 
         if ($claim->status === ClaimStatus::Completed && $claim->response !== null) {
-            return $this->replay(StoredResult::fromResponse($claim->response), $mutation, $adapter, $writer, $companyId, $target);
+            return $this->replay(StoredResult::fromResponse($claim->response), $mutation, $write, $op, $adapter, $writer, $companyId, $target);
         }
 
         // A taken id answers VALIDATION_ERROR, unless the mutation is a resolution that no longer
@@ -335,6 +350,7 @@ final class PushService
 
             $outcome = WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
         } catch (QueryException $e) {
+            // A busy row lock (55P03) is rethrown below and answered in one() as transient.
             // A concurrent create took the client id between the lock and the insert: the
             // savepoint is gone, the answer is the same as for a taken id.
             if ($mutation->op !== MutationOp::Create || ! self::primaryKeyViolation($e, $adapter->table())) {
@@ -418,11 +434,11 @@ final class PushService
 
     /**
      * Step 5 for a key that has a stored result: same status and body, applied as duplicate.
-     * A conflict's server_version and server_data are rebuilt from the row locked in step 4.
+     * A conflict's fields, server_version and server_data are rebuilt from the row locked in step 4.
      *
      * @return array<string, mixed>
      */
-    private function replay(StoredResult $stored, Mutation $mutation, SyncResource $adapter, SyncWriter $writer, string $companyId, ?Model $target): array
+    private function replay(StoredResult $stored, Mutation $mutation, WriteDefinition $write, WriteOp $op, SyncResource $adapter, SyncWriter $writer, string $companyId, ?Model $target): array
     {
         $outcome = $stored->outcome->replay();
         $conflict = $outcome->conflict;
@@ -436,7 +452,9 @@ final class PushService
                     $conflict->code,
                     $conflict->baseVersion,
                     $writer->currentVersion($target),
-                    $conflict->conflictingFields,
+                    $op->isFieldMerge() && $mutation->op === MutationOp::Update
+                        ? $this->resolver->conflictingFields($write, $mutation, $target, $writer->currentVersion($target), $writer)
+                        : [],
                     $data,
                     $conflict->choices,
                     $conflict->candidates,
@@ -664,7 +682,7 @@ final class PushService
 
     private static function idTaken(): WriteOutcome
     {
-        return WriteOutcome::rejected(ErrorCode::ValidationError, fields: ['id' => [__('sync::sync.id_taken')]]);
+        return WriteOutcome::rejected(ErrorCode::ValidationError, fields: ['id' => [ClientKey::message()]]);
     }
 
     private static function primaryKeyViolation(QueryException $e, string $table): bool
