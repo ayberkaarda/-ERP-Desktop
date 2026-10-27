@@ -245,6 +245,10 @@ pub(super) fn set_session(
 ) -> Result<()> {
     let resources = serde_json::to_string(resources)?;
     store.write(|tx| {
+        tx.execute(
+            "DELETE FROM engine_meta WHERE key = ?1",
+            [crate::outbox::WORK_SEALED],
+        )?;
         for (key, value) in [
             (IDENTITY, identity.to_owned()),
             (GENERATION, generation.to_string()),
@@ -310,6 +314,10 @@ pub(super) fn close(store: &Store) -> Result<()> {
 /// Removes server data and seals work until the same identity is verified again.
 pub(super) fn seal(store: &Store) -> Result<Vec<ResourceName>> {
     store.write(|tx| {
+        tx.execute(
+            "INSERT OR REPLACE INTO engine_meta (key, value) VALUES (?1, '1')",
+            [crate::outbox::WORK_SEALED],
+        )?;
         let names = Store::clear_mirror_on(tx)?;
         tx.execute("DELETE FROM engine_draft_bases", [])?;
         tx.execute("DELETE FROM engine_meta WHERE key = ?1", [GENERATION])?;

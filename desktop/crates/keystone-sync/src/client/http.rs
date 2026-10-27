@@ -75,6 +75,7 @@ pub struct HttpClient {
     http: reqwest::Client,
     server: ServerUrl,
     company_id: HeaderValue,
+    company: uuid::Uuid,
     session: Arc<Session>,
 }
 
@@ -132,6 +133,7 @@ impl HttpClient {
             http: build_http(&config.user_agent, options)?,
             server,
             company_id,
+            company: config.company_id,
             session: Session::shared(&profile.into(), tokens),
         })
     }
@@ -353,6 +355,10 @@ impl HttpClient {
 impl super::sealed::Sealed for HttpClient {}
 
 impl SyncApi for HttpClient {
+    fn company_id(&self) -> Option<uuid::Uuid> {
+        Some(self.company)
+    }
+
     fn session(&self) -> &Arc<Session> {
         &self.session
     }

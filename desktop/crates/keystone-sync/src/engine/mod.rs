@@ -770,9 +770,19 @@ impl<A: SyncApi> SyncEngine<A> {
         }
     }
 
-    /// Applies identity-loss rules only while the failing generation is current.
+    /// Applies identity-loss rules only while the failing generation is
+    /// current. The generation is confirmed again with sign-ins held off and
+    /// the rule runs under that same hold, so a sign-in completing after the
+    /// check cannot be hit by a stale answer. Any final `UNAUTHENTICATED` of
+    /// that generation closes local reads, also after a successful refresh
+    /// whose retried request was refused again.
     fn on_error(&self, error: &SyncError, generation: Option<u64>) -> Result<SyncState> {
         let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+        // Cheap first look without blocking sign-ins.
+        if generation != Some(self.session.record()?.generation) {
+            return Ok(state_after_error(error));
+        }
+        let _sign_in = self.session.hold();
         let record = self.session.record()?;
         if generation != Some(record.generation) {
             return Ok(state_after_error(error));
@@ -782,15 +792,23 @@ impl<A: SyncApi> SyncEngine<A> {
                 code: ErrorCode::Unauthenticated,
                 ..
             } => {
-                if record.tokens.is_none() {
-                    local::close(&self.store)?;
-                }
+                local::close(&self.store)?;
             }
             SyncError::Api {
                 code: ErrorCode::CompanyForbidden,
                 ..
             } => {
-                self.seal()?;
+                // The answer concerns the company the request was sent for;
+                // local data of another company stays.
+                let local = local::session(&self.store)?;
+                if local
+                    .identity
+                    .as_deref()
+                    .and_then(identity_company)
+                    .is_some_and(|company| self.api.company_id() == Some(company))
+                {
+                    self.seal()?;
+                }
             }
             SyncError::Api {
                 code: ErrorCode::UserDeactivated,
@@ -1022,6 +1040,13 @@ impl<A> SyncEngine<A> {
     #[cfg(not(test))]
     #[inline(always)]
     fn hook(&self, _point: Hook) {}
+}
+
+/// Company of a local `user_id:company_id` identity.
+fn identity_company(identity: &str) -> Option<Uuid> {
+    identity
+        .rsplit_once(':')
+        .and_then(|(_, company)| Uuid::parse_str(company).ok())
 }
 
 /// State after a failed run, by error.
