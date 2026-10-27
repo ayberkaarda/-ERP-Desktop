@@ -933,3 +933,46 @@ async fn a_second_401_without_an_error_envelope_is_still_unauthenticated() {
     assert_eq!(error.code(), "UNAUTHENTICATED");
     assert_no_leak(&shown(&error));
 }
+
+#[tokio::test]
+async fn network_errors_do_not_carry_query_values() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(QUOTES))
+        .respond_with(ResponseTemplate::new(200).set_delay(Duration::from_secs(3)))
+        .mount(&server)
+        .await;
+    let store = signed_in(1);
+    let short = ClientOptions {
+        request_timeout: Duration::from_secs(1),
+        ..options()
+    };
+    let mut request = get(QUOTES);
+    request.query = vec![("search".into(), LEAK.into())];
+    let client = client_with(&server, &store, &short);
+    let lost = client.proxy(&request).await.expect_err("timeout");
+    assert_eq!(lost.code(), "NETWORK_ERROR");
+    assert!(matches!(lost, SyncError::Network(_)), "{lost:?}");
+    assert_no_leak(&shown(&lost));
+
+    // Headers arrive, the body breaks off: the error comes from reading it.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        if let Ok((mut socket, _)) = listener.accept() {
+            let mut buffer = [0u8; 4096];
+            let _ = socket.read(&mut buffer);
+            let _ = socket.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\nabc");
+        }
+    });
+    let config = ApiConfig {
+        base_url: format!("http://127.0.0.1:{port}"),
+        company_id: Uuid::parse_str(COMPANY).expect("uuid"),
+        user_agent: "keystone-desktop-test/0.1".into(),
+    };
+    let broken = HttpClient::new(&config, PROFILE, Arc::clone(&store), &short).expect("client");
+    let cut = broken.proxy(&request).await.expect_err("truncated body");
+    assert_eq!(cut.code(), "NETWORK_ERROR");
+    assert_no_leak(&shown(&cut));
+}

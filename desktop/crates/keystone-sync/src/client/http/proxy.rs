@@ -265,6 +265,8 @@ impl HttpClient {
             request = request.body(body.clone());
         }
         let mut response = request.send().await.map_err(|e| {
+            // The URL carries query values of the caller.
+            let e = e.without_url();
             SyncError::from(if e.is_connect() || e.is_builder() {
                 Transport::NotSent(e)
             } else {
@@ -283,7 +285,7 @@ impl HttpClient {
         while let Some(chunk) = response
             .chunk()
             .await
-            .map_err(|e| SyncError::from(Transport::Lost(e)))?
+            .map_err(|e| SyncError::from(Transport::Lost(e.without_url())))?
         {
             if body.len() + chunk.len() > PROXY_BODY_LIMIT {
                 return Err(too_large("response"));
