@@ -7,23 +7,30 @@ use keystone_sync::engine::{SyncState, SyncStatus};
 use keystone_sync::outbox::{OutboxEntry, OutboxState};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use ts_rs::TS;
 use uuid::Uuid;
 
 /// [`SyncStatus`] of the active profile's engine.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct StatusDto {
     /// `idle`, `syncing`, `offline`, `auth_required` or `failed`.
     pub state: String,
     /// Code of the last failure when `state` is `failed`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
+    #[ts(type = "number")]
     pub pending: usize,
+    #[ts(type = "number")]
     pub conflicts: usize,
+    #[ts(type = "number")]
     pub rejected: usize,
+    #[ts(type = "number")]
     pub quarantined: usize,
     pub failures: u32,
     /// Whole seconds before the next run may start (`Retry-After`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
     pub retry_after: Option<u64>,
     /// Offline writes are closed until the offline manifests match again.
     pub manifest_mismatch: bool,
@@ -55,7 +62,8 @@ impl From<&SyncStatus> for StatusDto {
 }
 
 /// One outbox entry (a queued local write).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct OutboxEntryDto {
     /// Key for `outbox_retry` / `outbox_discard`.
     pub idempotency_key: Uuid,
@@ -73,6 +81,7 @@ pub struct OutboxEntryDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
     pub occurred_at: String,
+    #[ts(type = "Record<string, unknown>")]
     pub payload: Map<String, Value>,
 }
 
@@ -103,7 +112,8 @@ impl From<&OutboxEntry> for OutboxEntryDto {
 }
 
 /// One open Conflict Inbox record.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct ConflictDto {
     /// Key for `conflicts_resolve`.
     pub idempotency_key: Uuid,
@@ -113,10 +123,13 @@ pub struct ConflictDto {
     pub code: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    #[ts(type = "number | null")]
     pub base_version: Option<u64>,
+    #[ts(type = "number | null")]
     pub server_version: Option<u64>,
     pub conflicting_fields: Vec<String>,
     /// The server row (`null` for a duplicate or a row deleted there).
+    #[ts(type = "unknown")]
     pub server_data: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub candidates: Option<Vec<Uuid>>,
@@ -124,6 +137,7 @@ pub struct ConflictDto {
     pub choices: Vec<String>,
     /// The local draft's operation and payload.
     pub local_op: String,
+    #[ts(type = "Record<string, unknown>")]
     pub local_payload: Map<String, Value>,
     pub detected_at: String,
 }
@@ -151,7 +165,8 @@ impl From<&ConflictRecord> for ConflictDto {
 }
 
 /// A user decision on a conflict.
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 #[serde(deny_unknown_fields)]
 pub struct ConflictResolveDto {
     pub idempotency_key: Uuid,
@@ -159,14 +174,17 @@ pub struct ConflictResolveDto {
     pub choice: String,
     /// `use_existing`: the chosen candidate row.
     #[serde(default)]
+    #[ts(optional)]
     pub candidate: Option<Uuid>,
     /// `merge`: the merged payload.
     #[serde(default)]
+    #[ts(type = "Record<string, unknown>", optional)]
     pub merged: Option<Map<String, Value>>,
 }
 
 /// What a resolution did.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct ResolutionDto {
     /// `queued` (a new draft goes to the server), `take_server`,
     /// `use_existing` or `discard`.

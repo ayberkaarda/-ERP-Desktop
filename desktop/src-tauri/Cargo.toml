@@ -34,6 +34,8 @@ base64 = "0.22"
 # The engine runtime thread (src/runtime.rs) and the event bridge.
 tokio = { workspace = true, features = ["macros", "net", "rt", "time"] }
 uuid.workspace = true
+# TS types of the command/event DTOs (src/bridge/generated, checked by scripts/check-ts-types.sh).
+ts-rs = { version = "12", features = ["serde-json-impl", "uuid-impl"] }
 
 # Log masking (src/logging.rs). `log` and `fern` are what tauri-plugin-log
 # itself is built on; they are named here because logging.rs uses them.
