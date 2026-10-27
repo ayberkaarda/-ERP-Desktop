@@ -5,6 +5,9 @@ use std::time::Duration;
 /// Sync interval while online.
 pub const ONLINE_INTERVAL: Duration = Duration::from_secs(60);
 
+/// Longest `Retry-After` honoured; a larger value waits this long.
+pub const RETRY_AFTER_MAX: Duration = Duration::from_secs(3600);
+
 /// Server probe delays while offline; the last one repeats.
 pub const OFFLINE_PROBE_SECS: [u64; 6] = [1, 2, 4, 8, 16, 30];
 

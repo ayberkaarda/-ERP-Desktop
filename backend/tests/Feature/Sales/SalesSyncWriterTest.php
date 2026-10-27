@@ -7,17 +7,20 @@ use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\MutationOp;
 use App\Core\Sync\OutcomeStatus;
+use App\Core\Sync\Rules\ClientKey;
 use App\Core\Sync\WriteOutcome;
 use App\Models\User;
 use App\Modules\Sales\Models\SalesOrder;
 use App\Modules\Sales\Models\SalesQuote;
 use App\Modules\Sales\Sync\DraftSyncWriter;
+use App\Modules\Sync\Services\ManifestService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
+use Tests\Support\Companies;
 use Tests\Support\Sales\SalesKit;
 
 uses(RefreshDatabase::class);
@@ -277,10 +280,13 @@ it('has no offline actions and declares status locked and the audited fields', f
     ));
 
     expect($action->errorCode?->value)->toBe('SYNC_OFFLINE_WRITE_NOT_ALLOWED')
-        ->and($writer->lockedFields())->toBe(['status'])
+        ->and($writer->lockedFields())->toBe(['status', 'number'])
         ->and($writer->auditFields())->toBe(['number', 'status', 'document_date', 'party_id', 'currency_code', 'fx_rate', 'total', 'total_local', 'notes', 'version'])
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => 'draft'])))->toBeTrue()
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => 'sent'])))->toBeFalse()
+        // Manifest constraints are lists of allowed values (offline-manifest.schema.json).
+        ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => ['sent', 'draft']])))->toBeTrue()
+        ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => ['sent']])))->toBeFalse()
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): int => $w->currentVersion($w->find($quote['id']))))->toBe(1);
 });
 
@@ -315,10 +321,7 @@ it('re-derives line tax rates and totals when only the document date changes', f
 it('declares the document_date derivation of lines and totals in the manifest', function (): void {
     expect(salesEffectiveWriteSet('sales-quotes', ['document_date']))->toContain('lines', 'tax_total', 'total', 'tax_total_local', 'total_local')
         ->and(salesEffectiveWriteSet('sales-orders', ['document_date']))->toContain('lines', 'tax_total', 'total', 'tax_total_local', 'total_local');
-})->skip(
-    fn (): bool => ! in_array('tax_total', salesEffectiveWriteSet('sales-quotes', ['document_date']), true),
-    'contracts/offline-manifest.json (P0) lacks {when: [document_date], derives: [lines]} for sales-quotes/sales-orders; until then a stale merge touching document_date conflicts (undeclared derivation).',
-);
+});
 
 /**
  * changed_fields closed over the manifest's derived_fields (SYNC-PROTOCOL "Etkin yazma kümesi").
@@ -328,21 +331,11 @@ it('declares the document_date derivation of lines and totals in the manifest', 
  */
 function salesEffectiveWriteSet(string $resource, array $changed): array
 {
-    $manifest = json_decode((string) file_get_contents((string) config('sync.manifest_path')), true, flags: JSON_THROW_ON_ERROR);
-    $entry = collect($manifest['resources'])->firstWhere('resource', $resource);
-    $set = $changed;
+    // The push service's own parser and closure over the shipped manifest.
+    $write = app(ManifestService::class)->manifest()->find($resource)?->write;
+    expect($write)->not->toBeNull();
 
-    do {
-        $before = count($set);
-
-        foreach ($entry['write']['derived_fields'] as $rule) {
-            if ($rule['when'] === ['*'] || array_intersect($rule['when'], $set) !== []) {
-                $set = array_values(array_unique([...$set, ...$rule['derives']]));
-            }
-        }
-    } while (count($set) !== $before);
-
-    return $set;
+    return $write->effectiveFields($changed, $changed);
 }
 
 it('accepts a client UUIDv7 on REST quote and order creates and ignores an id elsewhere', function (): void {
@@ -361,6 +354,25 @@ it('accepts a client UUIDv7 on REST quote and order creates and ignores an id el
     SalesKit::patch($this->w->user, $this->w->company, "sales-quotes/{$id}", ['version' => 1, 'id' => (string) Str::uuid7(), 'notes' => 'x'])
         ->assertOk()->assertJsonPath('data.id', $id);
 });
+
+it('answers every unusable client id with one message, taken here or in another company', function (string $resource, string $table): void {
+    $post = fn (mixed $id) => SalesKit::post($this->w->user, $this->w->company, $resource, [...salesDraftPayload($this->w), 'id' => $id]);
+    [$own, $foreign] = [(string) Str::uuid7(), (string) Str::uuid7()];
+    $post($own)->assertCreated();
+    $post($foreign)->assertCreated();
+    $other = Companies::make();
+    DB::statement('SET LOCAL session_replication_role = replica');
+    DB::table($table)->where('id', $foreign)->update(['company_id' => $other]);
+    DB::statement('SET LOCAL session_replication_role = origin');
+
+    $answers = collect([$own, $foreign, 'not-a-uuid', (string) Str::uuid(), 42])
+        ->map(fn (mixed $id): mixed => $post($id)->assertStatus(422)->assertJsonPath('errors.code', 'VALIDATION_ERROR')->json('errors.fields.id'));
+
+    expect($answers->unique(fn (mixed $m): string => (string) json_encode($m))->values()->all())->toBe([[ClientKey::message()]]);
+})->with([
+    'quotes' => ['sales-quotes', 'sales_quotes'],
+    'orders' => ['sales-orders', 'sales_orders'],
+]);
 
 it('turns a lost create race on the client key into VALIDATION_ERROR on id, for sync and REST', function (): void {
     $template = salesCreate($this->w, 'sales-quotes')->data;

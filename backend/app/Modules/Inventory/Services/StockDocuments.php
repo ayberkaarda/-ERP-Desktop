@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Inventory\Services;
 
+use App\Core\Sync\Rules\ClientKey;
 use App\Modules\Catalog\Contracts\ItemLookup;
 use App\Modules\Catalog\Contracts\UnitLookup;
 use App\Modules\Catalog\Data\ItemData;
@@ -41,7 +42,7 @@ final class StockDocuments
             // Two creates raced on one client-generated id past the request's unique check; the
             // transaction (or savepoint) is already rolled back here.
             if (self::duplicateId($e)) {
-                throw ValidationException::withMessages(['id' => [__('validation.unique', ['attribute' => 'id'])]]);
+                throw ValidationException::withMessages(['id' => [ClientKey::message()]]);
             }
 
             throw $e;

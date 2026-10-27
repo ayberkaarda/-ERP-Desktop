@@ -116,7 +116,7 @@ it('keeps drafts editable and refuses edits after submission', function (): void
         'version' => $this->request['version'], 'lines' => [['item_id' => $w->item->id, 'quantity' => '2', 'estimated_price' => '10']],
     ])->assertOk()->assertJsonPath('data.estimated_total', '20.0000')->json('data');
     PurchKit::post($w->user, $w->company, "purchase-requests/{$this->request['id']}/submit")->assertOk();
-    PurchKit::patch($w->user, $w->company, "purchase-requests/{$this->request['id']}", ['version' => $edited['version'] + 1, 'notes' => 'y'])->assertStatus(422);
+    PurchKit::patch($w->user, $w->company, "purchase-requests/{$this->request['id']}", ['version' => $edited['version'] + 1, 'notes' => 'y'])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
     PurchKit::post($w->user, $w->company, "purchase-requests/{$this->request['id']}/cancel")->assertOk()->assertJsonPath('data.status', 'cancelled');
     PurchKit::post($w->user, $w->company, "purchase-requests/{$this->request['id']}/submit")->assertStatus(422)
         ->assertJsonPath('errors.code', 'INVALID_STATE_TRANSITION');

@@ -7,6 +7,7 @@ namespace App\Core\Http;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -49,8 +50,19 @@ final class ExceptionRenderer
             $e instanceof AuthorizationException => ApiResponse::error(ErrorCode::Forbidden),
             $e instanceof ModelNotFoundException => ApiResponse::error(ErrorCode::NotFound),
             $e instanceof HttpExceptionInterface => $this->fromHttpException($e),
+            // Another transaction is changing the record (NOWAIT refused, lock_timeout reached):
+            // reload and retry, as for any concurrent change.
+            self::lockNotAvailable($e) => ApiResponse::error(ErrorCode::VersionConflict, headers: ['Retry-After' => '1']),
             default => ApiResponse::error(ErrorCode::ServerError),
         };
+    }
+
+    /**
+     * SQLSTATE 55P03 (lock_not_available).
+     */
+    public static function lockNotAvailable(Throwable $e): bool
+    {
+        return $e instanceof QueryException && ($e->errorInfo[0] ?? null) === '55P03';
     }
 
     private function fromHttpException(HttpExceptionInterface $e): JsonResponse

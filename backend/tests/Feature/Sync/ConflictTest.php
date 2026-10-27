@@ -333,31 +333,29 @@ it('does not let a keep_mine resolution carry a different body past the duplicat
         ->and(array_column($same['data']['lines'], 'body'))->toBe(['original']);
 });
 
-it('never overwrites a server change silently when a stale update meets two audited fields', function (): void {
+it('rebuilds a replayed VERSION_CONFLICT from the current row: server_version, server_data and conflicting_fields together', function (): void {
     SyncKit::manifest(function (array $m): array {
         unset($m['resources'][0]['write']['draft_only']);
+        $m['resources'][0]['write']['derived_fields'] = [['when' => ['title'], 'derives' => ['status'], 'source' => 'test']];
 
         return $m;
     });
     $note = SyncKit::note($this->company, ['title' => 'Base']);
     $edit = fn (array $attributes) => app(CompanyContext::class)->runAs($this->company->id, fn () => LoggedNote::query()->findOrFail($note->id)->update($attributes));
 
-    // v2: the server changes status. A title update on v1 merges and keeps that status.
-    $edit(['status' => 'review']);
-    $merged = pushSingle($this, SyncKit::mutation('update', $note->id, ['title' => 'Mine'], 1));
-    expect($merged)->toMatchArray(['status' => 'applied', 'version' => 3, 'merged_fields' => ['title']])
-        ->and(freshNote($note->id)->only(['title', 'status']))->toBe(['title' => 'Mine', 'status' => 'review']);
-
-    // v4 title, v5 status: a title update on v3 meets the title change, and its replay after
-    // the status change still names title, with the current row.
+    // v2 title: a title update on v1 (write set title + derived status) meets the title change.
     $edit(['title' => 'Server']);
-    $update = SyncKit::mutation('update', $note->id, ['title' => 'Again'], 3);
+    $update = SyncKit::mutation('update', $note->id, ['title' => 'Again'], 1);
     $conflict = pushSingle($this, $update);
-    $edit(['status' => 'draft']);
+
+    // v3 status: the replay is answered for the row as it is now, so it names status too. A
+    // merge built from it at server_version 3 is told about every field changed since base.
+    $edit(['status' => 'review']);
     $replay = pushSingle($this, $update);
 
-    expect($conflict['conflict'])->toMatchArray(['server_version' => 4, 'conflicting_fields' => ['title']])
-        ->and($replay['conflict'])->toMatchArray(['server_version' => 5, 'conflicting_fields' => ['title']])
-        ->and($replay['conflict']['server_data'])->toMatchArray(['title' => 'Server', 'status' => 'draft', 'version' => 5])
-        ->and(freshNote($note->id)->only(['title', 'status']))->toBe(['title' => 'Server', 'status' => 'draft']);
+    expect($conflict['conflict'])->toMatchArray(['base_version' => 1, 'server_version' => 2, 'conflicting_fields' => ['title']])
+        ->and($replay)->toMatchArray(['status' => 'conflict', 'replayed' => true])
+        ->and($replay['conflict'])->toMatchArray(['code' => 'VERSION_CONFLICT', 'base_version' => 1, 'server_version' => 3, 'conflicting_fields' => ['status', 'title']])
+        ->and($replay['conflict']['server_data'])->toMatchArray(['title' => 'Server', 'status' => 'review', 'version' => 3])
+        ->and(freshNote($note->id)->only(['title', 'status']))->toBe(['title' => 'Server', 'status' => 'review']);
 });

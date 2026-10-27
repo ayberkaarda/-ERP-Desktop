@@ -64,8 +64,8 @@ it('refuses illegal transitions and edits outside draft', function (): void {
     $w = $this->w;
     $order = PurchKit::approvedOrder($w, [[$w->item->id, '2', '10']]);
     PurchKit::post($w->user, $w->company, "purchase-orders/{$order['id']}/submit")->assertStatus(422)->assertJsonPath('errors.code', 'INVALID_STATE_TRANSITION');
-    PurchKit::patch($w->user, $w->company, "purchase-orders/{$order['id']}", ['notes' => 'x', 'version' => $order['version']])->assertStatus(422);
-    PurchKit::as($w->user, $w->company)->deleteJson("/api/v1/purchase-orders/{$order['id']}")->assertStatus(422);
+    PurchKit::patch($w->user, $w->company, "purchase-orders/{$order['id']}", ['notes' => 'x', 'version' => $order['version']])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
+    PurchKit::as($w->user, $w->company)->deleteJson("/api/v1/purchase-orders/{$order['id']}")->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
 
     $receipt = PurchKit::receive($w, $order['id'], [$order['lines'][0]['id'] => '2']);
     PurchKit::post($w->user, $w->company, "purchase-orders/{$order['id']}/cancel")->assertStatus(422);

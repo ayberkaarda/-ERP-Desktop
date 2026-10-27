@@ -8,6 +8,7 @@ Kararların gerekçeleri:
 - [ADR 0005](adr/0005-sync-push-and-conflicts.md): push sonuçları ve çakışma kuralları
 - [ADR 0006](adr/0006-offline-manifest.md): offline-manifest ve ONLINE_ONLY
 - [ADR 0007](adr/0007-device-tokens.md): cihaz token'ları
+- [ADR 0008](adr/0008-sync-module-adapters.md): senkron modülü ve modül adaptörleri
 
 ## Sözleşme dosyaları
 
@@ -40,6 +41,23 @@ Tüm şemalar JSON Schema draft 2020-12'dir. Tel tipleri bu şemalardan üretili
 - Her senkron durumu (cursor, outbox, yerel depo) **kullanıcı + şirket** çiftine bağlıdır. Şirket değişince başka bir yerel veri kümesine geçilir.
 - `xid8` değerleri 64 bittir ve **ondalık string** olarak taşınır. JavaScript sayısına çevrilmez.
 - Zaman damgaları API Resource'lardaki gibi ISO 8601 ve ofsetlidir.
+- **Meşgul satır kilidi.** Başka bir transaction'ın tuttuğu satır kilidi yüzünden reddedilen deyim (SQLSTATE `55P03`: `NOWAIT` reddi veya `lock_timeout`) REST'te HTTP 409 `VERSION_CONFLICT` ve `Retry-After: 1` döner; istemci kaydı yeniden yükleyip tekrar dener (`Core/Http/ExceptionRenderer.php:55`, `:63`). Diğer veritabanı hataları 500 `SERVER_ERROR` kalır. Push bu durumu farklı yanıtlar (İşleme bölümünün sonundaki geçici hatalar).
+
+### Hız ve eşzamanlılık sınırları
+
+Üç senkron ucu da `throttle:sync` arkasındadır (`Modules/Sync/routes.php:11`, `SyncServiceProvider.php:35`). Sınırlar `config/sync.php` `throttle` bölümündedir (`config/sync.php:22-29`); manifest ve tel sözleşmesine girmez.
+
+| Sınır | Varsayılan | Anahtar |
+|---|---|---|
+| Cihaz başına istek | Dakikada 120 (`device_per_minute`) | Doğrulanmış cihaz: `user_devices.id`. Token yenilemesi kotayı sıfırlamaz. Cihaz satırı olmayan `desktop` token'ı `token:<id>` anahtarına düşer (`EnsureDesktopToken.php:31`, `:65-67`). |
+| Kullanıcı başına istek | Dakikada 300 (`user_per_minute`) | Kullanıcı kimliği. |
+| Cihaz başına eşzamanlı pull | 1 (`concurrent_pulls_per_device`) | `user_devices.id`; yenilenen access token aynı slotu kullanır. |
+| Kullanıcı başına eşzamanlı pull | 3 (`concurrent_pulls_per_user`) | Kullanıcı kimliği. |
+| Pull slot süresi | 120 sn (`pull_slot_seconds`) | Ölen işçinin slotu bu süre sonunda düşer. |
+
+- Dakika sınırı aşılınca istek 429 `TOO_MANY_ATTEMPTS` ve `Retry-After` başlığıyla, mevcut hata zarfında döner (`Core/Http/ErrorCode.php:106`).
+- Eşzamanlı pull sınırı yalnız `/sync/pull`'dadır (`LimitConcurrentPulls`). Slot alınamazsa istek işe başlamadan 429 `TOO_MANY_ATTEMPTS` ve `Retry-After: 1` alır (`LimitConcurrentPulls.php:68-70`). Slotlar cache kilididir; pull bittiğinde, hatayla bitse bile, bırakılır (`:81-87`). Sınır ve aşağıdaki pull süresi yalnız uygulamanın cache store'u kilit destekliyorsa (`LockProvider`) ve istekte kullanıcı ile cihaz anahtarı çözülmüşse kurulur; aksi halde pull sınırsız ve süresiz devam eder (`:54-57`). Pull süresi ayrıca veritabanı bağlantısının Laravel `Connection` olmasını ister (`:75-77`).
+- **Pull süresi (lease).** İsteğin tek bir bitiş zamanı vardır; sayaç istek slot beklemeye başladığında, slot alınmadan önce başlar (`LimitConcurrentPulls.php:59`, `:76`). Süre slot süresinden 5 sn kısadır; slot süresi 10 sn veya daha kısaysa yarısıdır (120 sn → 115 000 ms; `LimitConcurrentPulls::deadlineMs`, `:94-99`). `PullLease` bağlantının `transaction_timeout` ve `statement_timeout` ayarlarını kalan süreyle kurar ve her deyimden önce kalan süreyi denetler: süre bitmişse deyim çalıştırılmadan 500 `SERVER_ERROR` ve `Retry-After: 1` döner. Kalan süre, geçerli `statement_timeout`'un 100 ms'den fazla altına indiğinde `statement_timeout` kalan süreye indirilir; ayarlama adımlı olduğundan ve ayar sorgusundan sonra süre yeniden ölçülmediğinden (`:134-136`), bir deyimin zaman aşımı kalan süreyi küçük ama garanti edilmeyen bir miktar aşabilir (`PullLease.php:33`, `:71-84`, `:112-139`). Pull bitince lease devreden çıkar ve ayarlar önceki değerlerine döndürülür; bu geri yükleme sorguları süre denetimine tabi değildir. Geri yüklenemezse bağlantı kapatılır (`:96-110`). Kesin toplam süre garantisi yoktur; bkz. Bilinen sınırlamalar.
 
 ### Kaynak adları
 
@@ -122,29 +140,49 @@ ORDER BY pos_txid, id
 LIMIT :limit + 1
 ```
 
-- İlk indirmede `cursor: null` gönderilir; sunucu `{txid: "0", after_id: null, gen: <güncel nesil>, session: null}` kabul eder.
-- `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null, session: null}`.
+- İlk indirmede yalnızca `cursor: null` gönderilir.
+- `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null, session: <akış etiketi>}`.
+- Cursor kullanıcı, şirket ve kaynak akışına bağlıdır. Artımlı cursor'ın opak `session` alanı, `i_` önekli, padding içermeyen base64url HMAC-SHA256 akış etiketidir. Girdi `sync-cursor|1|user_id|company_id|resource|txid|after_id|gen` biçimindedir (null `after_id` boş yazılır); alt anahtar `hash_hmac('sha256', 'sync-cursor-tag', base64_decode(APP_KEY))` ile türetilir (APP_KEY'in `base64:` öneki çıkarılır). Sunucuda kapsam kaydı tutulmaz. APP_KEY döndürülürse tüm artımlı cursor'lar bir kez `cursor_expired` reseti alır. Dolu cursor ile `session: null` gönderen eski istemci de (`txid: "0"` dahil) bir kez reset alır; dönen etiketli cursor ile devam eder.
 - Cursor her zaman dört alan taşır: `txid`, `after_id`, `gen`, `session`. İstemci aldığı `next_cursor`'ı bütün olarak, değiştirmeden geri gönderir; `session` alanı eksik olan cursor `SYNC_CURSOR_INVALID` alır.
 - `next_cursor.gen` her zaman kaynağın güncel görünürlük neslidir.
 - İstemci sayfaları sırayla uygular ve `next_cursor`'ı sayfayı yerel depoya yazdığı transaction içinde saklar.
-- Satırlar policy ve şirket kapsamından geçer. Kullanıcının göremediği satır dönmez.
+- Görünürlük kaynak düzeyindedir: pull, kaynağın manifest `requires` iznini denetler ve satırları adaptör sorgusunun şirket kapsamıyla okur; satır başına Policy çalışmaz. `requires` sağlanmıyorsa istek `FORBIDDEN` alır.
 - `window_days` tanımlı kaynaklarda yalnızca `window_field` değeri pencere içinde olan satırlar `rows` içinde döner. Pencere **filtre değil dönüşümdür**: konumu cursor aralığında olan (yani değişmiş) ama `window_field` değeri pencerenin dışında kalan canlı satır, `reason: out_of_scope` tombstone'u olarak döner. Böylece belge tarihi pencere dışına değiştirildiğinde istemci, eski tarihi bilse bile kaydı kaldırır. Değişmeden yaşlanarak pencereden çıkan belgeler için olay üretilmez; istemci bunları yerelde bildiği `window_field` değerine göre kendisi budar. Pencereye geri giren satır, değiştiği için normal satır olayı olarak gelir.
 
 ### Görünürlük nesli
 
-Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir **görünürlük nesli** sayacıyla izlenir. Rol ataması, rol izinleri, şirket üyeliği veya kaynağın kapsamını etkileyen ayar değiştiğinde ilgili kullanıcıların etkilenen kaynaklardaki nesli bir artar.
+Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir **görünürlük nesli** sayacıyla izlenir. Nesil gözlemle artar: kaynağın `requires` koşulunun sağlanıp sağlanmadığı hesaplanır ve `(user_id, company_id, resource)` için saklanan durumla (`visible`/`hidden`) karşılaştırılır; durum değiştiyse nesil bir artar, aynıysa değişmez (`Modules/Sync/Services/Visibility.php:31-60`). Gözlem üç yerde yapılır: her manifest isteği, her pull isteği ve her yetki değişikliği.
+
+**Yetki değişikliği.** Identity, kullanıcının yapabileceklerini değiştiren her işlemde `AccessChanged(userIds, companyId)` olayını yayar (`Modules/Identity/Events/AccessChanged.php:17`). Olay senkrondur; değişikliğin transaction'ı içinde, izin önbelleği temizlendikten sonra dağıtılır:
+
+| Değişiklik | Kimler, hangi şirket | Kod |
+|---|---|---|
+| Rol izinleri (rol oluşturma/güncelleme), yalnız izin kümesi gerçekten değiştiyse | Rolün tüm sahipleri, rolün şirketi | `Identity/Services/RoleAdministration.php:97-108` |
+| Rol silme | Silmeden önceki sahipleri, rolün şirketi | `RoleAdministration.php:69-79` |
+| Kullanıcının rolleri (`syncRoles`), yalnız rol kimlik kümesi değiştiyse; tüm rollerin kaldırılması dahil | O kullanıcı, o şirket | `Identity/Services/UserAdministration.php:198-199` |
+| `is_super_admin` bayrağı | O kullanıcı, **tüm şirketler** (`companyId = null`) | `UserAdministration.php:79-86` |
+| Şirket üyeliğinin aktifliği (`CompanyDirectory::setMembership`), yalnız aktiflik gerçekten değiştiyse | O kullanıcı, o şirket | `Organization/Services/DatabaseCompanyDirectory.php:72-88` |
+
+Pasifleştirme ve kullanıcı silme olay yaymaz: tüm token'lar iptal edilir, kullanıcının senkron isteği zaten geçmez (`UserAdministration.php:25-27`).
+
+Sync modülünün dinleyicisi `VisibilityRefresh` (`SyncServiceProvider.php:47`) etkilenen `(kullanıcı, şirket)` çiftlerinden **en az bir nesil satırı olanları**, yani o şirkette en az bir manifest veya pull görmüş olanları seçer ve her pull kaynağını yeni izinlerle yeniden gözler (`Modules/Sync/Services/VisibilityRefresh.php:37-66`). Görünürlüğü gerçekten değişen kaynağın nesli bir artar, değişmeyeninki aynı kalır. Hiç senkron yapmamış kullanıcı için satır oluşturulmaz; ilk manifest veya pull durumu kaydeder.
+
+- **Transaction içinde.** Nesil yazıları yetki değişikliğiyle birlikte commit edilir veya geri alınır. İki senkron arasında yetki kaldırılıp geri verilirse, arada hiç manifest veya pull olmasa da nesil iki kez artar; eski cursor `reset_reason: visibility_changed` alır.
+- **Serileşme.** Dinleyici her çift için, çiftleri `(user_id, company_id)` sırasıyla, transaction sonuna kadar süren bir advisory kilit (`pg_advisory_xact_lock(hashtextextended('sync.visibility:<user>:<company>', 0))`) alır, ardından izin önbelleğini temizleyip izinleri yeniden okur (`VisibilityRefresh.php:50-61`). Aynı çifti değiştiren ikinci transaction ilkinin commit'ini bekler ve onun sonucunu görerek gözler. Böylece aynı izni veren iki rolün eşzamanlı kaldırılması da nesli artırır; sabit sıra çapraz kilidi önler.
+- **Üyelik kaybında çift artış.** Üyelik kaybı ayrıca Identity'nin `MembershipRevoked` olayını yayar (`UserAdministration.php:179-181`). Bu olay commit'ten sonra dağıtılır (`Identity/Events/MembershipRevoked.php:17`, `ShouldDispatchAfterCommit`) ve kullanıcının o şirketteki **tüm** nesillerini koşulsuz bir artırır (`SyncServiceProvider.php:52`, `Visibility.php:67-73`). Aynı kayıpta `setMembership` üzerinden gelen `AccessChanged` de görünürlüğü değişen kaynakları artırmış olabilir; nesil bu yüzden bir kayıpta birden fazla artabilir. Sözleşme nesil değerinin kendisine değil yalnız **eşitliğine** dayanır: değer yalnız büyür, istemci onu yorumlamaz, sunucu `cursor.gen` güncel nesle eşit değilse reset verir. Fazladan artış en çok bir fazladan tam indirmeye yol açar.
+- **Kapsam dışı.** `DefaultRoles` kurulum/seeder yolu izinleri doğrudan `givePermissionTo` ile verir ve olay yaymaz (`Identity/Services/DefaultRoles.php:36`, `:42`). Yeni şirket kurulumunda henüz nesil satırı olan kullanıcı bulunmadığından etkisi yoktur.
 
 - Nesil tüketilen bir bayrak değildir. Her cihaz kendi cursor'ındaki `gen` değerini sunucunun güncel nesliyle karşılaştırır; bir cihazın reset alması diğer cihazların durumunu değiştirmez.
 - `cursor.gen` güncel nesilden farklıysa sunucu o kaynak için `reset: true, reset_reason: visibility_changed` döner. `rows`, yeni tam indirmenin ilk sayfasıdır ve `next_cursor.gen` güncel nesildir.
 - Tam indirme sayfalanırken nesil yeniden değişirse, eski `gen` taşıyan sonraki sayfa tekrar reset alır. Böylece hiçbir cihaz eski görünürlükle başlamış bir indirmeyi yeni görünürlükle tamamlamaz.
 
-### Tam indirme oturumu
+### Tam indirme oturumu ve akış etiketi
 
 İlk indirme (`cursor: null`) ve her reset bir **tam indirme** başlatır. Tam indirmenin sayfaları, konumlarına göre değil indirmenin başladığı horizon'a göre tombstone tabanıyla karşılaştırılır: tabanın altındaki satırlar indirmenin kendisidir; ancak tabandan eski bir indirme silme kaçırmış olabilir.
 
-- Sunucu her tam indirme için opak bir **oturum kimliği** üretir ve indirmenin `has_more = true` sayfalarında `next_cursor.session` alanına yazar. Değer opak bir stringdir (`^[A-Za-z0-9_-]{1,64}$`; bugün UUIDv7). İstemci onu yorumlamaz, karşılaştırmaz, üretmez; yalnızca cursor ile birlikte aynen geri gönderir.
-- İndirmenin son sayfasında (`has_more = false`) `next_cursor.session = null` olur: bundan sonraki cursor **artımlıdır**. Artımlı akışın sayfalarında da (`has_more = true`, artımlı cursor'dan devam) `session` null kalır; artımlı cursor kendi konumuyla (`cursor.txid`) tabana göre denetlenir.
-- Dolu `session` taşıyan cursor yalnızca o oturumun devamıdır. Oturum bitmişse, aynı cihazın yeni bir tam indirmesiyle değişmişse ya da bu konumu o oturum vermemişse, `txid/after_id/gen` yeni oturumun bir cursor'ıyla aynı olsa bile devam ettirilmez; kaynak `reset: true, reset_reason: cursor_expired` alır ve yeni bir oturum başlar. Böylece kaybolan bir reset yanıtından sonra eski cursor ile yapılan tekrar deneme yeniden reset alır.
+- Sunucu her tam indirme için opak bir **oturum kimliği** üretir ve indirmenin `has_more = true` sayfalarında `next_cursor.session` alanına yazar. Değer opak bir stringdir (`^[A-Za-z0-9_-]{1,64}$`; oturum kimliği UUIDv7, akış etiketi i_ önekli). İstemci onu yorumlamaz, karşılaştırmaz, üretmez; yalnızca cursor ile birlikte aynen geri gönderir.
+- İndirmenin son sayfasında (`has_more = false`) `next_cursor.session` akış etiketi olur: bundan sonraki cursor **artımlıdır**. Artımlı akışın ara sayfalarında da etiket taşınır; artımlı cursor kendi konumuyla (`cursor.txid`) tabana göre denetlenir. Oturum kimliği ve akış etiketi aynı opak alanı paylaşır; istemci bunları ayırmaz.
+- UUIDv7 oturum kimliği taşıyan cursor yalnızca o oturumun devamıdır. Oturum bitmişse, aynı cihazın yeni bir tam indirmesiyle değişmişse ya da bu konumu o oturum vermemişse, `txid/after_id/gen` yeni oturumun bir cursor'ıyla aynı olsa bile devam ettirilmez; kaynak `reset: true, reset_reason: cursor_expired` alır ve yeni bir oturum başlar. Böylece kaybolan bir reset yanıtından sonra eski cursor ile yapılan tekrar deneme yeniden reset alır.
 - Oturumlar cihaz (`user_devices`), kullanıcı, şirket ve kaynak başına tektir; access token yenilemesinden etkilenmez, cihaz iptal edilince silinir. Oturuma yapılan her yazma okunan duruma göre karşılaştır-ve-değiştir ile yapılır: geciken bir istek yeni bir oturumu değiştirmez veya silmez. Bir sayfa isteğinin tekrarı (aynı cursor, aynı `limit`) aynı oturumun devamı olarak kabul edilir; farklı `limit` ile tekrarlanan eski bir sayfanın yanıtındaki cursor bir sonraki istekte reset alabilir.
 
 ### Reset
@@ -153,7 +191,7 @@ Görünürlük, sunucuda `(user_id, company_id, resource)` başına tutulan bir 
 
 | `reset_reason` | Ne zaman |
 |---|---|
-| `cursor_expired` | `cursor.txid`, şirketin **tombstone tabanından** küçük. |
+| `cursor_expired` | `cursor.txid`, şirketin **tombstone tabanından** küçük ya da cursor'ın session/etiketi bu akış için geçerli değil. |
 | `visibility_changed` | `cursor.gen`, güncel görünürlük nesline eşit değil. |
 | `schema_changed` | Kaynağın API Resource şekli uyumsuz değişti. |
 
@@ -187,6 +225,7 @@ Outbox'tan partilenmiş mutasyonlar. Şemalar: `push.request.schema.json`, `push
 ```
 
 - `id` istemcinin ürettiği UUIDv7'dir ve sunucuda doğrudan birincil anahtar olur. `client_id`/`server_id` ikiliği yoktur.
+- Create'te `id` Core kuralı `ClientKey` ile denetlenir: küçük harfli kanonik UUIDv7 olmalı ve tabloda, tüm şirketler ve silinmiş satırlar dahil, kullanılmamış olmalıdır (`Core/Sync/Rules/ClientKey.php:31-37`). Her başarısızlık (biçimsiz, v7 değil, bu şirkette alınmış, başka şirkette alınmış) ve ekleme yarışında birincil anahtar ihlali aynı mesajı verir: `VALIDATION_ERROR`, `fields.id` = `core::sync.client_key_unusable` ("Bu id yeni bir kayıt için kullanılamaz."; `Core/lang/*/sync.php:7`). Aynı kural REST create uçlarında (`PartyRequest.php:62`, Sales `DocumentRequest.php:79`, Purchasing `DocumentRequest.php:118`, `StockDocumentRequest.php:34`) ve push'ta alınmış `id` cevabında (`PushService.php:679-682`) kullanılır. Push'ta biçimsiz veya v7 olmayan `id` bu kurala ulaşmaz: `PushRequest` onu istek düzeyinde regex ile reddeder (422 `VALIDATION_ERROR`, alan `mutations.<n>.id`; `Sync/Http/Requests/PushRequest.php:22`, `:30`). Tek tip mesaj push'ta yalnız geçerli biçimdeki ama kullanılmış `id` için geçerlidir. Mesaj hangi durumun oluştuğunu söylemez; kullanılan bir `id`'nin reddedildiği yine görülebilir (Bilinen sınırlamalar).
 - `payload`, manifestteki `write.ops[].route` ucunun FormRequest girdisidir, **`version` hariç** (şema `version` anahtarını reddeder). Örnek: sayım girişi `PATCH /stock-documents/{id}/counts` için `{"counts": [{"line_id": "…", "counted_quantity": "38"}]}` (`CountsRequest`).
 - `base_version` create için `null`, diğerleri için değişikliğin dayandığı sunucu sürümüdür.
 
@@ -204,9 +243,11 @@ Bilinen türetmeler (backend kaynağı manifestte `source` olarak):
 | `sales-quotes`, `sales-orders` | `party_id` | `payment_term_id`, `price_list_id`, `billing_address`, `due_date`, `party_name`, `party_tax_office`, `party_tax_number` (`Sales/Services/DocumentService.php:93`) |
 | | `currency_code` | `fx_rate` (`DocumentService.php:97`) |
 | | `document_date`, `payment_term_id` | `due_date` (`DocumentService.php:101`, `Composer/DocumentComposer.php:107`) |
+| | `document_date` | `lines`: satırların vergi oranı belge tarihinde yeniden aranır (`DocumentComposer.php:326`, `:340`), fiyatı verilmemiş satırın fiyatı da o tarihle çözülür (`:247`). Toplamlar aşağıdaki `lines` kuralıyla zincirlenir. |
 | | `lines`, `fx_rate` | `subtotal`, `discount_total`, `tax_total`, `total` ve `*_local` karşılıkları (`DocumentComposer`) |
 | | her update | `party_name`, `party_tax_office`, `party_tax_number` (cari anlık görüntüsü her yazmada yenilenir, `DocumentComposer.php:147`) |
-| `purchase-requests` | `lines` | `estimated_total` (`Purchasing/Services/RequestService.php:345`) |
+| `purchase-requests` | `lines` | `estimated_total` (`Purchasing/Services/RequestService.php:379`) |
+| | her update | `currency_code`: her yazmada şirketin ana para birimi (`RequestService.php:345`) |
 | `stock-documents` | — | Yok; sayım satırları yalnızca `counts` işlemiyle (`exact`) yazılır, `doc_type` ve sayım deposu değiştirilemez (`Inventory/Services/StockDocuments.php:70-77`). |
 
 Not: `RequestService::update` satırları her update'te silip yeniden yazar; satır `id`'leri bu yüzden değişir. İstemci satırları kimlikle değil, dönen `data.lines` ile bütün olarak değiştirir.
@@ -244,7 +285,7 @@ Adımlar bu sırayla uygulanır. **Yetkilendirme, hiçbir saklanan sonuç, `conf
 5. **Idempotency.** `(kullanıcı, şirket, 'sync.push', idempotency_key)` için saklanan bir sonuç varsa mutasyon yeniden çalıştırılmaz. 3. ve 4. adımlar replay için de çalışmıştır; yetkisini yitiren kullanıcı saklanan veriyi geri alamaz (sonuç `rejected` / `FORBIDDEN` veya `NOT_FOUND`, `replayed: false`, saklanmaz).
    - İstek özeti farklıysa `rejected` / `IDEMPOTENCY_KEY_REUSED`.
    - Saklanan sonuç `applied` ise `duplicate` döner; ilk sonucun `version` ve `data`'sı aynen, `replayed: true`. Delete'in tekrarında hedef satır artık yoktur; 4. adım bu durumda `NOT_FOUND` üretmez, saklanan `data: null` sonucu döner.
-   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`. İstisna: conflict'te `server_version` ve `server_data` ikisi birlikte, 4. adımda kilitlenen **aynı güncel satır görüntüsünden** yeniden üretilir (`server_version = server_data.version`); `code`, `conflicting_fields`, `base_version` ve `choices` saklanan değerdir.
+   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`. İstisna: conflict'te `conflicting_fields`, `server_version` ve `server_data` birlikte, 4. adımda kilitlenen **aynı güncel satır görüntüsünden** yeniden üretilir (`server_version = server_data.version`); `code`, `base_version` ve `choices` saklanan değerdir; alan listesi güncel satırın alan çakışmalarından hesaplanır (exact işlemlerde boştur).
    Sonucun tamamı 7 gün saklanır. Geçici hatalar ve yetkilendirme retleri saklanmaz.
 6. **Bağımlılık.** Aynı partide aynı `id`'ye ait daha önceki mutasyonlar ve `depends_on` ile bildirilenler `applied` veya `duplicate` olmalıdır; değilse `rejected` / `SYNC_DEPENDENCY_FAILED` ve mutasyon denenmez. `depends_on` yalnızca aynı partide **daha önce** gelen ya da önceki bir partide gönderilmiş (sonucu saklı) anahtarlara işaret edebilir; ileri veya bilinmeyen referans `rejected` / `VALIDATION_ERROR` (`fields.depends_on`) olur. Referanslar yalnızca geriye baktığı için döngü oluşamaz. `resolution` taşıyan mutasyon için istisna aşağıda (Çakışma çözümü).
 7. **Payload kısıtları.** `payload_constraints` (create ve update payload'ı) sağlanmıyorsa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
@@ -263,7 +304,12 @@ Adımlar bu sırayla uygulanır. **Yetkilendirme, hiçbir saklanan sonuç, `conf
 | `conflict` | Kullanıcı kararı gerekir. | `conflict`. | Kaydı Conflict Inbox'a taşır. |
 | `rejected` | Kalıcı hata. | `error`. | Outbox kaydını hata koduyla işaretler, kullanıcıya gösterir. |
 
-Geçici hatalarda (ağ, 5xx, `TOO_MANY_ATTEMPTS`, `IDEMPOTENCY_IN_PROGRESS`) sonuç yoktur; istemci partiyi aynı anahtarlarla geri çekilerek yeniden gönderir.
+Geçici hatalarda (ağ, 5xx, `SERVER_ERROR`, `TOO_MANY_ATTEMPTS`, `IDEMPOTENCY_IN_PROGRESS`) sonuç yoktur; istemci partiyi aynı anahtarlarla geri çekilerek yeniden gönderir.
+
+- Bir mutasyon sırasında geçici hata oluşursa o mutasyonun transaction'ı (idempotency kaydı dahil) geri alınır ve **tüm push isteği** bu hatayla, istek düzeyindeki hata zarfında döner. Sonuç listesi dönmez.
+- Partide daha önce işlenen mutasyonlar kendi transaction'larında commit edilmiş kalır ve sonuçları saklanmıştır. Aynı anahtarlarla yeniden gönderimde bunlar saklanan sonuçlarıyla (`applied` için `duplicate`) döner; işleme hatanın oluştuğu mutasyondan devam eder.
+- **Meşgul satır kilidi.** Mutasyon transaction'ı içinde, hedef satırın `FOR UPDATE` kilidinde (`lock_timeout`) veya yazarın içinde (`NOWAIT`) oluşan SQLSTATE `55P03` mutasyon sonucu değildir: push isteği düzeyinde HTTP 409 `IDEMPOTENCY_IN_PROGRESS` ve `Retry-After: 1` döner (`Sync/Services/PushService.php:139-152`). REST'teki `VERSION_CONFLICT` eşlemesi burada kullanılmaz; çünkü conflict sonucu 7 gün saklanır ve aynı anahtarın her tekrarında yeniden döner (geçici bir kilit için istemciye gereksiz çözüm ekranı açardı). Yalnız kilide takılan mutasyonun transaction'ı (idempotency kaydı dahil) geri alınır; partide ondan önceki mutasyonlar commit'li ve sonuçları saklı kalır. İstemci partiyi aynı anahtarlarla yeniden gönderdiğinde önceki sonuçlar saklanan sonuçlarıyla, `replayed: true` olarak döner (5. adım: `applied` → `duplicate`; `conflict` ve `rejected` statüsünü korur, `VERSION_CONFLICT`/`DOCUMENT_LOCKED` conflict'inde `server_version` ve `server_data` güncel satırdan yeniden üretilir; `Core/Sync/WriteOutcome.php:74-80`, `PushService.php:436-458`). Kilide takılan mutasyon yeniden denenir.
+- Aynı mutasyon sürekli geçici hata alıyorsa sunucu tarafında bir karantina yoktur. İstemci kaydı kendi tarafında karantinaya alır: sonraki partilere koymaz ve kullanıcıya gösterir.
 
 **Sürüm kuralı (istemci).** Push sonucu yerel satırı asla geriletmez:
 
@@ -277,11 +323,14 @@ Geçici hatalarda (ağ, 5xx, `TOO_MANY_ATTEMPTS`, `IDEMPOTENCY_IN_PROGRESS`) son
 
 Sessiz üzerine yazma yasaktır.
 
-1. **Belge kilitli.** `write.draft_only` alanı (`status`) artık `draft` değilse sonuç `conflict` / `DOCUMENT_LOCKED` olur. Aynı kural REST'te de geçerlidir: taslak olmayan belgeyi `PATCH`/`DELETE` ile düzenleme girişimi HTTP 409 `DOCUMENT_LOCKED` döner (bugünkü 422 `INVALID_STATE_TRANSITION` yerine); push bu REST hatasını conflict sonucuna çevirir. Seçenekler yalnızca `save_as_new_draft` (istemci yeni UUIDv7 ve yeni anahtarla `create` üretir) veya `discard` (şema denetler).
+1. **Belge kilitli.** `write.draft_only` alanı (`status`) artık `draft` değilse (`purchase-requests` için `draft` veya `rejected` değilse; bkz. Çevrimdışı yazma kapsamı) sonuç `conflict` / `DOCUMENT_LOCKED` olur. Aynı kural REST'te de geçerlidir: taslak olmayan belgeyi `PATCH`/`DELETE` ile düzenleme girişimi HTTP 409 `DOCUMENT_LOCKED` döner (D1 öncesinde 422 `INVALID_STATE_TRANSITION` idi); push bu REST hatasını conflict sonucuna çevirir. Seçenekler yalnızca `save_as_new_draft` (istemci yeni UUIDv7 ve yeni anahtarla `create` üretir) veya `discard` (şema denetler).
 2. **Eski sürüm, kesişim yok** (`field-merge`). `base_version` güncel değilse, **etkin yazma kümesi** (`changed_fields` + türetilen alanlar) ile `base_version`'dan beri sunucuda değişen alanlar (audit diff) karşılaştırılır. Kesişim yoksa değişiklik uygulanır: `applied` ve `merged_fields`.
 3. **Eski sürüm, kesişim var.** Sonuç `conflict` / `VERSION_CONFLICT`; `conflicting_fields` ve `server_data` döner. Seçenekler `keep_mine`, `take_server`, `merge` içinden. `delete`/`action` için `exact` kuralı gereği kesişim aranmaz; seçenekler `keep_mine` ve `take_server`.
 4. **Belirsizlik çakışmadır.** Aradaki değişikliği audit kaydından kesin çıkarılamayan alan (ör. activitylog'un izlemediği `lines`) kesişiyor sayılır.
-5. **Mükerrer cari.** `parties` create'i öncesinde sunucu `GET /api/v1/parties/duplicates` ile aynı aramayı yapar. Aday varsa `conflict` / `DUPLICATE_RECORD` ve `candidates` döner. Seçenekler `use_existing` (istemci yerel taslağı aday kayda bağlar; sunucuya yazma yok), `keep_mine`, `discard`.
+5. **Mükerrer cari.** `parties` create'inde sunucu önce REST zincirinin yetki ve doğrulama adımlarını (`PartyRequest`) çalıştırır, sonra `GET /api/v1/parties/duplicates` ile aynı aramayı (`DuplicateFinder`) yapar. Aday varsa `conflict` / `DUPLICATE_RECORD` ve `candidates` döner (en az bir kimlik; şema `minItems: 1`). Seçenekler `use_existing` (istemci yerel taslağı aday kayda bağlar; sunucuya yazma yok), `keep_mine`, `discard`.
+   - Aramayı yalnızca doğrulanmış bir `resolution` `{code: DUPLICATE_RECORD, choice: keep_mine}` atlar (Çakışma çözümü). Payload'da gelen `allow_duplicate` anahtarı sunucuda silinir; aramayı atlatmaz.
+   - Kullanıcının `parties` için `viewAny` yetkisi yoksa aday araması yapılmaz: adayları göremez ve şema en az bir aday ister. Create, REST `POST /api/v1/parties` gibi devam eder.
+   - Normalleştirilmiş vergi numarası aktif bir cariyle birebir aynıysa sonuç `rejected` / `VALIDATION_ERROR` (`fields.tax_number`) olur, `DUPLICATE_RECORD` değil. Doğrulama aramadan önce çalışır; burada `keep_mine` sunmak anlamsızdır, çünkü aynı kural yazmayı yine reddeder.
 
 ### Çakışma çözümü (`resolution`)
 
@@ -293,7 +342,7 @@ Conflict Inbox kararı, **yeni bir `idempotency_key`** ile gönderilen yeni bir 
 | `VERSION_CONFLICT` | `merge` | `update`, `base_version = server_version`, birleştirilmiş alanlar; `resolution.choice = merge`. |
 | `VERSION_CONFLICT` | `take_server` | Mutasyon yok; istemci `server_data`'yı uygular. |
 | `DOCUMENT_LOCKED` | `save_as_new_draft` | Yeni `id` ile `create`; `resolution` gerekmez. |
-| `DUPLICATE_RECORD` | `keep_mine` | Aynı `id` ile `create`; `resolution` `{code: DUPLICATE_RECORD, choice: keep_mine}`. Sunucu bu durumda mükerrer kontrolünü atlar; diğer doğrulamalar ve `parties.create` izni aynen uygulanır. |
+| `DUPLICATE_RECORD` | `keep_mine` | Aynı `id` ile `create`; `resolution` `{code: DUPLICATE_RECORD, choice: keep_mine}`. Sunucu bu durumda mükerrer kontrolünü atlar; diğer doğrulamalar ve `parties.create` izni aynen uygulanır. Atlama yalnızca payload, çakışmayı alan mutasyonun payload'ıyla aynıysa (kanonik özet) geçerlidir; farklı payload'da arama yeniden çalışır. |
 | `DUPLICATE_RECORD` | `use_existing` | Mutasyon yok; bağımlı outbox kayıtları istemcide aday `id`'ye yeniden yazılır. |
 | Herhangi | `discard` | Mutasyon yok; outbox kaydı silinir. |
 
@@ -322,8 +371,10 @@ Numara verme sunucudadır. Çevrimdışı oluşturulan taslak numarasızdır; nu
 | `parties` | create (`none`) | Mükerrer kontrolü (`DUPLICATE_RECORD`). |
 | `sales-quotes` | create (`none`), update (`field-merge`), delete (`exact`) | Hedef `status = draft`. |
 | `sales-orders` | create, update, delete | Hedef `status = draft`. |
-| `purchase-requests` | create, update, delete | Hedef `status = draft`. |
+| `purchase-requests` | create, update, delete | Hedef `status` `draft` veya `rejected`. |
 | `stock-documents` | create, update, delete, action `counts` (`exact`) | Payload ve hedef `doc_type = count`; hedef `status = draft`. |
+
+`purchase-requests` için reddedilmiş talep de taslak gibi düzenlenir ve silinir; bu, web'deki "revize et" akışıyla aynı kuraldır (`RequestService::update`/`delete`, `PurchaseRequestSyncWriter::isDraft`). `rejected` bir talebin update'i talebi yeniden `draft` durumuna alır. Diğer durumlarda sonuç `conflict` / `DOCUMENT_LOCKED`'dır. Manifest bunu `draft_only: {field: status, value: draft, also: [rejected]}` ile bildirir (`contracts/offline-manifest.json:383`); `also`, `value` dışında düzenlenebilir sayılan değerlerin listesidir (şemada isteğe bağlı, en az bir öğe; `offline-manifest.schema.json:154`). Diğer kaynaklar `also` taşımaz. Bu alan istemci sözleşmesidir: istemci `also` değerlerindeki belgeyi kilitli göstermemelidir. Sunucu `also`'yu okumaz; kararı yazarın `isDraft` sonucuyla verir (`Sync/Services/PushService.php:272`, `PurchaseRequestSyncWriter.php:59-64`). Alan, `document_date` → `lines` ve `currency_code` türetmeleriyle birlikte `manifest_version` 2'de eklendi (`offline-manifest.json:3`).
 
 ## ONLINE_ONLY
 
@@ -333,7 +384,7 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 
 ## Hata kodları
 
-İlk 22 kod `backend/app/Core/Http/ErrorCode.php` ile aynıdır. Aşağıdakiler senkron için önerilen yeni durumlardır; `ErrorCode` enum'una, `status()` eşlemesine ve `lang/*/errors.php` çevirilerine eklenmelidir.
+İlk 22 kod `backend/app/Core/Http/ErrorCode.php` ile aynıdır. Aşağıdakiler senkron için eklenen 11 koddur; `ErrorCode` enum'unda, `status()` eşlemesinde ve `lang/*/errors.php` çevirilerinde bulunurlar (`ErrorCode.php:43-46`, `:59-62`; `backend/lang/en/errors.php:30-38`). HTTP sütunu `status()` eşlemesidir.
 
 | Kod | HTTP | Nerede |
 |---|---|---|
@@ -344,12 +395,12 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 | `SYNC_RESOURCE_UNSUPPORTED` | 422 | İstek veya push `rejected`. Kaynak manifestte yok. |
 | `SYNC_OFFLINE_WRITE_NOT_ALLOWED` | 422 | Push `rejected`. Mutasyon `write` tanımının ya da hedef kısıtlarının dışında. |
 | `SYNC_BATCH_TOO_LARGE` | 413 | İstek. Kaynak veya mutasyon sayısı limitin üstünde. |
-| `SYNC_DEPENDENCY_FAILED` | — | Push `rejected`. Bağımlı olunan mutasyon başarısız. |
-| `SYNC_BASE_VERSION_AHEAD` | — | Push `rejected`. `base_version` sunucu sürümünden büyük. |
-| `SYNC_CHANGED_FIELDS_MISMATCH` | — | Push `rejected`. `changed_fields` payload anahtarlarına eşit değil. |
-| `SYNC_RESOLUTION_INVALID` | — | Push `rejected`. `resolution` saklanan bir çakışmaya karşılık gelmiyor. |
+| `SYNC_DEPENDENCY_FAILED` | 422 | Push `rejected`. Bağımlı olunan mutasyon başarısız. |
+| `SYNC_BASE_VERSION_AHEAD` | 422 | Push `rejected`. `base_version` sunucu sürümünden büyük. |
+| `SYNC_CHANGED_FIELDS_MISMATCH` | 422 | Push `rejected`. `changed_fields` payload anahtarlarına eşit değil. |
+| `SYNC_RESOLUTION_INVALID` | 422 | Push `rejected`. `resolution` saklanan bir çakışmaya karşılık gelmiyor. |
 
-"—" olan kodlar yalnızca push sonucu içinde döner; HTTP durumu 200'dür. Push sonuçlarında mevcut kodlar da kullanılır: `VALIDATION_ERROR`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `APPROVAL_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`. İzin kaybı `FORBIDDEN`, iptal edilmiş cihaz `UNAUTHENTICATED` döner.
+Son dört kodun `status()` eşlemesi 422'dir, ancak bugün yalnızca push sonucu içinde `error.code` olarak döner; push yanıtının HTTP durumu 200'dür. İstek düzeyindeki hata zarfında gelmezler. Push sonuçlarında mevcut kodlar da kullanılır: `VALIDATION_ERROR`, `FORBIDDEN`, `NOT_FOUND`, `INVALID_STATE_TRANSITION`, `APPROVAL_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`. İzin kaybı `FORBIDDEN`, iptal edilmiş cihaz `UNAUTHENTICATED` döner. İstek düzeyinde hız ve eşzamanlı pull sınırı 429 `TOO_MANY_ATTEMPTS`, push'ta meşgul satır kilidi 409 `IDEMPOTENCY_IN_PROGRESS` döner (ikisi de `Retry-After` ile).
 
 ## Cihaz kimliği
 
@@ -366,7 +417,7 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 | Refresh token | 30 gün, kayan: her başarılı yenileme yeni bir refresh token ve yeni 30 gün verir. Tek kullanımlıktır. |
 | Saklama | `device_refresh_tokens(id, device_id, token_hash, family_id, expires_at, used_at)`. Ham token saklanmaz. |
 
-- **İlk giriş.** `POST /auth/device` erişim token'ını ve ailenin ilk refresh token'ını birlikte döner: `{data: {token, expires_at, refresh_token, refresh_expires_at}}`. Aynı kullanıcı ve fingerprint ile yeni giriş önceki cihaz kaydını ve ailesini iptal eder.
+- **İlk giriş.** `POST /auth/device` erişim token'ını ve ailenin ilk refresh token'ını birlikte döner: `{data: {token, expires_at, refresh_token, refresh_expires_at}}`. Aynı kullanıcı ve fingerprint ile yeni giriş cihaz kaydını korur; önceki token çiftini ve ailesini iptal eder, cihazın tam indirme oturumlarını sonlandırır. Kullanıcı başına en fazla 10 cihaz tutulur (`identity.device_tokens.max_devices_per_user`); sınır aşılırsa last_used_at, ardından created_at sırasıyla en eski cihaz iptal edilir.
 - **Yenileme.** `POST /auth/device/refresh` gövdesi `{refresh_token}`; `Authorization` başlığı gerekmez. Sunucu token'ı `used_at` ile işaretler, aynı `family_id` içinde yeni refresh token ve yeni erişim token'ı verir, eski erişim token'ını siler. Yanıt ilk girişle aynı şekildedir.
 - **Yeniden kullanım.** `used_at` dolu bir refresh token gelirse sunucu ailenin tamamını, cihazın erişim token'larını ve cihaz kaydını iptal eder ve 401 `UNAUTHENTICATED` döner. İstemci yerel oturumu kapatır; outbox korunur ve yeniden girişten sonra gönderilir.
 - **Diğer hatalar.** Bilinmeyen, süresi dolmuş veya iptal edilmiş cihaza ait refresh token: 401 `UNAUTHENTICATED`. Pasif kullanıcı: 403 `USER_DEACTIVATED`. Hız sınırı: 429 `TOO_MANY_ATTEMPTS`. Biçimsiz gövde: 422 `VALIDATION_ERROR`.
@@ -385,6 +436,8 @@ Liste UI etiketi içindir; güvenlik sınırı değildir. Sunucu, manifestte `wr
 | Pull isteğindeki kaynak sayısı | `limits.pull_resources_max` |
 | Push partisi | `limits.push_batch_max`; şema üst sınırı 500. |
 | Belge penceresi | 30 gün (`defaults.recent_window_days`). |
+| İstek hızı | Cihaz başına dakikada 120, kullanıcı başına dakikada 300 (`config/sync.php` `throttle`; Hız ve eşzamanlılık sınırları). |
+| Eşzamanlı pull | Cihaz başına 1, kullanıcı başına 3; slot 120 sn, pull süresi slot süresinden 5 sn kısa. |
 
 Uzun süren transaction'lar horizon'u geride tutar ve yalnızca senkronu geciktirir. `now - en eski açık transaction` metriği izlenir.
 
@@ -404,40 +457,54 @@ Uzun süren transaction'lar horizon'u geride tutar ve yalnızca senkronu gecikti
 
 ## Açık konular
 
-Web'de hazırlanması planlanan A6 zemininin ve senkron sunucusunun backend'de henüz olmayan parçaları. Kontrol `backend/` kaynak kodu üzerinde yapıldı. "D1 açık konusu" olarak işaretlenenler, sözleşmesi bu belgede bilerek tamamlanmamış konulardır.
+D1 sonrası durum. Kontrol `backend/` kaynak kodu (main) üzerinde yapıldı. Numaralar D0 listesiyle aynıdır; her madde **Kapandı** (nerede uygulandığıyla), **Kısmen** veya **Açık** olarak işaretlidir. Uygulamanın bilerek taşıdığı sınırlar ayrıca "Bilinen sınırlamalar" altındadır.
 
 **Senkron altyapısı (A6)**
 
-1. `syncable()` migration makrosu yok. Hiçbir tabloda `sync_txid` kolonu, index'i veya `pg_current_xact_id()` trigger'ı yok.
-2. `sync_tombstones` tablosu ve silme/soft delete/restore trigger'ı yok. Manifestteki kaynakların çoğu `SoftDeletes` kullanıyor (`Party`, `Item`, `Unit`, `PriceList`, `ItemCategory`, `ItemVariant`, `DiscountRule`, Reference modelleri). Trigger tombstone'u `(resource, id)` başına upsert etmeli, restore'da silmeli.
-3. `backend/app/Core/Sync/` dizini boş; `Modules/Sync` modülü ve `GET /sync/manifest`, `POST /sync/pull`, `POST /sync/push` uçları yok.
-4. Gömülü ilişkiler (`parties` → `addresses`/`contacts`/`bank_accounts`, belgeler → `lines`, `items` → `units`) yalnızca üst satırın `sync_txid`'i değişirse yayılır. Alt satır yazmalarının üst satırı güncellediği doğrulanmalı (özellikle `parties/{party}/addresses` gibi ayrı alt uçlar). Değilse alt tablo trigger'ı üst satırı dokunmalı.
-5. Görünürlük nesli tablosu ve artırma noktaları yok: rol ataması (`PUT /users/{id}/roles`), rol izinleri (`PATCH /roles/{role}`), kullanıcı durumu ve şirket üyeliği değişiminde ilgili `(user, company, resource)` nesilleri artırılmalı.
-6. `tombstone_floor_txid` deposu ve tombstone temizlik işi yok.
-7. `currencies` + `company_currencies` için birleşik konum (`greatest(...)`) ve iki tabloya da `syncable()` gerekiyor; `exchange-rates` ve `tax-codes` sorgusu `company_id IS NULL` satırlarını içermeli.
+1. **Kapandı.** `syncable()` Blueprint makrosu `backend/app/Core/Sync/Schema/Syncable.php`'dedir: `sync_txid xid8` kolonu, `(company_id, sync_txid, id)` index'i (şirket kolonu yoksa `(sync_txid, id)`) ve `zz_sync_touch` trigger'ı. Trigger fonksiyonları `backend/database/migrations/2027_08_01_100000_create_sync_functions.php`'dedir. Modül tabloları `Modules/<Ad>/Database/migrations/2027_08_01_200N00_add_sync_to_<modül>.php` migration'larıyla bağlanır: Parties `200100`, Catalog `200200`, Reference `200300`, Sales `200400`, Purchasing `200500`, Inventory `200600`.
+2. **Kapandı.** `sync_tombstones` tablosu `2027_08_01_100100` migration'ındadır. `sync_tombstone()` trigger'ı silmede `deleted`, `deleted_at` dolduğunda `soft_deleted` nedeniyle `(resource_table, row_id)` başına upsert yapar; restore'da tombstone'u siler.
+3. **Kapandı.** Sözleşme `backend/app/Core/Sync/`, sunucu `backend/app/Modules/Sync/`'tedir. `GET /sync/manifest`, `POST /sync/pull`, `POST /sync/push` uçları `Modules/Sync/routes.php`'de `auth:sanctum`, `EnsureDesktopToken`, `password.changed` ve `company` middleware'lerinin arkasındadır.
+4. **Kapandı.** Alt tablolar `syncable(parent: ..., parentKey: [...])` ile bağlanır. Deyim düzeyindeki `sync_touch_parent()` trigger'ları alt satır yazmasında üst satırın `sync_txid`'ini yeniler (ör. `party_addresses`/`party_contacts`/`party_bank_accounts` → `parties`, belge satırları → belge başlığı). Kesinleşmiş üst satırı koruyan guard'lar bu dokunuşu yalnız `Syncable::GUARD_EXEMPTION` ile, yani `sync_txid` dışında hiçbir kolon değişmediğinde geçirir (`Core/Sync/Schema/Syncable.php:53`, `sync_touch_only()`: `database/migrations/2027_08_01_100300_create_sync_touch_only_function.php`); ayrıntı [Mimari](ARCHITECTURE.md#satır-guardlarında-senkron-istisnası). Satıra gömülü ama tablo yazması olmayan türetilmiş değerler için bkz. Bilinen sınırlamalar.
+5. **Kapandı.** `sync_visibility_generations` tablosu ve `Modules/Sync/Services/Visibility.php` vardır. Nesil manifest, pull ve Identity'nin `AccessChanged` olayıyla (rol izinleri, rol ataması, rol silme, süper admin bayrağı, üyelik aktifliği; değişikliğin transaction'ı içinde) gözlenir; `MembershipRevoked` ayrıca tüm nesilleri artırır. Kurallar Görünürlük nesli bölümündedir. Kalan kapsam dışı yol: `DefaultRoles` kurulum/seeder yolu.
+6. **Kapandı.** Taban `sync_watermarks(resource_table, company_id, floor_txid)` tablosunda tutulur (`2027_08_01_100200`). Bu belgedeki `tombstone_floor_txid` bu kolondur. Günlük `sync:prune` (`Modules/Sync/Console/PruneCommand.php`) 90 günden eski tombstone'ları siler ve tabanı `max(sync_txid) + 1`'e yükseltir. Aynı iş süresi dolan push sonuçlarını, çözüm kayıtlarını ve eski tam indirme oturumlarını da temizler. Pull; tabanı, canlı satırları ve tombstone'ları tek bir `REPEATABLE READ, READ ONLY` anlık görüntüsünden okur.
+7. **Kapandı.** `CurrencySyncResource::positionColumn()` `GREATEST(currencies.sync_txid, company_currency_sync.sync_txid)` döner. `ExchangeRateSyncResource` ve `TaxCodeSyncResource` `SyncScope::CompanyOrGlobal` kullanır.
 
 **Push zinciri**
 
-8. Store FormRequest'leri istemcinin gönderdiği `id`'yi kabul etmiyor. `HasUuid7` modelde istemci kimliğine izin veriyor, ama `parties`, `sales-quotes`, `sales-orders`, `purchase-requests` ve `stock-documents` için doğrulama kuralı (UUIDv7, benzersiz) eklenmeli.
-9. `Idempotency-Key` saklama süresi 24 saat (`config/idempotency.php`, `IDEMPOTENCY_TTL_HOURS`) ve mevcut katman HTTP yanıtını saklıyor. Push için mutasyon başına sonuç, istek özeti ve 7 günlük `sync.push` kapsamı gerekli.
-10. Taslak olmayan belgeyi düzenleme bugün `INVALID_STATE_TRANSITION` (422, `document_not_editable`) döndürüyor. Karar: REST uçları da 409 `DOCUMENT_LOCKED` dönecek (Sales, Purchasing, Inventory servisleri ve testleri güncellenmeli); önerilen 11 kod `ErrorCode`'a eklenmeli.
-11. `POST /api/v1/parties` mükerrer kontrolü yapmıyor; `DuplicateFinder` yalnızca `GET /api/v1/parties/duplicates` ucunda. Push create'i öncesinde çağrılmalı.
-12. Alan bazlı birleştirme için audit diff yetersiz: activitylog `Party` için `version`'ı, `SalesDocument` için satırları kaydetmiyor. Kural 4 (belirsizlik çakışmadır) bu yüzden şart; daha iyi birleştirme için sürüm bazlı alan değişikliği kaydı gerekiyor.
-13. Sunucu toplamları hesaplıyor (`preview-totals`). Çevrimdışı taslakta tutarlar geçicidir; push sonrası `data` ile kesinleşir.
+8. **Kapandı.** Store FormRequest'leri istemci `id`'sini `App\Core\Sync\Rules\ClientKey` ile kabul eder (UUIDv7 + tabloda kullanılmamış, tek tip hata mesajı): `PartyRequest`, Sales ve Purchasing `DocumentRequest`, `StockDocumentRequest`. Kural Mutasyon bölümündedir.
+9. **Kapandı.** Push sonuçları `sync.push` kapsamında (`SyncConfig::PUSH_IDEMPOTENCY_SCOPE`) istek özeti ve sonucun tamamıyla 7 gün saklanır (`config/sync.php` `idempotency_retention_days`). REST `Idempotency-Key` katmanı değişmedi (24 saat, `config/idempotency.php`).
+10. **Kapandı.** Sales ve Purchasing `DocumentService::assertEditable` ile Inventory `Support/Messages.php`, taslak olmayan belgede 409 `DOCUMENT_LOCKED` atar. Önerilen 11 kod `ErrorCode`'dadır. Açık: web arayüzünün 422 yerine 409'u işlemesi (frontend MSW handler'ları ve hata işleme).
+11. **Kapandı (push).** `PartySyncWriter` create öncesinde `DuplicateFinder`'ı çalıştırır (Çakışma kuralları 5). REST `POST /api/v1/parties` mükerrer kontrolü yapmaz; web arayüzü `GET /api/v1/parties/duplicates`'i kullanır.
+12. **Kısmen.** `Modules/Sync/Services/AuditDiff.php`, `base_version`'dan sonraki her sürüm adımının activitylog kaydını arar. Herhangi bir adımın kaydı eksikse sonuç "bilinmiyor" olur ve kural 4 uygulanır. İzlenen alanları yazarın `auditFields()` listesi belirler; Purchasing talep satırlarını `lines` olarak kaydeder (`PurchaseRequest::recordLineChange`). Daha ince birleştirme için sürüm bazlı alan değişikliği kaydı yine gerekir.
+13. **Açık.** Sunucu toplamları hesaplıyor (`preview-totals`). Çevrimdışı taslakta tutarlar geçicidir; push sonrası `data` ile kesinleşir.
 
 **Cihaz kimliği**
 
-14. Refresh token uygulaması yok: bugün tek, 30 günlük token (`DeviceTokens`: `sanctum.device_token_ttl_days` / `identity.device_tokens.ttl_days`). Sözleşme yukarıda (Token yaşam döngüsü) ve `contracts/sync/device-*.schema.json` dosyalarında; D1'de uygulanıp OpenAPI'ye taşınacak.
+14. **Kapandı.** `device_refresh_tokens` tablosu (`Modules/Identity/Database/migrations/2027_08_01_300100_create_device_refresh_tokens_table.php`) ve `POST /api/v1/auth/device/refresh` (`DeviceController::refresh`) uygulandı; kurallar Token yaşam döngüsü bölümündedir.
+
+**Pull**
+
+- **Kapandı.** Artımlı cursor kullanıcı, şirket, kaynak ve konuma HMAC akış etiketiyle bağlıdır (`Modules/Sync/Services/CursorTags.php`); eşleşmeyen veya eksik etiket `cursor_expired` reseti üretir. Etiket durumsuz ve deterministiktir; aynı cursor farklı `limit` ile de tekrar kullanılabilir. Tel şekli ve desenler değişmediği için `schema_version` 1 kalır.
+
+- **Kapandı.** Tam indirme sayfasının tekrarı: tekrarlanan isteğin kendi cursor'ı (`session` dahil) aynı `limit` ile aynen yeniden gönderilir; alınan `next_cursor` tekrar değil, sonraki sayfanın isteğidir. Sunucu oturumun son verdiği cursor'ı ve bir öncekini tanır (`Modules/Sync/Services/FullDownloads.php`); önceki cursor'la yapılan tekrar okur ama oturumu ilerletmez. Çok sayfalı indirmenin son sayfası (`has_more = false`) oturumu siler; bu sayfayı isteyen devam isteği bitmiş oturumun kimliğini taşıdığından tekrarı `reset: true, reset_reason: cursor_expired` alır ve yeni bir tam indirme başlar. Tek sayfada biten ilk indirmede (`cursor: null`) oturum açılmaz; isteğin tekrarı yine `cursor: null` ile yeni bir tam indirmedir ve `reset: false` döner. Kural Tam indirme oturumu bölümündedir.
 
 **Kapsam**
 
-15. B3'teki çevrimdışı yazma türlerinden masraf beyanı, izin talebi, puantaj/zaman çizelgesi (İK, Faz 11) ile not ve aktivite için backend'de modül veya uç yok; manifestte yer almıyorlar.
-16. ONLINE_ONLY listesindeki bordro ve MRP çalıştırma uçları yok (Faz 10 ve 11); eklenince manifeste girecek.
-17. Cari bakiyesi için ayrı liste ucu yok. Anlık görüntü `treasury-reports/receivables-ageing` ve `payables-ageing` raporlarından alınıyor; `customers/{id}/exposure` cari başına ve çevrimiçi.
-18. Depolar iki uçtan okunuyor: `warehouses` (Reference, ana veri) ve `stock-warehouses` (Inventory ayarları). Manifest ana veri olarak `warehouses`'ı kullanıyor.
+15. **Açık.** B3'teki çevrimdışı yazma türlerinden masraf beyanı, izin talebi, puantaj/zaman çizelgesi (İK, Faz 11) ile not ve aktivite için backend'de modül veya uç yok; manifestte yer almıyorlar.
+16. **Açık.** ONLINE_ONLY listesindeki bordro ve MRP çalıştırma uçları yok (Faz 10 ve 11); eklenince manifeste girecek.
+17. **Açık.** Cari bakiyesi için ayrı liste ucu yok. Anlık görüntü `treasury-reports/receivables-ageing` ve `payables-ageing` raporlarından alınıyor; `customers/{id}/exposure` cari başına ve çevrimiçi.
+18. **Açık.** Depolar iki uçtan okunuyor: `warehouses` (Reference, ana veri) ve `stock-warehouses` (Inventory ayarları). Manifest ana veri olarak `warehouses`'ı kullanıyor.
 
 **Frontend zemini (A6)**
 
-19. `frontend/src/platform/` altında `http`, `connectivity`, `notify`, `realtime` var; `files` (kaydet/yazdır/aç) arayüzü yok.
-20. Query key'ler `[resource, …]` standardında değil, modül köklü: `['parties', company]`, `['catalog', company, 'items', …]`, `['inventory', company, 'docs', …]`, `['reference', name, …]`. Senkron sonrası jenerik invalidation için ya key'ler standartlaştırılmalı ya da manifest kaynağı → key öneki eşlemesi tutulmalı.
-21. Manifest route'larını `php artisan route:list --json` ile karşılaştıran ve fixture'ları şemalara karşı doğrulayan CI adımı yok.
+19. **Açık.** `frontend/src/platform/web/` altında `http`, `connectivity`, `notify`, `realtime` var; `files` (kaydet/yazdır/aç) arayüzü yok.
+20. **Açık.** Query key'ler `[resource, …]` standardında değil, modül köklü: `['parties', company]`, `['catalog', company, 'items', …]`, `['inventory', company, 'docs', …]`, `['reference', name, …]`. Senkron sonrası jenerik invalidation için ya key'ler standartlaştırılmalı ya da manifest kaynağı → key öneki eşlemesi tutulmalı.
+21. **Kapandı.** `.github/workflows/contracts.yml` şemaları derler ve fixture'ları doğrular (kökte `npm run contracts:validate`). `backend.yml`, manifest route'larını `backend/scripts/check-offline-manifest.php` ile route listesine karşı denetler.
+
+**Bilinen sınırlamalar**
+
+- **Create payload büyüklüğü.** Push şeması ve sunucu, create payload'ının üst düzey anahtar sayısını sınırlamaz (`contracts/sync/push.request.schema.json:60-64`; `minProperties`/`maxProperties` yalnız update/action ve delete için). Parti boyutu (`limits.push_batch_max`) ve istek hızı (Hız ve eşzamanlılık sınırları) sınırlıdır.
+- **Başka şirkette UUID varlığı.** İstemci anahtarı global birincil anahtardır. `ClientKey` her başarısızlıkta aynı mesajı verse de, geçerli bir UUIDv7'nin başka bir şirkette kullanıldığı ayırt edilebilir: zorunlu alanları eksik bir istekte bile yalnız kullanılmış UUID için `errors.fields.id` oluşur (`Core/Sync/Rules/ClientKey.php:16-20`). UUIDv7 tahmin edilemez, istek `create` izni ister ve senkron uçları hız sınırlıdır. Şirket kapsamlı anahtar tasarımı kapsam dışıdır.
+- **`parties.create` olup `parties.view` olmayan kullanıcı.** Aktif carilerde `(company_id, tax_number)` tekildir (`Parties/Http/Requests/PartyRequest.php:168-175`); `PartyPolicy::create` yalnız `parties.create` ister (`Parties/Policies/PartyPolicy.php:29-32`). Böyle bir kullanıcı aynı vergi numarasıyla oluşturmayı deneyerek kendi şirketinde o numaralı aktif cari olup olmadığını öğrenebilir; ad veya `id` açıklanmaz. Mesajı genelleştirmek bunu kapatmaz; kapatmak create için `parties.view` şartı koşmayı, yani "`viewAny` yoksa aday araması atlanır" akışını (Çakışma kuralları 5) kaldırmayı gerektirir. Varsayılan rollerde create izni olan her rolde view de vardır.
+- **Sayım satırı `avg_cost`.** `stock-documents` sayım satırlarındaki `avg_cost`, Resource çıktısında güncel değerlemeden (`stock_valuations`) hesaplanır (`Inventory/Http/Resources/StockDocumentResource.php:55-73`). Başka bir stok kaydı değerlemeyi değiştirince belgenin `sync_txid`'i ilerlemez. Yerel kopyadaki `avg_cost` bu yüzden belge yeniden değişene veya reset olana kadar bayat kalabilir. Değer yalnız görüntüdür: kesinleştirme değerlemeyi yeniden yapar ve deftere bayat tutar yazılmaz; push payload'ı `avg_cost` taşımaz. Değerleme değişince taslak sayım belgelerine dokunmak yeni bir kilit döngüsü (iki sayımın aynı depoda birbirini beklemesi) açacağı için yapılmaz. İstemci güncel ortalama maliyeti çevrimiçiyken `stock-balances` anlık görüntüsünden okuyabilir.
+- **Pull toplam süresi.** Pull süresi (Hız ve eşzamanlılık sınırları) yalnız veritabanı deyimlerinde uygulanır: deyimden önce kalan süre denetlenir, deyim içinde `statement_timeout` keser. İki deyim arasındaki saf PHP işi kesilemez ve ancak sonraki deyimde yakalanır (`LimitConcurrentPulls.php:25-31`). Bundan başka aşım kaynakları da vardır: `statement_timeout` kalan süreyi 100 ms'lik adımlarla izler (`PullLease.php:33`, `:124-136`) ve pull sonundaki ayar geri yükleme sorguları süre denetimi dışındadır (`:96-110`). Aşım olağan durumda küçüktür ama sayısal bir üst sınırı garanti edilmez; slot süresi, bu kaynakların toplamı 5 sn'lik güvenlik payını geçmedikçe aşılmaz. Cache store kilit desteklemiyorsa sınır ve süre hiç kurulmaz.

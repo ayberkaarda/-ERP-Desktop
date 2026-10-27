@@ -88,6 +88,10 @@
     "body": "Değişikliklerinizi kaydetmeden önce güncel hâlini yükleyin. Kaydedilmemiş düzenlemeleriniz kaybolur.",
     "reload": "Güncel hâlini yükle"
   },
+  "locked": {
+    "title": "Belge artık taslak değil",
+    "body": "Belge bu arada onaylandı veya ilerletildi; bu değişiklikler kaydedilemez. Güncel hâlini yükleyin; kaydedilmemiş düzenlemeleriniz kaybolur."
+  },
   "reason": {
     "tooShort": "En az {{min}} karakter yazın."
   },

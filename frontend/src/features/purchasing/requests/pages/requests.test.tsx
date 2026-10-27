@@ -46,6 +46,30 @@ describe('purchase requests', () => {
     })
   })
 
+  it('says the request left draft when it was submitted meanwhile, and saves a rejected one', async () => {
+    const db = setupPurch()
+    const user = userEvent.setup()
+    renderPurch(`/purchasing/requests/${REQ_DRAFT}`)
+    const table = await screen.findByRole('table', { name: 'Satırlar' })
+    const stored = db.requests.find((r) => r.id === REQ_DRAFT)
+    if (stored) stored.status = 'pending_approval'
+    await typeInto(user, within(table).getByLabelText('Miktar, 1. satır'), '4')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    expect(await screen.findByText('Belge artık taslak değil')).toBeInTheDocument()
+    expect(screen.queryByText('Belge başka biri tarafından değiştirildi')).not.toBeInTheDocument()
+
+    // A rejected request is edited like a draft (RequestService, manifest draft_only.also).
+    if (stored) stored.status = 'rejected'
+    await user.click(screen.getByRole('button', { name: 'Güncel hâlini yükle' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Belge artık taslak değil')).not.toBeInTheDocument(),
+    )
+    await typeInto(user, within(table).getByLabelText('Miktar, 1. satır'), '5')
+    await user.click(screen.getByRole('button', { name: 'Taslağı kaydet' }))
+    await waitFor(() => expect(stored?.status).toBe('draft'))
+    expect(screen.queryByText('Belge artık taslak değil')).not.toBeInTheDocument()
+  })
+
   it('submits a draft and sends it for approval above the threshold', async () => {
     const db = setupPurch({ db: { requestApprovalOver: '50' } })
     const user = userEvent.setup()

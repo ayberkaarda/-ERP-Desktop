@@ -12,12 +12,14 @@ use Illuminate\Support\Carbon;
  *
  * In D1 rows are visible per resource (manifest `requires` + company scope + the adapter
  * query), so what a user sees of a resource is a function of whether the requirement holds.
- * Each manifest and pull observes that state; when it differs from the stored one the
- * generation of (user, company, resource) goes up by one. No hook in role or membership code
- * is needed: a role change that hides a resource raises the generation at the next observation,
- * and showing it again raises it once more, so any cursor issued before carries an older
+ * The state is observed at three points: every manifest and pull, and every access change
+ * (Identity AccessChanged -> VisibilityRefresh, inside the transaction of the change); when it
+ * differs from the stored one the generation of (user, company, resource) goes up by one. So a
+ * role change that hides a resource raises the generation at once, and showing it again raises
+ * it once more, even when no sync runs in between: any cursor issued before carries an older
  * generation and is reset. Unchanged visibility keeps the generation, so the row stream a
- * cursor walks is the same stream.
+ * cursor walks is the same stream. A lost membership (MembershipRevoked, after commit)
+ * additionally raises every generation of the user in that company (invalidate()).
  */
 final readonly class Visibility
 {

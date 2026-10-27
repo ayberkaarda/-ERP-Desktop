@@ -181,6 +181,10 @@
     "body": "Load the latest version before saving; your changes are not merged.",
     "reload": "Reload"
   },
+  "locked": {
+    "title": "The stock document is no longer a draft",
+    "body": "It was posted or cancelled meanwhile, so these changes cannot be saved. Load the latest version; your changes are not merged."
+  },
   "errors": {
     "generic": "The action could not be completed.",
     "loadFailed": "Could not load.",

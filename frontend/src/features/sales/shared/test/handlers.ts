@@ -963,6 +963,8 @@ export function salesHandlers(db: SalesDb) {
   const conflict = () => error(409, 'VERSION_CONFLICT', 'Belge başka biri tarafından değiştirildi.')
   const illegal = () =>
     error(422, 'INVALID_STATE_TRANSITION', 'Bu işlem belgenin durumunda yapılamaz.')
+  // DocumentService::lockDraft: edit or delete past draft, answered before the version check.
+  const locked = () => error(409, 'DOCUMENT_LOCKED', 'Yalnızca taslak belgeler düzenlenebilir.')
   const invalid = (fields: Record<string, string[]>) =>
     error(422, 'VALIDATION_ERROR', 'Belge doğrulanamadı.', fields)
   const forbidden = () => error(403, 'FORBIDDEN', 'Yetkiniz yok.')
@@ -1191,8 +1193,8 @@ export function salesHandlers(db: SalesDb) {
       if (!q) return error(404, 'NOT_FOUND', 'Teklif bulunamadı.')
       const body = await json(request)
       if (typeof body.version !== 'number') return invalid({ version: ['Sürüm zorunlu.'] })
+      if (q.status !== 'draft') return locked()
       if (versionMismatch(q, body)) return conflict()
-      if (q.status !== 'draft') return illegal()
       // Lines left out of the body stay as stored.
       const built = build(q.id, { ...body, lines: body.lines ?? q.lines.map(storedInput) })
       if (Object.keys(built.fields).length > 0) return invalid(built.fields)
@@ -1206,6 +1208,7 @@ export function salesHandlers(db: SalesDb) {
     http.delete(`${API}/sales-quotes/:id`, ({ params }) => {
       const i = db.quotes.findIndex((q) => q.id === params.id)
       if (i < 0) return error(404, 'NOT_FOUND', 'Teklif bulunamadı.')
+      if (db.quotes[i]?.status !== 'draft') return locked()
       db.quotes.splice(i, 1)
       return new HttpResponse(null, { status: 204 })
     }),
@@ -1374,8 +1377,8 @@ export function salesHandlers(db: SalesDb) {
       if (!o) return error(404, 'NOT_FOUND', 'Sipariş bulunamadı.')
       const body = await json(request)
       if (typeof body.version !== 'number') return invalid({ version: ['Sürüm zorunlu.'] })
+      if (o.status !== 'draft') return locked()
       if (versionMismatch(o, body)) return conflict()
-      if (o.status !== 'draft') return illegal()
       const built = build(o.id, { ...body, lines: body.lines ?? o.lines.map(storedInput) })
       if (Object.keys(built.fields).length > 0) return invalid(built.fields)
       Object.assign(o, built.parts, {
@@ -1388,6 +1391,7 @@ export function salesHandlers(db: SalesDb) {
     http.delete(`${API}/sales-orders/:id`, ({ params }) => {
       const i = db.orders.findIndex((o) => o.id === params.id)
       if (i < 0) return error(404, 'NOT_FOUND', 'Sipariş bulunamadı.')
+      if (db.orders[i]?.status !== 'draft') return locked()
       db.orders.splice(i, 1)
       return new HttpResponse(null, { status: 204 })
     }),

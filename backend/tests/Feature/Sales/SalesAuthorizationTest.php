@@ -142,6 +142,8 @@ it('declares the permissions with default roles', function (): void {
     expect($names)->toContain('sales.invoices.issue', 'sales.price_override', 'sales.credit_override', 'sales.reports.view', 'sales.returns.credit');
     $sales = DB::table('roles')->where('company_id', $this->w->company)->where('name', 'Sales')->value('id');
     $granted = DB::table('role_has_permissions as rp')->join('permissions as p', 'p.id', '=', 'rp.permission_id')->where('rp.role_id', $sales)->pluck('p.name')->all();
-    expect($granted)->toContain('sales.orders.approve', 'sales.quotes.create')->not->toContain('sales.invoices.issue', 'sales.credit_override')
+    expect($granted)->toContain('sales.orders.approve', 'sales.quotes.create')
+        ->not->toContain('sales.invoices.issue')
+        ->not->toContain('sales.credit_override')
         ->and($catalog)->not->toBeNull();
 });

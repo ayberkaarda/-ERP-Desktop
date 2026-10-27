@@ -1,6 +1,6 @@
 {
   "$schema": "./offline-manifest.schema.json",
-  "manifest_version": 1,
+  "manifest_version": 2,
   "sync_schema_version": 1,
   "api_prefix": "/api/v1",
   "defaults": {
@@ -242,6 +242,7 @@
           { "when": ["party_id"], "derives": ["payment_term_id", "price_list_id", "billing_address", "due_date", "party_name", "party_tax_office", "party_tax_number"], "source": "Sales/Services/DocumentService.php:93 (storedHeader), Composer/DocumentComposer.php:147" },
           { "when": ["currency_code"], "derives": ["fx_rate"], "source": "Sales/Services/DocumentService.php:97" },
           { "when": ["document_date", "payment_term_id"], "derives": ["due_date"], "source": "Sales/Services/DocumentService.php:101, Composer/DocumentComposer.php:107" },
+          { "when": ["document_date"], "derives": ["lines"], "source": "Sales/Services/Composer/DocumentComposer.php:326 (tax: her satırın vergi oranı belge tarihinde yeniden aranır; toplamlar lines kuralıyla türer)" },
           { "when": ["lines", "fx_rate"], "derives": ["subtotal", "discount_total", "tax_total", "total", "subtotal_local", "discount_total_local", "tax_total_local", "total_local"], "source": "Sales/Services/Composer/DocumentComposer.php (totals)" },
           { "when": ["*"], "derives": ["party_name", "party_tax_office", "party_tax_number"], "source": "Sales/Services/Composer/DocumentComposer.php:147 (her yazmada cari anlık görüntüsü)" }
         ],
@@ -289,6 +290,7 @@
           { "when": ["party_id"], "derives": ["payment_term_id", "price_list_id", "billing_address", "due_date", "party_name", "party_tax_office", "party_tax_number"], "source": "Sales/Services/DocumentService.php:93 (storedHeader), Composer/DocumentComposer.php:147" },
           { "when": ["currency_code"], "derives": ["fx_rate"], "source": "Sales/Services/DocumentService.php:97" },
           { "when": ["document_date", "payment_term_id"], "derives": ["due_date"], "source": "Sales/Services/DocumentService.php:101, Composer/DocumentComposer.php:107" },
+          { "when": ["document_date"], "derives": ["lines"], "source": "Sales/Services/Composer/DocumentComposer.php:326 (tax: her satırın vergi oranı belge tarihinde yeniden aranır; toplamlar lines kuralıyla türer)" },
           { "when": ["lines", "fx_rate"], "derives": ["subtotal", "discount_total", "tax_total", "total", "subtotal_local", "discount_total_local", "tax_total_local", "total_local"], "source": "Sales/Services/Composer/DocumentComposer.php (totals)" },
           { "when": ["*"], "derives": ["party_name", "party_tax_office", "party_tax_number"], "source": "Sales/Services/Composer/DocumentComposer.php:147 (her yazmada cari anlık görüntüsü)" }
         ],
@@ -375,9 +377,10 @@
           }
         ],
         "derived_fields": [
-          { "when": ["lines"], "derives": ["estimated_total"], "source": "Purchasing/Services/RequestService.php:345 (write)" }
+          { "when": ["lines"], "derives": ["estimated_total"], "source": "Purchasing/Services/RequestService.php:345 (write)" },
+          { "when": ["*"], "derives": ["currency_code"], "source": "Purchasing/Services/RequestService.php:344 (write: her yazmada şirket ana para birimi)" }
         ],
-        "draft_only": { "field": "status", "value": "draft" },
+        "draft_only": { "field": "status", "value": "draft", "also": ["rejected"] },
         "conflict": "field-merge"
       }
     },

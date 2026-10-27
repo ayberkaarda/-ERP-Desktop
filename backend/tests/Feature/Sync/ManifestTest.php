@@ -108,7 +108,8 @@ it('resets cursors when membership is revoked and granted again between two sync
 
     expect($page['reset'])->toBeTrue()
         ->and($page['reset_reason'])->toBe('visibility_changed')
-        ->and($page['next_cursor']['gen'])->toBe(1);
+        // Both the in-transaction AccessChanged and the after-commit MembershipRevoked raise it.
+        ->and($page['next_cursor']['gen'])->toBeGreaterThan($cursor['gen']);
 });
 
 it('refuses a schema_version that is not a strict supported integer', function (string $endpoint, mixed $version, int $status, string $code): void {

@@ -41,7 +41,7 @@
           "items": { "$ref": "tombstone.schema.json" }
         },
         "next_cursor": {
-          "description": "Bir sonraki istekte gönderilecek cursor. has_more=false ise {txid: horizon, after_id: null, session: null}. Tam indirmenin has_more=true sayfalarında session, indirme oturumunun opak kimliğidir; aksi halde null. gen her zaman kaynağın güncel görünürlük neslidir; tam indirme sırasında nesil değişirse sonraki sayfa yeniden reset alır.",
+          "description": "Bir sonraki istekte gönderilecek cursor. has_more=false ise {txid: horizon, after_id: null, session: <akış etiketi>}. Tam indirmenin has_more=true sayfalarında session, indirme oturumunun opak kimliğidir; diğer tüm sayfalarda akış etiketidir. gen her zaman kaynağın güncel görünürlük neslidir; tam indirme sırasında nesil değişirse sonraki sayfa yeniden reset alır.",
           "$ref": "common.schema.json#/$defs/cursor"
         },
         "has_more": { "type": "boolean" },

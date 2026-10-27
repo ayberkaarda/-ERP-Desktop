@@ -60,7 +60,7 @@ use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 
 use crate::auth::{Session, TokenWrite};
-use crate::backoff::Backoff;
+use crate::backoff::{Backoff, RETRY_AFTER_MAX};
 use crate::client::SyncApi;
 use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
 use crate::error::{Result, SyncError};
@@ -145,7 +145,7 @@ pub struct SyncStatus {
     pub quarantined: usize,
     /// Consecutive failed runs.
     pub failures: u32,
-    /// `Retry-After` of the last failure.
+    /// `Retry-After` of the last failure: no run starts before it passes.
     pub retry_after: Option<Duration>,
 }
 
@@ -264,6 +264,8 @@ enum Hook {
     AccessChecked,
     /// A push answer passed its commit check and is not written yet.
     CommitChecked,
+    /// A failed pass found no other sign-in and has not published yet.
+    FailureKept,
 }
 
 #[cfg(test)]
@@ -352,6 +354,11 @@ pub struct SyncEngine<A> {
     /// Resources changed by the running pass and not announced yet.
     unreported: Mutex<Vec<ResourceName>>,
     failures: AtomicU32,
+    /// End of the last failure's `Retry-After`: no pass starts before it.
+    /// Set under the sign-in generation it belongs to.
+    retry_not_before: Mutex<Option<(tokio::time::Instant, u64)>>,
+    /// Wakes a run waiting on `retry_not_before` to re-evaluate it.
+    retry_changed: tokio::sync::Notify,
     status: watch::Sender<SyncStatus>,
     changes: broadcast::Sender<ResourcesChanged>,
     /// Signalled when a cancelled run leaves a promised follow-up behind.
@@ -393,6 +400,8 @@ impl<A: SyncApi> SyncEngine<A> {
             pending_pulls: Mutex::default(),
             unreported: Mutex::default(),
             failures: AtomicU32::new(0),
+            retry_not_before: Mutex::default(),
+            retry_changed: tokio::sync::Notify::new(),
             status: watch::Sender::new(SyncStatus::default()),
             changes: broadcast::channel(64).0,
             follow_up: tokio::sync::Notify::new(),
@@ -425,9 +434,15 @@ impl<A: SyncApi> SyncEngine<A> {
     /// One manifest → push → pull pass. When a run is already in progress
     /// this only schedules one follow-up run (whatever the number of calls)
     /// and returns at once with `coalesced: true`; the running call performs
-    /// the follow-up before it returns.
+    /// the follow-up before it returns. A pass never starts before the
+    /// `Retry-After` of the last failed run (at most [`RETRY_AFTER_MAX`])
+    /// has passed: the call waits for it, while `status()` shows the
+    /// failure and its `retry_after`.
     pub async fn run_once(&self, trigger: Trigger) -> Result<SyncReport> {
         if !self.enter_gate() {
+            // A run waiting out a `Retry-After` checks whether it still
+            // applies (this caller may come from another sign-in).
+            self.retry_changed.notify_waiters();
             return Ok(SyncReport {
                 coalesced: true,
                 ..SyncReport::default()
@@ -441,6 +456,10 @@ impl<A: SyncApi> SyncEngine<A> {
         };
         let mut trigger = trigger;
         loop {
+            // Every pass, whatever its trigger (manual, realtime, network,
+            // follow-up), waits out the last `Retry-After`; callers that
+            // arrive meanwhile are coalesced into the follow-up.
+            self.wait_retry_after().await;
             let result = self.pass(trigger).await;
             // Checking for a follow-up and freeing the slot is one step: a
             // caller that finds the slot taken is always served.
@@ -584,7 +603,7 @@ impl<A: SyncApi> SyncEngine<A> {
             }
         };
         self.finish_sign_out(pending, unfinished.is_none())?;
-        self.set_state(SyncState::AuthRequired, None)?;
+        self.set_state(SyncState::AuthRequired, None, None)?;
         Ok(SignOut::Done)
     }
 
@@ -726,7 +745,7 @@ impl<A: SyncApi> SyncEngine<A> {
         match result {
             Ok(()) => {
                 self.failures.store(0, Ordering::SeqCst);
-                self.set_state(SyncState::Idle, None)?;
+                self.set_state(SyncState::Idle, None, None)?;
                 if moved(self) {
                     self.queue_follow_up();
                 }
@@ -743,7 +762,9 @@ impl<A: SyncApi> SyncEngine<A> {
                 if matches!(state, SyncState::Failed(_)) {
                     self.failures.fetch_add(1, Ordering::SeqCst);
                 }
-                self.set_state(state, error.retry_after())?;
+                self.hook(Hook::FailureKept);
+                // The limit belongs to the sign-in that sent the request.
+                self.set_state(state, error.retry_after(), generation)?;
                 Err(error)
             }
         }
@@ -889,7 +910,61 @@ impl<A> SyncEngine<A> {
         });
     }
 
-    fn set_state(&self, state: SyncState, retry_after: Option<Duration>) -> Result<()> {
+    /// Sleeps until the last failure's `Retry-After` has passed. The limit
+    /// belongs to the sign-in it was set under: after another sign-in it no
+    /// longer applies. Re-evaluated whenever the limit changes or a caller
+    /// is coalesced into this run (it may come from a new sign-in).
+    async fn wait_retry_after(&self) {
+        loop {
+            let changed = self.retry_changed.notified();
+            tokio::pin!(changed);
+            // Registered before the read: no change is missed in between.
+            changed.as_mut().enable();
+            let limit = *self
+                .retry_not_before
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let Some((at, generation)) = limit else {
+                return;
+            };
+            if tokio::time::Instant::now() >= at
+                || self.session.record().ok().map(|r| r.generation) != Some(generation)
+            {
+                return;
+            }
+            tokio::select! {
+                () = tokio::time::sleep_until(at) => {}
+                () = &mut changed => {}
+            }
+        }
+    }
+
+    /// Publishes `state`; `retry_after` also sets the earliest start of the
+    /// next pass for `generation`, the sign-in whose request got it (`None`
+    /// lifts it), and wakes a waiting run to re-evaluate. The limit is
+    /// dropped when another sign-in has completed since: compared and
+    /// written with sign-ins held off.
+    fn set_state(
+        &self,
+        state: SyncState,
+        retry_after: Option<Duration>,
+        generation: Option<u64>,
+    ) -> Result<()> {
+        {
+            let _sign_in = self.session.hold();
+            let current = self.session.record().ok().map(|r| r.generation);
+            let limit = match (retry_after, generation) {
+                (Some(wait), Some(g)) if current == Some(g) => {
+                    Some((tokio::time::Instant::now() + wait.min(RETRY_AFTER_MAX), g))
+                }
+                _ => None,
+            };
+            *self
+                .retry_not_before
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = limit;
+        }
+        self.retry_changed.notify_waiters();
         let counts = local::counts(&self.store);
         let failures = self.failures.load(Ordering::SeqCst);
         self.status.send_modify(|status| {

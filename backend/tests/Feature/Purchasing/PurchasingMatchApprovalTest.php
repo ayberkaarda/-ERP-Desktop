@@ -164,7 +164,7 @@ it('books a large invoice only after approval, keeping the override given at sub
         ->assertJsonPath('meta.warnings.0.code', 'purchasing.approval_pending')->json('data');
     expect(DB::table('journal_entries')->where('source_id', $invoice['id'])->exists())->toBeFalse();
     // Pending invoices are not edited.
-    PurchKit::patch($this->w->user, $this->w->company, "purchase-invoices/{$invoice['id']}", ['notes' => 'x', 'version' => $pending['version']])->assertStatus(422);
+    PurchKit::patch($this->w->user, $this->w->company, "purchase-invoices/{$invoice['id']}", ['notes' => 'x', 'version' => $pending['version']])->assertStatus(409)->assertJsonPath('errors.code', 'DOCUMENT_LOCKED');
 
     $request = PurchKit::get($approver, $this->w->company, "approvals/{$pending['approval_request_id']}")->json('data');
     PurchKit::post($approver, $this->w->company, "approvals/{$pending['approval_request_id']}/decisions", ['decision' => 'approve', 'version' => $request['version'], 'step' => $request['current_step']])->assertOk();

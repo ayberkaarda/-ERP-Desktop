@@ -9,16 +9,22 @@ use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
 use App\Models\User;
 use App\Modules\Identity\Contracts\CompanyAuthorizer;
+use App\Modules\Identity\Events\AccessChanged;
 use App\Modules\Identity\Events\MembershipRevoked;
 use App\Modules\Identity\Models\Role;
 use App\Modules\Organization\Contracts\CompanyDirectory;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
  * Admin-side user lifecycle. Invariants here hold for super admins too (the gate bypass does
  * not reach them): nobody deactivates, deletes or resets themselves, and the last active
  * super admin cannot be removed or demoted.
+ *
+ * Role assignment and the super admin flag change what the user may do: both run in one
+ * transaction and dispatch AccessChanged inside it. Deactivation and deletion revoke every token
+ * instead, so no sync request of the user gets through afterwards.
  */
 final class UserAdministration
 {
@@ -70,10 +76,18 @@ final class UserAdministration
             $target->forceFill(['is_super_admin' => $data['is_super_admin']]);
         }
 
-        $target->fill(array_intersect_key($data, array_flip(['name', 'email', 'locale'])))->save();
-        $this->authorizer->forget($target->id);
+        return DB::transaction(function () use ($target, $data): User {
+            // The super admin flag grants every permission in every company.
+            $flagChanged = $target->isDirty('is_super_admin');
+            $target->fill(array_intersect_key($data, array_flip(['name', 'email', 'locale'])))->save();
+            $this->authorizer->forget($target->id);
 
-        return $target;
+            if ($flagChanged) {
+                AccessChanged::dispatch([$target->id], null);
+            }
+
+            return $target;
+        });
     }
 
     public function setStatus(User $actor, User $target, bool $active): User
@@ -134,7 +148,8 @@ final class UserAdministration
             throw new ApiException(ErrorCode::NotFound);
         }
 
-        return $this->context->runAs($companyId, function () use ($actor, $target, $companyId, $roles): array {
+        // One transaction: roles, membership and the AccessChanged listeners commit together.
+        return DB::transaction(fn (): array => $this->context->runAs($companyId, function () use ($actor, $target, $companyId, $roles): array {
             $ids = array_values(array_filter($roles, Str::isUuid(...)));
             $names = array_values(array_diff($roles, $ids));
 
@@ -178,8 +193,14 @@ final class UserAdministration
 
             $this->authorizer->forget($target->id);
 
+            $ids = static fn (iterable $roles): array => collect($roles)->map(static fn (Role $role): string => $role->id)->sort()->values()->all();
+
+            if ($ids($current) !== $ids($found)) {
+                AccessChanged::dispatch([$target->id], $companyId);
+            }
+
             return $after;
-        });
+        }));
     }
 
     /**

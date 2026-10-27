@@ -34,10 +34,14 @@ it('compares numerically beyond the PHP integer range', function (): void {
         ->and(json_encode(['t' => $huge]))->toBe('{"t":"18446744073709551614"}');
 });
 
-it('accepts non-negative ints through tryOf', function (): void {
-    expect(Xid8::tryOf(42)?->value)->toBe('42')
-        ->and(Xid8::tryOf(-1))->toBeNull()
-        ->and(Xid8::tryOf(null))->toBeNull();
+it('takes only the decimal string form through tryOf', function (mixed $value): void {
+    // xid8 travels as a string; a JSON number may already have lost precision.
+    expect(Xid8::tryOf($value))->toBeNull();
+})->with([42, 0, -1, 1.0, null, true, [['1']]]);
+
+it('keeps accepting ints where the caller owns the value', function (): void {
+    expect(Xid8::of(42)->value)->toBe('42')
+        ->and(Xid8::tryOf('42')?->value)->toBe('42');
 });
 
 it('parses the wire cursor and round-trips it', function (): void {
