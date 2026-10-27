@@ -7,6 +7,9 @@
 //! crate `LocalCode`), for a shell error one of [`codes`].
 
 pub mod api;
+pub mod auth;
+pub mod profiles;
+pub mod sync;
 
 use std::time::Duration;
 
