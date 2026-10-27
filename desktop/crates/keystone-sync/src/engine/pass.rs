@@ -154,8 +154,14 @@ impl<A: SyncApi> SyncEngine<A> {
             .unwrap_or(500)
             .clamp(1, 500);
         for _ in 0..MAX_PUSH_BATCHES {
-            let batch = self.outbox.next_batch(max)?;
+            let limit = if local::push_isolated(&self.store)? {
+                1
+            } else {
+                max
+            };
+            let batch = self.outbox.next_batch(limit)?;
             if batch.is_empty() {
+                local::isolate_push(&self.store, false)?;
                 break;
             }
             let request = PushRequest {
@@ -166,9 +172,12 @@ impl<A: SyncApi> SyncEngine<A> {
                 Ok(response) => response,
                 Err(error) => {
                     if is_transient(&error) {
-                        // The server failed it: counts towards the quarantine.
-                        for mutation in &request.mutations {
-                            self.outbox.transient_failure(mutation.idempotency_key)?;
+                        if request.mutations.len() > 1 {
+                            local::isolate_push(&self.store, true)?;
+                            self.outbox.requeue_in_flight()?;
+                        } else {
+                            self.outbox
+                                .transient_failure(request.mutations[0].idempotency_key)?;
                         }
                     } else {
                         self.outbox.requeue_in_flight()?;
@@ -233,14 +242,23 @@ impl<A: SyncApi> SyncEngine<A> {
                 }
                 match &result.data {
                     Some(Some(row)) => {
-                        self.store.put_row(&result.resource, row)?;
-                        self.touch(report, &result.resource);
+                        if self.store.put_push_row(&result.resource, row)? {
+                            self.touch(report, &result.resource);
+                        }
                     }
                     Some(None) => {
-                        if self.store.remove_row(&result.resource, result.id)? {
+                        let base = request
+                            .mutations
+                            .iter()
+                            .find(|m| m.idempotency_key == result.idempotency_key)
+                            .and_then(|m| m.base_version);
+                        if self
+                            .store
+                            .remove_push_row(&result.resource, result.id, base)?
+                        {
                             report.rows_removed += 1;
+                            self.touch(report, &result.resource);
                         }
-                        self.touch(report, &result.resource);
                     }
                     None => {}
                 }

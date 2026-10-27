@@ -13,11 +13,11 @@
 //!   session and `limit`) while the resource has not moved; when the
 //!   manifest no longer allows its `limit`, the resource starts a new full
 //!   download instead. Pulls that stop progressing fail the run.
-//! - Identity: `UNAUTHENTICATED` keeps everything ([`SyncState::AuthRequired`]);
-//!   a different user or company in the manifest wipes local data before
-//!   anything is pushed; `USER_DEACTIVATED` wipes mirror, outbox, conflicts
-//!   and tokens only when the token store recorded it for the current
-//!   sign-in generation (see [`crate::client::HttpClient`]).
+//! - Identity: exhausted authentication closes local reads while retaining data.
+//!   Company access loss and current-generation deactivation remove the mirror
+//!   and seal pending work. The same identity can reopen it after verification;
+//!   a different identity wipes it before pushing. Deactivation clears tokens
+//!   only for the marked generation (see [`crate::client::HttpClient`]).
 //! - Sign-in generation: a run belongs to the generation
 //!   ([`crate::auth::SessionRecord::generation`]) it started in. Its calls
 //!   are bound to it ([`SyncApi::manifest_in`] and friends), answers are
@@ -752,7 +752,7 @@ impl<A: SyncApi> SyncEngine<A> {
                 Ok(report)
             }
             Err(error) => {
-                let state = self.on_error(&error)?;
+                let state = self.on_error(&error, generation)?;
                 if moved(self) {
                     // Cut short by another sign-in: run again at once under
                     // it; that run publishes the state.
@@ -770,38 +770,45 @@ impl<A: SyncApi> SyncEngine<A> {
         }
     }
 
-    /// State for `error`; runs the deactivation wipe for the current
-    /// sign-in generation.
-    fn on_error(&self, error: &SyncError) -> Result<SyncState> {
-        let deactivated = matches!(
-            error,
+    /// Applies identity-loss rules only while the failing generation is current.
+    fn on_error(&self, error: &SyncError, generation: Option<u64>) -> Result<SyncState> {
+        let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+        let record = self.session.record()?;
+        if generation != Some(record.generation) {
+            return Ok(state_after_error(error));
+        }
+        match error {
+            SyncError::Api {
+                code: ErrorCode::Unauthenticated,
+                ..
+            } => {
+                if record.tokens.is_none() {
+                    local::close(&self.store)?;
+                }
+            }
+            SyncError::Api {
+                code: ErrorCode::CompanyForbidden,
+                ..
+            } => {
+                self.seal()?;
+            }
             SyncError::Api {
                 code: ErrorCode::UserDeactivated,
                 ..
+            } if record.deactivated => {
+                self.seal()?;
+                // CAS preserves tokens from any later sign-in.
+                self.session.store().deactivate(
+                    &TokenWrite::new(),
+                    self.session.profile(),
+                    record.generation,
+                )?;
+                return Ok(SyncState::AuthRequired);
             }
-        );
-        if !deactivated {
-            return Ok(state_after_error(error));
+            _ => {}
         }
-        let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
-        // The client marks the record only when the 403 answered a call of
-        // the current generation; a stale one leaves the mark unset.
-        let record = self.session.record()?;
-        if !record.deactivated {
-            return Ok(SyncState::Failed(error.code()));
-        }
-        // The local data is the deactivated user's, whatever happens next.
-        self.wipe()?;
-        // Compare-and-set: tokens of a sign-in made after the mark was read
-        // stay (the client already removed the deactivated ones).
-        self.session.store().deactivate(
-            &TokenWrite::new(),
-            self.session.profile(),
-            record.generation,
-        )?;
-        Ok(SyncState::AuthRequired)
+        Ok(state_after_error(error))
     }
-
     /// Local access rule of reads and enqueues; the caller holds `local`.
     fn check_access(&self, resource: &ResourceName) -> Result<()> {
         let session = self.check_verified()?;
@@ -871,6 +878,18 @@ impl<A> SyncEngine<A> {
         Ok(())
     }
 
+    /// Removes server data while retaining sealed outbox and conflict records.
+    fn seal(&self) -> Result<()> {
+        let names = local::seal(&self.store)?;
+        self.pending_pulls
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+        if !names.is_empty() {
+            self.emit(names);
+        }
+        Ok(())
+    }
     /// Marks `resource` changed in `report` and for a cancelled pass.
     fn touch(&self, report: &mut SyncReport, resource: &ResourceName) {
         report.touch(resource);
