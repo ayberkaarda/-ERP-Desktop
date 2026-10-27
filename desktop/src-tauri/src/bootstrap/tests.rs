@@ -766,7 +766,7 @@ async fn a_malformed_session_record_is_reported_and_reset_clears_it() {
 
 #[test]
 fn malformed_keychain_records_have_their_own_code() {
-    for what in ["session record", "db key", "secret slot"] {
+    for what in ["session record", "db key"] {
         let error = keystone_secrets::Error::Malformed(what);
         let through_sync = token_error(SyncError::from(keystone_secrets::Error::Malformed(what)));
         assert_eq!(through_sync.code, codes::PROFILE_RECORD_MALFORMED, "{what}");
@@ -895,6 +895,188 @@ async fn outbox_and_status_commands_answer_from_the_engine() {
     assert_eq!(
         crate::commands::sync::now(&state).unwrap_err().code,
         crate::commands::codes::NO_ACTIVE_PROFILE
+    );
+}
+
+// ---- review round: busy removal, fingerprint, failed switch, user change ----
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_busy_profile_stays_open_and_a_second_attempt_still_waits() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let id = profile.id.clone();
+
+    let in_flight = fx.state.client().unwrap();
+    let busy = fx.desktop.remove(&fx.state, &id, false).await.unwrap_err();
+    assert_eq!(busy.code, codes::PROFILE_BUSY);
+    // Open again, as the file says: commands keep working.
+    assert_eq!(fx.state.active_profile_id().as_deref(), Some(id.as_str()));
+    assert!(fx.state.engine().is_ok());
+    assert_eq!(
+        fx.desktop.registry().load().unwrap().active.as_deref(),
+        Some(id.as_str())
+    );
+
+    // The request is still running: the second attempt waits again.
+    let again = fx.desktop.reset(&fx.state, &id, true).await.unwrap_err();
+    assert_eq!(again.code, codes::PROFILE_BUSY);
+    let again = fx.desktop.remove(&fx.state, &id, true).await.unwrap_err();
+    assert_eq!(again.code, codes::PROFILE_BUSY);
+    assert!(fx.raw(&id).is_some());
+    assert!(fx.raw(&format!("db-key:{id}")).is_some());
+    assert!(fx.desktop.profile_dir(&id).join(DB_FILE).exists());
+
+    drop(in_flight);
+    fx.desktop.remove(&fx.state, &id, false).await.unwrap();
+    assert_eq!(fx.raw(&id), None);
+    assert_eq!(fx.raw(&format!("db-key:{id}")), None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_profile_without_engine_still_waits_for_its_requests() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let profile = fx.add(&server).await;
+    let dir = fx.desktop.profile_dir(&profile.id);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join(DB_FILE), b"an encrypted database").unwrap();
+    let error = fx.desktop.select(&fx.state, &profile.id).await.unwrap_err();
+    assert_eq!(error.code, codes::STORE_KEY_INVALID);
+
+    let in_flight = fx.state.client().unwrap();
+    let busy = fx
+        .desktop
+        .reset(&fx.state, &profile.id, true)
+        .await
+        .unwrap_err();
+    assert_eq!(busy.code, codes::PROFILE_BUSY);
+    assert!(dir.join(DB_FILE).exists());
+    assert_eq!(
+        fx.state.active_profile_id().as_deref(),
+        Some(profile.id.as_str())
+    );
+
+    drop(in_flight);
+    fx.desktop
+        .reset(&fx.state, &profile.id, true)
+        .await
+        .unwrap();
+    assert!(fx.state.engine().is_ok());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_left_profile_with_a_request_in_flight_is_not_deleted() {
+    let a = server(&[(COMPANY, "Acme")]).await;
+    let b = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let left = synced(&fx, &a).await;
+    // A request of A is still running when the user switches to B.
+    let in_flight = fx.state.client().unwrap();
+    synced(&fx, &b).await;
+
+    let busy = fx
+        .desktop
+        .remove(&fx.state, &left.id, true)
+        .await
+        .unwrap_err();
+    assert_eq!(busy.code, codes::PROFILE_BUSY);
+    assert!(fx.raw(&left.id).is_some());
+    assert!(fx.raw(&format!("db-key:{}", left.id)).is_some());
+    assert!(fx.desktop.registry().get(&left.id).is_ok());
+
+    drop(in_flight);
+    fx.desktop.remove(&fx.state, &left.id, true).await.unwrap();
+    assert_eq!(fx.raw(&left.id), None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_malformed_device_fingerprint_is_made_again() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    fx.put_raw("slot:device-fingerprint", b"zz");
+    let profile = fx.add(&server).await;
+    fx.desktop.select(&fx.state, &profile.id).await.unwrap();
+
+    fx.login().await.unwrap();
+    let slot = fx.raw("slot:device-fingerprint").unwrap();
+    assert_eq!(slot.len(), 64);
+    assert!(slot.iter().all(u8::is_ascii_hexdigit));
+    let device: Value =
+        serde_json::from_slice(&requests(&server, "/api/v1/auth/device").await[0].body).unwrap();
+    assert_eq!(
+        device["fingerprint"].as_str().unwrap().as_bytes(),
+        &slot[..]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_profile_whose_client_cannot_be_built_leaves_the_active_one_alone() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let first = synced(&fx, &server).await;
+    let broken = fx.add(&server).await;
+    // A file edited by hand (or written by a debug build): plain http to a
+    // host that is not loopback.
+    let path = fx.desktop.registry().path().to_path_buf();
+    let text = std::fs::read_to_string(&path).unwrap();
+    let mut file: Value = serde_json::from_str(&text).unwrap();
+    for p in file["profiles"].as_array_mut().unwrap() {
+        if p["id"] == broken.id.as_str() {
+            p["base_url"] = json!("http://erp.example.com");
+        }
+    }
+    std::fs::write(&path, serde_json::to_vec(&file).unwrap()).unwrap();
+
+    let error = fx.desktop.select(&fx.state, &broken.id).await.unwrap_err();
+    assert_eq!(error.code, "INVALID_SERVER_URL");
+    assert_eq!(
+        fx.state.active_profile_id().as_deref(),
+        Some(first.id.as_str())
+    );
+    assert!(fx.state.engine().is_ok());
+    assert_eq!(
+        fx.desktop.registry().load().unwrap().active.as_deref(),
+        Some(first.id.as_str())
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_user_reads_nothing_of_the_previous_one_before_a_run() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    // The second sign-in is another user, in two other companies.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/auth/me"))
+        .and(wiremock::matchers::header(
+            "authorization",
+            "Bearer access-2-0123456789abcdef",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {
+            "user": {"id": "0192f5a0-0000-7000-8000-00000000000b", "name": "Can",
+                     "email": "can@example.com", "must_change_password": false},
+            "companies": [
+                {"id": COMPANY_2, "name": "Beta", "role_names": []},
+                {"id": "0192f5a0-0000-7000-8000-000000000003", "name": "Gamma", "role_names": []}
+            ],
+            "permissions": {}
+        }})))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let fx = fx();
+    synced(&fx, &server).await;
+    assert_eq!(rows(&fx), 1);
+    assert!(fx.state.verified_store().is_ok());
+
+    let login = fx.login().await.unwrap();
+    assert!(login.company_required);
+    // No run yet: the previous user's rows and snapshots stay closed.
+    let engine = fx.state.engine().unwrap();
+    let read = engine.list(&parties(), &ListQuery::default()).unwrap_err();
+    assert_eq!(read.code(), "OFFLINE_UNAVAILABLE");
+    assert_eq!(
+        fx.state.verified_store().unwrap_err().code,
+        "OFFLINE_UNAVAILABLE"
     );
 }
 

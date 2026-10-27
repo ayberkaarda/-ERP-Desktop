@@ -3,10 +3,12 @@
 //!
 //! `/api/v1/auth/**` is closed to `api_request`; what the UI needs from it
 //! comes through these commands (`auth/device` via `auth_login`,
-//! `auth/me` inside `auth_login` / `profile_select_company`). A password
-//! change (`auth/password/change`) answers a desktop client with a new
-//! token pair that only the sync crate may store, so it waits for a crate
-//! method and is not offered here.
+//! `auth/me` inside `auth_login` / `profile_select_company`).
+//!
+//! No password change on the desktop for now: `auth/password/change`
+//! answers a device with a new token pair that only `keystone-sync` may
+//! store. It comes as a crate method later; until then the UI sends the
+//! user to the web and signs in again here.
 
 use tauri::State;
 use uuid::Uuid;

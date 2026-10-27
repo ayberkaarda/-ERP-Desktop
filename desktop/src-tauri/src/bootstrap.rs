@@ -137,8 +137,6 @@ impl Config {
 struct Running {
     sync_loop: Option<JoinHandle<()>>,
     events: JoinHandle<()>,
-    /// The profile's session, to see it closed before records go.
-    session: Weak<Session>,
 }
 
 /// What opening a profile produced.
@@ -161,6 +159,9 @@ pub struct Desktop {
     release_wait: Duration,
     runtime: EngineRuntime,
     sink: Arc<dyn EventSink>,
+    /// Session of every profile a client was made for, to see it closed
+    /// before its records go (active or not, engine or not).
+    sessions: std::sync::Mutex<std::collections::HashMap<String, Weak<Session>>>,
     /// The active profile's tasks; also serializes switches.
     running: tokio::sync::Mutex<Option<Running>>,
 }
@@ -188,6 +189,7 @@ impl Desktop {
             release_wait: config.release_wait,
             runtime: EngineRuntime::start()?,
             sink,
+            sessions: std::sync::Mutex::default(),
             running: tokio::sync::Mutex::new(None),
         })
     }
@@ -273,6 +275,8 @@ impl Desktop {
         let mut running = self.running.lock().await;
         let profile = self.profile(id).await?;
         self.check_record(id).await?;
+        // A profile whose client cannot be built leaves the active one alone.
+        drop(self.client(&profile)?);
         self.stop(state, &mut running).await;
         let registry = self.profiles_blocking();
         let active = id.to_owned();
@@ -360,9 +364,17 @@ impl Desktop {
         let client = state.client()?;
         let slot = SecretSlot::device_fingerprint(&self.keychain);
         let fingerprint = blocking(move || {
-            slot.get_or_create()
-                .map(|value| value.to_string())
-                .map_err(secrets_error)
+            let value = match slot.get_or_create() {
+                // The slot is installation-wide, not part of a profile: no
+                // profile reset reaches it. An unreadable one is made again;
+                // the server then sees a new device on the next sign-in.
+                Err(keystone_secrets::Error::Malformed(_)) => {
+                    log::warn!("device fingerprint unreadable; making a new one");
+                    slot.remove().and_then(|()| slot.get_or_create())
+                }
+                other => other,
+            };
+            value.map(|value| value.to_string()).map_err(secrets_error)
         })
         .await?;
         let request = DeviceLoginRequest {
@@ -447,7 +459,6 @@ impl Desktop {
         profile: &Profile,
     ) -> CommandResult<()> {
         let client = Arc::new(self.client(profile)?);
-        let session = Arc::downgrade(client.session());
         state.activate(ActiveProfile {
             id: profile.id.clone(),
             client: client.clone(),
@@ -478,11 +489,7 @@ impl Desktop {
             opened.store.clone(),
             sync.clone(),
         );
-        *running = Some(Running {
-            sync_loop,
-            events,
-            session,
-        });
+        *running = Some(Running { sync_loop, events });
         drop(sync);
         attached.map(drop)
     }
@@ -495,12 +502,18 @@ impl Desktop {
             company_id: profile.company_id.unwrap_or(Uuid::nil()),
             user_agent: self.user_agent.clone(),
         };
-        Ok(HttpClient::new(
+        let client = HttpClient::new(
             &config,
             profile.id.clone(),
             self.tokens.clone(),
             &self.options,
-        )?)
+        )?;
+        let mut sessions = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        sessions.insert(profile.id.clone(), Arc::downgrade(client.session()));
+        Ok(client)
     }
 
     /// The profile's store and engine (blocking work off the async thread).
@@ -583,19 +596,36 @@ impl Desktop {
                 ));
             }
         }
-        let session = if active {
-            let session = running.as_ref().map(|r| r.session.clone());
+        if active {
             self.stop(state, running).await;
-            session
-        } else {
-            None
-        };
-        if let Some(session) = session {
-            self.wait_released(&session).await?;
+        }
+        // Every client of the profile, active or not, with or without an
+        // engine, must be gone: a live session could write its record back.
+        let session = self
+            .sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(id)
+            .cloned();
+        if let Some(session) = session
+            && let Err(busy) = self.wait_released(&session).await
+        {
+            // Nothing was deleted: open the profile again, as the file says.
+            if active {
+                let profile = self.profile(id).await?;
+                if let Err(error) = self.start(state, running, &profile).await {
+                    log::warn!("profile not reopened: {}", error.code);
+                }
+            }
+            return Err(busy);
         }
         let tokens = self.tokens.clone();
         let db_keys = self.db_keys.clone();
         let dir = self.profile_dir(id);
+        self.sessions
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(id);
         let id = id.to_owned();
         blocking(move || {
             tokens.remove_profile(&id).map_err(secrets_error)?;
@@ -679,6 +709,12 @@ impl Desktop {
             ));
         }
         if profile.company_id != company {
+            // The new client must build before anything is stopped.
+            let candidate = Profile {
+                company_id: company,
+                ..profile.clone()
+            };
+            drop(self.client(&candidate)?);
             let registry = self.profiles_blocking();
             let changed_id = id.to_owned();
             profile = blocking(move || registry.set_company(&changed_id, company)).await?;
@@ -769,12 +805,10 @@ pub fn token_error(error: SyncError) -> CommandError {
 }
 
 fn is_malformed_text(text: &str) -> bool {
-    ["session record", "db key", "secret slot"]
-        .iter()
-        .any(|what| {
-            text == keystone_secrets::Error::Malformed(what).to_string()
-                || text.ends_with(&keystone_secrets::Error::Malformed(what).to_string())
-        })
+    ["session record", "db key"].iter().any(|what| {
+        text == keystone_secrets::Error::Malformed(what).to_string()
+            || text.ends_with(&keystone_secrets::Error::Malformed(what).to_string())
+    })
 }
 
 fn secrets_error(error: keystone_secrets::Error) -> CommandError {
@@ -840,6 +874,12 @@ pub fn setup<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn s
 /// Sends `trigger` to the active profile's sync loop; `Ok(false)` when it
 /// has none. The door for other parts of the shell (a proxy call that
 /// finds the server again, the realtime bridge).
+///
+/// Realtime bridge input point: on `.session.revoked` the bridge calls
+/// this with `Trigger::Manual` and emits a UI event; it never signs out
+/// and never wipes local data (the next run meets the revoked token and
+/// the engine turns to `AuthRequired` by itself). A generation-bound
+/// token drop (`forget_tokens(generation)`) comes later in the crate.
 pub fn trigger(state: &AppState, trigger: Trigger) -> CommandResult<bool> {
     let id = state.active_profile_id().ok_or_else(no_profile)?;
     state.trigger(&id, trigger)
