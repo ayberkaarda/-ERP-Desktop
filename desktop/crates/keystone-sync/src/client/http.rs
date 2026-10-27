@@ -48,6 +48,12 @@ use super::retry_after::parse_retry_after;
 use super::url::ServerUrl;
 use super::{ApiConfig, DeviceAuthApi, SyncApi, paths};
 
+mod proxy;
+
+pub use proxy::{
+    PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest, ProxyResponse, REQUEST_HEADERS, RESPONSE_HEADERS,
+};
+
 const COMPANY_HEADER: &str = "x-company-id";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
