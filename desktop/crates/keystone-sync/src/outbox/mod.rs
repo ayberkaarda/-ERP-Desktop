@@ -173,6 +173,21 @@ pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
 }
 
 pub(crate) fn cancel(tx: &Transaction<'_>, key: Uuid, success: bool) -> Result<()> {
+    if !success {
+        let data: Option<String> = tx
+            .query_row(
+                "SELECT mutation FROM outbox_entries WHERE key=?1",
+                [key.to_string()],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(data) = data {
+            let mutation: Mutation = serde_json::from_str(&data)?;
+            if mutation.op == MutationOp::Create {
+                Store::remove_draft_on(tx, &mutation.resource, mutation.id)?;
+            }
+        }
+    }
     tx.execute("DELETE FROM outbox_entries WHERE key=?1", [key.to_string()])?;
     tx.execute(
         "INSERT OR REPLACE INTO outbox_settled(key,success) VALUES (?1,?2)",
@@ -419,6 +434,9 @@ impl OutboxQueue for Outbox {
                 "INSERT INTO outbox_entries(key,mutation,state) VALUES (?1,?2,'pending')",
                 params![key.to_string(), serde_json::to_string(&mutation)?],
             )?;
+            if mutation.op == MutationOp::Create {
+                Store::seed_draft_on(tx, &mutation.resource, mutation.id)?;
+            }
             Ok(EnqueueOutcome::Queued(key))
         })
     }
