@@ -6,6 +6,7 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use ts_rs::TS;
 
 /// One `/api/v1` request of the UI.
 ///
@@ -14,7 +15,8 @@ use serde_json::Value;
 ///  "query": [["page", "1"]], "headers": [["Accept-Language", "tr"]],
 ///  "body": {"kind": "json", "value": {"name": "Acme"}}}
 /// ```
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 #[serde(deny_unknown_fields)]
 pub struct ApiRequestDto {
     /// `GET`, `POST`, `PUT`, `PATCH` or `DELETE` (any case).
@@ -23,21 +25,28 @@ pub struct ApiRequestDto {
     pub path: String,
     /// Query pairs in order; a name may repeat (`filter[status][]`).
     #[serde(default)]
+    #[ts(as = "Option<Vec<(String, String)>>", optional)]
     pub query: Vec<(String, String)>,
     /// Only `idempotency-key`, `accept-language`, `if-none-match` and
     /// `content-type` are passed on; other names are dropped.
     #[serde(default)]
+    #[ts(as = "Option<Vec<(String, String)>>", optional)]
     pub headers: Vec<(String, String)>,
     #[serde(default)]
+    #[ts(optional)]
     pub body: Option<ApiBody>,
 }
 
 /// A request or response body.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ApiBody {
     /// JSON (`application/json` and `+json` types).
-    Json { value: Value },
+    Json {
+        #[ts(type = "unknown")]
+        value: Value,
+    },
     /// UTF-8 text (`text/*`).
     Text { value: String },
     /// Anything else (PDF, spreadsheets, images), standard base64 with padding.
@@ -45,7 +54,8 @@ pub enum ApiBody {
 }
 
 /// Where an answer came from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 #[serde(rename_all = "snake_case")]
 pub enum ResponseSource {
     /// The server answered (any status).
@@ -56,7 +66,8 @@ pub enum ResponseSource {
 }
 
 /// The answer to an [`ApiRequestDto`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct ApiResponseDto {
     pub status: u16,
     /// Lowercase names: `content-type`, `content-disposition`, `etag`,

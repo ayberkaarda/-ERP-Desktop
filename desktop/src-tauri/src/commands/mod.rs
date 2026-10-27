@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use keystone_sync::SyncError;
 use serde::Serialize;
+use ts_rs::TS;
 
 /// Error codes produced by the shell itself (not by `keystone-sync`).
 pub mod codes {
@@ -25,13 +26,15 @@ pub mod codes {
 }
 
 /// Error of a Tauri command, as the webview receives it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct CommandError {
     pub code: String,
     pub message: String,
     /// Whole seconds to wait before retrying (from the server `Retry-After`),
     /// rounded up. Absent when the server sent none.
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number", optional)]
     pub retry_after: Option<u64>,
 }
 

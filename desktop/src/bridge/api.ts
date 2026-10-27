@@ -1,30 +1,20 @@
-// `api_request`: the webview's only door to the server. Shapes mirror
-// `src-tauri/src/dto/api.rs`; generated types replace them later.
+// `api_request`: the webview's only door to the server. Types come from the
+// Rust DTOs (generated/); only the method is narrowed here.
+
+import type { ApiBody } from './generated/ApiBody'
+import type { ApiRequestDto } from './generated/ApiRequestDto'
+import type { ApiResponseDto } from './generated/ApiResponseDto'
+import type { Invoke } from './invoke'
+
+export type { ApiBody, Invoke }
 
 export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
 
-export type ApiBody =
-  | { kind: 'json'; value: unknown }
-  | { kind: 'text'; value: string }
-  | { kind: 'binary'; base64: string }
+/** `path` is the full path under `/api/v1/`, without query or fragment. */
+export type ApiRequest = Omit<ApiRequestDto, 'method'> & { method: ApiMethod }
 
-export interface ApiRequest {
-  method: ApiMethod
-  /** Full path under `/api/v1/`, without query or fragment. */
-  path: string
-  query?: [string, string][]
-  headers?: [string, string][]
-  body?: ApiBody
-}
-
-export interface ApiResponse {
-  status: number
-  /** Lowercase names, allowlisted by the shell. */
-  headers: [string, string][]
-  body: ApiBody | null
-  /** `local`: answered on this device (local data, draft or offline refusal). */
-  source: 'network' | 'local'
-}
+/** `source: 'local'`: answered on this device (local data, draft or offline refusal). */
+export type ApiResponse = ApiResponseDto
 
 /** The Laravel error envelope `{errors: {message, code, fields?}}`. */
 export interface ApiErrorBody {
@@ -33,7 +23,6 @@ export interface ApiErrorBody {
   fields?: Record<string, string[]>
 }
 
-export type Invoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>
 
 export const API_REQUEST = 'api_request'
 

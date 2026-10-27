@@ -13,11 +13,13 @@ use std::sync::Arc;
 use keystone_sync::engine::{ResourcesChanged, SyncStatus};
 use serde::Serialize;
 use tokio::sync::{broadcast, watch};
+use ts_rs::TS;
 
 use crate::dto::status::StatusDto;
 
 /// Payload of `engine-event`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EngineEvent {
     /// The engine status changed (also sent once when the bridge starts).

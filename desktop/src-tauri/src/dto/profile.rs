@@ -1,12 +1,14 @@
 //! Server profiles as the webview sees them (`profile_*` commands).
 
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::profiles::Profile;
 
 /// One server profile. No secret: tokens and keys stay in the keychain.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct ProfileDto {
     pub id: String,
     pub name: String,
@@ -38,7 +40,8 @@ impl From<&Profile> for ProfileDto {
 }
 
 /// Every profile and the active one.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct ProfilesDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_id: Option<String>,
