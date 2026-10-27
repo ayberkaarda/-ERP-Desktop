@@ -16,6 +16,8 @@ use crate::wire::{ResourceName, ResourceRow};
 const IDENTITY: &str = "identity";
 const GENERATION: &str = "generation";
 const RESOURCES: &str = "resources";
+/// `offline_manifest_version` of that manifest.
+const OFFLINE_MANIFEST_VERSION: &str = "offline_manifest_version";
 /// Set while a sign-out is unfinished: the generation it signs out and the
 /// stage it reached ([`SignOutStage`]); access stays closed meanwhile.
 const SIGN_OUT_GENERATION: &str = "sign_out_generation";
@@ -183,6 +185,8 @@ pub(super) struct LocalSession {
     /// Sign-in generation of that manifest.
     pub generation: Option<u64>,
     pub resources: Vec<ResourceName>,
+    /// `offline_manifest_version` the server sent with that manifest.
+    pub offline_manifest_version: Option<u32>,
     /// A sign-out still has to revoke the tokens or remove the local data.
     pub sign_out: Option<PendingSignOut>,
 }
@@ -204,6 +208,7 @@ pub(super) fn session(store: &Store) -> Result<LocalSession> {
             identity: get(IDENTITY)?,
             generation: get(GENERATION)?.and_then(|g| g.parse().ok()),
             resources,
+            offline_manifest_version: get(OFFLINE_MANIFEST_VERSION)?.and_then(|v| v.parse().ok()),
             sign_out: pending_sign_out_on(conn)?,
         })
     })
@@ -242,6 +247,7 @@ pub(super) fn set_session(
     identity: &str,
     generation: u64,
     resources: &[ResourceName],
+    offline_manifest_version: u32,
 ) -> Result<()> {
     let resources = serde_json::to_string(resources)?;
     store.write(|tx| {
@@ -253,6 +259,10 @@ pub(super) fn set_session(
             (IDENTITY, identity.to_owned()),
             (GENERATION, generation.to_string()),
             (RESOURCES, resources),
+            (
+                OFFLINE_MANIFEST_VERSION,
+                offline_manifest_version.to_string(),
+            ),
         ] {
             tx.execute(
                 "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)

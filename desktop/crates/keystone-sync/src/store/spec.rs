@@ -1,11 +1,15 @@
 //! Per-resource mirror layout: which fields get generated columns, which feed
-//! full-text search, and which date field bounds a document window.
+//! full-text search, which date field bounds a document window, and which
+//! offline writes the client may queue ([`WritePolicy`]).
+
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use crate::error::{Result, SyncError};
-use crate::wire::{ReadMode, ResourceName, Source};
+use crate::error::{Result, SyncError, refused};
+use crate::outbox::NewMutation;
+use crate::wire::{ErrorCode, MutationOp, ReadMode, ResourceName, Source};
 
 /// Fields indexed for search when the offline manifest gives none.
 /// Missing fields simply add nothing to the search text.
@@ -43,6 +47,141 @@ pub struct ResourceSpec {
     pub search: Vec<String>,
     /// Set for documents: retention only ever removes rows of these.
     pub window: Option<Window>,
+    /// Offline write rules of the offline manifest. `None` (a spec built
+    /// by hand): no local rule, the server decides alone. From the
+    /// manifest every resource has one; without a `write` section it
+    /// allows nothing offline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub write: Option<WritePolicy>,
+}
+
+/// One offline write operation (`write.ops[]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WriteOp {
+    pub op: MutationOp,
+    /// Set for `op: action`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+}
+
+/// `write.draft_only`: updates, deletes and actions only while `field` is
+/// `value` or one of `also` (a rejected purchase request is edited like a
+/// draft); otherwise `DOCUMENT_LOCKED`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DraftOnly {
+    pub field: String,
+    pub value: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<String>,
+}
+
+impl DraftOnly {
+    /// Whether a row with this field value may still be changed offline.
+    pub fn allows(&self, value: &str) -> bool {
+        value == self.value || self.also.iter().any(|v| v == value)
+    }
+}
+
+/// Client-side offline write rules of one resource (offline manifest
+/// `write`). The server checks the same rules again; this only refuses
+/// early what it would refuse.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct WritePolicy {
+    /// Empty: read-only offline.
+    #[serde(default)]
+    pub ops: Vec<WriteOp>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub draft_only: Option<DraftOnly>,
+    /// Allowed current values of the target row for update, delete and
+    /// action; a violation is `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub target_constraints: BTreeMap<String, Vec<String>>,
+    /// Allowed payload values of create and update when the field is
+    /// present; a violation is `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub payload_constraints: BTreeMap<String, Vec<String>>,
+}
+
+impl WritePolicy {
+    /// Whether `op` (with `action` for actions) is an offline write.
+    pub fn allows_op(&self, op: MutationOp, action: Option<&str>) -> bool {
+        self.ops
+            .iter()
+            .any(|w| w.op == op && (op != MutationOp::Action || w.action.as_deref() == action))
+    }
+
+    /// Checks a draft against the rules. `current` is the row as the user
+    /// sees it locally (drafts laid over the mirror); without one only the
+    /// operation and the payload are checked and the server decides the
+    /// rest. A row without the `draft_only` field is not refused (a local
+    /// create takes the server default).
+    pub fn check(&self, draft: &NewMutation, current: Option<&Map<String, Value>>) -> Result<()> {
+        if !self.allows_op(draft.op, draft.action.as_deref()) {
+            return Err(refused(
+                ErrorCode::SyncOfflineWriteNotAllowed,
+                "this write is not available offline",
+            ));
+        }
+        if matches!(draft.op, MutationOp::Create | MutationOp::Update) {
+            for (field, allowed) in &self.payload_constraints {
+                if let Some(value) = draft.payload.get(field)
+                    && !value
+                        .as_str()
+                        .is_some_and(|v| allowed.iter().any(|a| a == v))
+                {
+                    return Err(refused(
+                        ErrorCode::SyncOfflineWriteNotAllowed,
+                        "a payload value is not allowed offline",
+                    ));
+                }
+            }
+        }
+        let Some(row) = current.filter(|_| draft.op != MutationOp::Create) else {
+            return Ok(());
+        };
+        // Server order (push step 8): target constraints, then draft_only.
+        for (field, allowed) in &self.target_constraints {
+            let ok = field_value(row, field)
+                .and_then(Value::as_str)
+                .is_some_and(|v| allowed.iter().any(|a| a == v));
+            if !ok {
+                return Err(refused(
+                    ErrorCode::SyncOfflineWriteNotAllowed,
+                    "this record cannot be changed offline",
+                ));
+            }
+        }
+        if let Some(rule) = &self.draft_only
+            && let Some(value) = field_value(row, &rule.field)
+            && !value.is_null()
+            && !value.as_str().is_some_and(|v| rule.allows(v))
+        {
+            return Err(refused(
+                ErrorCode::DocumentLocked,
+                "the document is no longer a draft",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Value at a dotted field path of a row.
+fn field_value<'a>(row: &'a Map<String, Value>, field: &str) -> Option<&'a Value> {
+    let mut parts = field.split('.');
+    let mut value = row.get(parts.next()?)?;
+    for part in parts {
+        value = value.get(part)?;
+    }
+    Some(value)
+}
+
+/// The offline manifest compiled into the client: its content version
+/// (compared with `offline_manifest_version` of the sync manifest) and the
+/// specs of its resources.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OfflineManifest {
+    pub manifest_version: u32,
+    pub specs: Vec<ResourceSpec>,
 }
 
 impl ResourceSpec {
@@ -55,6 +194,7 @@ impl ResourceSpec {
             indexed: Vec::new(),
             search: Vec::new(),
             window: None,
+            write: None,
         }
     }
 
@@ -114,8 +254,27 @@ impl ResourceSpec {
 
 /// Reads `contracts/offline-manifest.json` into specs. Children inherit the
 /// parent's read mode; `snapshot` resources are kept as snapshots, not rows.
+/// Every spec carries the resource's `write` rules (none: read-only).
 pub fn specs_from_offline_manifest(json: &str) -> Result<Vec<ResourceSpec>> {
+    specs_of(&serde_json::from_str(json)?)
+}
+
+/// Reads `contracts/offline-manifest.json`: `manifest_version` and the specs
+/// (see [`specs_from_offline_manifest`]).
+pub fn offline_manifest(json: &str) -> Result<OfflineManifest> {
     let root: Value = serde_json::from_str(json)?;
+    let manifest_version = root
+        .get("manifest_version")
+        .and_then(Value::as_u64)
+        .and_then(|v| u32::try_from(v).ok())
+        .ok_or_else(|| invalid("offline manifest has no manifest_version"))?;
+    Ok(OfflineManifest {
+        manifest_version,
+        specs: specs_of(&root)?,
+    })
+}
+
+fn specs_of(root: &Value) -> Result<Vec<ResourceSpec>> {
     let default_days = root
         .pointer("/defaults/recent_window_days")
         .and_then(Value::as_u64)
@@ -140,6 +299,10 @@ pub fn specs_from_offline_manifest(json: &str) -> Result<Vec<ResourceSpec>> {
         )?;
         let mut spec = ResourceSpec::new(resource).read(read);
         spec.source = source;
+        spec.write = Some(match entry.get("write") {
+            Some(write) => serde_json::from_value(write.clone())?,
+            None => WritePolicy::default(),
+        });
         if source == Source::Pull {
             spec.search = DEFAULT_SEARCH_FIELDS
                 .iter()
@@ -160,6 +323,7 @@ pub fn specs_from_offline_manifest(json: &str) -> Result<Vec<ResourceSpec>> {
         for child in children.into_iter().flatten() {
             let mut child_spec = ResourceSpec::new(name_of(child)?).read(spec.read);
             child_spec.search = spec.search.clone();
+            child_spec.write = Some(WritePolicy::default());
             child_spec.validate()?;
             specs.push(child_spec);
         }

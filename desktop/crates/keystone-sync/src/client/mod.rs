@@ -5,6 +5,9 @@
 //! [`SyncError::Api`](crate::error::SyncError::Api) via
 //! [`SyncError::from_api`](crate::error::SyncError::from_api).
 //!
+//! [`HttpClient::proxy`] carries any other `/api/v1` request of the UI
+//! (paths the client calls itself are refused).
+//!
 //! Tokens are read from and written to a [`TokenStore`](crate::auth::TokenStore).
 //! Nothing here logs; tokens and bodies never appear in error messages.
 
@@ -29,7 +32,10 @@ pub(crate) mod sealed {
     pub trait Sealed {}
 }
 
-pub use http::{ClientOptions, HttpClient, fetch_server_meta};
+pub use http::{
+    AUTH_READS, ClientOptions, HttpClient, PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest,
+    ProxyResponse, REQUEST_HEADERS, RESPONSE_HEADERS, fetch_server_meta,
+};
 pub use retry_after::parse_retry_after;
 pub use url::ServerUrl;
 

@@ -33,6 +33,11 @@
 //!   that generation are revoked before any local data goes, and a
 //!   sign-out cut short is finished for that generation only (a later
 //!   sign-in keeps its tokens).
+//! - Offline writes: [`SyncEngine::enqueue`] applies the resource's
+//!   [`WritePolicy`] (offline manifest `write`) to the row the user sees,
+//!   and closes while the compiled offline manifest
+//!   ([`SyncEngine::offline_manifest_version`]) differs from the server's
+//!   (`SyncStatus::manifest_mismatch`); reads go on.
 //! - Tokens: the engine reads and writes them only through the profile's
 //!   [`Session`], the same one its API client works in.
 //! - State is published through [`SyncEngine::subscribe`]; changed resources
@@ -63,9 +68,12 @@ use crate::auth::{Session, TokenWrite};
 use crate::backoff::{Backoff, RETRY_AFTER_MAX};
 use crate::client::SyncApi;
 use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
+use crate::error::refused;
 use crate::error::{Result, SyncError};
 use crate::outbox::{EnqueueOutcome, NewMutation, Outbox, OutboxEntry, OutboxQueue};
-use crate::store::{ListQuery, Migration, PullBase, ResourceSpec, Store};
+use crate::store::{
+    ListQuery, Migration, OfflineManifest, PullBase, ResourceSpec, Store, WritePolicy,
+};
 use crate::wire::{ConflictChoice, ErrorCode, MutationOp, PullResource, ResourceName};
 
 pub use driver::{SyncHandle, SyncLoop, next_delay, sync_loop};
@@ -147,6 +155,10 @@ pub struct SyncStatus {
     pub failures: u32,
     /// `Retry-After` of the last failure: no run starts before it passes.
     pub retry_after: Option<Duration>,
+    /// The server's `offline_manifest_version` differs from the offline
+    /// manifest compiled into the client: offline writes are closed (reads
+    /// and online writes go on) until the versions match again.
+    pub manifest_mismatch: bool,
 }
 
 impl Default for SyncStatus {
@@ -159,6 +171,7 @@ impl Default for SyncStatus {
             quarantined: 0,
             failures: 0,
             retry_after: None,
+            manifest_mismatch: false,
         }
     }
 }
@@ -340,6 +353,8 @@ pub struct SyncEngine<A> {
     outbox: Outbox,
     conflicts: ConflictStore,
     specs: Vec<ResourceSpec>,
+    /// `manifest_version` of the compiled offline manifest, when given.
+    offline_version: Option<u32>,
     pull_limit: Option<u32>,
     backoff: Backoff,
     gate: Mutex<Gate>,
@@ -392,6 +407,7 @@ impl<A: SyncApi> SyncEngine<A> {
             conflicts: ConflictStore::new(store.clone()),
             store,
             specs: Vec::new(),
+            offline_version: None,
             pull_limit: None,
             backoff: Backoff::default(),
             gate: Mutex::default(),
@@ -422,6 +438,38 @@ impl<A: SyncApi> SyncEngine<A> {
     pub fn with_specs(mut self, specs: Vec<ResourceSpec>) -> Self {
         self.specs = specs;
         self
+    }
+
+    /// Specs and content version of the compiled offline manifest
+    /// ([`crate::store::offline_manifest`]). The version is compared with
+    /// every sync manifest (`SyncStatus::manifest_mismatch`).
+    /// The status shows a mismatch stored by an earlier run at once, so an
+    /// offline start warns before any manifest arrives.
+    pub fn with_offline_manifest(mut self, manifest: OfflineManifest) -> Self {
+        self.specs = manifest.specs;
+        self.offline_version = Some(manifest.manifest_version);
+        // A store failure leaves `false`; `enqueue` reads the store itself.
+        if let Ok(session) = local::session(&self.store) {
+            let mismatch = self.mismatch(session.offline_manifest_version);
+            self.status
+                .send_modify(|status| status.manifest_mismatch = mismatch);
+        }
+        self
+    }
+
+    /// `manifest_version` of the compiled offline manifest; `None` when
+    /// the engine was built from specs alone (no version check).
+    pub fn offline_manifest_version(&self) -> Option<u32> {
+        self.offline_version
+    }
+
+    /// Offline write rules of `resource` from the compiled specs. `None`:
+    /// no spec or a spec without rules (the server decides alone).
+    pub fn write_policy(&self, resource: &ResourceName) -> Option<WritePolicy> {
+        self.specs
+            .iter()
+            .find(|s| &s.resource == resource)
+            .and_then(|s| s.write.clone())
     }
 
     /// Pull page size; default the manifest's `pull_page_default`. Clamped
@@ -513,7 +561,11 @@ impl<A: SyncApi> SyncEngine<A> {
     /// Recounts outbox and conflicts into the published status.
     pub fn refresh_status(&self) -> Result<SyncStatus> {
         let counts = local::counts(&self.store)?;
-        self.status.send_modify(|status| counts.apply(status));
+        let mismatch = self.mismatch(local::session(&self.store)?.offline_manifest_version);
+        self.status.send_modify(|status| {
+            counts.apply(status);
+            status.manifest_mismatch = mismatch;
+        });
         Ok(self.status())
     }
 
@@ -523,7 +575,11 @@ impl<A: SyncApi> SyncEngine<A> {
     ///
     /// Fails without queueing while the local data is not verified for the
     /// current sign-in (see the module docs) or when the resource is not in
-    /// the manifest. Excluded with sign-out and wipes: a write is either
+    /// the manifest. Refused with the server's codes: while the offline
+    /// manifest versions differ (`SYNC_OFFLINE_WRITE_NOT_ALLOWED`), and when
+    /// the resource's [`WritePolicy`] rejects the draft for the row as the
+    /// user sees it (`DOCUMENT_LOCKED` for a document that is no longer a
+    /// draft, `SYNC_OFFLINE_WRITE_NOT_ALLOWED` otherwise). Excluded with sign-out and wipes: a write is either
     /// counted by sign-out or refused, never silently deleted.
     pub fn enqueue(&self, mutation: NewMutation) -> Result<EnqueueOutcome> {
         let resource = mutation.resource.clone();
@@ -531,7 +587,20 @@ impl<A: SyncApi> SyncEngine<A> {
             let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
             // No sign-in completes between the check below and the work.
             let _sign_in = self.session.hold();
-            self.check_access(&resource)?;
+            let session = self.check_access(&resource)?;
+            if self.mismatch(session.offline_manifest_version) {
+                return Err(refused(
+                    ErrorCode::SyncOfflineWriteNotAllowed,
+                    "the offline manifest differs from the server; offline writes are closed",
+                ));
+            }
+            if let Some(policy) = self.write_policy(&resource) {
+                let current = match mutation.op {
+                    MutationOp::Create => None,
+                    _ => overlay::get(&self.store, &resource, mutation.id)?,
+                };
+                policy.check(&mutation, current.as_ref().map(|r| &r.row.fields))?;
+            }
             if mutation.op != MutationOp::Create {
                 local::save_base(&self.store, &resource, mutation.id)?;
             }
@@ -827,8 +896,15 @@ impl<A: SyncApi> SyncEngine<A> {
         }
         Ok(state_after_error(error))
     }
+    /// Whether the server's offline manifest version (from the last
+    /// manifest) differs from the compiled one.
+    fn mismatch(&self, server: Option<u32>) -> bool {
+        matches!((self.offline_version, server), (Some(local), Some(server)) if local != server)
+    }
+
     /// Local access rule of reads and enqueues; the caller holds `local`.
-    fn check_access(&self, resource: &ResourceName) -> Result<()> {
+    /// Returns the verified local session.
+    fn check_access(&self, resource: &ResourceName) -> Result<local::LocalSession> {
         let session = self.check_verified()?;
         if !session.resources.contains(resource) {
             return Err(SyncError::Api {
@@ -840,7 +916,7 @@ impl<A: SyncApi> SyncEngine<A> {
                 redacted: None,
             });
         }
-        Ok(())
+        Ok(session)
     }
 
     /// The local data was verified by a manifest of the current sign-in

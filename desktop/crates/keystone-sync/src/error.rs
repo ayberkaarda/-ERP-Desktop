@@ -32,6 +32,11 @@ pub enum LocalCode {
     InvalidServerUrl,
     /// The scaffold has no implementation for this operation yet.
     NotImplemented,
+    /// A request built by the caller was rejected before sending (invalid
+    /// header, method or body).
+    InvalidRequest,
+    /// A request or response body exceeds the client's size limit.
+    PayloadTooLarge,
 }
 
 impl LocalCode {
@@ -46,6 +51,8 @@ impl LocalCode {
             Self::TokenStoreError => "TOKEN_STORE_ERROR",
             Self::InvalidServerUrl => "INVALID_SERVER_URL",
             Self::NotImplemented => "NOT_IMPLEMENTED",
+            Self::InvalidRequest => "INVALID_REQUEST",
+            Self::PayloadTooLarge => "PAYLOAD_TOO_LARGE",
         }
     }
 }
@@ -98,6 +105,10 @@ pub enum SyncError {
     InvalidServerUrl(String),
     #[error("not implemented: {0}")]
     NotImplemented(&'static str),
+    #[error("invalid request: {0}")]
+    InvalidRequest(String),
+    #[error("payload too large: {0}")]
+    PayloadTooLarge(String),
 }
 
 impl SyncError {
@@ -164,6 +175,8 @@ impl SyncError {
             Self::TokenStore(_) => LocalCode::TokenStoreError,
             Self::InvalidServerUrl(_) => LocalCode::InvalidServerUrl,
             Self::NotImplemented(_) => LocalCode::NotImplemented,
+            Self::InvalidRequest(_) => LocalCode::InvalidRequest,
+            Self::PayloadTooLarge(_) => LocalCode::PayloadTooLarge,
         };
         Code::Local(local)
     }
@@ -182,6 +195,20 @@ impl SyncError {
             Self::Api { retry_after, .. } => *retry_after,
             _ => None,
         }
+    }
+}
+
+/// A write the client refuses itself with the code the server would send
+/// (`DOCUMENT_LOCKED`, `SYNC_OFFLINE_WRITE_NOT_ALLOWED`), so the UI shows
+/// the same message offline as online. `message` is local text.
+pub(crate) fn refused(code: ErrorCode, message: &str) -> SyncError {
+    SyncError::Api {
+        status: code.http_status().unwrap_or(422),
+        code,
+        message: message.to_owned(),
+        fields: BTreeMap::new(),
+        retry_after: None,
+        redacted: None,
     }
 }
 
@@ -214,6 +241,8 @@ mod tests {
             LocalCode::TokenStoreError,
             LocalCode::InvalidServerUrl,
             LocalCode::NotImplemented,
+            LocalCode::InvalidRequest,
+            LocalCode::PayloadTooLarge,
         ];
         for local in locals {
             assert!(
@@ -222,6 +251,16 @@ mod tests {
                 local.as_str()
             );
         }
+    }
+
+    #[test]
+    fn request_codes_are_local() {
+        let invalid = SyncError::InvalidRequest("header".into());
+        assert_eq!(invalid.code(), "INVALID_REQUEST");
+        assert_eq!(invalid.kind(), Code::Local(LocalCode::InvalidRequest));
+        let large = SyncError::PayloadTooLarge("body".into());
+        assert_eq!(large.code(), "PAYLOAD_TOO_LARGE");
+        assert_eq!(large.kind(), Code::Local(LocalCode::PayloadTooLarge));
     }
 
     #[test]

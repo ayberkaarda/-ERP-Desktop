@@ -1,8 +1,9 @@
 //! Encrypted local store (SQLCipher).
 //!
 //! One `Store` per (server profile, user, company). Other modules reach the
-//! database only through [`Store::read`] and [`Store::write`]; they own their
-//! tables through their `MIGRATIONS` (see [`migrations`]).
+//! database only through `Store::read` and `Store::write` (crate-internal;
+//! the crate's tests use [`raw`] behind the `raw-store` feature); they own
+//! their tables through their `MIGRATIONS` (see [`migrations`]).
 //!
 //! Connections: one writer (behind a mutex, IMMEDIATE transactions) and a
 //! small pool of `query_only` readers. WAL lets readers run while the writer
@@ -12,6 +13,8 @@ mod fold;
 pub mod migrations;
 mod mirror;
 mod query;
+#[cfg(feature = "raw-store")]
+pub mod raw;
 mod retention;
 mod spec;
 
@@ -23,16 +26,22 @@ use std::time::{Duration, Instant};
 
 use rusqlite::{Connection, ErrorCode as SqliteCode, OpenFlags, Transaction, TransactionBehavior};
 
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
+
 use crate::error::{Result, SyncError};
 pub use fold::{fold, match_expression};
 pub use migrations::{Migration, RANGES};
-pub use mirror::{AppliedPage, MirrorStore, PageApply, PullBase, ResourceState, Snapshot};
+pub(crate) use mirror::MirrorStore;
+pub use mirror::{AppliedPage, PageApply, PullBase, ResourceState, Snapshot};
 pub use query::{
     Filter, FilterOp, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, ListPage, ListQuery, LocalCopy,
     ReadRoute, SortKey, read_route,
 };
 pub use retention::{PruneReport, RetentionPolicy};
-pub use spec::{DEFAULT_SEARCH_FIELDS, ResourceSpec, Window, specs_from_offline_manifest};
+pub use spec::{
+    DEFAULT_SEARCH_FIELDS, DraftOnly, OfflineManifest, ResourceSpec, Window, WriteOp, WritePolicy,
+    offline_manifest, specs_from_offline_manifest,
+};
 
 /// Store base tables.
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -49,8 +58,8 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 /// Kept apart from [`MIGRATIONS`] so the base list stays `store_meta` only.
 /// Per-resource row tables (`m_*`) and FTS tables (`m_*#fts`) are created by
 /// [`Store::register`], not by migrations: their shape follows the spec.
-/// Not shipped yet, so this one migration still holds the whole layout;
-/// databases from earlier dev builds must be deleted (no upgrade path).
+/// New layout steps are appended as further migrations (11 added the local
+/// create marks); an applied migration is never edited.
 pub const MIRROR_MIGRATIONS: &[Migration] = &[
     Migration {
         id: 10,
@@ -89,12 +98,27 @@ pub const MIRROR_MIGRATIONS: &[Migration] = &[
     },
 ];
 
+/// `"x'` + 64 hex digits + `'"`.
+const PRAGMA_VALUE_LEN: usize = 3 + 64 + 2;
+const PRAGMA_KEY_PREFIX: &str = "PRAGMA key = ";
+
 /// Readers opened next to the writer.
 pub const READER_POOL_SIZE: usize = 3;
 
-/// 256-bit raw SQLCipher key. The OS keychain keeps it (D3).
+/// 256-bit raw SQLCipher key. The OS keychain keeps it (D3). The bytes are
+/// wiped when the key is dropped (also every clone), and so is every text
+/// built from them to unlock the database.
 #[derive(Clone, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct DbKey([u8; 32]);
+
+impl Drop for DbKey {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
+impl ZeroizeOnDrop for DbKey {}
 
 impl DbKey {
     pub const fn from_bytes(bytes: [u8; 32]) -> Self {
@@ -105,9 +129,18 @@ impl DbKey {
         &self.0
     }
 
-    fn pragma_value(&self) -> String {
-        let hex: String = self.0.iter().map(|b| format!("{b:02x}")).collect();
-        format!("\"x'{hex}'\"")
+    /// `"x'<hex>'"`, built in place without reallocating (a grown buffer
+    /// would leave an unwiped copy behind).
+    fn pragma_value(&self) -> Zeroizing<String> {
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut text = Zeroizing::new(String::with_capacity(PRAGMA_VALUE_LEN));
+        text.push_str("\"x'");
+        for b in self.0 {
+            text.push(char::from(HEX[usize::from(b >> 4)]));
+            text.push(char::from(HEX[usize::from(b & 0x0f)]));
+        }
+        text.push_str("'\"");
+        text
     }
 }
 
@@ -208,7 +241,7 @@ impl Store {
     /// is rejected with `STORE_ERROR`; waiting across threads is caught
     /// only by the lock timeout. Inside a callback use the `*_on(conn, ..)`
     /// functions on the connection you were given.
-    pub fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
+    pub(crate) fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T> {
         let _entry = Entry::enter(self)?;
         if self.readers.size == 0 {
             let lease = self.lock_writer()?;
@@ -224,7 +257,7 @@ impl Store {
     /// Runs `f` in an IMMEDIATE transaction on the single writer; commits on
     /// `Ok`, rolls back on `Err`. Waits up to the lock timeout for the writer.
     /// The callback rule of [`Store::read`] applies.
-    pub fn write<T>(&self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
+    pub(crate) fn write<T>(&self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T> {
         let _entry = Entry::enter(self)?;
         let mut lease = self.lock_writer()?;
         let tx = lease
@@ -434,7 +467,14 @@ fn unlock(conn: &Connection, key: &DbKey) -> Result<()> {
         // Built without SQLCipher: never fall back to a plaintext database.
         return Err(SyncError::StoreKeyInvalid);
     }
-    conn.execute_batch(&format!("PRAGMA key = {};", key.pragma_value()))?;
+    let value = key.pragma_value();
+    let mut statement = Zeroizing::new(String::with_capacity(
+        PRAGMA_KEY_PREFIX.len() + PRAGMA_VALUE_LEN + 1,
+    ));
+    statement.push_str(PRAGMA_KEY_PREFIX);
+    statement.push_str(&value);
+    statement.push(';');
+    conn.execute_batch(&statement)?;
     match conn.query_row("SELECT count(*) FROM sqlite_master", [], |row| {
         row.get::<_, i64>(0)
     }) {

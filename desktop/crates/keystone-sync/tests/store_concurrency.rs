@@ -7,7 +7,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use keystone_sync::store::{DbKey, ListQuery, MirrorStore, READER_POOL_SIZE, ResourceSpec, Store};
+use keystone_sync::store::raw::prelude::*;
+use keystone_sync::store::{DbKey, ListQuery, READER_POOL_SIZE, ResourceSpec, Store};
 use keystone_sync::wire::{Cursor, PullResourceResult, ResourceName, ResourceRow, Xid8};
 use serde_json::{Map, json};
 use uuid::Uuid;

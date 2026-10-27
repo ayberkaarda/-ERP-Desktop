@@ -1,9 +1,9 @@
 //! Generic mirror: apply_page atomicity, reset and tombstones, cursors,
 //! generated columns, Turkish FTS, manifest specs, snapshots.
 
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::store::{
-    DbKey, Filter, FilterOp, ListQuery, MirrorStore, ResourceSpec, SortKey, Store,
-    specs_from_offline_manifest,
+    DbKey, Filter, FilterOp, ListQuery, ResourceSpec, SortKey, Store, specs_from_offline_manifest,
 };
 use keystone_sync::wire::{
     Cursor, PullResourceResult, ReadMode, ResetReason, ResourceName, ResourceRow, Timestamp,

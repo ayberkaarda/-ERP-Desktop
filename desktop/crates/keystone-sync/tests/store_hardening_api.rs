@@ -2,8 +2,9 @@
 //! the base they were requested with; routing knows partial copies; reads
 //! can run on a connection already held.
 
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::store::{
-    DbKey, ListQuery, LocalCopy, MirrorStore, PageApply, ReadRoute, ResourceSpec, Store, read_route,
+    DbKey, ListQuery, LocalCopy, PageApply, ReadRoute, ResourceSpec, Store, read_route,
 };
 use keystone_sync::wire::{
     Cursor, PullResourceResult, ReadMode, ResourceName, ResourceRow, Timestamp, Xid8,

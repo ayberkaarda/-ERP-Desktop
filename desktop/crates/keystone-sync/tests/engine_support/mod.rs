@@ -10,6 +10,7 @@ use keystone_sync::auth::{MemoryTokenStore, Secret, StoredTokens, TokenStore};
 use keystone_sync::client::{ApiConfig, ClientOptions, HttpClient};
 use keystone_sync::engine::SyncEngine;
 use keystone_sync::outbox::NewMutation;
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::store::{DbKey, Store};
 use keystone_sync::wire::{MutationOp, ResourceName, Timestamp};
 use serde_json::{Map, Value, json};
@@ -317,7 +318,6 @@ pub fn bearer_of(request: &Request) -> Option<String> {
 
 /// Writes a server row straight into the mirror.
 pub fn put_row(store: &Store, resource: &str, id: &str, fields: Value) {
-    use keystone_sync::store::MirrorStore;
     let row: keystone_sync::wire::ResourceRow =
         serde_json::from_value(row(id, 1, fields)).expect("row");
     store.put_row(&name(resource), &row).expect("put_row");

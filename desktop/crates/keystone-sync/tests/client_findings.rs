@@ -15,7 +15,8 @@ use keystone_sync::conflicts::{ConflictInbox, ConflictStore, ResolutionAction, a
 use keystone_sync::engine::{SyncState, Trigger};
 use keystone_sync::error::SyncError;
 use keystone_sync::outbox::{MAX_ATTEMPTS, Outbox, OutboxQueue, OutboxState};
-use keystone_sync::store::{DbKey, ListQuery, MirrorStore, Store};
+use keystone_sync::store::raw::prelude::*;
+use keystone_sync::store::{DbKey, ListQuery, Store};
 use keystone_sync::wire::{
     Conflict, ConflictChoice, ConflictCode, MutationOp, PushResult, PushStatus, ResourceName,
     ResourceRow,
