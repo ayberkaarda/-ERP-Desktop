@@ -151,7 +151,7 @@ final class PullService
                 if ($fresh || $session === null) {
                     $next === null || $newSession === null
                         ? $this->downloads->forget($device, $user->id, $companyId, $name, $observed)
-                        : $this->downloads->start($device, $user->id, $companyId, $name, $observed, $newSession, $next, $started);
+                        : $this->downloads->start($device, $user->id, $companyId, $name, $observed, $newSession, $next, $started, $tokenId);
                 } else {
                     $next === null
                         ? $this->downloads->finish($session)

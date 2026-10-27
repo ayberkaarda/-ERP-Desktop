@@ -82,7 +82,25 @@ final readonly class FullDownloads
      *
      * @param  array{0: string, 1: int}|null  $observed
      */
-    public function start(string $device, string $userId, string $companyId, string $resource, ?array $observed, string $session, Cursor $next, Xid8 $started): void
+    public function start(string $device, string $userId, string $companyId, string $resource, ?array $observed, string $session, Cursor $next, Xid8 $started, string $tokenId): void
+    {
+        $this->db->transaction(function () use ($device, $userId, $companyId, $resource, $observed, $session, $next, $started, $tokenId): void {
+            // Sign-in, token rotation and revocation serialize on this device row.
+            $currentToken = $this->db->table('user_devices')
+                ->where('id', $device)->where('user_id', $userId)->lockForUpdate()->value('token_id');
+
+            if ($currentToken === null || (string) $currentToken !== $tokenId) {
+                return;
+            }
+
+            $this->replace($device, $userId, $companyId, $resource, $observed, $session, $next, $started);
+        });
+    }
+
+    /**
+     * @param  array{0: string, 1: int}|null  $observed
+     */
+    private function replace(string $device, string $userId, string $companyId, string $resource, ?array $observed, string $session, Cursor $next, Xid8 $started): void
     {
         $now = Carbon::now();
         $hash = self::hash($companyId, $resource, $next);
