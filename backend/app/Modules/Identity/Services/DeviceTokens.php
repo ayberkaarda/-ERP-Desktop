@@ -7,6 +7,7 @@ namespace App\Modules\Identity\Services;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
 use App\Models\User;
+use App\Modules\Identity\Events\DeviceSignedIn;
 use App\Modules\Identity\Models\DeviceRefreshToken;
 use App\Modules\Identity\Models\UserDevice;
 use Illuminate\Cache\RateLimiter;
@@ -20,7 +21,7 @@ use Illuminate\Support\Str;
  * refresh token, one pair per user and fingerprint. Refresh tokens are stored hashed and kept for
  * as long as the device lives, so a stale one that shows up later still revokes the device.
  *
- * Lock order everywhere: the user_devices row first, then its refresh rows.
+ * Login locks the user before its devices; device operations lock the device before refresh rows.
  */
 final class DeviceTokens
 {
@@ -35,29 +36,34 @@ final class DeviceTokens
     {
         $hash = hash('sha256', $fingerprint);
 
-        // A new login from the same device replaces its previous token.
-        $previous = UserDevice::query()->where('user_id', $user->id)->where('fingerprint_hash', $hash)->first();
-
-        if ($previous instanceof UserDevice) {
-            $this->revoke($user, $previous);
-        }
-
         return DB::transaction(function () use ($user, $request, $name, $hash): array {
-            $accessExpiresAt = $this->accessExpiry();
-            $token = $user->createToken($name, [self::ABILITY], $accessExpiresAt);
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $device = UserDevice::query()->where('user_id', $user->id)->where('fingerprint_hash', $hash)->lockForUpdate()->first();
 
-            $device = UserDevice::query()->create([
-                'user_id' => $user->id,
-                'token_id' => (string) $token->accessToken->getKey(),
+            if ($device instanceof UserDevice) {
+                DeviceRefreshToken::query()->where('device_id', $device->id)->delete();
+                if ($device->token_id !== null) {
+                    $user->tokens()->whereKey($device->token_id)->delete();
+                }
+                event(new DeviceSignedIn($device->id));
+            } else {
+                $limit = $this->setting('max_devices_per_user', 10);
+                $devices = UserDevice::query()->where('user_id', $user->id)
+                    ->orderBy('last_used_at')->orderBy('created_at')->orderBy('id')->lockForUpdate()->get();
+                foreach ($devices->take(max(0, $devices->count() - $limit + 1)) as $old) {
+                    $this->purge($user, $old);
+                }
+                $device = new UserDevice;
+                $device->forceFill(['user_id' => $user->id, 'fingerprint_hash' => $hash]);
+            }
+
+            $device->forceFill([
                 'name' => $name,
-                'fingerprint_hash' => $hash,
                 'ip_address' => $request->ip(),
                 'user_agent' => Str::limit((string) $request->userAgent(), 500, ''),
-                'last_used_at' => Carbon::now(),
-                'expires_at' => $accessExpiresAt,
             ]);
 
-            return $this->payload($user, $device, $token->plainTextToken, $accessExpiresAt, (string) Str::uuid());
+            return $this->mintAccess($user, $device, (string) Str::uuid());
         });
     }
 

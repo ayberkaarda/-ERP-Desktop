@@ -48,25 +48,28 @@ final readonly class ConflictResolver
         }
 
         $effective = $write->effectiveFields($mutation->changedFields, array_map('strval', array_keys($mutation->payload)));
-        $changed = $this->audit->changedSince($target, $base, $current);
-
-        if ($changed === null) {
-            return Decision::conflict($this->versionConflict($mutation, $current, $effective, $serverData()));
-        }
-
-        $untracked = array_diff($effective, $writer->auditFields());
-        $overlap = array_values(array_intersect($effective, [...$changed, ...$untracked]));
+        $overlap = $this->conflictingFields($write, $mutation, $target, $current, $writer);
 
         if ($overlap !== []) {
-            sort($overlap);
-
-            return Decision::conflict($this->versionConflict($mutation, $current, array_values(array_unique($overlap)), $serverData()));
+            return Decision::conflict($this->versionConflict($mutation, $current, $overlap, $serverData()));
         }
 
         $merged = $mutation->changedFields;
         sort($merged);
 
         return Decision::merge($current, $merged, $effective);
+    }
+
+    /** @return list<string> */
+    public function conflictingFields(WriteDefinition $write, Mutation $mutation, Model $target, int $current, SyncWriter $writer): array
+    {
+        $effective = $write->effectiveFields($mutation->changedFields, array_map('strval', array_keys($mutation->payload)));
+        $changed = $this->audit->changedSince($target, (int) $mutation->baseVersion, $current);
+        $fields = $changed === null ? $effective
+            : array_values(array_intersect($effective, [...$changed, ...array_diff($effective, $writer->auditFields())]));
+        sort($fields);
+
+        return array_values(array_unique($fields));
     }
 
     /**

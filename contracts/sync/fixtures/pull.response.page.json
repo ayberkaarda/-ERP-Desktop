@@ -61,7 +61,7 @@
           "txid": "48214001",
           "after_id": null,
           "gen": 0,
-          "session": null
+          "session": "i_q3Zb7Yk2Lw9pM0cVf4HtGxR8nJ1eSdA6uBoC5yTiEzk"
         },
         "has_more": false,
         "reset": false
@@ -74,7 +74,7 @@
           "txid": "48214001",
           "after_id": null,
           "gen": 4,
-          "session": null
+          "session": "i_q3Zb7Yk2Lw9pM0cVf4HtGxR8nJ1eSdA6uBoC5yTiEzk"
         },
         "has_more": false,
         "reset": true,

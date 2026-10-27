@@ -162,6 +162,8 @@ final class PushService
      */
     private function locked(User $user, string $companyId, Mutation $mutation, int $index, WriteDefinition $write, WriteOp $op, SyncResource $adapter, SyncWriter $writer): array
     {
+        $timeout = max(1, (int) config('sync.push.lock_timeout_ms', 2000));
+        $this->db->statement("SET LOCAL lock_timeout = '{$timeout}ms'");
         $gate = $this->gate->forUser($user);
         $table = $adapter->table();
         $modelClass = $adapter->query($companyId)->getModel()::class;
@@ -219,7 +221,7 @@ final class PushService
         }
 
         if ($claim->status === ClaimStatus::Completed && $claim->response !== null) {
-            return $this->replay(StoredResult::fromResponse($claim->response), $mutation, $adapter, $writer, $companyId, $target);
+            return $this->replay(StoredResult::fromResponse($claim->response), $mutation, $write, $op, $adapter, $writer, $companyId, $target);
         }
 
         // A taken id answers VALIDATION_ERROR, unless the mutation is a resolution that no longer
@@ -432,11 +434,11 @@ final class PushService
 
     /**
      * Step 5 for a key that has a stored result: same status and body, applied as duplicate.
-     * A conflict's server_version and server_data are rebuilt from the row locked in step 4.
+     * A conflict's fields, server_version and server_data are rebuilt from the row locked in step 4.
      *
      * @return array<string, mixed>
      */
-    private function replay(StoredResult $stored, Mutation $mutation, SyncResource $adapter, SyncWriter $writer, string $companyId, ?Model $target): array
+    private function replay(StoredResult $stored, Mutation $mutation, WriteDefinition $write, WriteOp $op, SyncResource $adapter, SyncWriter $writer, string $companyId, ?Model $target): array
     {
         $outcome = $stored->outcome->replay();
         $conflict = $outcome->conflict;
@@ -450,7 +452,9 @@ final class PushService
                     $conflict->code,
                     $conflict->baseVersion,
                     $writer->currentVersion($target),
-                    $conflict->conflictingFields,
+                    $op->isFieldMerge() && $mutation->op === MutationOp::Update
+                        ? $this->resolver->conflictingFields($write, $mutation, $target, $writer->currentVersion($target), $writer)
+                        : [],
                     $data,
                     $conflict->choices,
                     $conflict->candidates,

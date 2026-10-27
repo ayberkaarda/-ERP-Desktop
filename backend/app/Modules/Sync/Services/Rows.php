@@ -8,6 +8,7 @@ use App\Core\Sync\Contracts\SyncResource;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 /**
  * REST API Resource JSON of sync rows, exactly as the REST endpoint renders it (same Resource
@@ -36,7 +37,10 @@ final readonly class Rows
      */
     public function render(SyncResource $resource, Model $model): array
     {
-        $missing = array_values(array_filter($resource->embeds(), static fn (string $relation): bool => ! $model->relationLoaded($relation)));
+        $missing = array_values(array_filter(
+            array_map(static fn (string $embed): string => self::relation($model, $embed), $resource->embeds()),
+            static fn (string $relation): bool => ! $model->relationLoaded($relation),
+        ));
 
         if ($missing !== []) {
             $model->load($missing);
@@ -47,6 +51,15 @@ final readonly class Rows
         $json = new $class($model);
 
         return self::normalise($json->resolve($this->request));
+    }
+
+    /**
+     * Relation behind a manifest embed. Embeds are named by their JSON key (base_unit); the
+     * Eloquent relation may be the camel-case method (baseUnit).
+     */
+    private static function relation(Model $model, string $embed): string
+    {
+        return $model->isRelation($embed) ? $embed : Str::camel($embed);
     }
 
     /**

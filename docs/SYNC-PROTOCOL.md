@@ -140,8 +140,9 @@ ORDER BY pos_txid, id
 LIMIT :limit + 1
 ```
 
-- İlk indirmede `cursor: null` gönderilir; sunucu `{txid: "0", after_id: null, gen: <güncel nesil>, session: null}` kabul eder.
-- `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null, session: null}`.
+- İlk indirmede yalnızca `cursor: null` gönderilir.
+- `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null, session: <akış etiketi>}`.
+- Cursor kullanıcı, şirket ve kaynak akışına bağlıdır. Artımlı cursor'ın opak `session` alanı, `i_` önekli, padding içermeyen base64url HMAC-SHA256 akış etiketidir. Girdi `sync-cursor|1|user_id|company_id|resource|txid|after_id|gen` biçimindedir (null `after_id` boş yazılır); alt anahtar `hash_hmac('sha256', 'sync-cursor-tag', base64_decode(APP_KEY))` ile türetilir (APP_KEY'in `base64:` öneki çıkarılır). Sunucuda kapsam kaydı tutulmaz. APP_KEY döndürülürse tüm artımlı cursor'lar bir kez `cursor_expired` reseti alır. Dolu cursor ile `session: null` gönderen eski istemci de (`txid: "0"` dahil) bir kez reset alır; dönen etiketli cursor ile devam eder.
 - Cursor her zaman dört alan taşır: `txid`, `after_id`, `gen`, `session`. İstemci aldığı `next_cursor`'ı bütün olarak, değiştirmeden geri gönderir; `session` alanı eksik olan cursor `SYNC_CURSOR_INVALID` alır.
 - `next_cursor.gen` her zaman kaynağın güncel görünürlük neslidir.
 - İstemci sayfaları sırayla uygular ve `next_cursor`'ı sayfayı yerel depoya yazdığı transaction içinde saklar.
@@ -175,13 +176,13 @@ Sync modülünün dinleyicisi `VisibilityRefresh` (`SyncServiceProvider.php:47`)
 - `cursor.gen` güncel nesilden farklıysa sunucu o kaynak için `reset: true, reset_reason: visibility_changed` döner. `rows`, yeni tam indirmenin ilk sayfasıdır ve `next_cursor.gen` güncel nesildir.
 - Tam indirme sayfalanırken nesil yeniden değişirse, eski `gen` taşıyan sonraki sayfa tekrar reset alır. Böylece hiçbir cihaz eski görünürlükle başlamış bir indirmeyi yeni görünürlükle tamamlamaz.
 
-### Tam indirme oturumu
+### Tam indirme oturumu ve akış etiketi
 
 İlk indirme (`cursor: null`) ve her reset bir **tam indirme** başlatır. Tam indirmenin sayfaları, konumlarına göre değil indirmenin başladığı horizon'a göre tombstone tabanıyla karşılaştırılır: tabanın altındaki satırlar indirmenin kendisidir; ancak tabandan eski bir indirme silme kaçırmış olabilir.
 
-- Sunucu her tam indirme için opak bir **oturum kimliği** üretir ve indirmenin `has_more = true` sayfalarında `next_cursor.session` alanına yazar. Değer opak bir stringdir (`^[A-Za-z0-9_-]{1,64}$`; bugün UUIDv7). İstemci onu yorumlamaz, karşılaştırmaz, üretmez; yalnızca cursor ile birlikte aynen geri gönderir.
-- İndirmenin son sayfasında (`has_more = false`) `next_cursor.session = null` olur: bundan sonraki cursor **artımlıdır**. Artımlı akışın sayfalarında da (`has_more = true`, artımlı cursor'dan devam) `session` null kalır; artımlı cursor kendi konumuyla (`cursor.txid`) tabana göre denetlenir.
-- Dolu `session` taşıyan cursor yalnızca o oturumun devamıdır. Oturum bitmişse, aynı cihazın yeni bir tam indirmesiyle değişmişse ya da bu konumu o oturum vermemişse, `txid/after_id/gen` yeni oturumun bir cursor'ıyla aynı olsa bile devam ettirilmez; kaynak `reset: true, reset_reason: cursor_expired` alır ve yeni bir oturum başlar. Böylece kaybolan bir reset yanıtından sonra eski cursor ile yapılan tekrar deneme yeniden reset alır.
+- Sunucu her tam indirme için opak bir **oturum kimliği** üretir ve indirmenin `has_more = true` sayfalarında `next_cursor.session` alanına yazar. Değer opak bir stringdir (`^[A-Za-z0-9_-]{1,64}$`; oturum kimliği UUIDv7, akış etiketi i_ önekli). İstemci onu yorumlamaz, karşılaştırmaz, üretmez; yalnızca cursor ile birlikte aynen geri gönderir.
+- İndirmenin son sayfasında (`has_more = false`) `next_cursor.session` akış etiketi olur: bundan sonraki cursor **artımlıdır**. Artımlı akışın ara sayfalarında da etiket taşınır; artımlı cursor kendi konumuyla (`cursor.txid`) tabana göre denetlenir. Oturum kimliği ve akış etiketi aynı opak alanı paylaşır; istemci bunları ayırmaz.
+- UUIDv7 oturum kimliği taşıyan cursor yalnızca o oturumun devamıdır. Oturum bitmişse, aynı cihazın yeni bir tam indirmesiyle değişmişse ya da bu konumu o oturum vermemişse, `txid/after_id/gen` yeni oturumun bir cursor'ıyla aynı olsa bile devam ettirilmez; kaynak `reset: true, reset_reason: cursor_expired` alır ve yeni bir oturum başlar. Böylece kaybolan bir reset yanıtından sonra eski cursor ile yapılan tekrar deneme yeniden reset alır.
 - Oturumlar cihaz (`user_devices`), kullanıcı, şirket ve kaynak başına tektir; access token yenilemesinden etkilenmez, cihaz iptal edilince silinir. Oturuma yapılan her yazma okunan duruma göre karşılaştır-ve-değiştir ile yapılır: geciken bir istek yeni bir oturumu değiştirmez veya silmez. Bir sayfa isteğinin tekrarı (aynı cursor, aynı `limit`) aynı oturumun devamı olarak kabul edilir; farklı `limit` ile tekrarlanan eski bir sayfanın yanıtındaki cursor bir sonraki istekte reset alabilir.
 
 ### Reset
@@ -190,7 +191,7 @@ Sync modülünün dinleyicisi `VisibilityRefresh` (`SyncServiceProvider.php:47`)
 
 | `reset_reason` | Ne zaman |
 |---|---|
-| `cursor_expired` | `cursor.txid`, şirketin **tombstone tabanından** küçük. |
+| `cursor_expired` | `cursor.txid`, şirketin **tombstone tabanından** küçük ya da cursor'ın session/etiketi bu akış için geçerli değil. |
 | `visibility_changed` | `cursor.gen`, güncel görünürlük nesline eşit değil. |
 | `schema_changed` | Kaynağın API Resource şekli uyumsuz değişti. |
 
@@ -284,7 +285,7 @@ Adımlar bu sırayla uygulanır. **Yetkilendirme, hiçbir saklanan sonuç, `conf
 5. **Idempotency.** `(kullanıcı, şirket, 'sync.push', idempotency_key)` için saklanan bir sonuç varsa mutasyon yeniden çalıştırılmaz. 3. ve 4. adımlar replay için de çalışmıştır; yetkisini yitiren kullanıcı saklanan veriyi geri alamaz (sonuç `rejected` / `FORBIDDEN` veya `NOT_FOUND`, `replayed: false`, saklanmaz).
    - İstek özeti farklıysa `rejected` / `IDEMPOTENCY_KEY_REUSED`.
    - Saklanan sonuç `applied` ise `duplicate` döner; ilk sonucun `version` ve `data`'sı aynen, `replayed: true`. Delete'in tekrarında hedef satır artık yoktur; 4. adım bu durumda `NOT_FOUND` üretmez, saklanan `data: null` sonucu döner.
-   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`. İstisna: conflict'te `server_version` ve `server_data` ikisi birlikte, 4. adımda kilitlenen **aynı güncel satır görüntüsünden** yeniden üretilir (`server_version = server_data.version`); `code`, `conflicting_fields`, `base_version` ve `choices` saklanan değerdir.
+   - Saklanan sonuç `conflict` veya `rejected` ise **aynı statü ve aynı gövdeyle** döner, `replayed: true`. İstisna: conflict'te `conflicting_fields`, `server_version` ve `server_data` birlikte, 4. adımda kilitlenen **aynı güncel satır görüntüsünden** yeniden üretilir (`server_version = server_data.version`); `code`, `base_version` ve `choices` saklanan değerdir; alan listesi güncel satırın alan çakışmalarından hesaplanır (exact işlemlerde boştur).
    Sonucun tamamı 7 gün saklanır. Geçici hatalar ve yetkilendirme retleri saklanmaz.
 6. **Bağımlılık.** Aynı partide aynı `id`'ye ait daha önceki mutasyonlar ve `depends_on` ile bildirilenler `applied` veya `duplicate` olmalıdır; değilse `rejected` / `SYNC_DEPENDENCY_FAILED` ve mutasyon denenmez. `depends_on` yalnızca aynı partide **daha önce** gelen ya da önceki bir partide gönderilmiş (sonucu saklı) anahtarlara işaret edebilir; ileri veya bilinmeyen referans `rejected` / `VALIDATION_ERROR` (`fields.depends_on`) olur. Referanslar yalnızca geriye baktığı için döngü oluşamaz. `resolution` taşıyan mutasyon için istisna aşağıda (Çakışma çözümü).
 7. **Payload kısıtları.** `payload_constraints` (create ve update payload'ı) sağlanmıyorsa `rejected` / `SYNC_OFFLINE_WRITE_NOT_ALLOWED`.
@@ -416,7 +417,7 @@ Son dört kodun `status()` eşlemesi 422'dir, ancak bugün yalnızca push sonucu
 | Refresh token | 30 gün, kayan: her başarılı yenileme yeni bir refresh token ve yeni 30 gün verir. Tek kullanımlıktır. |
 | Saklama | `device_refresh_tokens(id, device_id, token_hash, family_id, expires_at, used_at)`. Ham token saklanmaz. |
 
-- **İlk giriş.** `POST /auth/device` erişim token'ını ve ailenin ilk refresh token'ını birlikte döner: `{data: {token, expires_at, refresh_token, refresh_expires_at}}`. Aynı kullanıcı ve fingerprint ile yeni giriş önceki cihaz kaydını ve ailesini iptal eder.
+- **İlk giriş.** `POST /auth/device` erişim token'ını ve ailenin ilk refresh token'ını birlikte döner: `{data: {token, expires_at, refresh_token, refresh_expires_at}}`. Aynı kullanıcı ve fingerprint ile yeni giriş cihaz kaydını korur; önceki token çiftini ve ailesini iptal eder, cihazın tam indirme oturumlarını sonlandırır. Kullanıcı başına en fazla 10 cihaz tutulur (`identity.device_tokens.max_devices_per_user`); sınır aşılırsa last_used_at, ardından created_at sırasıyla en eski cihaz iptal edilir.
 - **Yenileme.** `POST /auth/device/refresh` gövdesi `{refresh_token}`; `Authorization` başlığı gerekmez. Sunucu token'ı `used_at` ile işaretler, aynı `family_id` içinde yeni refresh token ve yeni erişim token'ı verir, eski erişim token'ını siler. Yanıt ilk girişle aynı şekildedir.
 - **Yeniden kullanım.** `used_at` dolu bir refresh token gelirse sunucu ailenin tamamını, cihazın erişim token'larını ve cihaz kaydını iptal eder ve 401 `UNAUTHENTICATED` döner. İstemci yerel oturumu kapatır; outbox korunur ve yeniden girişten sonra gönderilir.
 - **Diğer hatalar.** Bilinmeyen, süresi dolmuş veya iptal edilmiş cihaza ait refresh token: 401 `UNAUTHENTICATED`. Pasif kullanıcı: 403 `USER_DEACTIVATED`. Hız sınırı: 429 `TOO_MANY_ATTEMPTS`. Biçimsiz gövde: 422 `VALIDATION_ERROR`.
@@ -482,6 +483,8 @@ D1 sonrası durum. Kontrol `backend/` kaynak kodu (main) üzerinde yapıldı. Nu
 14. **Kapandı.** `device_refresh_tokens` tablosu (`Modules/Identity/Database/migrations/2027_08_01_300100_create_device_refresh_tokens_table.php`) ve `POST /api/v1/auth/device/refresh` (`DeviceController::refresh`) uygulandı; kurallar Token yaşam döngüsü bölümündedir.
 
 **Pull**
+
+- **Kapandı.** Artımlı cursor kullanıcı, şirket, kaynak ve konuma HMAC akış etiketiyle bağlıdır (`Modules/Sync/Services/CursorTags.php`); eşleşmeyen veya eksik etiket `cursor_expired` reseti üretir. Etiket durumsuz ve deterministiktir; aynı cursor farklı `limit` ile de tekrar kullanılabilir. Tel şekli ve desenler değişmediği için `schema_version` 1 kalır.
 
 - **Kapandı.** Tam indirme sayfasının tekrarı: tekrarlanan isteğin kendi cursor'ı (`session` dahil) aynı `limit` ile aynen yeniden gönderilir; alınan `next_cursor` tekrar değil, sonraki sayfanın isteğidir. Sunucu oturumun son verdiği cursor'ı ve bir öncekini tanır (`Modules/Sync/Services/FullDownloads.php`); önceki cursor'la yapılan tekrar okur ama oturumu ilerletmez. Çok sayfalı indirmenin son sayfası (`has_more = false`) oturumu siler; bu sayfayı isteyen devam isteği bitmiş oturumun kimliğini taşıdığından tekrarı `reset: true, reset_reason: cursor_expired` alır ve yeni bir tam indirme başlar. Tek sayfada biten ilk indirmede (`cursor: null`) oturum açılmaz; isteğin tekrarı yine `cursor: null` ile yeni bir tam indirmedir ve `reset: false` döner. Kural Tam indirme oturumu bölümündedir.
 

@@ -115,7 +115,7 @@ final class PurchaseRequestSyncWriter implements SyncWriter
 
     public function lockedFields(): array
     {
-        return ['status'];
+        return ['status', 'number'];
     }
 
     public function auditFields(): array

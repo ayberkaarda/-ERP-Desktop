@@ -6,14 +6,17 @@ namespace App\Modules\Sync;
 
 use App\Core\Modules\ModuleServiceProvider;
 use App\Modules\Identity\Events\AccessChanged;
+use App\Modules\Identity\Events\DeviceSignedIn;
 use App\Modules\Identity\Events\MembershipRevoked;
 use App\Modules\Sync\Console\PruneCommand;
 use App\Modules\Sync\Http\Middleware\EnsureDesktopToken;
+use App\Modules\Sync\Services\CursorTags;
 use App\Modules\Sync\Services\Visibility;
 use App\Modules\Sync\Services\VisibilityRefresh;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -25,6 +28,11 @@ use Illuminate\Support\Facades\RateLimiter;
 final class SyncServiceProvider extends ModuleServiceProvider
 {
     public const string LIMITER = 'sync';
+
+    public function register(): void
+    {
+        $this->app->singleton(CursorTags::class, static fn (): CursorTags => new CursorTags((string) config('app.key')));
+    }
 
     public function boot(): void
     {
@@ -46,6 +54,10 @@ final class SyncServiceProvider extends ModuleServiceProvider
         // visibility of the users' resources with the new permissions.
         Event::listen(AccessChanged::class, static function (AccessChanged $event): void {
             app(VisibilityRefresh::class)->handle($event);
+        });
+
+        Event::listen(DeviceSignedIn::class, static function (DeviceSignedIn $event): void {
+            DB::table('sync_full_downloads')->where('device_id', $event->deviceId)->delete();
         });
 
         // Membership loss (after commit): every cursor of the user in that company is reset.

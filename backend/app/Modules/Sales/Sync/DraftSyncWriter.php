@@ -148,7 +148,7 @@ final class DraftSyncWriter implements SyncWriter
 
     public function lockedFields(): array
     {
-        return ['status'];
+        return ['status', 'number'];
     }
 
     /** The activity log attributes of the document (SalesDocument::getActivitylogOptions). */
