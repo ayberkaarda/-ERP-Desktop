@@ -15,7 +15,7 @@ Development has reached Phase 9: e-documents with official UBL-TR structural val
 | D0 | Repository and contracts | 5 | Done | 100% |
 | D1 | Server sync module (web repository) | 25 | Done | 100% |
 | D2 | `keystone-sync` crate | 20 | Done | 100% |
-| D3 | Tauri shell | 12 | In progress | 60% |
+| D3 | Tauri shell | 20 | In progress | 60% |
 | D4 | Frontend integration | 15 | Not started | 0% |
 | D5 | OS integration | 5 | Not started | 0% |
 | D6 | Release and hardening | 10 | Not started | 0% |

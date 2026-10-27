@@ -15,7 +15,7 @@ Geliştirme, resmî UBL-TR yapısal doğrulaması ve yerel sandbox içeren Faz 9
 | D0 | Repo ve sözleşmeler | 5 | Tamam | %100 |
 | D1 | Sunucu sync modülü (web reposu) | 25 | Tamam | %100 |
 | D2 | `keystone-sync` crate | 20 | Tamam | %100 |
-| D3 | Tauri kabuğu | 12 | Sürüyor | %60 |
+| D3 | Tauri kabuğu | 20 | Sürüyor | %60 |
 | D4 | Frontend entegrasyonu | 15 | Başlamadı | %0 |
 | D5 | OS entegrasyonu | 5 | Başlamadı | %0 |
 | D6 | Release ve sertleştirme | 10 | Başlamadı | %0 |
