@@ -162,6 +162,8 @@ final class PushService
      */
     private function locked(User $user, string $companyId, Mutation $mutation, int $index, WriteDefinition $write, WriteOp $op, SyncResource $adapter, SyncWriter $writer): array
     {
+        $timeout = max(1, (int) config('sync.push.lock_timeout_ms', 2000));
+        $this->db->statement("SET LOCAL lock_timeout = '{$timeout}ms'");
         $gate = $this->gate->forUser($user);
         $table = $adapter->table();
         $modelClass = $adapter->query($companyId)->getModel()::class;

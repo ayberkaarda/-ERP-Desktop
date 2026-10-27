@@ -10,6 +10,8 @@ return [
     // Source of truth for resources, write rules and limits served by GET /sync/manifest.
     'manifest_path' => env('SYNC_MANIFEST_PATH', base_path('../contracts/offline-manifest.json')),
 
+    'push' => ['lock_timeout_ms' => (int) env('SYNC_PUSH_LOCK_TIMEOUT_MS', 2000)],
+
     'limits' => [
         'pull_resources_max' => (int) env('SYNC_PULL_RESOURCES_MAX', 32),
         'pull_page_default' => (int) env('SYNC_PULL_PAGE_DEFAULT', 200),
