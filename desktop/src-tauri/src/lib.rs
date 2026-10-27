@@ -10,12 +10,16 @@
 
 #![forbid(unsafe_code)]
 
+pub mod bootstrap;
 #[cfg(test)]
 mod build_guard;
 pub mod commands;
 pub mod dto;
+pub mod events;
 pub mod logging;
+pub mod profiles;
 pub mod router;
+pub mod runtime;
 pub mod state;
 
 use tauri::Manager;
@@ -49,9 +53,29 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .manage(state::AppState::default())
+        .manage(router::Connectivity::default())
+        .setup(bootstrap::setup)
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
-            commands::api::api_request
+            commands::api::api_request,
+            commands::profiles::profile_add,
+            commands::profiles::profile_list,
+            commands::profiles::profile_select,
+            commands::profiles::profile_reset,
+            commands::profiles::profile_remove,
+            commands::profiles::profile_select_company,
+            commands::auth::auth_login,
+            commands::auth::auth_restore,
+            commands::auth::auth_sign_out,
+            commands::auth::auth_devices_list,
+            commands::auth::auth_devices_revoke,
+            commands::sync::sync_now,
+            commands::sync::sync_status,
+            commands::sync::outbox_list,
+            commands::sync::outbox_retry,
+            commands::sync::outbox_discard,
+            commands::sync::conflicts_list,
+            commands::sync::conflicts_resolve
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Keystone desktop shell");

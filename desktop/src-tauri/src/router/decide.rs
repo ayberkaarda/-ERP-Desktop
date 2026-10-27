@@ -324,8 +324,8 @@ impl Router {
     ///   server-first read with a local copy waits [`ONLINE_FIRST_DEADLINE`]
     ///   and falls back to it. `source: snapshot` reads the snapshot.
     /// - Write: server while online. Offline: refused while offline writes
-    ///   are closed or the resource's [`WritePolicy`] does not list the
-    ///   operation, else a draft (the row-level checks run on enqueue).
+    ///   are closed or the resource has no [`WritePolicy`] or one that does
+    ///   not list the operation, else a draft (the row-level checks run on enqueue).
     pub fn decide(
         target: Option<&Target>,
         facts: &Facts,
@@ -348,7 +348,7 @@ impl Router {
                     OfflineWrites::NoLocalStore => Decision::Refuse(Refusal::Offline),
                     OfflineWrites::ManifestMismatch => Decision::Refuse(Refusal::ManifestMismatch),
                     OfflineWrites::Open => {
-                        if policy.is_some_and(|p| !p.allows_op(*op, action.as_deref())) {
+                        if policy.is_none_or(|p| !p.allows_op(*op, action.as_deref())) {
                             return Decision::Refuse(Refusal::OnlineOnlyWrite);
                         }
                         Decision::Local {
@@ -958,6 +958,14 @@ mod tests {
         assert_eq!(
             decide_for(Post, "/api/v1/parties", &no_store),
             Decision::Refuse(Refusal::Offline)
+        );
+
+        // No write policy for the resource (the engine has no spec for it,
+        // e.g. no manifest yet): no draft, the engine would refuse it.
+        let target = router().target(Post, "/api/v1/parties").unwrap();
+        assert_eq!(
+            Router::decide(Some(&target), &facts(false, LocalCopy::Complete), None),
+            Decision::Refuse(Refusal::OnlineOnlyWrite)
         );
     }
 

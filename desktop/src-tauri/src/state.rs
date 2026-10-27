@@ -1,17 +1,19 @@
 //! Process state shared by every command: the active server profile, its
 //! HTTP client and its sync engine.
 //!
-//! One slot holds the whole profile (id, client, engine), so a command can
-//! never get the client of one profile and the engine of another. The slot
-//! is a `std::sync::RwLock` and every accessor clones an `Arc` out and drops
-//! the guard before returning: no guard is ever held across an `.await`.
-//! Replacing the profile returns the previous one, so the caller shuts it
-//! down (sync loop, store) outside the lock.
+//! One slot holds the whole profile (id, client, engine, local store and
+//! the handle of its sync loop), so a command can never get the client of
+//! one profile and the engine of another. The slot is a `std::sync::RwLock`
+//! and every accessor clones an `Arc` out and drops the guard before
+//! returning: no guard is ever held across an `.await`. Replacing the
+//! profile returns the previous one, so the caller shuts it down (sync
+//! loop, store) outside the lock.
 
 use std::sync::{Arc, PoisonError, RwLock};
 
 use keystone_sync::client::HttpClient;
-use keystone_sync::engine::SyncEngine;
+use keystone_sync::engine::{SyncEngine, SyncHandle, Trigger};
+use keystone_sync::store::Store;
 
 use crate::commands::{CommandError, CommandResult, codes};
 
@@ -41,44 +43,102 @@ impl std::fmt::Debug for ActiveProfile {
     }
 }
 
+/// What the bootstrap adds to an [`ActiveProfile`] once its local store is
+/// open: the store itself (local copy checks) and the handle of the
+/// profile's sync loop (`None` while the loop does not run, e.g. before a
+/// company is chosen).
+#[derive(Debug, Default)]
+struct Attached {
+    store: Option<Arc<Store>>,
+    sync: Option<SyncHandle>,
+}
+
+#[derive(Debug)]
+struct Slot {
+    profile: ActiveProfile,
+    attached: Attached,
+}
+
 #[derive(Debug, Default)]
 pub struct AppState {
-    active: RwLock<Option<ActiveProfile>>,
+    active: RwLock<Option<Slot>>,
 }
 
 impl AppState {
     /// HTTP client of the active profile.
     pub fn client(&self) -> CommandResult<Arc<HttpClient>> {
         let slot = self.read();
-        let profile = slot.as_ref().ok_or_else(no_profile)?;
-        Ok(profile.client.clone())
+        let slot = slot.as_ref().ok_or_else(no_profile)?;
+        Ok(slot.profile.client.clone())
     }
 
     /// Sync engine of the active profile.
     pub fn engine(&self) -> CommandResult<Arc<Engine>> {
         let slot = self.read();
-        let profile = slot.as_ref().ok_or_else(no_profile)?;
-        profile.engine.clone().ok_or_else(|| {
-            CommandError::new(
-                codes::ENGINE_UNAVAILABLE,
-                "the active profile has no open local store",
-            )
-        })
+        let slot = slot.as_ref().ok_or_else(no_profile)?;
+        slot.profile.engine.clone().ok_or_else(no_engine)
+    }
+
+    /// Local store of the active profile (the one its engine works on), for
+    /// state such as `local_copy`. Data reads go through the engine or
+    /// [`AppState::verified_store`].
+    pub fn store(&self) -> CommandResult<Arc<Store>> {
+        let slot = self.read();
+        let slot = slot.as_ref().ok_or_else(no_profile)?;
+        slot.attached.store.clone().ok_or_else(no_engine)
+    }
+
+    /// Local store of the active profile for reading data that is not
+    /// behind an engine method (`Store::snapshot`): only while the local
+    /// data is verified for the current sign-in (a run checked who signed
+    /// in), else `OFFLINE_UNAVAILABLE`. After a sign-in of another user the
+    /// previous user's data stays closed until the engine has wiped it.
+    /// Reads the store: call it on a blocking thread.
+    pub fn verified_store(&self) -> CommandResult<Arc<Store>> {
+        let (engine, store) = {
+            let slot = self.read();
+            let slot = slot.as_ref().ok_or_else(no_profile)?;
+            let engine = slot.profile.engine.clone().ok_or_else(no_engine)?;
+            let store = slot.attached.store.clone().ok_or_else(no_engine)?;
+            (engine, store)
+        };
+        // A guarded engine read: it fails unless the data is verified.
+        engine.outbox_entries()?;
+        Ok(store)
     }
 
     /// Id of the active profile, if any.
     pub fn active_profile_id(&self) -> Option<String> {
-        self.read().as_ref().map(|profile| profile.id.clone())
+        self.read().as_ref().map(|slot| slot.profile.id.clone())
+    }
+
+    /// Sends `trigger` to the sync loop of the active profile when it is
+    /// still `profile_id`. `Ok(false)`: the profile has no running loop.
+    pub fn trigger(&self, profile_id: &str, trigger: Trigger) -> CommandResult<bool> {
+        let slot = self.read();
+        match slot.as_ref() {
+            Some(slot) if slot.profile.id == profile_id => Ok(slot
+                .attached
+                .sync
+                .as_ref()
+                .is_some_and(|sync| sync.trigger(trigger))),
+            _ => Err(no_profile()),
+        }
     }
 
     /// Makes `profile` the active one and returns the previous profile.
     pub fn activate(&self, profile: ActiveProfile) -> Option<ActiveProfile> {
-        self.write().replace(profile)
+        self.write()
+            .replace(Slot {
+                profile,
+                attached: Attached::default(),
+            })
+            .map(|slot| slot.profile)
     }
 
     /// Clears the active profile and returns it.
     pub fn deactivate(&self) -> Option<ActiveProfile> {
-        self.write().take()
+        self.write().take().map(|slot| slot.profile)
     }
 
     /// Sets the engine of the active profile when it is still `profile_id`;
@@ -92,24 +152,53 @@ impl AppState {
     ) -> CommandResult<Option<Arc<Engine>>> {
         let mut slot = self.write();
         match slot.as_mut() {
-            Some(profile) if profile.id == profile_id => Ok(profile.engine.replace(engine)),
+            Some(slot) if slot.profile.id == profile_id => Ok(slot.profile.engine.replace(engine)),
+            _ => Err(no_profile()),
+        }
+    }
+
+    /// [`AppState::set_engine`] together with the engine's store and the
+    /// handle of its sync loop, in one step.
+    pub fn attach(
+        &self,
+        profile_id: &str,
+        engine: Arc<Engine>,
+        store: Arc<Store>,
+        sync: Option<SyncHandle>,
+    ) -> CommandResult<Option<Arc<Engine>>> {
+        let mut slot = self.write();
+        match slot.as_mut() {
+            Some(slot) if slot.profile.id == profile_id => {
+                slot.attached = Attached {
+                    store: Some(store),
+                    sync,
+                };
+                Ok(slot.profile.engine.replace(engine))
+            }
             _ => Err(no_profile()),
         }
     }
 
     // A panic while holding the guard leaves either the old or the new
     // profile in the slot, both valid: the poison flag carries no meaning.
-    fn read(&self) -> std::sync::RwLockReadGuard<'_, Option<ActiveProfile>> {
+    fn read(&self) -> std::sync::RwLockReadGuard<'_, Option<Slot>> {
         self.active.read().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn write(&self) -> std::sync::RwLockWriteGuard<'_, Option<ActiveProfile>> {
+    fn write(&self) -> std::sync::RwLockWriteGuard<'_, Option<Slot>> {
         self.active.write().unwrap_or_else(PoisonError::into_inner)
     }
 }
 
 fn no_profile() -> CommandError {
     CommandError::new(codes::NO_ACTIVE_PROFILE, "no server profile is selected")
+}
+
+fn no_engine() -> CommandError {
+    CommandError::new(
+        codes::ENGINE_UNAVAILABLE,
+        "the active profile has no open local store",
+    )
 }
 
 #[cfg(test)]
@@ -214,5 +303,40 @@ mod tests {
         .join();
         assert!(state.active.is_poisoned());
         assert_eq!(state.active_profile_id().as_deref(), Some("p1"));
+    }
+
+    #[test]
+    fn attach_sets_engine_store_and_loop_of_the_same_profile_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let state = AppState::default();
+        state.activate(profile("p1"));
+        assert_eq!(state.store().unwrap_err().code, codes::ENGINE_UNAVAILABLE);
+        assert_eq!(state.trigger("p1", Trigger::Manual), Ok(false));
+
+        let engine = engine("p1", &dir);
+        let store = Arc::new(
+            Store::open(dir.path().join("attach.db"), &DbKey::from_bytes([7; 32])).unwrap(),
+        );
+        let (handle, sync_loop) = keystone_sync::engine::sync_loop(engine.clone());
+        let stale = state.attach("p0", engine.clone(), store.clone(), Some(handle.clone()));
+        assert_eq!(stale.unwrap_err().code, codes::NO_ACTIVE_PROFILE);
+        assert!(state.store().is_err());
+
+        state
+            .attach("p1", engine.clone(), store.clone(), Some(handle))
+            .unwrap();
+        assert!(Arc::ptr_eq(&state.engine().unwrap(), &engine));
+        assert!(Arc::ptr_eq(&state.store().unwrap(), &store));
+        assert_eq!(state.trigger("p1", Trigger::Manual), Ok(true));
+        let other = state.trigger("p2", Trigger::Manual);
+        assert_eq!(other.unwrap_err().code, codes::NO_ACTIVE_PROFILE);
+        // The loop is gone: the trigger says so.
+        drop(sync_loop);
+        assert_eq!(state.trigger("p1", Trigger::Manual), Ok(false));
+
+        // A new profile starts without the parts of the previous one.
+        state.activate(profile("p2"));
+        assert!(state.store().is_err());
+        assert_eq!(state.trigger("p2", Trigger::Manual), Ok(false));
     }
 }

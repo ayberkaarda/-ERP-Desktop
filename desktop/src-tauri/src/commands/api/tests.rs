@@ -86,10 +86,12 @@ fn fixture_with_engine(base_url: &str) -> Fixture {
     let mut fixture = fixture(base_url);
     let dir = tempfile::tempdir().unwrap();
     let db = Store::open(dir.path().join("p.db"), &DbKey::from_bytes([7; 32])).unwrap();
-    let engine = Arc::new(SyncEngine::new(
-        client(base_url, &fixture.store),
-        Arc::new(db),
-    ));
+    let manifest =
+        keystone_sync::store::offline_manifest(crate::router::decide::OFFLINE_MANIFEST).unwrap();
+    let engine = Arc::new(
+        SyncEngine::new(client(base_url, &fixture.store), Arc::new(db))
+            .with_offline_manifest(manifest),
+    );
     fixture.state.set_engine(PROFILE, engine).unwrap();
     fixture._dir = Some(dir);
     fixture
@@ -598,6 +600,58 @@ async fn online_first_falls_back_to_the_stale_local_copy_when_unreachable() {
         local.plans().as_slice(),
         [LocalPlan::Read { stale: true, .. }]
     ));
+}
+
+/// A slow answer is not a dead server: after an online-first read stops
+/// waiting, the profile stays online and the next write reaches the server.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_slow_read_does_not_turn_the_profile_offline() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/sales-deliveries"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({ "data": [] }))
+                .set_delay(Duration::from_secs(7)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/parties"))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "data": { "id": ID } })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = fixture_with_engine(&server.uri());
+    let local = FakeLocal::new(LocalCopy::Complete, Some(json!({ "data": ["local"] })));
+
+    let read = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "GET", "path": "/api/v1/sales-deliveries" }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.source, ResponseSource::Local);
+    assert!(fx.connectivity.online(PROFILE, Some(false), Instant::now()));
+
+    let write = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "POST", "path": "/api/v1/parties",
+                "body": { "kind": "json", "value": { "name": "Acme" } } }),
+        )
+        .await
+        .unwrap();
+    assert_eq!((write.status, write.source), (201, ResponseSource::Network));
+    let posts = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST")
+        .count();
+    assert_eq!(posts, 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]
