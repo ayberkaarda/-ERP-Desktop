@@ -1,0 +1,55 @@
+[package]
+name = "keystone-desktop"
+version = "0.1.0"
+description = "Keystone desktop shell (Tauri 2)"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "keystone_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+# build.rs parses tauri.conf.json and the CLI config overlay (TAURI_CONFIG).
+serde_json.workspace = true
+
+[dependencies]
+keystone-sync = { path = "../crates/keystone-sync" }
+
+tauri = { version = "2", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-os = "2"
+tauri-plugin-process = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-window-state = "2"
+
+serde.workspace = true
+serde_json.workspace = true
+
+# Log masking (src/logging.rs). `log` and `fern` are what tauri-plugin-log
+# itself is built on; they are named here because logging.rs uses them.
+log = "0.4"
+fern = "0.7"
+regex = "1"
+time = { version = "0.3", features = ["formatting", "macros"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+
+[features]
+# `tauri build` turns this on; without it `generate_context!` is a dev build
+# that does not need `frontendDist` on disk (cargo clippy/test in CI).
+default = []
+custom-protocol = ["tauri/custom-protocol"]
+
+# The vendored OpenSSL of SQLCipher (via keystone-sync) ships objects without
+# PDBs; the MSVC linker reports that on every link.
+[lints.rust]
+linker_messages = "allow"
+
+[dev-dependencies]
+tempfile.workspace = true
+uuid.workspace = true
