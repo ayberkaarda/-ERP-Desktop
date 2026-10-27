@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/keystone-sync", "crates/wire-codegen"]
+members = [
+    "crates/keystone-sync",
+    "crates/keystone-secrets",
+    "crates/keystone-realtime",
+    "crates/wire-codegen",
+    "src-tauri",
+]
 
 [workspace.package]
 edition = "2024"

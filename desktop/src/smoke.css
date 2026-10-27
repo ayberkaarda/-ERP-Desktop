@@ -1,0 +1,21 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 32px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+pre {
+  padding: 16px;
+  border: 1px solid GrayText;
+  border-radius: 6px;
+}
+
+.error {
+  color: #b42318;
+}

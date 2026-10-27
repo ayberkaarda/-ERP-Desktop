@@ -2,7 +2,8 @@
   "name": "keystone-erp",
   "private": true,
   "workspaces": [
-    "frontend"
+    "frontend",
+    "desktop"
   ],
   "scripts": {
     "gen:api": "composer --working-dir=backend openapi && npm run gen:api --workspace frontend",

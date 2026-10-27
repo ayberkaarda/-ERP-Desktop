@@ -4,6 +4,16 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
+# Unmaintained (not vulnerable) crates that only the Linux build of the Tauri
+# shell pulls in; Tauri 2 has no maintained replacement for them yet.
+ignore = [
+    # proc-macro-error: gtk-rs 0.18 (glib-macros) under tauri, wry, webkit2gtk.
+    { id = "RUSTSEC-2024-0370", reason = "gtk-rs 0.18 under Tauri 2 on Linux" },
+    # zvariant, zbus_names, zvariant_derive: zbus 5 under tauri-plugin-single-instance.
+    { id = "RUSTSEC-2026-0370", reason = "zbus 5 under tauri-plugin-single-instance on Linux" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus 5 under tauri-plugin-single-instance on Linux" },
+    { id = "RUSTSEC-2026-0372", reason = "zbus 5 under tauri-plugin-single-instance on Linux" },
+]
 
 [licenses]
 version = 2
@@ -18,6 +28,10 @@ allow = [
     "ISC",
     "BSD-3-Clause",
     "CDLA-Permissive-2.0",
+    # Tauri shell: cssparser, selectors, dom_query (wry, tauri-utils) and
+    # dirs-sys are MPL-2.0; cfg-expr (tauri-build) is Apache-2.0 WITH LLVM-exception.
+    "MPL-2.0",
+    "Apache-2.0 WITH LLVM-exception",
 ]
 
 [licenses.private]
