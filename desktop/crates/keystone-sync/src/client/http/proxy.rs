@@ -3,9 +3,11 @@
 //!
 //! Rules, on top of the refresh rules of the parent module:
 //! - Only paths [`ServerUrl::endpoint`] accepts, minus the ones the shell
-//!   calls itself: `/api/v1/auth/device*`, `/api/v1/sync/*` and
-//!   `/api/v1/broadcasting/auth` are refused (`INVALID_SERVER_URL`) before
-//!   anything is sent.
+//!   calls itself: everything under `/api/v1/auth` (sign-in, sign-out,
+//!   refresh, device tokens, two-factor, password change: the session life
+//!   cycle belongs to the shell commands) except the reads in
+//!   [`AUTH_READS`], `/api/v1/sync/*` and `/api/v1/broadcasting/auth` are
+//!   refused (`INVALID_SERVER_URL`) before anything is sent.
 //! - The client sets `Authorization`, `X-Company-Id` and `Accept`; of the
 //!   caller's headers only [`REQUEST_HEADERS`] are passed, the rest is
 //!   dropped. Of the answer only [`RESPONSE_HEADERS`] come back.
@@ -51,13 +53,13 @@ pub const RESPONSE_HEADERS: [&str; 5] = [
 ];
 
 /// Paths under `/api/v1/` (lowercase, without the prefix) the proxy never
-/// sends. `true`: any path starting with the text (`auth/device*`);
-/// `false`: the path itself and everything below it.
-const FORBIDDEN: [(&str, bool); 3] = [
-    ("auth/device", true),
-    ("sync", false),
-    ("broadcasting/auth", false),
-];
+/// sends: each one and everything below it.
+const FORBIDDEN: [&str; 3] = ["auth", "sync", "broadcasting/auth"];
+
+/// The only `/api/v1/auth` endpoints the proxy sends: reads that change no
+/// session (method, path below `/api/v1/`). Anything else under `auth` is
+/// refused.
+pub const AUTH_READS: [(ProxyMethod, &str); 1] = [(ProxyMethod::Get, "auth/me")];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProxyMethod {
@@ -206,7 +208,7 @@ impl HttpClient {
 
     fn prepare(&self, request: &ProxyRequest) -> Result<Prepared> {
         let mut url = self.server.endpoint(&request.path)?;
-        if is_forbidden(&request.path) {
+        if is_forbidden(request.method, &request.path) {
             return Err(SyncError::InvalidServerUrl(
                 "this path is reserved for the desktop client".to_owned(),
             ));
@@ -356,19 +358,18 @@ fn is_sign_in_code(code: &ErrorCode) -> bool {
 }
 
 /// `path` already passed [`ServerUrl::endpoint`] (plain segments under the prefix).
-fn is_forbidden(path: &str) -> bool {
+fn is_forbidden(method: ProxyMethod, path: &str) -> bool {
     let rest = path
         .strip_prefix(super::super::API_PREFIX)
         .and_then(|rest| rest.strip_prefix('/'))
         .unwrap_or(path)
         .to_ascii_lowercase();
-    FORBIDDEN.iter().any(|(forbidden, prefix)| {
-        if *prefix {
-            rest.starts_with(forbidden)
-        } else {
-            rest == *forbidden || rest.starts_with(&format!("{forbidden}/"))
-        }
-    })
+    if AUTH_READS.contains(&(method, rest.as_str())) {
+        return false;
+    }
+    FORBIDDEN
+        .iter()
+        .any(|forbidden| rest == *forbidden || rest.starts_with(&format!("{forbidden}/")))
 }
 
 fn too_large(what: &str) -> SyncError {
@@ -384,26 +385,51 @@ mod tests {
 
     #[test]
     fn reserved_paths() {
-        for path in [
-            "/api/v1/auth/device",
-            "/api/v1/auth/device/refresh",
-            "/api/v1/auth/devices",
-            "/api/v1/Auth/Device",
-            "/api/v1/sync/pull",
-            "/api/v1/SYNC/manifest",
-            "/api/v1/sync",
-            "/api/v1/broadcasting/auth",
+        use ProxyMethod::{Delete, Get, Patch, Post, Put};
+        for (method, path) in [
+            (Post, "/api/v1/auth/login"),
+            (Post, "/api/v1/auth/logout"),
+            (Post, "/api/v1/auth/two-factor/verify"),
+            (Post, "/api/v1/auth/two-factor/setup"),
+            (Post, "/api/v1/auth/two-factor/confirm"),
+            (Delete, "/api/v1/auth/two-factor"),
+            (Post, "/api/v1/auth/password/change"),
+            (Get, "/api/v1/auth/sessions"),
+            (
+                Delete,
+                "/api/v1/auth/sessions/0192f5a0-0000-7000-8000-000000000001",
+            ),
+            (Post, "/api/v1/auth/device"),
+            (Post, "/api/v1/auth/device/refresh"),
+            (Get, "/api/v1/auth/devices"),
+            (Get, "/api/v1/auth"),
+            (Get, "/api/v1/Auth/Device"),
+            (Post, "/api/v1/auth/me"),
+            (Put, "/api/v1/auth/me"),
+            (Patch, "/api/v1/auth/me"),
+            (Delete, "/api/v1/auth/me"),
+            (Get, "/api/v1/auth/me/x"),
+            (Get, "/api/v1/sync/pull"),
+            (Get, "/api/v1/SYNC/manifest"),
+            (Get, "/api/v1/sync"),
+            (Post, "/api/v1/broadcasting/auth"),
         ] {
-            assert!(is_forbidden(path), "{path}");
+            assert!(is_forbidden(method, path), "{method:?} {path}");
         }
-        for path in [
-            "/api/v1/me/devices",
-            "/api/v1/auth/me",
-            "/api/v1/synchronize",
-            "/api/v1/broadcasting/authx",
-            "/api/v1/sales-quotes",
+        for (method, path) in [
+            (Get, "/api/v1/auth/me"),
+            (Get, "/api/v1/Auth/Me"),
+            (Get, "/api/v1/me/devices"),
+            (
+                Delete,
+                "/api/v1/me/devices/0192f5a0-0000-7000-8000-000000000001",
+            ),
+            (Get, "/api/v1/authors"),
+            (Get, "/api/v1/synchronize"),
+            (Post, "/api/v1/broadcasting/authx"),
+            (Get, "/api/v1/sales-quotes"),
         ] {
-            assert!(!is_forbidden(path), "{path}");
+            assert!(!is_forbidden(method, path), "{method:?} {path}");
         }
     }
 }

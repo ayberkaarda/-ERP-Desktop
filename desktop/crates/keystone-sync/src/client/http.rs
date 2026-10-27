@@ -51,7 +51,8 @@ use super::{ApiConfig, DeviceAuthApi, SyncApi, paths};
 mod proxy;
 
 pub use proxy::{
-    PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest, ProxyResponse, REQUEST_HEADERS, RESPONSE_HEADERS,
+    AUTH_READS, PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest, ProxyResponse, REQUEST_HEADERS,
+    RESPONSE_HEADERS,
 };
 
 const COMPANY_HEADER: &str = "x-company-id";

@@ -165,7 +165,28 @@ async fn reserved_and_bad_paths_are_refused_unsent() {
         .await;
     let store = signed_in(1);
     let client = client(&server, &store);
+    const METHODS: [ProxyMethod; 5] = [
+        ProxyMethod::Get,
+        ProxyMethod::Post,
+        ProxyMethod::Put,
+        ProxyMethod::Patch,
+        ProxyMethod::Delete,
+    ];
+    // Every `/api/v1/auth` route of the web API, plus unknown ones below it.
     for reserved in [
+        "/api/v1/auth",
+        "/api/v1/auth/login",
+        "/api/v1/auth/logout",
+        "/api/v1/auth/two-factor/verify",
+        "/api/v1/auth/two-factor/setup",
+        "/api/v1/auth/two-factor/confirm",
+        "/api/v1/auth/two-factor",
+        "/api/v1/auth/password/change",
+        "/api/v1/auth/sessions",
+        "/api/v1/auth/sessions/0192f5a0-0000-7000-8000-000000000001",
+        "/api/v1/auth/me/extra",
+        "/api/v1/auth/future-endpoint",
+        "/api/v1/Auth/Logout",
         "/api/v1/auth/device",
         "/api/v1/auth/device/refresh",
         "/api/v1/auth/devices",
@@ -182,10 +203,19 @@ async fn reserved_and_bad_paths_are_refused_unsent() {
         "/api/v1/sales-quotes?x=1",
         "https://evil.example/api/v1/sales-quotes",
     ] {
-        for request in [get(reserved), post(reserved, &json!({}))] {
+        for method in METHODS {
+            let mut request = post(reserved, &json!({}));
+            request.method = method;
             let error = client.proxy(&request).await.expect_err(reserved);
-            assert_eq!(error.code(), "INVALID_SERVER_URL", "{reserved}");
+            assert_eq!(error.code(), "INVALID_SERVER_URL", "{method:?} {reserved}");
         }
+    }
+    // `/auth/me` is allowed for reading only.
+    for method in &METHODS[1..] {
+        let mut request = post("/api/v1/auth/me", &json!({}));
+        request.method = *method;
+        let error = client.proxy(&request).await.expect_err("write to /auth/me");
+        assert_eq!(error.code(), "INVALID_SERVER_URL", "{method:?}");
     }
     assert!(received(&server).await.is_empty(), "nothing was sent");
     assert_eq!(store.load(PROFILE).expect("load"), Some(tokens(1)));
@@ -194,13 +224,21 @@ async fn reserved_and_bad_paths_are_refused_unsent() {
     for allowed in [
         "/api/v1/me/devices",
         "/api/v1/auth/me",
+        "/api/v1/Auth/Me",
+        "/api/v1/authors",
         "/api/v1/broadcasting/authx",
         "/api/v1/synchronize",
     ] {
         let response = client.proxy(&get(allowed)).await.expect(allowed);
         assert_eq!(response.status, 200, "{allowed}");
     }
-    assert_eq!(received(&server).await.len(), 4);
+    let mut revoke = get("/api/v1/me/devices/0192f5a0-0000-7000-8000-000000000001");
+    revoke.method = ProxyMethod::Delete;
+    assert!(
+        client.proxy(&revoke).await.is_ok(),
+        "device revoke is not under /auth"
+    );
+    assert_eq!(received(&server).await.len(), 7);
 }
 
 // ---------------------------------------------------------------- headers
@@ -829,7 +867,9 @@ async fn request_bodies_over_the_limit_are_refused_unsent() {
 async fn tokens_and_bodies_never_show_in_debug_output() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path("/api/v1/auth/password/change"))
+        .and(path(
+            "/api/v1/users/0192f5a0-0000-7000-8000-000000000001/password-reset",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": { "token": access(9), "note": LEAK }
         })))
@@ -839,7 +879,7 @@ async fn tokens_and_bodies_never_show_in_debug_output() {
     let client = client(&server, &store);
     let request = ProxyRequest {
         method: ProxyMethod::Post,
-        path: "/api/v1/auth/password/change".into(),
+        path: "/api/v1/users/0192f5a0-0000-7000-8000-000000000001/password-reset".into(),
         query: vec![("token".into(), access(1))],
         headers: vec![("idempotency-key".into(), "k".into())],
         body: Some(

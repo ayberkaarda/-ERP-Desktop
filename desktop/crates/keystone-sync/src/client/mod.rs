@@ -33,8 +33,8 @@ pub(crate) mod sealed {
 }
 
 pub use http::{
-    ClientOptions, HttpClient, PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest, ProxyResponse,
-    REQUEST_HEADERS, RESPONSE_HEADERS, fetch_server_meta,
+    AUTH_READS, ClientOptions, HttpClient, PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest,
+    ProxyResponse, REQUEST_HEADERS, RESPONSE_HEADERS, fetch_server_meta,
 };
 pub use retry_after::parse_retry_after;
 pub use url::ServerUrl;
