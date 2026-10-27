@@ -280,7 +280,7 @@ it('has no offline actions and declares status locked and the audited fields', f
     ));
 
     expect($action->errorCode?->value)->toBe('SYNC_OFFLINE_WRITE_NOT_ALLOWED')
-        ->and($writer->lockedFields())->toBe(['status'])
+        ->and($writer->lockedFields())->toBe(['status', 'number'])
         ->and($writer->auditFields())->toBe(['number', 'status', 'document_date', 'party_id', 'currency_code', 'fx_rate', 'total', 'total_local', 'notes', 'version'])
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => 'draft'])))->toBeTrue()
         ->and(asSalesWriter($this->w, 'sales-quotes', fn (DraftSyncWriter $w): bool => $w->targetSatisfies($w->find($quote['id']), ['status' => 'sent'])))->toBeFalse()
