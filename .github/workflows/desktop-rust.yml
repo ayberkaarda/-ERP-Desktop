@@ -39,6 +39,16 @@ jobs:
       - run: cargo fmt --all -- --check
       # The Tauri shell needs the webkit system packages; the desktop-shell job covers it.
       - run: cargo clippy --workspace --exclude keystone-desktop --all-targets --locked -- -D warnings
+      # The crate as the shell links it: no dev-dependency features unified in.
+      - run: cargo clippy -p keystone-sync --lib --locked -- -D warnings
+      - name: Shell does not enable keystone-sync raw-store
+        run: |
+          tree=$(cargo tree -p keystone-desktop -e features -i keystone-sync --target all --locked)
+          printf '%s\n' "$tree"
+          if printf '%s\n' "$tree" | grep -q 'raw-store'; then
+            echo "::error::keystone-desktop enables the raw-store feature of keystone-sync"
+            exit 1
+          fi
       - run: cargo test --workspace --exclude keystone-desktop --locked
       - name: Wire code matches contracts/sync
         run: sh scripts/gen-wire.sh
