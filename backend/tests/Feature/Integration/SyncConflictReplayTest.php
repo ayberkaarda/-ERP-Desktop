@@ -113,6 +113,14 @@ it('does not let a merge built from the replayed conflict overwrite the web chan
         'resolution' => ['resolves' => $edit['idempotency_key'], 'code' => 'VERSION_CONFLICT', 'choice' => 'merge'],
     ])])[0];
 
-    $stored = (string) DB::table('sales_quotes')->where('id', $id)->value('document_date');
-    expect(substr($stored, 0, 10))->toBe('2027-06-12', "merge outcome: {$result['status']}");
+    $stored = (array) DB::table('sales_quotes')->where('id', $id)->first(['notes', 'document_date', 'version']);
+
+    // The merge is applied at the replayed server_version and keeps both web changes.
+    expect($result['status'])->toBe('applied', (string) json_encode($result))
+        ->and($result['version'])->toBe((int) $replay['server_version'] + 1)
+        ->and($result['data']['notes'])->toBe('web notes')
+        ->and(substr((string) $result['data']['document_date'], 0, 10))->toBe('2027-06-12')
+        ->and($stored['notes'])->toBe('web notes')
+        ->and(substr((string) $stored['document_date'], 0, 10))->toBe('2027-06-12')
+        ->and((int) $stored['version'])->toBe((int) $replay['server_version'] + 1);
 });
