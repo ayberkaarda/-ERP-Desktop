@@ -39,7 +39,9 @@ return new class extends Migration
                 IF OLD.status = 'draft' THEN
                     RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
                 END IF;
-                IF TG_OP = 'UPDATE' AND OLD.status IN ('pending_approval', 'confirmed') AND NOT sales_order_has_documents(OLD.id) THEN
+                IF TG_OP = 'UPDATE' AND OLD.status IN ('pending_approval', 'confirmed') AND NOT sales_order_has_documents(OLD.id)
+                   AND (NEW.status = OLD.status OR NOT (NEW.status = ANY (progress))
+                        OR NEW.status = sales_order_progress_status(OLD.id)) THEN
                     RETURN NEW;
                 END IF;
                 IF TG_OP = 'UPDATE' AND OLD.status NOT IN ('closed', 'cancelled')

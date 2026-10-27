@@ -63,6 +63,20 @@ it('refuses a raw step back from delivered to confirmed, so it cannot be cancell
         ->and(guardStatusOf($this->order['id']))->toBe('delivered');
 });
 
+it('refuses a raw progress status a confirmed order without documents and with zero quantities does not have', function (): void {
+    $outcomes = [];
+
+    foreach (['invoiced', 'partially_invoiced', 'delivered', 'partially_delivered'] as $status) {
+        $outcomes[$status] = guardStatusRaw('UPDATE sales_orders SET status = ?, version = version + 1 WHERE id = ?', [$status, $this->order['id']]);
+    }
+
+    expect($outcomes)->toBe(['invoiced' => 'KS005', 'partially_invoiced' => 'KS005', 'delivered' => 'KS005', 'partially_delivered' => 'KS005'])
+        ->and(guardStatusOf($this->order['id']))->toBe('confirmed');
+
+    // The order is still free to revise while nothing references it.
+    expect(guardStatusRaw("UPDATE sales_orders SET notes = 'revised', version = version + 1 WHERE id = ?", [$this->order['id']]))->toBe('ok');
+});
+
 it('still lets the service cancel a confirmed order with no active document', function (): void {
     SalesKit::post($this->w->user, $this->w->company, "sales-orders/{$this->order['id']}/cancel")->assertOk();
 
