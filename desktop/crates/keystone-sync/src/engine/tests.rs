@@ -595,3 +595,38 @@ async fn callers_during_the_wait_collapse_into_one_follow_up() {
     );
     assert_eq!(f.engine.api.pushes().len(), 2);
 }
+
+/// A sign-in completes while the failed request's answer is being settled
+/// (after the "no other sign-in" check): its `Retry-After` belongs to the
+/// old sign-in and must not hold the new one.
+#[tokio::test(start_paused = true)]
+async fn a_retry_after_answered_to_an_old_sign_in_does_not_hold_the_new_one() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.enqueue(create()).unwrap();
+    let api = &f.engine.api;
+    *api.busy_retry_after.lock().unwrap() = Duration::from_secs(600);
+    api.push_mode.store(PUSH_BUSY, Ordering::SeqCst);
+    let store = f.tokens.clone();
+    let fired = AtomicBool::new(false);
+    f.engine.set_hook(move |point| {
+        if point == Hook::FailureKept && !fired.swap(true, Ordering::SeqCst) {
+            store
+                .sign_in(&TokenWrite::new(), PROFILE, &tokens(2))
+                .unwrap();
+        }
+    });
+    let error = f.engine.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "IDEMPOTENCY_IN_PROGRESS");
+    api.push_mode.store(PUSH_APPLY, Ordering::SeqCst);
+
+    let before = api.manifests.load(Ordering::SeqCst);
+    let started = tokio::time::Instant::now();
+    f.engine.run_once(Trigger::Manual).await.unwrap();
+    assert!(
+        started.elapsed() < Duration::from_secs(1),
+        "the new sign-in waited {:?} for the old Retry-After",
+        started.elapsed()
+    );
+    assert!(api.manifests.load(Ordering::SeqCst) > before);
+}

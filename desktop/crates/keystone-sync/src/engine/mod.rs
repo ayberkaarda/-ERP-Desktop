@@ -264,6 +264,8 @@ enum Hook {
     AccessChecked,
     /// A push answer passed its commit check and is not written yet.
     CommitChecked,
+    /// A failed pass found no other sign-in and has not published yet.
+    FailureKept,
 }
 
 #[cfg(test)]
@@ -601,7 +603,7 @@ impl<A: SyncApi> SyncEngine<A> {
             }
         };
         self.finish_sign_out(pending, unfinished.is_none())?;
-        self.set_state(SyncState::AuthRequired, None)?;
+        self.set_state(SyncState::AuthRequired, None, None)?;
         Ok(SignOut::Done)
     }
 
@@ -743,7 +745,7 @@ impl<A: SyncApi> SyncEngine<A> {
         match result {
             Ok(()) => {
                 self.failures.store(0, Ordering::SeqCst);
-                self.set_state(SyncState::Idle, None)?;
+                self.set_state(SyncState::Idle, None, None)?;
                 if moved(self) {
                     self.queue_follow_up();
                 }
@@ -760,7 +762,9 @@ impl<A: SyncApi> SyncEngine<A> {
                 if matches!(state, SyncState::Failed(_)) {
                     self.failures.fetch_add(1, Ordering::SeqCst);
                 }
-                self.set_state(state, error.retry_after())?;
+                self.hook(Hook::FailureKept);
+                // The limit belongs to the sign-in that sent the request.
+                self.set_state(state, error.retry_after(), generation)?;
                 Err(error)
             }
         }
@@ -936,16 +940,30 @@ impl<A> SyncEngine<A> {
     }
 
     /// Publishes `state`; `retry_after` also sets the earliest start of the
-    /// next pass for the current sign-in (`None` lifts it) and wakes a
-    /// waiting run to re-evaluate.
-    fn set_state(&self, state: SyncState, retry_after: Option<Duration>) -> Result<()> {
-        let generation = self.session.record().ok().map(|r| r.generation);
-        *self
-            .retry_not_before
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner) = retry_after
-            .zip(generation)
-            .map(|(wait, g)| (tokio::time::Instant::now() + wait.min(RETRY_AFTER_MAX), g));
+    /// next pass for `generation`, the sign-in whose request got it (`None`
+    /// lifts it), and wakes a waiting run to re-evaluate. The limit is
+    /// dropped when another sign-in has completed since: compared and
+    /// written with sign-ins held off.
+    fn set_state(
+        &self,
+        state: SyncState,
+        retry_after: Option<Duration>,
+        generation: Option<u64>,
+    ) -> Result<()> {
+        {
+            let _sign_in = self.session.hold();
+            let current = self.session.record().ok().map(|r| r.generation);
+            let limit = match (retry_after, generation) {
+                (Some(wait), Some(g)) if current == Some(g) => {
+                    Some((tokio::time::Instant::now() + wait.min(RETRY_AFTER_MAX), g))
+                }
+                _ => None,
+            };
+            *self
+                .retry_not_before
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner) = limit;
+        }
         self.retry_changed.notify_waiters();
         let counts = local::counts(&self.store);
         let failures = self.failures.load(Ordering::SeqCst);
