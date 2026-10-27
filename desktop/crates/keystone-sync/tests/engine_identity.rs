@@ -223,7 +223,22 @@ async fn deactivation_of_the_current_generation_wipes_the_mirror_and_seals_unsen
     // but neither readable nor sendable until the same user verifies again
     // (`client_findings::c4_deactivation_keeps_unsent_work_for_the_same_user`).
     assert_eq!(local_rows(&env), 0);
-    assert_eq!(outbox_list(&env.store).len(), 1);
+    // Sealed at the outbox layer too: a raw outbox neither lists nor selects
+    // it; the entry itself is still in the database.
+    let raw = keystone_sync::outbox::Outbox::new(env.store.clone());
+    assert!(matches!(
+        raw.list(),
+        Err(keystone_sync::error::SyncError::OfflineUnavailable(_))
+    ));
+    assert!(matches!(
+        keystone_sync::outbox::OutboxQueue::next_batch(&raw, 10),
+        Err(keystone_sync::error::SyncError::OfflineUnavailable(_))
+    ));
+    let stored: i64 = env
+        .store
+        .read(|c| Ok(c.query_row("SELECT count(*) FROM outbox_entries", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(stored, 1);
     assert_eq!(inbox(&env.store).count().unwrap(), 1);
     assert!(env.engine.outbox_entries().is_err());
     assert!(env.engine.conflict_records().is_err());
