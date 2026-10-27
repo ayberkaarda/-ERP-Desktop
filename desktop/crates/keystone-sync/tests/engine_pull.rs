@@ -438,3 +438,115 @@ async fn a_new_visibility_generation_resets_and_dropped_resources_are_removed() 
     assert!(report.changed.contains(&name("items")));
     assert!(report.changed.contains(&name("parties")));
 }
+
+const TAG1: &str = "i_q3Zb7Yk2Lw9pM0cVf4HtGxR8nJ1eSdA6uBoC5yTiEzk";
+const TAG2: &str = "i_8nJ1eSdA6uBoC5yTiEzkq3Zb7Yk2Lw9pM0cVf4HtGxR";
+const TAG3: &str = "i_Lw9pM0cVf4HtGxR8nJ1eSdA6uBoC5yTiEzkq3Zb7Yk2";
+const TAG4: &str = "i_GxR8nJ1eSdA6uBoC5yTiEzkq3Zb7Yk2Lw9pM0cVf4Ht";
+const DOWNLOAD: &str = "0193b1e9-0000-7000-8000-0000000000d1";
+
+/// Incremental cursors carry a server stream tag (`i_…`) in `session`: it
+/// goes back verbatim on every incremental page, and a tag the server no
+/// longer accepts gives `cursor_expired`, a full download under a session id
+/// and a new tag at its end.
+#[tokio::test]
+async fn incremental_stream_tags_go_back_verbatim_and_a_refused_tag_resets() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    Mock::given(method("POST"))
+        .and(path(PULL))
+        .respond_with(move |request: &Request| {
+            let sent = parties(request)["cursor"].clone();
+            let answer = match seen.fetch_add(1, Ordering::SeqCst) {
+                0 => {
+                    assert!(sent.is_null());
+                    page(
+                        "parties",
+                        vec![row(A, 1, json!({}))],
+                        vec![],
+                        cursor(10, None, 0, Some(TAG1)),
+                        false,
+                    )
+                }
+                // Incremental, two pages: each page's tag goes back.
+                1 => {
+                    assert_eq!(sent, cursor(10, None, 0, Some(TAG1)));
+                    page(
+                        "parties",
+                        vec![row(B, 1, json!({}))],
+                        vec![],
+                        cursor(20, Some(B), 0, Some(TAG2)),
+                        true,
+                    )
+                }
+                2 => {
+                    assert_eq!(sent, cursor(20, Some(B), 0, Some(TAG2)));
+                    page(
+                        "parties",
+                        vec![],
+                        vec![],
+                        cursor(30, None, 0, Some(TAG3)),
+                        false,
+                    )
+                }
+                // The tag no longer matches (e.g. a rotated server key).
+                3 => {
+                    assert_eq!(sent, cursor(30, None, 0, Some(TAG3)));
+                    reset_page(
+                        "parties",
+                        vec![row(C, 1, json!({}))],
+                        cursor(40, Some(C), 0, Some(DOWNLOAD)),
+                        true,
+                        "cursor_expired",
+                    )
+                }
+                4 => {
+                    assert_eq!(sent, cursor(40, Some(C), 0, Some(DOWNLOAD)));
+                    page(
+                        "parties",
+                        vec![row(D, 1, json!({}))],
+                        vec![],
+                        cursor(50, None, 0, Some(TAG4)),
+                        false,
+                    )
+                }
+                _ => {
+                    assert_eq!(sent, cursor(50, None, 0, Some(TAG4)));
+                    page(
+                        "parties",
+                        vec![],
+                        vec![],
+                        cursor(50, None, 0, Some(TAG4)),
+                        false,
+                    )
+                }
+            };
+            ResponseTemplate::new(200).set_body_json(pull_response(vec![answer]))
+        })
+        .mount(&env.server)
+        .await;
+
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    let stored = env.store.cursor(&name("parties")).unwrap().unwrap();
+    assert_eq!(stored.session.as_deref(), Some(TAG1));
+
+    let report = env.engine.run_once(Trigger::Timer).await.unwrap();
+    assert_eq!(report.pull_requests, 2);
+    assert_eq!(ids(&env, "parties"), [A, B]);
+
+    let report = env.engine.run_once(Trigger::Timer).await.unwrap();
+    assert_eq!(report.pull_requests, 2);
+    assert_eq!(ids(&env, "parties"), [C, D]);
+    assert_eq!(
+        env.store.local_copy(&name("parties")).unwrap(),
+        LocalCopy::Complete
+    );
+
+    env.engine.run_once(Trigger::Timer).await.unwrap();
+    assert_eq!(calls.load(Ordering::SeqCst), 6);
+    let stored = env.store.cursor(&name("parties")).unwrap().unwrap();
+    assert_eq!((stored.txid.0, stored.session.as_deref()), (50, Some(TAG4)));
+    assert_eq!(env.engine.status().state, SyncState::Idle);
+}

@@ -218,3 +218,117 @@ async fn repeated_transient_failures_quarantine_the_mutation_visibly() {
     e.retry(entry.mutation.idempotency_key).unwrap();
     assert_eq!(e.refresh_status().unwrap().pending, 1);
 }
+
+#[tokio::test]
+async fn busy_and_rate_limited_pushes_are_resent_with_the_same_keys_after_retry_after() {
+    let env = env().await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    mount_empty_pull(&env.server).await;
+    let calls = Arc::new(Mutex::new(0usize));
+    let seen = calls.clone();
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .respond_with(move |request: &Request| {
+            let mut n = seen.lock().unwrap();
+            *n += 1;
+            match *n {
+                // A busy row lock (55P03): the whole push, no results.
+                1 => ResponseTemplate::new(409)
+                    .insert_header("Retry-After", "1")
+                    .set_body_json(error_body("IDEMPOTENCY_IN_PROGRESS", "busy")),
+                2 => ResponseTemplate::new(429)
+                    .insert_header("Retry-After", "5")
+                    .set_body_json(error_body("TOO_MANY_ATTEMPTS", "slow down")),
+                _ => {
+                    let results: Vec<Value> = body(request)["mutations"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|m| {
+                            if m["payload"]["number"].is_null() {
+                                json!({"idempotency_key": m["idempotency_key"], "resource": m["resource"],
+                                       "id": m["id"], "status": "applied", "replayed": false, "version": 1,
+                                       "data": row(m["id"].as_str().unwrap(), 1, m["payload"].clone())})
+                            } else {
+                                json!({"idempotency_key": m["idempotency_key"], "resource": m["resource"],
+                                       "id": m["id"], "status": "rejected", "replayed": false,
+                                       "error": {"message": "number is server side",
+                                                 "code": "SYNC_OFFLINE_WRITE_NOT_ALLOWED"}})
+                            }
+                        })
+                        .collect();
+                    ResponseTemplate::new(200)
+                        .set_body_json(json!({"data": {"results": results}, "meta": {}}))
+                }
+            }
+        })
+        .mount(&env.server)
+        .await;
+    let e = &env.engine;
+    e.run_once(Trigger::Startup).await.unwrap();
+    let ok = Uuid::now_v7();
+    let numbered = Uuid::now_v7();
+    e.enqueue(draft(
+        MutationOp::Create,
+        "parties",
+        ok,
+        json!({"name": "A"}),
+    ))
+    .unwrap();
+    e.enqueue(draft(
+        MutationOp::Create,
+        "parties",
+        numbered,
+        json!({"name": "B", "number": "X-1"}),
+    ))
+    .unwrap();
+
+    for (attempt, (code, wait)) in [("IDEMPOTENCY_IN_PROGRESS", 1), ("TOO_MANY_ATTEMPTS", 5)]
+        .into_iter()
+        .enumerate()
+    {
+        let error = e.run_once(Trigger::Manual).await.unwrap_err();
+        assert_eq!(error.code(), code);
+        let status = e.status();
+        assert_eq!(status.state, SyncState::Failed(code));
+        assert_eq!(
+            status.retry_after,
+            Some(std::time::Duration::from_secs(wait))
+        );
+        // Transient: kept for the next batch, nothing settled or rejected.
+        assert_eq!(
+            (status.pending, status.rejected, status.quarantined),
+            (2, 0, 0)
+        );
+        // Counted as a server-side transient failure (quarantine budget).
+        assert!(
+            outbox_list(&env.store)
+                .iter()
+                .all(|x| x.attempts as usize == attempt + 1)
+        );
+    }
+
+    let report = e.run_once(Trigger::Manual).await.unwrap();
+    assert_eq!((report.pushed, report.rejected), (1, 1));
+    let sent = bodies(&env.server, PUSH).await;
+    assert_eq!(sent.len(), 3);
+    let keys = |b: &Value| -> Vec<Value> {
+        b["mutations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|m| m["idempotency_key"].clone())
+            .collect()
+    };
+    assert_eq!(keys(&sent[0]), keys(&sent[1]));
+    assert_eq!(keys(&sent[0]), keys(&sent[2]));
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].mutation.id, numbered);
+    assert_eq!(entries[0].state, OutboxState::Rejected);
+    assert_eq!(
+        entries[0].last_error.as_deref(),
+        Some("SYNC_OFFLINE_WRITE_NOT_ALLOWED")
+    );
+    assert_eq!(e.status().state, SyncState::Idle);
+}
