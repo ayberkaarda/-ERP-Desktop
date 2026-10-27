@@ -123,7 +123,8 @@ pub fn local_resolver() -> Arc<dyn LocalResolver> {
 pub const OBSERVATION_TTL: Duration = Duration::from_secs(30);
 
 /// Online or offline, per profile: the last proxy result while it is
-/// fresh ([`OBSERVATION_TTL`]), else the engine (`SyncState::Offline`),
+/// fresh (an answer: online; a connection that could not be made: offline;
+/// a slow or cut-off answer is not recorded) ([`OBSERVATION_TTL`]), else the engine (`SyncState::Offline`),
 /// else online (the proxy finds out).
 #[derive(Debug, Default)]
 pub struct Connectivity {

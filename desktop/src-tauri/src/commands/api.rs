@@ -170,7 +170,8 @@ impl Run<'_> {
         blocking(move || resolver.resolve(&engine, &plan, &call)).await
     }
 
-    /// Sends `call` and records whether the server answered.
+    /// Sends `call` and records whether the server answered (a connection
+    /// that could not be made: unreachable).
     async fn online(
         &self,
         call: &ApiCall,
@@ -179,7 +180,9 @@ impl Run<'_> {
         let result = send(self.client.clone(), proxy_request(call), deadline).await?;
         let reachable = match &result {
             Ok(_) | Err(SyncError::Api { .. }) => Some(true),
-            Err(error) if error.code() == NETWORK_ERROR => Some(false),
+            // Only a failed connection marks the server unreachable; a slow or
+            // cut-off answer (and the online-first deadline) says nothing.
+            Err(SyncError::NotSent(_)) => Some(false),
             Err(_) => None,
         };
         if let Some(reachable) = reachable {
