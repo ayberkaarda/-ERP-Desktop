@@ -11,11 +11,13 @@ use std::sync::Arc;
 use rusqlite::{Connection, Transaction};
 use uuid::Uuid;
 
-use super::{ListPage, ListQuery, Store};
+use serde_json::Value;
+
+use super::{ListPage, ListQuery, PruneReport, ResourceSpec, Snapshot, Store};
 use crate::conflicts::ConflictStore;
 use crate::error::Result;
 use crate::outbox::{Outbox, OutboxEntry};
-use crate::wire::{ResourceName, ResourceRow};
+use crate::wire::{ResourceName, ResourceRow, Timestamp};
 
 pub use super::mirror::MirrorStore;
 
@@ -24,7 +26,7 @@ pub mod prelude {
     pub use super::{MirrorStore, RawConflictStore, RawOutbox, RawStore};
 }
 
-/// Raw SQL and mirror administration on a [`Store`].
+/// Raw SQL, mirror administration, snapshots and retention on a [`Store`].
 pub trait RawStore {
     fn read<T>(&self, f: impl FnOnce(&Connection) -> Result<T>) -> Result<T>;
     fn write<T>(&self, f: impl FnOnce(&Transaction<'_>) -> Result<T>) -> Result<T>;
@@ -37,6 +39,19 @@ pub trait RawStore {
         base_version: Option<u64>,
     ) -> Result<bool>;
     fn reset_resource(&self, resource: &ResourceName) -> Result<usize>;
+    fn register(&self, spec: &ResourceSpec) -> Result<()>;
+    fn register_all(&self, specs: &[ResourceSpec]) -> Result<()>;
+    fn put_snapshot(
+        &self,
+        resource: &ResourceName,
+        data: &Value,
+        fetched_at: &Timestamp,
+    ) -> Result<()>;
+    fn remove_snapshot(&self, resource: &ResourceName) -> Result<bool>;
+    fn snapshot(&self, resource: &ResourceName) -> Result<Option<Snapshot>>;
+    fn snapshot_resources(&self) -> Result<Vec<ResourceName>>;
+    fn prune(&self) -> Result<PruneReport>;
+    fn prune_at(&self, today: &str) -> Result<PruneReport>;
 }
 
 impl RawStore for Store {
@@ -62,6 +77,35 @@ impl RawStore for Store {
     }
     fn reset_resource(&self, resource: &ResourceName) -> Result<usize> {
         Store::reset_resource(self, resource)
+    }
+    fn register(&self, spec: &ResourceSpec) -> Result<()> {
+        Store::register(self, spec)
+    }
+    fn register_all(&self, specs: &[ResourceSpec]) -> Result<()> {
+        Store::register_all(self, specs)
+    }
+    fn put_snapshot(
+        &self,
+        resource: &ResourceName,
+        data: &Value,
+        fetched_at: &Timestamp,
+    ) -> Result<()> {
+        Store::put_snapshot(self, resource, data, fetched_at)
+    }
+    fn remove_snapshot(&self, resource: &ResourceName) -> Result<bool> {
+        Store::remove_snapshot(self, resource)
+    }
+    fn snapshot(&self, resource: &ResourceName) -> Result<Option<Snapshot>> {
+        Store::snapshot(self, resource)
+    }
+    fn snapshot_resources(&self) -> Result<Vec<ResourceName>> {
+        Store::snapshot_resources(self)
+    }
+    fn prune(&self) -> Result<PruneReport> {
+        Store::prune(self)
+    }
+    fn prune_at(&self, today: &str) -> Result<PruneReport> {
+        Store::prune_at(self, today)
     }
 }
 

@@ -22,7 +22,8 @@
 //!   `INVALID_TWO_FACTOR_CODE`) become a redacted `SyncError::Api`. Every
 //!   other answer, success or error (`COMPANY_FORBIDDEN` included), comes
 //!   back as a [`ProxyResponse`] with the body unchanged.
-//! - Request and response bodies are limited to [`PROXY_BODY_LIMIT`].
+//! - Request and response bodies are limited to [`PROXY_BODY_LIMIT`]: a
+//!   larger one is `PAYLOAD_TOO_LARGE`, found before any of it is parsed.
 //! - No streaming: the whole body is read before the call returns.
 
 use std::fmt;
@@ -374,11 +375,13 @@ fn is_forbidden(method: ProxyMethod, path: &str) -> bool {
         .any(|forbidden| rest == *forbidden || rest.starts_with(&format!("{forbidden}/")))
 }
 
+/// `PAYLOAD_TOO_LARGE`, found before anything of the body is parsed: from
+/// `Content-Length`, or while the body streams in.
 fn too_large(what: &str) -> SyncError {
-    SyncError::Decode(<serde_json::Error as serde::de::Error>::custom(format!(
+    SyncError::PayloadTooLarge(format!(
         "{what} body exceeds the {} MiB limit",
         PROXY_BODY_LIMIT / (1024 * 1024)
-    )))
+    ))
 }
 
 #[cfg(test)]

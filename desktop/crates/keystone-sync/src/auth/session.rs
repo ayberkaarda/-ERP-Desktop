@@ -165,6 +165,19 @@ impl Session {
             .sign_in(&TokenWrite::new(), &self.profile, tokens)
     }
 
+    /// Drops the tokens of sign-in `generation` and nothing else: under the
+    /// session lock (a refresh in flight finishes first and cannot write
+    /// them back), a compare-and-set on the generation, so a later sign-in
+    /// keeps its tokens. Generation, deactivation mark and local data stay;
+    /// the next call asks for a sign-in. For a revocation the server
+    /// announced (realtime `.session.revoked`). `true` when the tokens of
+    /// `generation` were current and are gone.
+    pub async fn forget_tokens(&self, generation: u64) -> Result<bool> {
+        let _tokens = self.gate.lock().await;
+        self.store
+            .sign_out(&TokenWrite::new(), &self.profile, generation)
+    }
+
     /// While the guard lives, no [`Session::sign_in`] of this profile
     /// completes. Hold it only for short synchronous work.
     pub fn hold(&self) -> RwLockReadGuard<'_, ()> {

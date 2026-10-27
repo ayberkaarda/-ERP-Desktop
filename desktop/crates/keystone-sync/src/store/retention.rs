@@ -53,13 +53,14 @@ pub struct PruneReport {
 
 impl Store {
     /// Prunes against today's UTC date.
-    pub fn prune(&self) -> Result<PruneReport> {
+    pub(crate) fn prune(&self) -> Result<PruneReport> {
         let policy = self.retention();
         self.write(|tx| prune_in(tx, &policy, None))
     }
 
     /// Prunes as if today were `today` (`YYYY-MM-DD`).
-    pub fn prune_at(&self, today: &str) -> Result<PruneReport> {
+    #[cfg_attr(not(feature = "raw-store"), allow(dead_code))]
+    pub(crate) fn prune_at(&self, today: &str) -> Result<PruneReport> {
         let policy = self.retention();
         self.write(|tx| prune_in(tx, &policy, Some(today)))
     }

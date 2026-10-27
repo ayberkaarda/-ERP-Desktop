@@ -49,6 +49,7 @@ pub mod paths {
     pub const PUSH: &str = "/api/v1/sync/push";
     pub const DEVICE_LOGIN: &str = "/api/v1/auth/device";
     pub const DEVICE_REFRESH: &str = "/api/v1/auth/device/refresh";
+    pub const PASSWORD_CHANGE: &str = "/api/v1/auth/password/change";
 }
 
 /// Server profile chosen at runtime (never baked in at build time).

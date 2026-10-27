@@ -13,16 +13,19 @@
 //! # External API (the desktop shell)
 //!
 //! The shell enters the crate through three doors:
-//! - [`engine::SyncEngine`]: local reads (`list`, `get`), writes
-//!   (`enqueue`, checked against `write_policy`), outbox and Conflict Inbox
-//!   work (`outbox_entries`, `retry`, `discard`, `conflict_records`,
-//!   `resolve_conflict*`), `sign_out`, status (`status`, `subscribe`,
-//!   `subscribe_changes`) and the loop ([`engine::sync_loop`]).
-//! - [`auth::Session`]: sign-in (`Session::sign_in`) and the token lock.
-//! - [`client::HttpClient`]: device sign-in, server meta and online calls.
+//! - [`engine::SyncEngine`]: local reads (`list`, `get`, `snapshot`),
+//!   writes (`enqueue`, checked against `write_policy`; `put_snapshot`,
+//!   bound to the sign-in generation of the answer), outbox and Conflict
+//!   Inbox work (`outbox_entries`, `retry`, `discard`, `conflict_records`,
+//!   `resolve_conflict*`), `prune`, `sign_out`, status (`status`,
+//!   `subscribe`, `subscribe_changes`) and the loop ([`engine::sync_loop`]).
+//! - [`auth::Session`]: sign-in (`Session::sign_in`), the token lock and
+//!   `forget_tokens` (drops the tokens of one generation, keeps the data).
+//! - [`client::HttpClient`]: device sign-in, server meta, online calls and
+//!   `change_password`.
 //!
 //! Plus the plain types they take and return: [`store::Store`]
-//! (`open`, retention, specs, snapshots), [`store::DbKey`],
+//! (`open`, retention policy, specs, `local_copy`), [`store::DbKey`],
 //! [`store::offline_manifest`], [`outbox::NewMutation`], [`wire`] and
 //! [`error`].
 //!
@@ -69,6 +72,58 @@
 //! }
 //! ```
 //!
+//! Snapshots, resource registration and retention pruning are engine work
+//! too (verified sign-in, work seal, generation of the answer):
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store, name: &keystone_sync::wire::ResourceName) {
+//!     let _ = store.snapshot(name);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store, name: &keystone_sync::wire::ResourceName) {
+//!     let at = keystone_sync::wire::Timestamp("2026-10-26T09:30:00+03:00".into());
+//!     let _ = store.put_snapshot(name, &serde_json::Value::Null, &at);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store, name: &keystone_sync::wire::ResourceName) {
+//!     let _ = store.remove_snapshot(name);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store) {
+//!     let _ = store.snapshot_resources();
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store, name: keystone_sync::wire::ResourceName) {
+//!     let _ = store.register(&keystone_sync::store::ResourceSpec::new(name));
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store, name: keystone_sync::wire::ResourceName) {
+//!     let _ = store.register_all(&[keystone_sync::store::ResourceSpec::new(name)]);
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store) {
+//!     let _ = store.prune();
+//! }
+//! ```
+//!
+//! ```compile_fail,E0624
+//! fn raw(store: &keystone_sync::store::Store) {
+//!     let _ = store.prune_at("2026-10-26");
+//! }
+//! ```
+//!
 //! The crate's own integration tests reach these through `store::raw`,
 //! which exists only with the `raw-store` feature (a dev-dependency of the
 //! crate on itself turns it on for them).
@@ -84,13 +139,19 @@
 //! use std::sync::Arc;
 //! use keystone_sync::client::HttpClient;
 //! use keystone_sync::engine::SyncEngine;
-//! use keystone_sync::store::{ListQuery, Store};
-//! use keystone_sync::wire::ResourceName;
+//! use keystone_sync::store::{ListQuery, ResourceSpec, Store};
+//! use keystone_sync::wire::{ResourceName, Timestamp};
 //! fn shell(client: HttpClient, db: Arc<Store>, name: &ResourceName) {
+//!     let _ = ResourceSpec::new(name.clone());
 //!     let engine = SyncEngine::new(client, db.clone());
 //!     let _ = engine.list(name, &ListQuery::default());
 //!     let _ = engine.write_policy(name);
 //!     let _ = engine.outbox_entries();
+//!     let _ = engine.snapshot(name);
+//!     let at = Timestamp("2026-10-26T09:30:00+03:00".into());
+//!     let _ = engine.put_snapshot(name, &serde_json::Value::Null, &at, 1);
+//!     let _ = engine.prune();
+//!     let _ = db.used_bytes();
 //!     let _ = db.resource_specs();
 //!     let _ = db.local_copy(name);
 //!     let _: Option<keystone_sync::outbox::Outbox> = None;

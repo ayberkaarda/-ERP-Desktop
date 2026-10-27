@@ -845,7 +845,8 @@ async fn response_bodies_over_the_limit_are_refused() {
         .proxy(&get("/api/v1/files/over-limit"))
         .await
         .expect_err("over the limit");
-    assert_eq!(over.code(), "DECODE_ERROR");
+    assert_eq!(over.code(), "PAYLOAD_TOO_LARGE");
+    assert!(matches!(over, SyncError::PayloadTooLarge(_)), "{over:?}");
 }
 
 #[tokio::test]
@@ -857,7 +858,7 @@ async fn request_bodies_over_the_limit_are_refused_unsent() {
     request.method = ProxyMethod::Post;
     request.body = Some(vec![b' '; PROXY_BODY_LIMIT + 1]);
     let error = client.proxy(&request).await.expect_err("too large");
-    assert_eq!(error.code(), "DECODE_ERROR");
+    assert_eq!(error.code(), "PAYLOAD_TOO_LARGE");
     assert!(received(&server).await.is_empty());
 }
 
