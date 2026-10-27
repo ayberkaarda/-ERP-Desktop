@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -110,7 +111,10 @@ final class PullService
             $session = $cursor === null || $device === null || $sessionKey === null ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $sessionKey, $cursor);
             // A cursor naming a session that is gone (finished, replaced by a newer download of
             // the device) or that never issued this position continues nothing: it resets.
-            $orphan = $sessionKey !== null && $session === null;
+            $orphan = $sessionKey !== null ? $session === null
+                : ($cursor !== null && ! DB::table('sync_cursor_scopes')
+                    ->where('user_id', $user->id)->where('company_id', $companyId)->where('resource', $resource->name)
+                    ->where('position_hash', self::positionHash($cursor->toArray()))->exists());
             $observed = $device === null ? null : $this->downloads->observe($device, $user->id, $companyId, $resource->name);
             $plans[] = [$resource, $adapter, $cursor, $session, $orphan, $observed, $generation, max(1, $limit)];
         }
@@ -153,6 +157,18 @@ final class PullService
                         ? $this->downloads->finish($session)
                         : $this->downloads->advance($session, $next);
                 }
+            }
+        }
+
+        foreach ($results as $page) {
+            if ($page['next_cursor']['session'] === null) {
+                $position = $page['next_cursor'];
+                unset($position['session']);
+                $this->db->table('sync_cursor_scopes')->upsert([
+                    'user_id' => $user->id, 'company_id' => $companyId, 'resource' => $page['resource'],
+                    'position_hash' => self::positionHash($position),
+                    'created_at' => Carbon::now(),
+                ], ['user_id', 'company_id', 'resource', 'position_hash'], ['created_at']);
             }
         }
 
@@ -440,6 +456,12 @@ final class PullService
 
         /** @var literal-string $fragment */
         return new Expression($fragment);
+    }
+
+    /** @param array<string, mixed> $position */
+    private static function positionHash(array $position): string
+    {
+        return hash('sha256', $position['txid'].'|'.($position['after_id'] ?? '').'|'.$position['gen']);
     }
 
     private static function sessionValue(mixed $value): bool

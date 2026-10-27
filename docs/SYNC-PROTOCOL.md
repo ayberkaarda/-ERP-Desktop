@@ -125,6 +125,7 @@ LIMIT :limit + 1
 
 - İlk indirmede `cursor: null` gönderilir; sunucu `{txid: "0", after_id: null, gen: <güncel nesil>, session: null}` kabul eder.
 - `has_more = true` ise `next_cursor`, sayfadaki son olayın konumudur. `has_more = false` ise `next_cursor = {txid: horizon, after_id: null, session: null}`.
+- Cursor kullanıcı, şirket ve kaynak akışına bağlıdır. Artımlı konumların verildiği kapsam sunucuda saklanır; başka şirkette veya kaydı bulunmayan eski cursor ile devam `reset: true, reset_reason: cursor_expired` üretir. Kapsam kayıtları tombstone saklama süresi sonunda temizlenir.
 - Cursor her zaman dört alan taşır: `txid`, `after_id`, `gen`, `session`. İstemci aldığı `next_cursor`'ı bütün olarak, değiştirmeden geri gönderir; `session` alanı eksik olan cursor `SYNC_CURSOR_INVALID` alır.
 - `next_cursor.gen` her zaman kaynağın güncel görünürlük neslidir.
 - İstemci sayfaları sırayla uygular ve `next_cursor`'ı sayfayı yerel depoya yazdığı transaction içinde saklar.
