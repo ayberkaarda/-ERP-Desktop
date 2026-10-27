@@ -1,9 +1,8 @@
 //! Retention: document window boundaries, size cap, automatic prune after N
 //! writes. Master data is never removed.
 
-use keystone_sync::store::{
-    DbKey, ListQuery, MirrorStore, PruneReport, ResourceSpec, RetentionPolicy, Store,
-};
+use keystone_sync::store::raw::prelude::*;
+use keystone_sync::store::{DbKey, ListQuery, PruneReport, ResourceSpec, RetentionPolicy, Store};
 use keystone_sync::wire::{ResourceName, ResourceRow};
 use serde_json::{Value, json};
 use uuid::Uuid;

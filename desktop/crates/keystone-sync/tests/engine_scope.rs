@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use engine_support::*;
 use keystone_sync::engine::Trigger;
 use keystone_sync::outbox::OutboxState;
-use keystone_sync::store::MirrorStore;
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::wire::MutationOp;
 use serde_json::{Value, json};
 use uuid::Uuid;

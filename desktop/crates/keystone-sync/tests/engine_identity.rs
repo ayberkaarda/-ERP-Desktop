@@ -14,7 +14,7 @@ use engine_support::*;
 use keystone_sync::auth::TokenStore;
 use keystone_sync::conflicts::{ConflictInbox, ConflictRecord};
 use keystone_sync::engine::{SignOut, SyncState, Trigger};
-use keystone_sync::store::MirrorStore;
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::wire::{MutationOp, ResourceRow, Timestamp};
 use serde_json::{Value, json};
 use uuid::Uuid;

@@ -5,7 +5,8 @@
 mod engine_support;
 
 use engine_support::*;
-use keystone_sync::store::{Filter, ListQuery, MirrorStore, ResourceSpec, SortKey};
+use keystone_sync::store::raw::prelude::*;
+use keystone_sync::store::{Filter, ListQuery, ResourceSpec, SortKey};
 use keystone_sync::wire::{MutationOp, ResourceRow};
 use serde_json::json;
 use uuid::Uuid;

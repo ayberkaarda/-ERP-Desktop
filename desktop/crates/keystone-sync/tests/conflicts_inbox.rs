@@ -1,5 +1,6 @@
 use keystone_sync::conflicts::{ConflictInbox, ConflictStore, ResolutionAction, allowed_choices};
 use keystone_sync::outbox::{NewMutation, Outbox, OutboxQueue, OutboxState};
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::store::{DbKey, Store};
 use keystone_sync::wire::*;
 use serde_json::{Map, Value, json};

@@ -79,6 +79,8 @@ pub struct Snapshot {
 /// `read`/`write` callback, and never let such a callback wait on another
 /// store call, on the same thread or another one. Same-thread nesting fails
 /// fast; cross-thread waits fail after the lock timeout.
+// Some methods are used only by the crate's tests (`raw-store`).
+#[cfg_attr(not(feature = "raw-store"), allow(dead_code))]
 pub trait MirrorStore {
     /// Stored cursor of `resource`; `None` before its first page.
     fn cursor(&self, resource: &ResourceName) -> Result<Option<Cursor>>;
@@ -257,7 +259,7 @@ impl Store {
     }
 
     /// Push answers may advance existing rows, but cannot resurrect absent rows.
-    pub fn put_push_row(&self, resource: &ResourceName, row: &ResourceRow) -> Result<bool> {
+    pub(crate) fn put_push_row(&self, resource: &ResourceName, row: &ResourceRow) -> Result<bool> {
         let policy = self.retention();
         self.write(|tx| {
             let Some(version) = row.version else {
@@ -279,7 +281,7 @@ impl Store {
     }
 
     /// A delete answer cannot remove a row newer than the mutation's base.
-    pub fn remove_push_row(
+    pub(crate) fn remove_push_row(
         &self,
         resource: &ResourceName,
         id: Uuid,
@@ -371,7 +373,7 @@ impl Store {
     /// Drops the rows and the cursor of `resource`, so the next pull is a
     /// full download. Returns the number of rows removed.
     /// Pages requested before this call come back `Stale` (the epoch moves).
-    pub fn reset_resource(&self, resource: &ResourceName) -> Result<usize> {
+    pub(crate) fn reset_resource(&self, resource: &ResourceName) -> Result<usize> {
         self.write(|tx| {
             tx.execute(
                 "DELETE FROM store_cursors WHERE resource = ?1",
@@ -452,7 +454,7 @@ impl Store {
     /// and snapshot, and bumps the epoch of every registered resource (pages
     /// requested before come back `Stale`). Registered specs stay. Returns
     /// the registered resources. Used for sign-out and account wipes.
-    pub fn clear_mirror_on(tx: &Connection) -> Result<Vec<ResourceName>> {
+    pub(crate) fn clear_mirror_on(tx: &Connection) -> Result<Vec<ResourceName>> {
         let registered = all_registered(tx)?;
         for reg in &registered {
             clear(tx, reg)?;

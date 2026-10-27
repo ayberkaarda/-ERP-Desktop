@@ -877,6 +877,7 @@ name = "keystone-sync"
 version = "0.1.0"
 dependencies = [
  "jsonschema",
+ "keystone-sync",
  "reqwest",
  "rusqlite",
  "rustls",

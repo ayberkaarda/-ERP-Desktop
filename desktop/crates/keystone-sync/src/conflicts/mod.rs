@@ -70,7 +70,7 @@ pub struct ConflictStore {
     store: Arc<Store>,
 }
 impl ConflictStore {
-    pub fn new(store: Arc<Store>) -> Self {
+    pub(crate) fn new(store: Arc<Store>) -> Self {
         Self { store }
     }
     pub fn store(&self) -> &Arc<Store> {
@@ -233,7 +233,7 @@ impl ConflictStore {
 /// Inside the caller's write transaction: removes every conflict record
 /// and reserved draft id (sign-out and account wipes). Returns the number
 /// of records removed.
-pub fn clear_on(tx: &Connection) -> Result<usize> {
+pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
     tx.execute("DELETE FROM conflict_draft_resolutions", [])?;
     Ok(tx.execute("DELETE FROM conflict_records", [])?)
 }
@@ -397,6 +397,9 @@ fn use_existing(
     }
     release_edges(tx, record.idempotency_key, Some((record.id, candidate)))?;
     cancel(tx, record.idempotency_key, true)?;
+    // The draft id is replaced by the candidate: its local create mark goes
+    // too, so a later push answer for that id cannot recreate the row.
+    Store::remove_draft_on(tx, &record.resource, record.id)?;
     tx.execute(
         "DELETE FROM conflict_records WHERE key=?1",
         [record.idempotency_key.to_string()],

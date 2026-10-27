@@ -108,14 +108,14 @@ pub struct Outbox {
     store: Arc<Store>,
 }
 impl Outbox {
-    pub fn new(store: Arc<Store>) -> Self {
+    pub(crate) fn new(store: Arc<Store>) -> Self {
         Self { store }
     }
     pub fn store(&self) -> &Arc<Store> {
         &self.store
     }
     /// Includes rejected and quarantined entries for the user-facing queue.
-    pub fn list(&self) -> Result<Vec<OutboxEntry>> {
+    pub(crate) fn list(&self) -> Result<Vec<OutboxEntry>> {
         self.store.read(|conn| {
             ensure_unsealed(conn)?;
             load(conn)
@@ -126,7 +126,7 @@ impl Outbox {
 /// Inside the caller's write transaction: removes every outbox entry,
 /// settled key and remap (sign-out and account wipes). Returns the number
 /// of entries removed.
-pub fn clear_on(tx: &Connection) -> Result<usize> {
+pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
     let removed = tx.execute("DELETE FROM outbox_entries", [])?;
     tx.execute_batch(
         "DELETE FROM outbox_settled;
@@ -268,6 +268,7 @@ fn reaches(start: Uuid, target: Uuid, all: &[OutboxEntry]) -> bool {
 impl OutboxQueue for Outbox {
     fn enqueue_outcome(&self, mut draft: NewMutation) -> Result<EnqueueOutcome> {
         self.store.write(|tx| {
+            ensure_unsealed(tx)?;
             if draft.id.get_version_num() != 7
                 || draft.payload.contains_key("version")
                 || (draft.op == MutationOp::Create) != draft.base_version.is_none()
@@ -594,6 +595,7 @@ impl OutboxQueue for Outbox {
     }
     fn retry(&self, key: Uuid) -> Result<()> {
         self.store.write(|tx| {
+            ensure_unsealed(tx)?;
             if tx.execute("UPDATE outbox_entries SET state='pending',attempts=0,last_error=NULL WHERE key=?1 AND state IN ('rejected','quarantined')", [key.to_string()])? != 1 { return Err(invalid("entry is not retryable")); }
             tx.execute("UPDATE outbox_entries SET last_error=NULL WHERE last_error='SYNC_DEPENDENCY_FAILED'", [])?;
             Ok(())
@@ -601,6 +603,7 @@ impl OutboxQueue for Outbox {
     }
     fn discard(&self, key: Uuid) -> Result<()> {
         self.store.write(|tx| {
+            ensure_unsealed(tx)?;
             let all = load(tx)?;
             if !all.iter().any(|e| e.mutation.idempotency_key == key && matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)) { return Err(invalid("entry is not discardable")); }
             for entry in &all {

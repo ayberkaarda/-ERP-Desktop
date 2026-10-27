@@ -6,8 +6,9 @@ use std::thread;
 use std::time::Duration;
 
 use keystone_sync::SyncError;
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::store::{
-    DbKey, ListQuery, MIGRATIONS, Migration, MirrorStore, READER_POOL_SIZE, ResourceSpec, Store,
+    DbKey, ListQuery, MIGRATIONS, Migration, READER_POOL_SIZE, ResourceSpec, Store,
 };
 use keystone_sync::wire::{ResourceName, ResourceRow};
 use serde_json::{Value, json};
