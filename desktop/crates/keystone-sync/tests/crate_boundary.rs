@@ -359,3 +359,75 @@ fn use_existing_drops_the_local_create_mark() {
         .unwrap();
     assert!(!marked(&store), "use_existing leaves no orphan create mark");
 }
+
+/// Same order as the server (`SYNC-PROTOCOL.md` push step 8,
+/// `PushService`): target constraints before `draft_only`.
+#[test]
+fn target_constraints_are_checked_before_draft_only() {
+    let manifest = shipped();
+    let policy = manifest
+        .specs
+        .iter()
+        .find(|s| s.resource.as_str() == "stock-documents")
+        .and_then(|s| s.write.clone())
+        .expect("stock-documents policy");
+    let row = json!({"doc_type": "receipt", "status": "posted"});
+    let update = draft(
+        MutationOp::Update,
+        "stock-documents",
+        Uuid::now_v7(),
+        json!({"note": "x"}),
+    );
+    let refused = policy.check(&update, row.as_object());
+    assert_eq!(code(refused), "SYNC_OFFLINE_WRITE_NOT_ALLOWED");
+    let counted = json!({"doc_type": "count", "status": "posted"});
+    assert_eq!(
+        code(policy.check(&update, counted.as_object())),
+        "DOCUMENT_LOCKED"
+    );
+}
+
+/// A mismatch stored by an earlier run shows in the status of an engine
+/// built later, before any network call (offline start).
+#[tokio::test]
+async fn stored_manifest_mismatch_is_published_at_construction() {
+    let env = shipped_env().await;
+    synced(&env, 3).await;
+    assert!(env.engine.status().manifest_mismatch);
+    env.server.reset().await;
+
+    let client = HttpClient::new(
+        &ApiConfig {
+            base_url: env.server.uri(),
+            company_id: Uuid::parse_str(COMPANY).unwrap(),
+            user_agent: "keystone-desktop-test".into(),
+        },
+        PROFILE,
+        env.tokens.clone(),
+        &ClientOptions {
+            connect_timeout: Duration::from_secs(2),
+            request_timeout: Duration::from_secs(10),
+            allow_http_localhost: true,
+        },
+    )
+    .unwrap();
+    let reopened = SyncEngine::new(client, env.store.clone()).with_offline_manifest(shipped());
+    assert!(reopened.status().manifest_mismatch);
+    let id = Uuid::now_v7();
+    put_row(
+        &env.store,
+        "sales-quotes",
+        &id.to_string(),
+        json!({"status": "draft"}),
+    );
+    assert_eq!(
+        code(reopened.enqueue(draft(
+            MutationOp::Update,
+            "sales-quotes",
+            id,
+            json!({"note": "x"}),
+        ))),
+        "SYNC_OFFLINE_WRITE_NOT_ALLOWED"
+    );
+    assert!(reopened.status().manifest_mismatch);
+}

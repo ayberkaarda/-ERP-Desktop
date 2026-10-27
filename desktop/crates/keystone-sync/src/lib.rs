@@ -29,41 +29,41 @@
 //! Raw database, outbox and mirror access stays inside the crate, so
 //! nothing outside the engine bypasses its access checks or the work seal:
 //!
-//! ```compile_fail
+//! ```compile_fail,E0624
 //! fn raw(store: &keystone_sync::store::Store) {
-//!     let _ = store.read(|_| Ok(()));
+//!     let _ = store.read(|_| Ok::<(), keystone_sync::SyncError>(()));
 //! }
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0624
 //! fn raw(store: &keystone_sync::store::Store) {
-//!     let _ = store.write(|_| Ok(()));
+//!     let _ = store.write(|_| Ok::<(), keystone_sync::SyncError>(()));
 //! }
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0624
 //! fn raw(store: std::sync::Arc<keystone_sync::store::Store>) {
 //!     let _ = keystone_sync::outbox::Outbox::new(store);
 //! }
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0624
 //! fn raw(store: std::sync::Arc<keystone_sync::store::Store>) {
 //!     let _ = keystone_sync::conflicts::ConflictStore::new(store);
 //! }
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0603
 //! use keystone_sync::store::MirrorStore;
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0624
 //! fn raw(store: &keystone_sync::store::Store, name: &keystone_sync::wire::ResourceName) {
 //!     let _ = store.reset_resource(name);
 //! }
 //! ```
 //!
-//! ```compile_fail
+//! ```compile_fail,E0624
 //! fn raw(store: &keystone_sync::store::Store, name: &keystone_sync::wire::ResourceName) {
 //!     let _ = store.list(name, &keystone_sync::store::ListQuery::default());
 //! }
@@ -72,6 +72,11 @@
 //! The crate's own integration tests reach these through `store::raw`,
 //! which exists only with the `raw-store` feature (a dev-dependency of the
 //! crate on itself turns it on for them).
+//!
+//! The error codes on the blocks above (E0624 private method or function,
+//! E0603 private item) are checked by nightly rustdoc only; on stable the
+//! control below compiles every path and type they use, so a block cannot
+//! fail for a misspelt name instead of privacy.
 //!
 //! The guarded doors are there (positive control of the blocks above):
 //!
@@ -87,6 +92,10 @@
 //!     let _ = engine.write_policy(name);
 //!     let _ = engine.outbox_entries();
 //!     let _ = db.resource_specs();
+//!     let _ = db.local_copy(name);
+//!     let _: Option<keystone_sync::outbox::Outbox> = None;
+//!     let _: Option<keystone_sync::conflicts::ConflictStore> = None;
+//!     let _: keystone_sync::Result<()> = Ok::<(), keystone_sync::SyncError>(());
 //! }
 //! ```
 

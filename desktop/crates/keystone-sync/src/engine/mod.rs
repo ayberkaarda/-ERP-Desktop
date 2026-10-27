@@ -443,9 +443,17 @@ impl<A: SyncApi> SyncEngine<A> {
     /// Specs and content version of the compiled offline manifest
     /// ([`crate::store::offline_manifest`]). The version is compared with
     /// every sync manifest (`SyncStatus::manifest_mismatch`).
+    /// The status shows a mismatch stored by an earlier run at once, so an
+    /// offline start warns before any manifest arrives.
     pub fn with_offline_manifest(mut self, manifest: OfflineManifest) -> Self {
         self.specs = manifest.specs;
         self.offline_version = Some(manifest.manifest_version);
+        // A store failure leaves `false`; `enqueue` reads the store itself.
+        if let Ok(session) = local::session(&self.store) {
+            let mismatch = self.mismatch(session.offline_manifest_version);
+            self.status
+                .send_modify(|status| status.manifest_mismatch = mismatch);
+        }
         self
     }
 

@@ -139,16 +139,7 @@ impl WritePolicy {
         let Some(row) = current.filter(|_| draft.op != MutationOp::Create) else {
             return Ok(());
         };
-        if let Some(rule) = &self.draft_only
-            && let Some(value) = field_value(row, &rule.field)
-            && !value.is_null()
-            && !value.as_str().is_some_and(|v| rule.allows(v))
-        {
-            return Err(refused(
-                ErrorCode::DocumentLocked,
-                "the document is no longer a draft",
-            ));
-        }
+        // Server order (push step 8): target constraints, then draft_only.
         for (field, allowed) in &self.target_constraints {
             let ok = field_value(row, field)
                 .and_then(Value::as_str)
@@ -159,6 +150,16 @@ impl WritePolicy {
                     "this record cannot be changed offline",
                 ));
             }
+        }
+        if let Some(rule) = &self.draft_only
+            && let Some(value) = field_value(row, &rule.field)
+            && !value.is_null()
+            && !value.as_str().is_some_and(|v| rule.allows(v))
+        {
+            return Err(refused(
+                ErrorCode::DocumentLocked,
+                "the document is no longer a draft",
+            ));
         }
         Ok(())
     }
