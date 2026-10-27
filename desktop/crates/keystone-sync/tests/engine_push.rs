@@ -237,7 +237,7 @@ async fn busy_and_rate_limited_pushes_are_resent_with_the_same_keys_after_retry_
                     .insert_header("Retry-After", "1")
                     .set_body_json(error_body("IDEMPOTENCY_IN_PROGRESS", "busy")),
                 2 => ResponseTemplate::new(429)
-                    .insert_header("Retry-After", "5")
+                    .insert_header("Retry-After", "2")
                     .set_body_json(error_body("TOO_MANY_ATTEMPTS", "slow down")),
                 _ => {
                     let results: Vec<Value> = body(request)["mutations"]
@@ -283,7 +283,8 @@ async fn busy_and_rate_limited_pushes_are_resent_with_the_same_keys_after_retry_
     ))
     .unwrap();
 
-    for (attempt, (code, wait)) in [("IDEMPOTENCY_IN_PROGRESS", 1), ("TOO_MANY_ATTEMPTS", 5)]
+    let started = std::time::Instant::now();
+    for (attempt, (code, wait)) in [("IDEMPOTENCY_IN_PROGRESS", 1), ("TOO_MANY_ATTEMPTS", 2)]
         .into_iter()
         .enumerate()
     {
@@ -309,6 +310,8 @@ async fn busy_and_rate_limited_pushes_are_resent_with_the_same_keys_after_retry_
     }
 
     let report = e.run_once(Trigger::Manual).await.unwrap();
+    // Each run waited out the previous Retry-After (1 s, then 2 s).
+    assert!(started.elapsed() >= std::time::Duration::from_secs(3));
     assert_eq!((report.pushed, report.rejected), (1, 1));
     let sent = bodies(&env.server, PUSH).await;
     assert_eq!(sent.len(), 3);

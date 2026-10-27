@@ -4,7 +4,9 @@
 //! probes after 1/2/4/8/16/30 s ([`offline_probe_delay`]); after a failure
 //! the backoff (1 s → 300 s, ±20%), never sooner than `Retry-After`; no
 //! timer while sign-in is required. Triggers sent through [`SyncHandle`]
-//! (network change, manual, realtime) run at once; triggers that queue up
+//! (network change, manual, realtime) run at once, except that no run
+//! starts before the last `Retry-After` has passed (the engine waits it
+//! out, see [`SyncEngine::run_once`]); triggers that queue up
 //! while a run is busy collapse into one run, and a follow-up a cancelled
 //! run owed to a coalesced caller runs here.
 
@@ -15,7 +17,7 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use super::{SyncEngine, SyncState, Trigger};
-use crate::backoff::{Backoff, ONLINE_INTERVAL, offline_probe_delay};
+use crate::backoff::{Backoff, ONLINE_INTERVAL, RETRY_AFTER_MAX, offline_probe_delay};
 use crate::client::SyncApi;
 
 /// Sends triggers to a [`SyncLoop`]. Dropping every handle stops the loop.
@@ -60,7 +62,7 @@ pub fn next_delay(
         SyncState::AuthRequired => None,
         SyncState::Failed(_) => {
             let delay = backoff.delay(failures.max(1), unit);
-            Some(retry_after.map_or(delay, |r| r.max(delay)))
+            Some(retry_after.map_or(delay, |r| r.min(RETRY_AFTER_MAX).max(delay)))
         }
     }
 }

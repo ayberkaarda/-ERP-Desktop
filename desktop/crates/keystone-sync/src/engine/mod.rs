@@ -60,7 +60,7 @@ use tokio::sync::{broadcast, watch};
 use uuid::Uuid;
 
 use crate::auth::{Session, TokenWrite};
-use crate::backoff::Backoff;
+use crate::backoff::{Backoff, RETRY_AFTER_MAX};
 use crate::client::SyncApi;
 use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
 use crate::error::{Result, SyncError};
@@ -145,7 +145,7 @@ pub struct SyncStatus {
     pub quarantined: usize,
     /// Consecutive failed runs.
     pub failures: u32,
-    /// `Retry-After` of the last failure.
+    /// `Retry-After` of the last failure: no run starts before it passes.
     pub retry_after: Option<Duration>,
 }
 
@@ -352,6 +352,8 @@ pub struct SyncEngine<A> {
     /// Resources changed by the running pass and not announced yet.
     unreported: Mutex<Vec<ResourceName>>,
     failures: AtomicU32,
+    /// End of the last failure's `Retry-After`: no pass starts before it.
+    retry_not_before: Mutex<Option<tokio::time::Instant>>,
     status: watch::Sender<SyncStatus>,
     changes: broadcast::Sender<ResourcesChanged>,
     /// Signalled when a cancelled run leaves a promised follow-up behind.
@@ -393,6 +395,7 @@ impl<A: SyncApi> SyncEngine<A> {
             pending_pulls: Mutex::default(),
             unreported: Mutex::default(),
             failures: AtomicU32::new(0),
+            retry_not_before: Mutex::default(),
             status: watch::Sender::new(SyncStatus::default()),
             changes: broadcast::channel(64).0,
             follow_up: tokio::sync::Notify::new(),
@@ -425,7 +428,10 @@ impl<A: SyncApi> SyncEngine<A> {
     /// One manifest → push → pull pass. When a run is already in progress
     /// this only schedules one follow-up run (whatever the number of calls)
     /// and returns at once with `coalesced: true`; the running call performs
-    /// the follow-up before it returns.
+    /// the follow-up before it returns. A pass never starts before the
+    /// `Retry-After` of the last failed run (at most [`RETRY_AFTER_MAX`])
+    /// has passed: the call waits for it, while `status()` shows the
+    /// failure and its `retry_after`.
     pub async fn run_once(&self, trigger: Trigger) -> Result<SyncReport> {
         if !self.enter_gate() {
             return Ok(SyncReport {
@@ -441,6 +447,10 @@ impl<A: SyncApi> SyncEngine<A> {
         };
         let mut trigger = trigger;
         loop {
+            // Every pass, whatever its trigger (manual, realtime, network,
+            // follow-up), waits out the last `Retry-After`; callers that
+            // arrive meanwhile are coalesced into the follow-up.
+            self.wait_retry_after().await;
             let result = self.pass(trigger).await;
             // Checking for a follow-up and freeing the slot is one step: a
             // caller that finds the slot taken is always served.
@@ -889,7 +899,30 @@ impl<A> SyncEngine<A> {
         });
     }
 
+    /// Sleeps until the last failure's `Retry-After` has passed.
+    async fn wait_retry_after(&self) {
+        loop {
+            let at = *self
+                .retry_not_before
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            match at {
+                Some(at) if tokio::time::Instant::now() < at => {
+                    tokio::time::sleep_until(at).await;
+                }
+                _ => return,
+            }
+        }
+    }
+
+    /// Publishes `state`; `retry_after` also sets the earliest start of the
+    /// next pass (`None` lifts it).
     fn set_state(&self, state: SyncState, retry_after: Option<Duration>) -> Result<()> {
+        *self
+            .retry_not_before
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) =
+            retry_after.map(|wait| tokio::time::Instant::now() + wait.min(RETRY_AFTER_MAX));
         let counts = local::counts(&self.store);
         let failures = self.failures.load(Ordering::SeqCst);
         self.status.send_modify(|status| {

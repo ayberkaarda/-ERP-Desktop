@@ -27,12 +27,17 @@ const PROFILE: &str = "engine-unit";
 const PUSH_LOST: u8 = 0;
 const PUSH_APPLY: u8 = 1;
 const PUSH_NOT_SENT: u8 = 2;
+/// 409 `IDEMPOTENCY_IN_PROGRESS` with `Retry-After: 30`.
+const PUSH_BUSY: u8 = 3;
+const BUSY_RETRY_AFTER: Duration = Duration::from_secs(30);
 
 #[derive(Debug)]
 struct FakeApi {
     session: Arc<Session>,
     manifests: AtomicUsize,
     push_mode: AtomicU8,
+    /// Idempotency keys of every push, in order.
+    pushes: Mutex<Vec<Vec<Uuid>>>,
 }
 
 impl FakeApi {
@@ -41,7 +46,12 @@ impl FakeApi {
             session,
             manifests: AtomicUsize::new(0),
             push_mode: AtomicU8::new(PUSH_LOST),
+            pushes: Mutex::default(),
         }
+    }
+
+    fn pushes(&self) -> Vec<Vec<Uuid>> {
+        self.pushes.lock().unwrap().clone()
     }
 }
 
@@ -102,7 +112,22 @@ impl SyncApi for FakeApi {
     }
 
     async fn push(&self, request: &PushRequest) -> Result<PushResponse> {
+        self.pushes.lock().unwrap().push(
+            request
+                .mutations
+                .iter()
+                .map(|m| m.idempotency_key)
+                .collect(),
+        );
         match self.push_mode.load(Ordering::SeqCst) {
+            PUSH_BUSY => Err(SyncError::Api {
+                status: 409,
+                code: crate::wire::ErrorCode::IdempotencyInProgress,
+                message: "busy".into(),
+                fields: Default::default(),
+                retry_after: Some(BUSY_RETRY_AFTER),
+                redacted: None,
+            }),
             PUSH_APPLY => {
                 let results: Vec<Value> = request
                     .mutations
@@ -385,4 +410,63 @@ async fn unsent_pushes_do_not_count_towards_the_quarantine() {
     assert_eq!(entries[0].state, OutboxState::Pending);
     assert_eq!(entries[0].attempts, 0);
     let _ = PUSH_LOST;
+}
+
+/// After a failure with `Retry-After`, no trigger (driver timer, manual,
+/// network change, realtime, probe, a direct `run_once`) sends anything
+/// before it has passed; then the same keys go out.
+#[tokio::test(start_paused = true)]
+async fn no_request_goes_out_before_retry_after_whatever_the_trigger() {
+    let f = fixture();
+    let api = &f.engine.api;
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.enqueue(create()).unwrap();
+    api.push_mode.store(PUSH_BUSY, Ordering::SeqCst);
+    let error = f.engine.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "IDEMPOTENCY_IN_PROGRESS");
+    assert_eq!(f.engine.status().retry_after, Some(BUSY_RETRY_AFTER));
+    let failed_at = tokio::time::Instant::now();
+    let manifests = api.manifests.load(Ordering::SeqCst);
+    let first = api.pushes();
+    assert_eq!(first.len(), 1);
+    api.push_mode.store(PUSH_APPLY, Ordering::SeqCst);
+
+    let (handle, sync_loop) = super::sync_loop(f.engine.clone());
+    let driver = tokio::spawn(sync_loop.run());
+    let engine = f.engine.clone();
+    let direct = tokio::spawn(async move { engine.run_once(Trigger::Manual).await });
+    let quiet = |when: &str| {
+        assert_eq!(
+            api.manifests.load(Ordering::SeqCst),
+            manifests,
+            "a request went out before Retry-After ({when})"
+        );
+        assert_eq!(api.pushes().len(), 1, "a push went out early ({when})");
+    };
+    for trigger in [
+        Trigger::Manual,
+        Trigger::NetworkChanged,
+        Trigger::Realtime(ResourceName("parties".into())),
+        Trigger::Probe,
+    ] {
+        assert!(handle.trigger(trigger.clone()));
+        tokio::time::advance(Duration::from_secs(7)).await;
+        quiet(&format!("{trigger:?}"));
+    }
+    tokio::time::advance(Duration::from_millis(1_900)).await;
+    quiet("29.9 s");
+
+    tokio::time::advance(Duration::from_millis(200)).await;
+    let mut spins = 0;
+    while api.pushes().len() < 2 {
+        tokio::task::yield_now().await;
+        spins += 1;
+        assert!(spins < 100_000, "no push after Retry-After");
+    }
+    assert!(failed_at.elapsed() >= BUSY_RETRY_AFTER);
+    let pushes = api.pushes();
+    assert_eq!(pushes[1], first[0], "resent with the same keys");
+    assert!(direct.await.unwrap().is_ok());
+    drop(handle);
+    driver.abort();
 }

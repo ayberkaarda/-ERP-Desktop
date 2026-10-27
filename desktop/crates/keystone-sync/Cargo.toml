@@ -20,5 +20,5 @@ zeroize.workspace = true
 [dev-dependencies]
 jsonschema = { version = "0.60", default-features = false }
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util", "time"] }
 wiremock.workspace = true
