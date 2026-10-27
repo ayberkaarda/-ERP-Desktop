@@ -1,3 +1,4 @@
+//! Apply TakeServer rows through Store::put_push_row to preserve mirror versions.
 //! Durable conflict decisions. Writes are returned for the caller to enqueue.
 use std::sync::Arc;
 
@@ -174,15 +175,14 @@ impl ConflictStore {
                         "id",
                         "version",
                         "number",
+                        "status",
                         "created_at",
                         "updated_at",
                         "sync_txid",
                     ] {
                         payload.remove(field);
                     }
-                    if payload.contains_key("status") {
-                        payload.insert("status".into(), Value::String("draft".into()));
-                    }
+
                     draft.payload = payload;
                     tx.execute(
                         "INSERT OR IGNORE INTO conflict_draft_resolutions(id,key) VALUES (?1,?2)",
