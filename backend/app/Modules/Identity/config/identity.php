@@ -19,6 +19,7 @@ return [
     ],
 
     'device_tokens' => [
+        'max_devices_per_user' => 10,
         // Overridable through sanctum.device_access_ttl_minutes / device_refresh_ttl_days.
         'access_ttl_minutes' => 60,
         'refresh_ttl_days' => 30,
