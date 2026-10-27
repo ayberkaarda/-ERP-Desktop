@@ -1,7 +1,8 @@
 //! `cursor.session`: required, null or `^[A-Za-z0-9_-]{1,64}$`, opaque, and
 //! kept by the store exactly as received.
 
-use keystone_sync::store::{DbKey, MirrorStore, PageApply, Store};
+use keystone_sync::store::raw::prelude::*;
+use keystone_sync::store::{DbKey, PageApply, Store};
 use keystone_sync::wire::{Cursor, PullResourceResult, ResourceName, Xid8};
 use serde_json::json;
 

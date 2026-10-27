@@ -3,6 +3,7 @@
 use std::fs;
 
 use keystone_sync::SyncError;
+use keystone_sync::store::raw::prelude::*;
 use keystone_sync::store::{DbKey, MIGRATIONS, Migration, Store};
 use rusqlite::Connection;
 

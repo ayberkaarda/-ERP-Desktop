@@ -17,7 +17,14 @@ tokio = { workspace = true, features = ["macros", "time"] }
 uuid.workspace = true
 zeroize.workspace = true
 
+[features]
+# Raw store, outbox and conflict access (`store::raw`) for this crate's own
+# integration tests. The shell never enables it.
+raw-store = []
+
 [dev-dependencies]
+# Turns `raw-store` on for the integration tests only.
+keystone-sync = { path = ".", features = ["raw-store"] }
 jsonschema = { version = "0.60", default-features = false }
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util", "time"] }

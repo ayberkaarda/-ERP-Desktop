@@ -145,7 +145,8 @@ pub fn read_route(mode: ReadMode, online: bool, copy: LocalCopy) -> ReadRoute {
 impl Store {
     /// Lists local rows of `resource`; empty when it is not registered.
     /// Registry lookup, count and rows come from one read transaction.
-    pub fn list(&self, resource: &ResourceName, query: &ListQuery) -> Result<ListPage> {
+    #[cfg_attr(not(feature = "raw-store"), allow(dead_code))]
+    pub(crate) fn list(&self, resource: &ResourceName, query: &ListQuery) -> Result<ListPage> {
         self.read(|conn| Store::list_on(conn, resource, query))
     }
 

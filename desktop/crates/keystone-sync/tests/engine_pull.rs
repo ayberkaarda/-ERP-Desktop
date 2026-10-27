@@ -11,7 +11,8 @@ use std::time::Duration;
 
 use engine_support::*;
 use keystone_sync::engine::{SyncState, Trigger};
-use keystone_sync::store::{LocalCopy, MirrorStore};
+use keystone_sync::store::LocalCopy;
+use keystone_sync::store::raw::prelude::*;
 use serde_json::{Value, json};
 use uuid::Uuid;
 use wiremock::matchers::{method, path};

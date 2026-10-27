@@ -88,7 +88,16 @@ impl<A: SyncApi> SyncEngine<A> {
             .map(|r| r.resource.clone())
             .collect();
         // Access follows the new manifest before its resets run.
-        local::set_session(&self.store, &identity, generation, &resources)?;
+        local::set_session(
+            &self.store,
+            &identity,
+            generation,
+            &resources,
+            manifest.offline_manifest_version,
+        )?;
+        let mismatch = self.mismatch(Some(manifest.offline_manifest_version));
+        self.status
+            .send_modify(|status| status.manifest_mismatch = mismatch);
         self.apply_manifest(manifest, report)
     }
 
