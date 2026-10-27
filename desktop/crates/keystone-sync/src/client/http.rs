@@ -17,6 +17,10 @@
 //!   same way. An explicit [`DeviceAuthApi::refresh`] only sends the token
 //!   that is currently stored; a spent or foreign token is refused unsent.
 //! - A 401 on a sync call triggers at most one refresh and one retry.
+//! - Cancel-safe: a refresh (automatic or explicit) and a password change
+//!   run on their own Tokio task, under the session lock, to the end. A
+//!   caller that stops waiting (timeout, aborted task) does not lose the
+//!   pair the server issued; the store gets it all the same.
 //! - 403 `USER_DEACTIVATED` from any call (sync, refresh, login, meta) runs
 //!   [`TokenStore::deactivate`] under the lock: a compare-and-set against the
 //!   generation of the snapshot the call was made with, so a deactivation
@@ -236,22 +240,15 @@ impl HttpClient {
         body: Option<Vec<u8>>,
         access: &Secret,
     ) -> Result<RawResponse> {
-        let token = access.expose().as_bytes();
-        let mut text = Zeroizing::new(Vec::with_capacity(7 + token.len()));
-        text.extend_from_slice(b"Bearer ");
-        text.extend_from_slice(token);
-        let mut bearer = HeaderValue::from_bytes(&text)
-            .map_err(|_| sign_in_required("stored access token is not a valid header value"))?;
-        bearer.set_sensitive(true);
-        Ok(send(
+        send_bearer(
             &self.http,
             method,
             url,
             body,
-            Some(bearer),
-            Some(self.company_id.clone()),
+            access,
+            self.company_id.clone(),
         )
-        .await?)
+        .await
     }
 
     /// The one place that reacts to `USER_DEACTIVATED`: a compare-and-set on
@@ -280,9 +277,88 @@ impl HttpClient {
         }
     }
 
+    /// What token work needs, owned, so it can go on without this call.
+    fn token_task(&self) -> Result<TokenTask> {
+        Ok(TokenTask {
+            http: self.http.clone(),
+            refresh_url: self.server.endpoint(paths::DEVICE_REFRESH)?,
+            session: Arc::clone(&self.session),
+        })
+    }
+
     /// Token and generation for the retry, from one snapshot under the lock.
+    /// Runs detached: a caller dropped while the refresh is on its way does
+    /// not lose the new pair.
     async fn refresh_after_unauthorized(&self, rejected: &Secret) -> Result<(Secret, u64)> {
-        let _gate = self.session.lock().await;
+        let task = self.token_task()?;
+        let rejected = rejected.clone();
+        detached(async move {
+            let _gate = task.session.lock().await;
+            task.refresh_rejected(&rejected).await
+        })
+        .await
+    }
+
+    /// `POST /api/v1/auth/password/change` with the current session.
+    ///
+    /// Under the session lock for the whole exchange (no refresh, sign-in
+    /// or sign-out interleaves). A 401 refreshes once and sends again. When
+    /// the server reissues the device's token pair (every older refresh
+    /// token is then void), the new pair replaces the stored one in the
+    /// same generation: it is not a new sign-in. Returns `true` then, and
+    /// `false` when the server kept the tokens (`204`). Runs detached: a
+    /// caller dropped while the request is on its way does not lose the new
+    /// pair. Not sent while deactivated or signed out. Failures come back
+    /// as the server's error (`VALIDATION_ERROR` with its fields for a wrong
+    /// current password or a weak new one); sign-in and account codes are
+    /// redacted. The passwords never appear in errors or debug output.
+    pub async fn change_password(&self, current: &Secret, new: &Secret) -> Result<bool> {
+        let task = self.token_task()?;
+        let url = self.server.endpoint(paths::PASSWORD_CHANGE)?;
+        let company = self.company_id.clone();
+        let body = Zeroizing::new(serde_json::to_vec(&PasswordChange {
+            current_password: current.expose(),
+            password: new.expose(),
+            password_confirmation: new.expose(),
+        })?);
+        let (result, generation) = detached(async move {
+            let _gate = task.session.lock().await;
+            let record = task.session.record()?;
+            let generation = record.generation;
+            let result = task.change_password(&record, url, company, &body).await;
+            Ok((result, generation))
+        })
+        .await?;
+        self.settle(result, generation).await
+    }
+}
+
+/// Request body of a password change; never printed.
+#[derive(Serialize)]
+struct PasswordChange<'a> {
+    current_password: &'a str,
+    password: &'a str,
+    password_confirmation: &'a str,
+}
+
+/// Token work that outlives its caller: owns its HTTP client and session.
+struct TokenTask {
+    http: reqwest::Client,
+    refresh_url: Url,
+    session: Arc<Session>,
+}
+
+impl TokenTask {
+    fn store(&self) -> &dyn TokenStore {
+        self.session.store()
+    }
+
+    fn profile(&self) -> &str {
+        self.session.profile()
+    }
+
+    /// The refresh of a 401 to `rejected`; the caller holds the session lock.
+    async fn refresh_rejected(&self, rejected: &Secret) -> Result<(Secret, u64)> {
         let record = self.store().load_record(self.profile())?;
         if record.deactivated {
             return Err(deactivated());
@@ -307,7 +383,7 @@ impl HttpClient {
     /// caller holds the session lock, so no deactivation or sign-in can
     /// interleave. Errors are redacted.
     async fn rotate_locked(&self, taken: StoredTokens) -> Result<DeviceTokenResponse> {
-        let url = self.server.endpoint(paths::DEVICE_REFRESH)?;
+        let url = self.refresh_url.clone();
         let body = {
             let request = DeviceRefreshRequest {
                 refresh_token: taken.refresh_token.expose().to_owned(),
@@ -357,6 +433,102 @@ impl HttpClient {
         )?;
         Ok(response)
     }
+
+    /// The password change of [`HttpClient::change_password`] with the
+    /// tokens of `record`; the caller holds the session lock.
+    async fn change_password(
+        &self,
+        record: &SessionRecord,
+        url: Url,
+        company: HeaderValue,
+        body: &[u8],
+    ) -> Result<bool> {
+        if record.deactivated {
+            return Err(deactivated());
+        }
+        let access = record
+            .tokens
+            .as_ref()
+            .map(|tokens| tokens.access_token.clone())
+            .ok_or_else(|| sign_in_required("not signed in"))?;
+        let post = |access: Secret| {
+            let (http, url, company) = (&self.http, url.clone(), company.clone());
+            async move {
+                send_bearer(
+                    http,
+                    Method::POST,
+                    url,
+                    Some(body.to_vec()),
+                    &access,
+                    company,
+                )
+                .await
+            }
+        };
+        let mut raw = post(access.clone()).await?;
+        if raw.status == 401 {
+            let (fresh, _) = self.refresh_rejected(&access).await?;
+            raw = post(fresh).await?;
+        }
+        if !raw.is_success() {
+            return Err(decode::<()>(&raw)
+                .err()
+                .unwrap_or_else(|| sign_in_required("password change failed")));
+        }
+        if raw.status == 204 {
+            return Ok(false);
+        }
+        let response = decode_token(&raw).map_err(|_| {
+            sign_in_required(
+                "the password was changed but the new tokens were unreadable; sign in again",
+            )
+        })?;
+        // The lock is held since `record` was read: no sign-in in between,
+        // so the reissued pair belongs to the same generation.
+        self.store().save(
+            &TokenWrite::new(),
+            self.profile(),
+            &StoredTokens::from(response.data),
+        )?;
+        Ok(true)
+    }
+}
+
+/// Runs token work to its end even when the caller stops waiting (a
+/// timeout, an aborted task): the server may already have rotated the
+/// tokens, and the answer must reach the store. Needs a Tokio runtime; the
+/// work is cut short only when the runtime itself shuts down.
+async fn detached<T, F>(work: F) -> Result<T>
+where
+    F: Future<Output = Result<T>> + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::spawn(work).await {
+        Ok(result) => result,
+        Err(error) if error.is_panic() => std::panic::resume_unwind(error.into_panic()),
+        Err(_) => Err(SyncError::Network(
+            "token work stopped with its runtime; outcome unknown".to_owned(),
+        )),
+    }
+}
+
+/// Sends with `Authorization: Bearer <access>` (marked sensitive).
+async fn send_bearer(
+    http: &reqwest::Client,
+    method: Method,
+    url: Url,
+    body: Option<Vec<u8>>,
+    access: &Secret,
+    company: HeaderValue,
+) -> Result<RawResponse> {
+    let token = access.expose().as_bytes();
+    let mut text = Zeroizing::new(Vec::with_capacity(7 + token.len()));
+    text.extend_from_slice(b"Bearer ");
+    text.extend_from_slice(token);
+    let mut bearer = HeaderValue::from_bytes(&text)
+        .map_err(|_| sign_in_required("stored access token is not a valid header value"))?;
+    bearer.set_sensitive(true);
+    Ok(send(http, method, url, body, Some(bearer), Some(company)).await?)
 }
 
 impl super::sealed::Sealed for HttpClient {}
@@ -432,14 +604,18 @@ impl DeviceAuthApi for HttpClient {
     /// currently stored is sent (taken out of the store first); any other
     /// token, including one already spent, is refused without a request.
     async fn refresh(&self, request: &DeviceRefreshRequest) -> Result<DeviceTokenResponse> {
-        let (result, generation) = {
-            let _gate = self.session.lock().await;
-            let record = self.store().load_record(self.profile())?;
+        let task = self.token_task()?;
+        let wanted = Secret::new(request.refresh_token.clone());
+        // Detached like the automatic refresh: a dropped caller does not
+        // lose the new pair.
+        let (result, generation) = detached(async move {
+            let _gate = task.session.lock().await;
+            let record = task.store().load_record(task.profile())?;
             let generation = record.generation;
             let current = record
                 .tokens
                 .as_ref()
-                .is_some_and(|stored| stored.refresh_token.expose() == request.refresh_token);
+                .is_some_and(|stored| stored.refresh_token == wanted);
             let result = if record.deactivated {
                 Err(deactivated())
             } else if !current {
@@ -447,13 +623,14 @@ impl DeviceAuthApi for HttpClient {
                     "refresh token is not the current one; it was not sent",
                 ))
             } else {
-                match self.store().take(&TokenWrite::new(), self.profile())? {
-                    Some(taken) => self.rotate_locked(taken).await,
+                match task.store().take(&TokenWrite::new(), task.profile())? {
+                    Some(taken) => task.rotate_locked(taken).await,
                     None => Err(sign_in_required("not signed in")),
                 }
             };
-            (result, generation)
-        };
+            Ok((result, generation))
+        })
+        .await?;
         self.settle(result, generation).await
     }
 }

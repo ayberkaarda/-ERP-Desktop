@@ -332,12 +332,13 @@ impl Store {
     /// Creates or updates the tables of `spec`: adds missing generated
     /// columns and indexes, drops those no longer listed, (re)builds the FTS
     /// table when the search fields change. Rows are kept.
-    pub fn register(&self, spec: &ResourceSpec) -> Result<()> {
+    pub(crate) fn register(&self, spec: &ResourceSpec) -> Result<()> {
         self.write(|tx| register_in(tx, spec).map(|_| ()))
     }
 
     /// [`Store::register`] for many specs in one transaction.
-    pub fn register_all(&self, specs: &[ResourceSpec]) -> Result<()> {
+    #[cfg_attr(not(feature = "raw-store"), allow(dead_code))]
+    pub(crate) fn register_all(&self, specs: &[ResourceSpec]) -> Result<()> {
         self.write(|tx| {
             for spec in specs {
                 register_in(tx, spec)?;
@@ -409,7 +410,7 @@ impl Store {
     }
 
     /// Stores the latest snapshot of a `source: snapshot` resource.
-    pub fn put_snapshot(
+    pub(crate) fn put_snapshot(
         &self,
         resource: &ResourceName,
         data: &Value,
@@ -429,7 +430,7 @@ impl Store {
     }
 
     /// Removes the stored snapshot of `resource`; `true` when one existed.
-    pub fn remove_snapshot(&self, resource: &ResourceName) -> Result<bool> {
+    pub(crate) fn remove_snapshot(&self, resource: &ResourceName) -> Result<bool> {
         self.write(|tx| {
             Ok(tx.execute(
                 "DELETE FROM store_snapshots WHERE resource = ?1",
@@ -439,7 +440,7 @@ impl Store {
     }
 
     /// Resources that have a stored snapshot, by name.
-    pub fn snapshot_resources(&self) -> Result<Vec<ResourceName>> {
+    pub(crate) fn snapshot_resources(&self) -> Result<Vec<ResourceName>> {
         self.read(|conn| {
             let mut stmt =
                 conn.prepare("SELECT resource FROM store_snapshots ORDER BY resource")?;
@@ -469,7 +470,7 @@ impl Store {
         Ok(registered.into_iter().map(|r| r.spec.resource).collect())
     }
 
-    pub fn snapshot(&self, resource: &ResourceName) -> Result<Option<Snapshot>> {
+    pub(crate) fn snapshot(&self, resource: &ResourceName) -> Result<Option<Snapshot>> {
         self.read(|conn| {
             let row: Option<(String, String)> = conn
                 .query_row(

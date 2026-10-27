@@ -57,7 +57,8 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
 /// Generic mirror bookkeeping (store range, part of [`migrations::registry`]).
 /// Kept apart from [`MIGRATIONS`] so the base list stays `store_meta` only.
 /// Per-resource row tables (`m_*`) and FTS tables (`m_*#fts`) are created by
-/// [`Store::register`], not by migrations: their shape follows the spec.
+/// resource registration (`Store::register`, crate-internal), not by
+/// migrations: their shape follows the spec.
 /// New layout steps are appended as further migrations (11 added the local
 /// create marks); an applied migration is never edited.
 pub const MIRROR_MIGRATIONS: &[Migration] = &[

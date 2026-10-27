@@ -34,7 +34,7 @@ pub struct Window {
 }
 
 /// How one resource is kept locally. Stored with the resource so a later
-/// [`super::Store::register`] can add or drop columns.
+/// registration (`Store::register`, crate-internal) can add or drop columns.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceSpec {
     pub resource: ResourceName,

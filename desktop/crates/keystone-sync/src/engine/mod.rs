@@ -23,12 +23,14 @@
 //!   are bound to it ([`SyncApi::manifest_in`] and friends), answers are
 //!   committed only while it is still current, and a run cut short by a
 //!   new sign-in is followed by a run under the new one.
-//! - Local access: [`SyncEngine::list`], [`SyncEngine::get`] and
-//!   [`SyncEngine::enqueue`] answer only when the local data was verified by
-//!   a manifest of the current generation (not deactivated), and only for
-//!   resources of that manifest. After another sign-in they fail with
-//!   `OFFLINE_UNAVAILABLE` until a run has checked who signed in. Enqueue,
-//!   sign-out and every wipe exclude each other.
+//! - Local access: [`SyncEngine::list`], [`SyncEngine::get`],
+//!   [`SyncEngine::snapshot`], [`SyncEngine::enqueue`] and
+//!   [`SyncEngine::put_snapshot`] answer only when the local data was
+//!   verified by a manifest of the current generation (not deactivated, not
+//!   sealed), and only for resources of that manifest. After another
+//!   sign-in they fail with `OFFLINE_UNAVAILABLE` until a run has checked
+//!   who signed in; a snapshot is stored only for the generation its answer
+//!   was fetched in. Writes, sign-out and every wipe exclude each other.
 //! - Sign-out is persisted in stages bound to its generation: tokens of
 //!   that generation are revoked before any local data goes, and a
 //!   sign-out cut short is finished for that generation only (a later
@@ -72,9 +74,12 @@ use crate::error::refused;
 use crate::error::{Result, SyncError};
 use crate::outbox::{EnqueueOutcome, NewMutation, Outbox, OutboxEntry, OutboxQueue};
 use crate::store::{
-    ListQuery, Migration, OfflineManifest, PullBase, ResourceSpec, Store, WritePolicy,
+    ListQuery, Migration, OfflineManifest, PruneReport, PullBase, ResourceSpec, Snapshot, Store,
+    WritePolicy,
 };
-use crate::wire::{ConflictChoice, ErrorCode, MutationOp, PullResource, ResourceName};
+use crate::wire::{
+    ConflictChoice, ErrorCode, MutationOp, PullResource, ResourceName, Source, Timestamp,
+};
 
 pub use driver::{SyncHandle, SyncLoop, next_delay, sync_loop};
 pub use overlay::{LocalPage, LocalRow};
@@ -629,6 +634,59 @@ impl<A: SyncApi> SyncEngine<A> {
         let _sign_in = self.session.hold();
         self.check_access(resource)?;
         overlay::get(&self.store, resource, id)
+    }
+
+    /// Stored snapshot of a `source: snapshot` resource (the offline answer
+    /// of its REST endpoint). Same access rule as [`SyncEngine::list`]:
+    /// only while the local data is verified for the current sign-in, so a
+    /// new sign-in (another user included) reads nothing until a run has
+    /// checked who it is, and a sealed store serves nothing. The check and
+    /// the read happen with sign-ins held off.
+    pub fn snapshot(&self, resource: &ResourceName) -> Result<Option<Snapshot>> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the check below and the work.
+        let _sign_in = self.session.hold();
+        self.check_access(resource)?;
+        self.hook(Hook::AccessChecked);
+        self.store.snapshot(resource)
+    }
+
+    /// Stores `data`, the online answer of a `source: snapshot` resource,
+    /// fetched at `fetched_at` by a call bound to sign-in `generation`
+    /// (e.g. [`crate::client::HttpClient::proxy_in`], or the generation read
+    /// before an unbound call). Refused unwritten when another sign-in
+    /// happened since (`UNAUTHENTICATED`: the answer may be another user's),
+    /// while the local data is not verified for the current sign-in or is
+    /// sealed (`OFFLINE_UNAVAILABLE`), for a resource outside the manifest
+    /// (`FORBIDDEN`) and for one the manifest does not mark `snapshot`
+    /// (`INVALID_REQUEST`). Excluded with sign-out and wipes like
+    /// [`SyncEngine::enqueue`].
+    pub fn put_snapshot(
+        &self,
+        resource: &ResourceName,
+        data: &Value,
+        fetched_at: &Timestamp,
+        generation: u64,
+    ) -> Result<()> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the checks below and the write.
+        let _sign_in = self.session.hold();
+        self.ensure_generation(generation)?;
+        self.check_access(resource)?;
+        let source = self.store.resource_spec(resource)?.map(|spec| spec.source);
+        if source != Some(Source::Snapshot) {
+            return Err(SyncError::InvalidRequest(
+                "the resource is not a snapshot resource of the manifest".to_owned(),
+            ));
+        }
+        self.store.put_snapshot(resource, data, fetched_at)
+    }
+
+    /// Retention prune of the verified local data (window and size, see
+    /// [`crate::store::RetentionPolicy`]);
+    /// excluded with sign-out and wipes.
+    pub fn prune(&self) -> Result<PruneReport> {
+        self.guarded(|| self.store.prune())
     }
 
     /// Signs out the sign-in current at the call: removes its tokens, and
