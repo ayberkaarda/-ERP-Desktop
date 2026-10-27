@@ -85,6 +85,9 @@ final readonly class FullDownloads
     public function start(string $device, string $userId, string $companyId, string $resource, ?array $observed, string $session, Cursor $next, Xid8 $started, string $tokenId): void
     {
         $this->db->transaction(function () use ($device, $userId, $companyId, $resource, $observed, $session, $next, $started, $tokenId): void {
+            // Match sign-in lock order: user, then device, then download session.
+            $this->db->table('users')->where('id', $userId)->lockForUpdate()->first();
+
             // Sign-in, token rotation and revocation serialize on this device row.
             $currentToken = $this->db->table('user_devices')
                 ->where('id', $device)->where('user_id', $userId)->lockForUpdate()->value('token_id');
