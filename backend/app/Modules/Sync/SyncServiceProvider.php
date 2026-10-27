@@ -10,6 +10,7 @@ use App\Modules\Identity\Events\DeviceSignedIn;
 use App\Modules\Identity\Events\MembershipRevoked;
 use App\Modules\Sync\Console\PruneCommand;
 use App\Modules\Sync\Http\Middleware\EnsureDesktopToken;
+use App\Modules\Sync\Services\CursorTags;
 use App\Modules\Sync\Services\Visibility;
 use App\Modules\Sync\Services\VisibilityRefresh;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -27,6 +28,11 @@ use Illuminate\Support\Facades\RateLimiter;
 final class SyncServiceProvider extends ModuleServiceProvider
 {
     public const string LIMITER = 'sync';
+
+    public function register(): void
+    {
+        $this->app->singleton(CursorTags::class, static fn (): CursorTags => new CursorTags((string) config('app.key')));
+    }
 
     public function boot(): void
     {

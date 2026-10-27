@@ -11,7 +11,7 @@
         "txid": "48213907",
         "after_id": null,
         "gen": 2,
-        "session": null
+        "session": "i_q3Zb7Yk2Lw9pM0cVf4HtGxR8nJ1eSdA6uBoC5yTiEzk"
       },
       "limit": 200
     },
@@ -21,7 +21,7 @@
         "txid": "48210002",
         "after_id": "0193b1e3-77aa-7b10-8c20-1d2e3f4a5b31",
         "gen": 3,
-        "session": null
+        "session": "i_q3Zb7Yk2Lw9pM0cVf4HtGxR8nJ1eSdA6uBoC5yTiEzk"
       }
     }
   ]

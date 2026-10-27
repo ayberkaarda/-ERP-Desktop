@@ -149,7 +149,7 @@ it('walks login, manifest, full download, incremental pull, push outcomes and a 
         ->and($byName)->not->toHaveKey('purchase-requests')
         ->and($byName)->not->toHaveKey('stock-documents');
 
-    // 2. Full download in pages of one: a session while has_more, null at the end.
+    // 2. Full download in pages of one: a session while has_more, a stream tag at the end.
     $full = e2eDrain($this, $login['token'], 'sales-quotes', null, 1);
     $sessions = array_map(fn (array $p): mixed => $p['next_cursor']['session'], $full['pages']);
 
@@ -157,12 +157,12 @@ it('walks login, manifest, full download, incremental pull, push outcomes and a 
         ->and(array_column($full['pages'], 'reset'))->each->toBeFalse()
         ->and(array_slice($sessions, 0, -1))->each->toBeString()
         ->and(count(array_unique(array_slice($sessions, 0, -1))))->toBe(1)
-        ->and(end($sessions))->toBeNull()
+        ->and(end($sessions))->toStartWith('i_')
         ->and($full['rows'][0])->toHaveKeys(['id', 'version', 'status', 'lines']);
 
-    // 3. Incremental pull without changes is empty and keeps a null session.
+    // 3. Incremental pull without changes is empty and carries a stream tag.
     $quiet = e2ePull($this, $login['token'], 'sales-quotes', $full['cursor']);
-    expect($quiet['rows'])->toBe([])->and($quiet['has_more'])->toBeFalse()->and($quiet['next_cursor']['session'])->toBeNull();
+    expect($quiet['rows'])->toBe([])->and($quiet['has_more'])->toBeFalse()->and($quiet['next_cursor']['session'])->toStartWith('i_');
 
     // 4. Web REST: one quote leaves draft (send), one is edited after the device downloaded it.
     SalesKit::post($this->w->user, $this->w->company, "sales-quotes/{$webB['id']}/send")->assertOk();

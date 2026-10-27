@@ -20,7 +20,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -45,6 +44,7 @@ final class PullService
         private readonly Horizon $horizon,
         private readonly Rows $rows,
         private readonly FullDownloads $downloads,
+        private readonly CursorTags $tags,
     ) {}
 
     /**
@@ -108,13 +108,13 @@ final class PullService
             }
 
             $limit = min($request['limit'] ?? $config->pullPageDefault, $config->pullPageMax);
-            $session = $cursor === null || $device === null || $sessionKey === null ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $sessionKey, $cursor);
+            $session = $cursor === null || $device === null || $sessionKey === null || $this->tags->isTag($sessionKey) ? null : $this->downloads->find($device, $user->id, $companyId, $resource->name, $sessionKey, $cursor);
             // A cursor naming a session that is gone (finished, replaced by a newer download of
             // the device) or that never issued this position continues nothing: it resets.
-            $orphan = $sessionKey !== null ? $session === null
-                : ($cursor !== null && ! DB::table('sync_cursor_scopes')
-                    ->where('user_id', $user->id)->where('company_id', $companyId)->where('resource', $resource->name)
-                    ->where('position_hash', self::positionHash($cursor->toArray()))->exists());
+            $orphan = $sessionKey === null ? $cursor !== null
+                : ($cursor !== null && $this->tags->isTag($sessionKey)
+                    ? ! $this->tags->verify($user->id, $companyId, $resource->name, $cursor, $sessionKey)
+                    : $session === null);
             $observed = $device === null ? null : $this->downloads->observe($device, $user->id, $companyId, $resource->name);
             $plans[] = [$resource, $adapter, $cursor, $session, $orphan, $observed, $generation, max(1, $limit)];
         }
@@ -160,15 +160,13 @@ final class PullService
             }
         }
 
-        foreach ($results as $page) {
+        foreach ($results as $i => $page) {
             if ($page['next_cursor']['session'] === null) {
                 $position = $page['next_cursor'];
                 unset($position['session']);
-                $this->db->table('sync_cursor_scopes')->upsert([
-                    'user_id' => $user->id, 'company_id' => $companyId, 'resource' => $page['resource'],
-                    'position_hash' => self::positionHash($position),
-                    'created_at' => Carbon::now(),
-                ], ['user_id', 'company_id', 'resource', 'position_hash'], ['created_at']);
+                $results[$i]['next_cursor']['session'] = $this->tags->issue(
+                    $user->id, $companyId, $page['resource'], Cursor::fromWire($position),
+                );
             }
         }
 
@@ -206,7 +204,8 @@ final class PullService
      * by their position.
      *
      * The next cursor's session is the download's session id while a full download has more
-     * pages ($newSession when the download begins on this page), and null otherwise.
+     * pages ($newSession when the download begins on this page); other positions are tagged
+     * by pull() before returning the response.
      *
      * @return array{0: array<string, mixed>, 1: array{0: Cursor|null, 1: Xid8, 2: bool}|null} page, and for a full download its continuation (null cursor: finished) and whether it began here
      */
@@ -456,12 +455,6 @@ final class PullService
 
         /** @var literal-string $fragment */
         return new Expression($fragment);
-    }
-
-    /** @param array<string, mixed> $position */
-    private static function positionHash(array $position): string
-    {
-        return hash('sha256', $position['txid'].'|'.($position['after_id'] ?? '').'|'.$position['gen']);
     }
 
     private static function sessionValue(mixed $value): bool

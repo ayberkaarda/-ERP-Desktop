@@ -37,7 +37,7 @@
       "pattern": "^(0|[1-9][0-9]{0,19})$"
     },
     "cursor": {
-      "description": "Kaynak başına keyset konumu: (sync_txid, id), görünürlük nesli ve tam indirme oturumu. after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır. gen, sunucudaki (kullanıcı, şirket, kaynak) görünürlük neslinden farklıysa kaynak reset alır. session: bkz. cursorSession.",
+      "description": "Kaynak başına keyset konumu: (sync_txid, id), görünürlük nesli ve oturum ya da akış etiketi. after_id null ise sync_txid >= txid koşulu, değilse (sync_txid, id) > (txid, after_id) koşulu uygulanır. gen, sunucudaki (kullanıcı, şirket, kaynak) görünürlük neslinden farklıysa kaynak reset alır. session: bkz. cursorSession.",
       "type": "object",
       "additionalProperties": false,
       "required": ["txid", "after_id", "gen", "session"],
@@ -51,7 +51,7 @@
       }
     },
     "cursorSession": {
-      "description": "Tam indirme oturumunun opak kimliği. Sunucu üretir; istemci yorumlamaz, değiştirmez, cursor ile birlikte aynen geri gönderir. Tam indirmenin (ilk indirme veya reset) has_more=true sayfalarındaki next_cursor'da doludur; artımlı cursor'larda (has_more=false sonrası horizon cursor'ı ve artımlı akışın sayfaları) null'dur. Dolu session'lı cursor yalnızca o oturumun devamıdır: oturum bitmiş, yenisiyle değişmiş ya da bu konumu vermemişse aynı txid/after_id/gen değerleri olsa bile devam ettirilmez, reset (cursor_expired) alır.",
+      "description": "Sunucunun ürettiği opak değer. Tam indirmenin has_more=true sayfalarında oturum kimliği, diğer tüm sunucu cursor'larında akış etiketidir (i_ öneki). İstemci yorumlamaz, karşılaştırmaz, üretmez; cursor ile aynen geri gönderir. Oturum/etiket bu kullanıcı, şirket, kaynak ve konum için geçerli değilse kaynak reset (cursor_expired) alır. Dolu cursor ile null session eski istemci sayılır ve bir kez reset alır; ilk indirme cursor: null ile başlar.",
       "anyOf": [
         { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$" },
         { "type": "null" }

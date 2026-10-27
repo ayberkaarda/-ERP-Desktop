@@ -51,8 +51,6 @@ final class PruneCommand extends Command
             return count($purged);
         });
 
-        $db->table('sync_cursor_scopes')->where('created_at', '<', $cutoff)->delete();
-
         $keys = $store->prune();
         $resolutions = $db->table('sync_push_resolutions')
             ->where('created_at', '<', Carbon::now()->subSeconds($config->idempotencyTtlSeconds()))
