@@ -80,31 +80,13 @@ impl AppState {
     }
 
     /// Local store of the active profile (the one its engine works on), for
-    /// state such as `local_copy`. Data reads go through the engine or
-    /// [`AppState::verified_store`].
+    /// state such as `local_copy`. Data reads (rows and snapshots) go through
+    /// the engine (`SyncEngine::{list, get, snapshot}`), which checks the
+    /// sign-in, the seal and the user under one guard.
     pub fn store(&self) -> CommandResult<Arc<Store>> {
         let slot = self.read();
         let slot = slot.as_ref().ok_or_else(no_profile)?;
         slot.attached.store.clone().ok_or_else(no_engine)
-    }
-
-    /// Local store of the active profile for reading data that is not
-    /// behind an engine method (`Store::snapshot`): only while the local
-    /// data is verified for the current sign-in (a run checked who signed
-    /// in), else `OFFLINE_UNAVAILABLE`. After a sign-in of another user the
-    /// previous user's data stays closed until the engine has wiped it.
-    /// Reads the store: call it on a blocking thread.
-    pub fn verified_store(&self) -> CommandResult<Arc<Store>> {
-        let (engine, store) = {
-            let slot = self.read();
-            let slot = slot.as_ref().ok_or_else(no_profile)?;
-            let engine = slot.profile.engine.clone().ok_or_else(no_engine)?;
-            let store = slot.attached.store.clone().ok_or_else(no_engine)?;
-            (engine, store)
-        };
-        // A guarded engine read: it fails unless the data is verified.
-        engine.outbox_entries()?;
-        Ok(store)
     }
 
     /// Id of the active profile, if any.

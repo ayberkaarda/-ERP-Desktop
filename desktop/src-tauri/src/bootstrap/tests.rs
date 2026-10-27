@@ -1066,7 +1066,8 @@ async fn a_new_user_reads_nothing_of_the_previous_one_before_a_run() {
     let fx = fx();
     synced(&fx, &server).await;
     assert_eq!(rows(&fx), 1);
-    assert!(fx.state.verified_store().is_ok());
+    let engine = fx.state.engine().unwrap();
+    assert!(engine.snapshot(&parties()).is_ok());
 
     let login = fx.login().await.unwrap();
     assert!(login.company_required);
@@ -1075,7 +1076,7 @@ async fn a_new_user_reads_nothing_of_the_previous_one_before_a_run() {
     let read = engine.list(&parties(), &ListQuery::default()).unwrap_err();
     assert_eq!(read.code(), "OFFLINE_UNAVAILABLE");
     assert_eq!(
-        fx.state.verified_store().unwrap_err().code,
+        engine.snapshot(&parties()).unwrap_err().code(),
         "OFFLINE_UNAVAILABLE"
     );
 }
