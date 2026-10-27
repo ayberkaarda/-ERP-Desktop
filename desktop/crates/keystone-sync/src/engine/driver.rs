@@ -161,6 +161,10 @@ mod tests {
             next_delay(&failed, 1, 0, Some(Duration::from_secs(60)), &b, 0.5),
             Some(Duration::from_secs(60))
         );
+        assert_eq!(
+            next_delay(&failed, 1, 0, Some(Duration::from_secs(36_000)), &b, 0.5),
+            Some(RETRY_AFTER_MAX)
+        );
         let unit = jitter_unit();
         assert!((0.0..=1.0).contains(&unit));
     }

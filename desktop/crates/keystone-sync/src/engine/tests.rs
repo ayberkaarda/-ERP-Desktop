@@ -38,6 +38,8 @@ struct FakeApi {
     push_mode: AtomicU8,
     /// Idempotency keys of every push, in order.
     pushes: Mutex<Vec<Vec<Uuid>>>,
+    /// `Retry-After` of a busy push.
+    busy_retry_after: Mutex<Duration>,
 }
 
 impl FakeApi {
@@ -47,6 +49,7 @@ impl FakeApi {
             manifests: AtomicUsize::new(0),
             push_mode: AtomicU8::new(PUSH_LOST),
             pushes: Mutex::default(),
+            busy_retry_after: Mutex::new(BUSY_RETRY_AFTER),
         }
     }
 
@@ -125,7 +128,7 @@ impl SyncApi for FakeApi {
                 code: crate::wire::ErrorCode::IdempotencyInProgress,
                 message: "busy".into(),
                 fields: Default::default(),
-                retry_after: Some(BUSY_RETRY_AFTER),
+                retry_after: Some(*self.busy_retry_after.lock().unwrap()),
                 redacted: None,
             }),
             PUSH_APPLY => {
@@ -469,4 +472,126 @@ async fn no_request_goes_out_before_retry_after_whatever_the_trigger() {
     assert!(direct.await.unwrap().is_ok());
     drop(handle);
     driver.abort();
+}
+
+/// State after a push answered busy with `Retry-After: wait`; the next push
+/// applies. Returns the manifest count (one per pass) at that point.
+async fn after_busy_push(f: &Fixture, wait: Duration) -> usize {
+    let api = &f.engine.api;
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.enqueue(create()).unwrap();
+    *api.busy_retry_after.lock().unwrap() = wait;
+    api.push_mode.store(PUSH_BUSY, Ordering::SeqCst);
+    let error = f.engine.run_once(Trigger::Manual).await.unwrap_err();
+    assert_eq!(error.code(), "IDEMPOTENCY_IN_PROGRESS");
+    assert_eq!(f.engine.status().retry_after, Some(wait));
+    api.push_mode.store(PUSH_APPLY, Ordering::SeqCst);
+    api.manifests.load(Ordering::SeqCst)
+}
+
+/// Lets spawned tasks run without moving the paused clock.
+async fn settle() {
+    for _ in 0..1000 {
+        tokio::task::yield_now().await;
+    }
+}
+
+fn wait_in_background(f: &Fixture) -> tokio::task::JoinHandle<Result<super::SyncReport>> {
+    let engine = f.engine.clone();
+    tokio::spawn(async move { engine.run_once(Trigger::Timer).await })
+}
+
+#[tokio::test(start_paused = true)]
+async fn sign_out_and_a_new_sign_in_are_not_held_by_the_old_retry_after() {
+    let f = fixture();
+    let before = after_busy_push(&f, Duration::from_secs(600)).await;
+    let started = tokio::time::Instant::now();
+    let waiting = wait_in_background(&f);
+    settle().await;
+    tokio::time::advance(Duration::from_secs(1)).await;
+    assert_eq!(f.engine.api.manifests.load(Ordering::SeqCst), before);
+
+    assert_eq!(f.engine.sign_out(true).await.unwrap(), SignOut::Done);
+    f.engine.session.sign_in(&tokens(2)).await.unwrap();
+    f.engine.run_once(Trigger::Manual).await.unwrap();
+    waiting.await.unwrap().unwrap();
+    assert!(f.engine.api.manifests.load(Ordering::SeqCst) > before);
+    assert!(
+        started.elapsed() < Duration::from_secs(600),
+        "the new sign-in waited for the old Retry-After"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn another_sign_in_is_not_held_by_the_old_retry_after() {
+    let f = fixture();
+    let before = after_busy_push(&f, Duration::from_secs(600)).await;
+    let started = tokio::time::Instant::now();
+    let waiting = wait_in_background(&f);
+    settle().await;
+    assert_eq!(f.engine.api.manifests.load(Ordering::SeqCst), before);
+
+    // No sign-out: the token store changes generation under the engine.
+    f.engine.session.sign_in(&tokens(2)).await.unwrap();
+    let report = f.engine.run_once(Trigger::Manual).await.unwrap();
+    assert!(report.coalesced, "the waiting run serves the new trigger");
+    waiting.await.unwrap().unwrap();
+    assert!(f.engine.api.manifests.load(Ordering::SeqCst) > before);
+    assert!(
+        started.elapsed() < Duration::from_secs(600),
+        "the new sign-in waited for the old Retry-After"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_run_cancelled_while_waiting_keeps_the_owed_trigger() {
+    let f = fixture();
+    let before = after_busy_push(&f, BUSY_RETRY_AFTER).await;
+    let waiting = wait_in_background(&f);
+    settle().await;
+    assert!(f.engine.run_once(Trigger::Manual).await.unwrap().coalesced);
+    settle().await;
+    waiting.abort();
+    assert!(waiting.await.unwrap_err().is_cancelled());
+    assert_eq!(f.engine.api.manifests.load(Ordering::SeqCst), before);
+    // The coalesced caller was promised a run: the sync loop is told.
+    tokio::time::timeout(Duration::from_millis(1), f.engine.follow_up_requested())
+        .await
+        .expect("the owed follow-up was dropped");
+}
+
+#[tokio::test(start_paused = true)]
+async fn retry_after_is_honoured_up_to_one_hour() {
+    let f = fixture();
+    let huge = Duration::from_secs(10 * 3600);
+    after_busy_push(&f, huge).await;
+    let started = tokio::time::Instant::now();
+    f.engine.run_once(Trigger::Manual).await.unwrap();
+    let waited = started.elapsed();
+    assert!(
+        waited >= crate::backoff::RETRY_AFTER_MAX
+            && waited < crate::backoff::RETRY_AFTER_MAX + Duration::from_secs(1),
+        "{waited:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn callers_during_the_wait_collapse_into_one_follow_up() {
+    let f = fixture();
+    let before = after_busy_push(&f, BUSY_RETRY_AFTER).await;
+    let waiting = wait_in_background(&f);
+    settle().await;
+    for _ in 0..5 {
+        assert!(f.engine.run_once(Trigger::Manual).await.unwrap().coalesced);
+    }
+    tokio::time::advance(Duration::from_secs(29)).await;
+    settle().await;
+    assert_eq!(f.engine.api.manifests.load(Ordering::SeqCst), before);
+    waiting.await.unwrap().unwrap();
+    assert_eq!(
+        f.engine.api.manifests.load(Ordering::SeqCst),
+        before + 2,
+        "one pass and one follow-up"
+    );
+    assert_eq!(f.engine.api.pushes().len(), 2);
 }

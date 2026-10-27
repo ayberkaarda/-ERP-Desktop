@@ -353,7 +353,10 @@ pub struct SyncEngine<A> {
     unreported: Mutex<Vec<ResourceName>>,
     failures: AtomicU32,
     /// End of the last failure's `Retry-After`: no pass starts before it.
-    retry_not_before: Mutex<Option<tokio::time::Instant>>,
+    /// Set under the sign-in generation it belongs to.
+    retry_not_before: Mutex<Option<(tokio::time::Instant, u64)>>,
+    /// Wakes a run waiting on `retry_not_before` to re-evaluate it.
+    retry_changed: tokio::sync::Notify,
     status: watch::Sender<SyncStatus>,
     changes: broadcast::Sender<ResourcesChanged>,
     /// Signalled when a cancelled run leaves a promised follow-up behind.
@@ -396,6 +399,7 @@ impl<A: SyncApi> SyncEngine<A> {
             unreported: Mutex::default(),
             failures: AtomicU32::new(0),
             retry_not_before: Mutex::default(),
+            retry_changed: tokio::sync::Notify::new(),
             status: watch::Sender::new(SyncStatus::default()),
             changes: broadcast::channel(64).0,
             follow_up: tokio::sync::Notify::new(),
@@ -434,6 +438,9 @@ impl<A: SyncApi> SyncEngine<A> {
     /// failure and its `retry_after`.
     pub async fn run_once(&self, trigger: Trigger) -> Result<SyncReport> {
         if !self.enter_gate() {
+            // A run waiting out a `Retry-After` checks whether it still
+            // applies (this caller may come from another sign-in).
+            self.retry_changed.notify_waiters();
             return Ok(SyncReport {
                 coalesced: true,
                 ..SyncReport::default()
@@ -899,30 +906,47 @@ impl<A> SyncEngine<A> {
         });
     }
 
-    /// Sleeps until the last failure's `Retry-After` has passed.
+    /// Sleeps until the last failure's `Retry-After` has passed. The limit
+    /// belongs to the sign-in it was set under: after another sign-in it no
+    /// longer applies. Re-evaluated whenever the limit changes or a caller
+    /// is coalesced into this run (it may come from a new sign-in).
     async fn wait_retry_after(&self) {
         loop {
-            let at = *self
+            let changed = self.retry_changed.notified();
+            tokio::pin!(changed);
+            // Registered before the read: no change is missed in between.
+            changed.as_mut().enable();
+            let limit = *self
                 .retry_not_before
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            match at {
-                Some(at) if tokio::time::Instant::now() < at => {
-                    tokio::time::sleep_until(at).await;
-                }
-                _ => return,
+            let Some((at, generation)) = limit else {
+                return;
+            };
+            if tokio::time::Instant::now() >= at
+                || self.session.record().ok().map(|r| r.generation) != Some(generation)
+            {
+                return;
+            }
+            tokio::select! {
+                () = tokio::time::sleep_until(at) => {}
+                () = &mut changed => {}
             }
         }
     }
 
     /// Publishes `state`; `retry_after` also sets the earliest start of the
-    /// next pass (`None` lifts it).
+    /// next pass for the current sign-in (`None` lifts it) and wakes a
+    /// waiting run to re-evaluate.
     fn set_state(&self, state: SyncState, retry_after: Option<Duration>) -> Result<()> {
+        let generation = self.session.record().ok().map(|r| r.generation);
         *self
             .retry_not_before
             .lock()
-            .unwrap_or_else(PoisonError::into_inner) =
-            retry_after.map(|wait| tokio::time::Instant::now() + wait.min(RETRY_AFTER_MAX));
+            .unwrap_or_else(PoisonError::into_inner) = retry_after
+            .zip(generation)
+            .map(|(wait, g)| (tokio::time::Instant::now() + wait.min(RETRY_AFTER_MAX), g));
+        self.retry_changed.notify_waiters();
         let counts = local::counts(&self.store);
         let failures = self.failures.load(Ordering::SeqCst);
         self.status.send_modify(|status| {
