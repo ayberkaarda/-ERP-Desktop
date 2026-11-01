@@ -17,6 +17,7 @@ import {
   STALE_REQUEST,
   withIdempotency,
 } from './u1-shim'
+import * as shim from './u1-shim'
 import { ApiError as FrontendApiError } from '../../../../frontend/src/platform/types'
 
 describe('u1 shim', () => {
@@ -24,13 +25,48 @@ describe('u1 shim', () => {
     expect(ApiError).toBe(FrontendApiError)
   })
 
-  it('tells a user cancel apart from errors', () => {
+  it('exports the U1 shared.ts surface: same names, same arity (U1 19605ac)', () => {
+    // Exported names of frontend/src/platform/shared.ts at 19605ac with each
+    // function's `length` (parameters before the first default); 'class' for an
+    // Error subclass. A new or changed
+    // U1 export breaks this list until the shim copies it.
+    const u1: Record<string, number | 'const' | 'class'> = {
+      STALE_REQUEST: 'const',
+      PlatformCancelledError: 'class',
+      isPlatformCancelled: 1,
+      isStaleRequest: 1,
+      assertApiPath: 1,
+      isRecord: 1,
+      readFields: 1,
+      apiErrorFromEnvelope: 2,
+      classifyAuthFailure: 2,
+      createIdempotencyKey: 0,
+      withIdempotency: 0,
+      filenameFromDisposition: 1,
+    }
+    // Shim-only exports: the frontend types.ts re-exports.
+    const local = ['ApiError', 'isApiError']
+    const surface = Object.fromEntries(
+      Object.entries(shim)
+        .filter(([name]) => !local.includes(name))
+        .map(([name, value]) => [
+          name,
+          typeof value !== 'function' ? 'const' : (value.prototype as unknown) instanceof Error ? 'class' : value.length,
+        ]),
+    )
+    expect(surface).toEqual(u1)
+  })
+
+  it('marks a user cancel by name, as U1 does (also across module copies)', () => {
     const cancel = new PlatformCancelledError()
     expect(cancel).toBeInstanceOf(Error)
-    expect(cancel.name).toBe('PlatformCancelledError')
+    expect(cancel.name).toBe('PlatformCancelled')
+    expect(cancel.message).toBe('Cancelled by the user.')
     expect(isPlatformCancelled(cancel)).toBe(true)
+    const copy = Object.assign(new Error('x'), { name: 'PlatformCancelled' })
+    expect(isPlatformCancelled(copy)).toBe(true)
     expect(isPlatformCancelled(new ApiError(0, 'X', 'x'))).toBe(false)
-    expect(isPlatformCancelled({ name: 'PlatformCancelledError' })).toBe(false)
+    expect(isPlatformCancelled({ name: 'PlatformCancelled' })).toBe(false)
   })
 
   it('creates distinct idempotency keys unless one is reused', () => {

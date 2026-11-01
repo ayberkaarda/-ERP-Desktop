@@ -11,6 +11,7 @@ import {
   apiErrorFromEnvelope,
   assertApiPath,
   classifyAuthFailure,
+  createIdempotencyKey,
   filenameFromDisposition,
   isRecord,
   STALE_REQUEST,
@@ -78,6 +79,22 @@ function paramString(value: unknown): string {
   return String(value)
 }
 
+const PLAIN_SEGMENT = /^[A-Za-z0-9\-_.~]+$/
+
+/**
+ * Same rule as the shell's `check_path` (src-tauri/src/commands/api.rs): plain
+ * segments only (`[A-Za-z0-9-_.~]`, not `.` or `..`), no encoding, empty segment
+ * or trailing slash. Such a path never reaches the server, so it is refused here
+ * with the shell's code before a command is sent.
+ */
+function assertPlainPath(path: string): void {
+  const segments = path.slice(1).split('/')
+  const plain = segments.every((s) => s !== '.' && s !== '..' && PLAIN_SEGMENT.test(s))
+  if (!plain) {
+    throw new ApiError(0, 'INVALID_REQUEST', 'Path must be plain segments under the API base.')
+  }
+}
+
 /** Axios' param rules: null/undefined dropped, arrays as repeated `name[]`, values as strings. */
 function paramPairs(params: HttpRequestOptions['params']): [string, string][] {
   const pairs: [string, string][] = []
@@ -111,6 +128,44 @@ function fromBase64(base64: string): Uint8Array<ArrayBuffer> {
   return out
 }
 
+const CRLF = '\r\n'
+const toCrlf = (value: string) => value.replace(/\r\n|\r|\n/g, CRLF)
+const escapeQuoted = (value: string) =>
+  value.replace(/\n/g, '%0A').replace(/\r/g, '%0D').replace(/"/g, '%22')
+
+/**
+ * WHATWG multipart/form-data encoding, written here instead of `new Response(form)`
+ * so it does not depend on the environment's Response knowing its FormData (jsdom's
+ * does not). Names and text values get CRLF line breaks; names and file names
+ * escape CR, LF and the quote.
+ */
+async function encodeMultipart(form: FormData): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const boundary = `----KeystoneFormBoundary${createIdempotencyKey().replace(/-/g, '')}`
+  const text = new TextEncoder()
+  const parts: Uint8Array[] = []
+  for (const [name, value] of form.entries()) {
+    const head = `--${boundary}${CRLF}Content-Disposition: form-data; name="${escapeQuoted(toCrlf(name))}"`
+    if (typeof value === 'string') {
+      parts.push(text.encode(`${head}${CRLF}${CRLF}${toCrlf(value)}${CRLF}`))
+      continue
+    }
+    const type = value.type || 'application/octet-stream'
+    parts.push(
+      text.encode(`${head}; filename="${escapeQuoted(value.name)}"${CRLF}Content-Type: ${type}${CRLF}${CRLF}`),
+      new Uint8Array(await value.arrayBuffer()),
+      text.encode(CRLF),
+    )
+  }
+  parts.push(text.encode(`--${boundary}--${CRLF}`))
+  const bytes = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
+  let at = 0
+  for (const part of parts) {
+    bytes.set(part, at)
+    at += part.length
+  }
+  return { bytes, contentType: `multipart/form-data; boundary=${boundary}` }
+}
+
 async function buildRequest(
   method: ApiMethod,
   url: string,
@@ -119,6 +174,7 @@ async function buildRequest(
   locale: string,
 ): Promise<{ request: ApiRequest; key: string }> {
   const { path, query } = splitUrl(url)
+  assertPlainPath(path)
   const request: ApiRequest = { method, path: `${API_BASE}${path}` }
   const allQuery = [...query, ...paramPairs(options.params)]
   if (allQuery.length > 0) request.query = allQuery
@@ -128,10 +184,9 @@ async function buildRequest(
     if (!RUNTIME_HEADERS.includes(name.toLowerCase())) headers.set(name, value)
   }
   if (body instanceof FormData) {
-    // The browser's own multipart encoding, boundary included.
-    const encoded = new Response(body)
-    headers.set('Content-Type', encoded.headers.get('content-type') ?? 'multipart/form-data')
-    request.body = { kind: 'binary', base64: toBase64(new Uint8Array(await encoded.arrayBuffer())) }
+    const encoded = await encodeMultipart(body)
+    headers.set('Content-Type', encoded.contentType)
+    request.body = { kind: 'binary', base64: toBase64(encoded.bytes) }
   } else if (body !== undefined) {
     request.body = { kind: 'json', value: body }
   }
@@ -222,8 +277,8 @@ export function createDesktopHttp(options: DesktopHttpOptions): HttpClient {
     // The context of the send; an answer for another one is not used.
     const company = deps.getCompanyId()
     const generation = deps.getSessionGeneration()
-    const isStale = () =>
-      deps.getCompanyId() !== company || deps.getSessionGeneration() !== generation
+    const signedInAgain = () => deps.getSessionGeneration() !== generation
+    const isStale = () => deps.getCompanyId() !== company || signedInAgain()
     const { request, key } = await buildRequest(method, url, body, o, deps.getLocale())
 
     let response: ApiResponse
@@ -243,15 +298,26 @@ export function createDesktopHttp(options: DesktopHttpOptions): HttpClient {
     }
 
     if (response.source === 'network') network?.answered()
-    if (isStale()) throw stale()
-    if (response.source === 'local') {
-      const meta = offlineMetaOf(response)
-      if (meta) offlineMeta?.record(key, meta)
-    } else {
-      offlineMeta?.record(key, undefined)
+    const success = response.status >= 200 && response.status < 300
+    if (success) {
+      // A write's result always reaches the caller: dropping it would make the user
+      // save again in the new context (a duplicate). A read is dropped only for an
+      // older sign-in; the web query keys already carry the company.
+      if (method === 'GET' && signedInAgain()) throw stale()
+    } else if (isStale()) {
+      throw stale()
+    }
+    // Freshness labels are kept only for the context that asked.
+    if (!isStale()) {
+      if (response.source === 'local') {
+        const meta = offlineMetaOf(response)
+        if (meta) offlineMeta?.record(key, meta)
+      } else {
+        offlineMeta?.record(key, undefined)
+      }
     }
 
-    if (response.status >= 200 && response.status < 300) return response
+    if (success) return response
     const error =
       apiErrorFromEnvelope(response.status, jsonOf(response)) ??
       new ApiError(response.status, 'HTTP_ERROR', `Request failed with status code ${response.status}`)

@@ -149,8 +149,31 @@ describe('desktop http: request mapping', () => {
     const file = parsed.get('file') as File
     expect(file.name).toBe('a.pdf')
     expect(Array.from(new Uint8Array(await file.arrayBuffer()))).toEqual([0, 1, 2, 255])
-    const reference = new Uint8Array(await new Response(form).arrayBuffer())
-    expect(sentBytes.length).toBe(reference.length)
+    // The exact bytes, boundary aside (WHATWG multipart/form-data encoding).
+    const boundary = contentType.slice('multipart/form-data; boundary='.length)
+    const text = String.fromCharCode(...sentBytes).split(boundary).join('B')
+    expect(text).toBe(
+      '--B\r\nContent-Disposition: form-data; name="kind"\r\n\r\ninvoice\r\n' +
+        '--B\r\nContent-Disposition: form-data; name="file"; filename="a.pdf"\r\nContent-Type: application/pdf\r\n\r\n' +
+        '\u0000\u0001\u0002ÿ\r\n--B--\r\n',
+    )
+  })
+
+  it('escapes field and file names and writes line breaks as CRLF, like a browser', async () => {
+    const s = setup()
+    const form = new FormData()
+    form.append('a"b\nc', 'x\ny\rz')
+    form.append('f', new Blob(['ç']), 'r"\r.txt')
+    await s.http.post('/x', form)
+    const req = s.sent()[0]
+    const contentType = req?.headers?.find(([n]) => n === 'Content-Type')?.[1] ?? ''
+    const boundary = contentType.slice('multipart/form-data; boundary='.length)
+    const bytes = Uint8Array.from(atob((req?.body as { base64: string }).base64), (ch) => ch.charCodeAt(0))
+    const text = new TextDecoder().decode(bytes).split(boundary).join('B')
+    expect(text).toBe(
+      '--B\r\nContent-Disposition: form-data; name="a%22b%0D%0Ac"\r\n\r\nx\r\ny\r\nz\r\n' +
+        '--B\r\nContent-Disposition: form-data; name="f"; filename="r%22%0D.txt"\r\nContent-Type: application/octet-stream\r\n\r\nç\r\n--B--\r\n',
+    )
   })
 
   it('refuses an absolute url before sending anything', async () => {
@@ -316,14 +339,63 @@ describe('desktop http: session failures', () => {
     expect(s.failures).toEqual([])
   })
 
-  it('a success that returns after the session changed is stale as well', async () => {
+  // Successful answers (chief decision on review P1-2): a write's result is never
+  // dropped (the user would save it again in the new company, a duplicate); a read is
+  // dropped only for an older sign-in; a company switch drops no 2xx (web query keys
+  // carry the company).
+  interface Ctx { generation: number; company: string | null }
+  const toCompany = (ctx: Ctx) => { ctx.company = 'c2' }
+  const toSignIn = (ctx: Ctx) => { ctx.generation = 2 }
+
+  it.each([
+    ['POST', 'company', 'ok', toCompany],
+    ['POST', 'session generation', 'ok', toSignIn],
+    ['PUT', 'company', 'ok', toCompany],
+    ['PATCH', 'session generation', 'ok', toSignIn],
+    ['DELETE', 'company', 'ok', toCompany],
+    ['GET', 'company', 'ok', toCompany],
+    ['GET', 'session generation', 'stale', toSignIn],
+  ] as const)('a %s 2xx after the %s changed: %s', async (method, _what, expected, change) => {
     const answer = deferred<ApiResponse>()
     const s = setup(() => answer.promise)
-    const pending = s.http.get('/x').catch((e: unknown) => e)
+    const body = { data: { id: 'q1', number: 'TKL-1' } }
+    const run: Record<typeof method, () => Promise<unknown>> = {
+      GET: () => s.http.get('/x'),
+      POST: () => s.http.post('/sales/quotes', { a: 1 }, { idempotencyKey: 'k' }),
+      PUT: () => s.http.put('/x', {}),
+      PATCH: () => s.http.patch('/x', {}),
+      DELETE: () => s.http.delete('/x'),
+    }
+    const pending = run[method]().catch((e: unknown) => e)
     await flush()
-    s.context.company = null
-    answer.resolve(ok({ data: 1 }))
+    change(s.context)
+    answer.resolve(ok(body))
+    if (expected === 'ok') expect(await pending).toEqual(body)
+    else expect(await pending).toMatchObject({ code: STALE_REQUEST })
+    expect(s.failures).toEqual([])
+  })
+
+  it('a read answered after a company switch reaches the caller but leaves no offline meta', async () => {
+    const answer = deferred<ApiResponse>()
+    const s = setup(() => answer.promise)
+    const body = { data: [], meta: { offline: { partial: false, stale: true } } }
+    const pending = s.http.get('/parties')
+    await flush()
+    s.context.company = 'c2'
+    answer.resolve(ok(body, { source: 'local' }))
+    await expect(pending).resolves.toEqual(body)
+    expect(s.offlineMeta.get('/parties')).toBeUndefined()
+  })
+
+  it('a write error after the company changed is still stale and reports nothing', async () => {
+    const answer = deferred<ApiResponse>()
+    const s = setup(() => answer.promise)
+    const pending = s.http.post('/x', {}).catch((e: unknown) => e)
+    await flush()
+    s.context.company = 'c2'
+    answer.resolve(envelope(403, { message: 'x', code: 'USER_DEACTIVATED' }))
     expect(await pending).toMatchObject({ code: STALE_REQUEST })
+    expect(s.failures).toEqual([])
   })
 })
 
@@ -408,5 +480,62 @@ describe('desktop http: network and offline meta', () => {
     const t = setup(() => ok({ data: [] }, { source: 'local' }))
     await t.http.get('/b')
     expect(t.offlineMeta.get('/b')).toBeUndefined()
+  })
+})
+
+// Paths the shell refuses with INVALID_REQUEST (`check_path`), from its own test
+// lists: desktop/src-tauri/src/commands/api/tests.rs (refused requests) and
+// desktop/crates/keystone-sync/src/client/url.rs (`endpoint` refusals). Written
+// here as the feature-side url (without the `/api/v1` the adapter adds). The
+// adapter refuses the same paths before anything is sent.
+const SHELL_REFUSED_PATHS = [
+  '/../v2/parties', // api.rs tests: /api/v1/../v2/parties
+  '/parties/./x', // api.rs tests: /api/v1/parties/./x
+  '/parties/', // api.rs tests: /api/v1/parties/
+  '/', // api.rs tests: /api/v1/
+  '', // url.rs: /api/v1
+  '/part%69es', // api.rs tests: /api/v1/part%69es
+  '/parties\\x', // api.rs tests: /api/v1/parties\x
+  '/cari kartlar', // api.rs tests: /api/v1/cari kartlar
+  '/../admin', // url.rs: /api/v1/../admin
+  '/./x', // url.rs: /api/v1/./x
+  '/x//y', // api.rs tests: empty segment (/api/v1//parties)
+  '/%2e%2e/x', // url.rs: /api/v1/%2e%2e/x
+  '/x/%2e%2e/sync/pull', // tests/client_proxy.rs
+  '/cari/şirket', // not ASCII
+]
+
+describe('desktop http: paths the shell would refuse', () => {
+  it.each(SHELL_REFUSED_PATHS)('refuses %j locally with INVALID_REQUEST, sending nothing', async (url) => {
+    const s = setup()
+    const error = await s.http.get(url).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ status: 0, code: 'INVALID_REQUEST' })
+    expect(s.sent()).toEqual([])
+    expect(s.failures).toEqual([])
+  })
+
+  it.each([
+    // api.rs tests (absolute and protocol-relative) stop earlier, at assertApiPath.
+    ['https://evil.example/api/v1/parties', 'INVALID_URL'],
+    ['//evil.example/api/v1/parties', 'INVALID_URL'],
+    ['//parties', 'INVALID_URL'],
+  ])('refuses %j as INVALID_URL', async (url, code) => {
+    const s = setup()
+    await expect(s.http.get(url)).rejects.toMatchObject({ status: 0, code })
+    expect(s.sent()).toEqual([])
+  })
+
+  it.each([
+    ['/parties/0192f5a0-0000-7000-8000-000000000001', '/api/v1/parties/0192f5a0-0000-7000-8000-000000000001'],
+    ['parties', '/api/v1/parties'],
+    ['/a.b~c_d-e/F9', '/api/v1/a.b~c_d-e/F9'],
+    // Query and fragment are split off before the check (the shell gets pairs).
+    ['/parties?x=1#frag', '/api/v1/parties'],
+    ['/auth/me', '/api/v1/auth/me'],
+  ])('sends the plain path %j', async (url, path) => {
+    const s = setup()
+    await s.http.get(url)
+    expect(s.sent()[0]?.path).toBe(path)
   })
 })

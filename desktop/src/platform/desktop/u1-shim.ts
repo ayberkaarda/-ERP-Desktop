@@ -1,5 +1,5 @@
 // TEMPORARY: removed after the upstream sync that brings the web platform
-// runtime hook (Keystone-ERP #74, branch feat/platform-runtime-hook, 69df7f9).
+// runtime hook (Keystone-ERP #74, branch feat/platform-runtime-hook, 19605ac).
 // Then every import of this file moves to `@/platform/shared` (helpers) and
 // `@/platform/types` (types, ApiError), and this file and its test are deleted.
 //
@@ -56,28 +56,26 @@ export interface PlatformDeps {
   onAuthFailure: (failure: AuthFailure) => void
 }
 
-// --- U1 contract addition (announced for #74, not pushed yet when this was written):
-// the shape below is this side's reading of it; check it against the pushed
-// `shared.ts` at the sync. ---
+// --- Verbatim copy of U1 frontend/src/platform/shared.ts ---
+
+export const STALE_REQUEST = 'REQUEST_STALE'
 
 /**
- * The user cancelled a runtime account flow (e.g. kept unsent work instead of
- * signing out). Callers keep the current session/company and show no error.
+ * A runtime rejects with this when the user called off a session action it asked about
+ * (e.g. pending work on sign-out or company switch). Callers keep the current state and
+ * show nothing; any other rejection is a real error.
  */
 export class PlatformCancelledError extends Error {
   constructor(message = 'Cancelled by the user.') {
     super(message)
-    this.name = 'PlatformCancelledError'
+    this.name = 'PlatformCancelled'
   }
 }
 
-export function isPlatformCancelled(error: unknown): error is PlatformCancelledError {
-  return error instanceof PlatformCancelledError
+/** True for PlatformCancelledError, also from another copy of this module (matched by name). */
+export function isPlatformCancelled(error: unknown): boolean {
+  return error instanceof Error && error.name === 'PlatformCancelled'
 }
-
-// --- Verbatim copy of U1 frontend/src/platform/shared.ts ---
-
-export const STALE_REQUEST = 'REQUEST_STALE'
 
 /** A request dropped because the company or session changed before its CSRF replay. */
 export function isStaleRequest(error: unknown): boolean {
