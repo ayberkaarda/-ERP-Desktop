@@ -154,6 +154,42 @@ mod tests {
         assert_eq!(body.as_slice(), SIGNED);
     }
 
+    /// Runs itself in a process of its own, whose output is read from outside.
+    #[tokio::test]
+    async fn the_signature_is_never_printed() {
+        const CHILD: &str = "KEYSTONE_BROADCASTING_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            let server = MockServer::start().await;
+            Mock::given(method("POST"))
+                .and(path(AUTH))
+                .respond_with(ResponseTemplate::new(200).set_body_raw(SIGNED, "application/json"))
+                .mount(&server)
+                .await;
+            let store = signed_in(1);
+            let client = client(&server, &store);
+            client.broadcasting_auth(SOCKET, CHANNEL, 1).await.unwrap();
+            println!("child finished");
+            return;
+        }
+        let output = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "client::http::broadcasting::tests::the_signature_is_never_printed",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .output()
+            .unwrap();
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.status.success(), "{text}");
+        assert!(text.contains("child finished"), "{text}");
+        assert!(!text.contains("SECRETSIG"), "{text}");
+    }
+
     #[tokio::test]
     async fn a_401_refreshes_once_and_sends_again_with_the_new_token() {
         let server = MockServer::start().await;

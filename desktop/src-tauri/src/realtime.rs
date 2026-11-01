@@ -588,6 +588,25 @@ pub async fn realtime_status(desktop: State<'_, Desktop>) -> CommandResult<Realt
     Ok(desktop.realtime_status().await)
 }
 
+/// `event` of a connection of sign-in `generation`, through the real handler.
+#[cfg(test)]
+pub(crate) async fn deliver(
+    profile_id: &str,
+    client: Arc<HttpClient>,
+    sync: Option<SyncHandle>,
+    sink: Arc<dyn RealtimeSink>,
+    event: RealtimeEvent,
+    generation: u64,
+) {
+    let handler = Handler {
+        profile_id: profile_id.to_owned(),
+        client,
+        sync,
+        sink,
+    };
+    handler.handle(event, generation).await;
+}
+
 /// Records events (tests).
 #[cfg(test)]
 #[derive(Debug, Default)]
@@ -809,6 +828,56 @@ mod tests {
         let outcome = authorizer.authorize(request).await;
         assert_eq!(outcome.unwrap_err(), AuthorizeError::Unauthenticated);
         assert_eq!(server.received_requests().await.unwrap().len(), before);
+    }
+
+    /// Every log record of this test process, from `Debug` up.
+    struct Capture;
+
+    static LOGS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+    impl log::Log for Capture {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            let line = format!("{} {}", record.target(), record.args());
+            let mut logs = LOGS.lock().unwrap_or_else(|e| e.into_inner());
+            logs.push(line);
+        }
+        fn flush(&self) {}
+    }
+
+    #[tokio::test]
+    async fn the_signature_stays_out_of_the_logs() {
+        static INSTALL: std::sync::Once = std::sync::Once::new();
+        INSTALL.call_once(|| {
+            log::set_logger(&Capture).unwrap();
+            log::set_max_level(log::LevelFilter::Debug);
+        });
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(paths::BROADCASTING_AUTH))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"auth": "key:SECRETSIG-LOG"})),
+            )
+            .mount(&server)
+            .await;
+        let store = signed_in();
+        let authorizer = Authorizer {
+            client: client(&server.uri(), &store),
+            generation: 1,
+        };
+        let request = AuthRequest {
+            socket_id: "1.1",
+            channel_name: CHANNEL,
+        };
+
+        assert!(authorizer.authorize(request).await.is_ok());
+
+        log::info!("capture works");
+        let logs = LOGS.lock().unwrap().clone();
+        assert!(logs.iter().any(|line| line.contains("capture works")));
+        assert!(!logs.iter().any(|line| line.contains("SECRETSIG-LOG")));
     }
 
     #[tokio::test]

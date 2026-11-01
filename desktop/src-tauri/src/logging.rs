@@ -60,7 +60,7 @@ static BEARER: LazyLock<Regex> =
 /// `password: "..."`.
 static SECRET_FIELD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r#"(?i)("?(?:access_token|refresh_token|token|password|two_factor_code|secret)"?\s*[:=]\s*)"[^"]*""#,
+        r#"(?i)("?(?:access_token|refresh_token|token|password|two_factor_code|secret|auth)"?\s*[:=]\s*)"[^"]*""#,
     )
     .expect("secret field regex")
 });
@@ -257,6 +257,31 @@ mod tests {
                 .iter()
                 .all(|(_, level)| *level <= LevelFilter::Info)
         );
+    }
+
+    #[test]
+    fn masks_a_channel_signature() {
+        let masked = mask(
+            r#"signed {"auth":"app-key:5f3a9c","channel_data":null} ChannelAuth { auth: "app-key:5f3a9c" }"#,
+        );
+        assert!(!masked.contains("5f3a9c"), "{masked}");
+        assert!(masked.contains(r#""auth":"[redacted]""#), "{masked}");
+        assert_eq!(mask("author: \"Ayse\""), "author: \"Ayse\"");
+    }
+
+    /// The plugin cannot be run here: Tauri's mock runtime does not load on
+    /// Windows in a test binary, and its builder shows nothing. So the text
+    /// of `plugin()`: the cap of [`capped_targets`] goes through `level_for`.
+    #[test]
+    fn the_plugin_applies_the_websocket_cap() {
+        let source = include_str!("logging.rs").replace("\r\n", "\n");
+        let body = source
+            .split("pub fn plugin<R: tauri::Runtime>()")
+            .nth(1)
+            .and_then(|rest| rest.split("\n}\n").next())
+            .expect("plugin() in the source");
+        assert!(body.contains("capped_targets()"), "{body}");
+        assert!(body.contains("builder.level_for(target, level)"), "{body}");
     }
 
     #[test]

@@ -134,30 +134,16 @@ impl Conn {
         true
     }
 
-    /// Waits for the end of the socket. The client may close right after
-    /// the subscription, with that answer unread: the frame can then be
-    /// lost to a TCP reset.
-    async fn gone(&mut self) {
+    /// Waits for the end of the socket. The client may close with an answer
+    /// of ours unread: its close frame can then be lost to a TCP reset, so a
+    /// reset counts too.
+    async fn closed(&mut self) {
         loop {
             let next = timeout(WAIT, self.0.next())
                 .await
                 .expect("socket left open");
             if matches!(next, None | Some(Err(_) | Ok(Message::Close(_)))) {
                 return;
-            }
-        }
-    }
-
-    /// Waits for the client's close frame.
-    async fn closed(&mut self) {
-        loop {
-            let next = timeout(WAIT, self.0.next())
-                .await
-                .expect("socket left open");
-            match next {
-                Some(Ok(Message::Close(_))) => return,
-                Some(Ok(_)) => {}
-                other => panic!("no close frame: {other:?}"),
             }
         }
     }
@@ -212,6 +198,18 @@ impl Fx {
             last == Some(want)
         })
         .await;
+    }
+
+    /// The states of `id`, in order.
+    fn states(&self, id: &str) -> Vec<RealtimeStateDto> {
+        let events = self.realtime.events();
+        events
+            .iter()
+            .filter_map(|e| match e {
+                RealtimeEventDto::State { profile_id, state } if profile_id == id => Some(*state),
+                _ => None,
+            })
+            .collect()
     }
 
     async fn revoked_events(&self) -> usize {
@@ -569,12 +567,12 @@ async fn sign_in_and_sign_out_without_a_sync_loop_still_move_the_socket() {
     assert!(fx.login().await.unwrap().company_required);
     let mut first = reverb.subscribed("1.1").await;
     fx.desktop.sign_out(&fx.state, true).await.unwrap();
-    first.gone().await;
+    first.closed().await;
 
     assert!(fx.login().await.unwrap().company_required);
     let mut second = reverb.subscribed("1.2").await;
     fx.desktop.sign_out(&fx.state, true).await.unwrap();
-    second.gone().await;
+    second.closed().await;
     fx.settles_on(&profile.id, RealtimeStateDto::Idle).await;
 }
 
@@ -669,4 +667,165 @@ async fn the_old_socket_closes_before_the_sign_in_is_settled() {
         () = first.closed() => {}
     }
     assert_eq!(fx.record().generation, generation + 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn plain_ws_stays_refused_without_the_dev_flag() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let added = fx.add(&server).await;
+
+    // The same meta in an app without the flag: its `ws://` socket only.
+    let mut no_flag = options();
+    no_flag.allow_http_localhost = false;
+    let (desktop, _events, realtime) = desktop_over(fx.dir.path(), &fx.service, &fx.mock, no_flag);
+    let stored = fx.desktop.registry().load().unwrap();
+    let mut profile = stored.get(&added.id).unwrap().clone();
+    profile.id = Uuid::now_v7().to_string();
+    profile.base_url = "https://erp.example.com".into();
+    let id = profile.id.clone();
+    desktop.registry().add(profile).unwrap();
+    let state = AppState::default();
+
+    desktop.select(&state, &id).await.unwrap();
+
+    assert_eq!(
+        desktop.realtime_status().await.state,
+        RealtimeStateDto::Unavailable
+    );
+    realtime
+        .wait_for(|e| is_state(e, &id, RealtimeStateDto::Unavailable))
+        .await;
+    assert!(reverb.quiet_for(Duration::from_millis(200)).await);
+    assert_eq!(realtime.events().len(), 1, "{:?}", realtime.events());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_switch_waits_for_the_old_bridge_before_it_returns() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let other = self::server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let (_profile, mut conn) = fx.connected(&mut reverb, &server).await;
+    let b = fx.add(&other).await;
+
+    // The old bridge is stuck on the session lock, in its revocation.
+    let session = fx.state.client().unwrap().session().clone();
+    let held = session.lock().await;
+    conn.event("session.revoked", json!({"reason": "deactivated"}))
+        .await;
+    conn.closed().await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    fx.desktop.select(&fx.state, &b.id).await.unwrap();
+
+    // Gone when the switch returned: the lock opens on nobody.
+    drop(held);
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(session.record().unwrap().tokens.is_some());
+    assert_eq!(fx.revoked_events().await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_sign_in_closes_the_old_socket_before_the_next_opens() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let (profile, mut first) = fx.connected(&mut reverb, &server).await;
+
+    fx.login().await.unwrap();
+    first.closed().await;
+    let _second = reverb.subscribed("1.2").await;
+    fx.settles_on(&profile.id, RealtimeStateDto::Connected)
+        .await;
+
+    let states = fx.states(&profile.id);
+    assert_eq!(
+        states[states.len() - 4..],
+        [
+            RealtimeStateDto::Connected,
+            RealtimeStateDto::Idle,
+            RealtimeStateDto::Connecting,
+            RealtimeStateDto::Connected,
+        ],
+        "{states:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_revoked_session_keeps_the_unsent_work() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let (_profile, mut conn) = fx.connected(&mut reverb, &server).await;
+    let engine = fx.state.engine().unwrap();
+    engine.enqueue(draft()).unwrap();
+    assert_eq!(engine.refresh_status().unwrap().pending, 1);
+
+    conn.event("session.revoked", json!({"reason": "deactivated"}))
+        .await;
+    fx.events
+        .wait_for(
+            |e| matches!(e, EngineEvent::Status { status, .. } if status.state == "auth_required"),
+        )
+        .await;
+
+    assert_eq!(engine.refresh_status().unwrap().pending, 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_revocation_of_an_earlier_sign_in_starts_no_run() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let earlier = fx.record().generation;
+    fx.login().await.unwrap();
+    let engine = fx.state.engine().unwrap();
+
+    // A loop of this test, for its handle.
+    let (handle, sync) = sync_loop(engine.clone());
+    let sync = tokio::spawn(sync.run());
+    let settled = async |server: &MockServer| {
+        let mut seen = manifests(server).await;
+        loop {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            let now = manifests(server).await;
+            if now == seen && engine.status().state == SyncState::Idle {
+                return now;
+            }
+            seen = now;
+        }
+    };
+    let before = settled(&server).await;
+
+    let sink = Arc::new(crate::realtime::Recorder::default());
+    let client = fx.state.client().unwrap();
+    crate::realtime::deliver(
+        &profile.id,
+        client.clone(),
+        Some(handle.clone()),
+        sink.clone(),
+        keystone_realtime::RealtimeEvent::SessionRevoked { reason: "x".into() },
+        earlier,
+    )
+    .await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(manifests(&server).await, before);
+    assert!(sink.events().is_empty());
+    assert!(fx.record().tokens.is_some());
+
+    // The same handle does start a run when one is due.
+    let company_id = COMPANY.to_owned();
+    crate::realtime::deliver(
+        &profile.id,
+        client,
+        Some(handle),
+        sink,
+        keystone_realtime::RealtimeEvent::MembershipRevoked { company_id },
+        earlier + 1,
+    )
+    .await;
+    eventually("a run", async || manifests(&server).await > before).await;
+    sync.abort();
 }
