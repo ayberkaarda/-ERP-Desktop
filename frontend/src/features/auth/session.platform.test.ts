@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import { platform, type PlatformSession } from '@/platform'
+import { platform, PlatformCancelledError, type PlatformSession } from '@/platform'
 import { useAuthStore } from '@/stores/auth'
 import { useCompanyStore } from '@/stores/company'
 import { setupFea, signIn } from '@/test/handlers/feaRender'
@@ -68,6 +68,16 @@ describe('logout through a runtime session', () => {
     expect(ok).toBe(true)
     expect(order).toEqual(['runtime', 'navigate:/login'])
     expect(useSignOutStore.getState()).toMatchObject({ pending: false, failed: false })
+  })
+
+  it('signOut stays silent and keeps the session when the user cancels in the runtime', async () => {
+    platform.session = runtimeSession(() => Promise.reject(new PlatformCancelledError()))
+    const navigate = vi.fn()
+    expect(await signOut(navigate)).toBe(false)
+    expect(navigate).not.toHaveBeenCalled()
+    expect(useSignOutStore.getState()).toMatchObject({ pending: false, failed: false })
+    expect(useAuthStore.getState().status).toBe('authenticated')
+    expect(serverLogouts).toBe(0)
   })
 
   it('signOut reports a refused runtime logout as failed', async () => {

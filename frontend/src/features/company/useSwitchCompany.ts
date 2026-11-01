@@ -3,7 +3,7 @@ import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { errorMessage } from '@/features/auth/errors'
 import { refreshPermissions } from '@/features/auth/session'
-import { platform } from '@/platform'
+import { isPlatformCancelled, platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 
 /**
@@ -19,12 +19,13 @@ export function useSwitchCompany() {
       const { activeCompanyId, companies, setActiveCompany } = useCompanyStore.getState()
       const next = companies.find((c) => c.id === id)
       if (!next || id === activeCompanyId) return
-      // A runtime that holds the company itself switches first; a refusal keeps this one.
+      // A runtime that holds the company itself switches first; a refusal keeps this one,
+      // silently when the user cancelled there.
       if (platform.session) {
         try {
           await platform.session.switchCompany(id)
         } catch (error) {
-          platform.notify.error(errorMessage(error, t))
+          if (!isPlatformCancelled(error)) platform.notify.error(errorMessage(error, t))
           return
         }
       }

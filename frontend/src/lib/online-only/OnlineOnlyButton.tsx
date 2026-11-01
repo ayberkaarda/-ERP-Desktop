@@ -1,5 +1,7 @@
+import type { MouseEvent } from 'react'
 import { Button, type ButtonProps } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 import { useOnlineOnly } from './useOnlineOnly'
 
 export interface OnlineOnlyButtonProps extends ButtonProps {
@@ -7,20 +9,39 @@ export interface OnlineOnlyButtonProps extends ButtonProps {
   action: string
 }
 
-/** A Button that the runtime can disable for a server-only action, with the reason on hover. */
-export function OnlineOnlyButton({ action, disabled, ...props }: OnlineOnlyButtonProps) {
+function swallow(event: MouseEvent<HTMLButtonElement>) {
+  // Also stops a submit button from submitting its form.
+  event.preventDefault()
+}
+
+/**
+ * A Button that the runtime can disable for a server-only action. It is disabled with
+ * aria-disabled rather than the native attribute, so it stays focusable and the reason
+ * reaches keyboard and screen-reader users as the tooltip / accessible description.
+ */
+export function OnlineOnlyButton({
+  action,
+  disabled,
+  className,
+  onClick,
+  ...props
+}: OnlineOnlyButtonProps) {
   const state = useOnlineOnly(action)
-  if (!state.disabled) return <Button disabled={disabled} {...props} />
-  const button = <Button {...props} disabled />
+  if (!state.disabled) {
+    return <Button disabled={disabled} className={className} onClick={onClick} {...props} />
+  }
+  const button = (
+    <Button
+      {...props}
+      aria-disabled
+      onClick={swallow}
+      className={cn('cursor-not-allowed opacity-50', className)}
+    />
+  )
   if (!state.reason) return button
   return (
     <Tooltip>
-      {/* A disabled button gets no pointer or focus events; the wrapper carries the tooltip. */}
-      <TooltipTrigger asChild>
-        <span tabIndex={0} className="inline-flex">
-          {button}
-        </span>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent>{state.reason}</TooltipContent>
     </Tooltip>
   )

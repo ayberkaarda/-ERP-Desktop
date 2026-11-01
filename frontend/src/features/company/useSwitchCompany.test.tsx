@@ -2,7 +2,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { createQueryClient } from '@/lib/queryClient'
-import { platform, type PlatformSession } from '@/platform'
+import { platform, PlatformCancelledError, type PlatformSession } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
 import { COMPANY_A, COMPANY_B } from '@/test/handlers/fea'
 import { setupFea, signIn } from '@/test/handlers/feaRender'
@@ -66,6 +66,17 @@ describe('useSwitchCompany', () => {
     expect(useCompanyStore.getState().activeCompanyId).toBe(COMPANY_A)
     expect(cancel).not.toHaveBeenCalled()
     expect(error).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays silent and keeps the company when the user cancels in the runtime', async () => {
+    const error = vi.spyOn(platform.notify, 'error').mockImplementation(() => undefined)
+    platform.session = runtimeSession(() => Promise.reject(new PlatformCancelledError()))
+    const { queryClient, switchCompany } = renderSwitch()
+    const cancel = vi.spyOn(queryClient, 'cancelQueries')
+    await act(() => switchCompany(COMPANY_B))
+    expect(useCompanyStore.getState().activeCompanyId).toBe(COMPANY_A)
+    expect(cancel).not.toHaveBeenCalled()
+    expect(error).not.toHaveBeenCalled()
   })
 
   it('does not call the runtime for the active or an unknown company', async () => {

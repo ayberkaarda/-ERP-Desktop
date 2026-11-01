@@ -59,13 +59,26 @@ describe('online-only primitive', () => {
     }
     const onClick = renderButton()
     const button = screen.getByRole('button', { name: 'Kesinleştir' })
-    expect(button).toBeDisabled()
+    // aria-disabled keeps the button itself focusable, so the reason reaches screen readers.
+    expect(button).toHaveAttribute('aria-disabled', 'true')
     const user = userEvent.setup()
-    // Keyboard users reach the reason through the focusable wrapper.
     await user.tab()
-    expect(document.activeElement).toBe(button.parentElement)
-    expect(await screen.findByRole('tooltip')).toHaveTextContent('Bu işlem için bağlantı gerekir.')
+    expect(button).toHaveFocus()
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip).toHaveTextContent('Bu işlem için bağlantı gerekir.')
+    expect(button).toHaveAccessibleDescription('Bu işlem için bağlantı gerekir.')
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
     await user.click(button)
+    expect(onClick).not.toHaveBeenCalled()
+  })
+
+  it('stays disabled without a reason', async () => {
+    ext.value = { routes: [], publicRoutes: [], useOnlineOnly: () => ({ disabled: true }) }
+    const onClick = renderButton()
+    const button = screen.getByRole('button', { name: 'Kesinleştir' })
+    expect(button).toHaveAttribute('aria-disabled', 'true')
+    await userEvent.setup().click(button)
     expect(onClick).not.toHaveBeenCalled()
   })
 

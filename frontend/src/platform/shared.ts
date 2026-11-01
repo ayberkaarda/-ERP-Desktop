@@ -4,6 +4,23 @@ import { ApiError, type AuthFailure, type HttpRequestOptions } from './types'
 
 export const STALE_REQUEST = 'REQUEST_STALE'
 
+/**
+ * A runtime rejects with this when the user called off a session action it asked about
+ * (e.g. pending work on sign-out or company switch). Callers keep the current state and
+ * show nothing; any other rejection is a real error.
+ */
+export class PlatformCancelledError extends Error {
+  constructor(message = 'Cancelled by the user.') {
+    super(message)
+    this.name = 'PlatformCancelled'
+  }
+}
+
+/** True for PlatformCancelledError, also from another copy of this module (matched by name). */
+export function isPlatformCancelled(error: unknown): boolean {
+  return error instanceof Error && error.name === 'PlatformCancelled'
+}
+
 /** A request dropped because the company or session changed before its CSRF replay. */
 export function isStaleRequest(error: unknown): boolean {
   return error instanceof ApiError && error.code === STALE_REQUEST
