@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { isPlatformCancelled } from '@/platform'
 import { logout, signOutLocally } from './session'
 
 interface SignOutState {
@@ -23,8 +24,9 @@ export async function signOut(navigate: Navigate): Promise<boolean> {
     useSignOutStore.setState({ pending: false, failed: false })
     navigate('/login')
     return true
-  } catch {
-    useSignOutStore.setState({ pending: false, failed: true })
+  } catch (error) {
+    // The user called it off in the runtime: stay signed in, no failure dialog.
+    useSignOutStore.setState({ pending: false, failed: !isPlatformCancelled(error) })
     return false
   }
 }
