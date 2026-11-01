@@ -1,4 +1,4 @@
-import { render, renderHook, screen } from '@testing-library/react'
+import { cleanup, render, renderHook, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Providers } from '@/app/providers'
 import type { AppExtensions } from '@/app/extensions'
@@ -80,6 +80,75 @@ describe('online-only primitive', () => {
     expect(button).toHaveAttribute('aria-disabled', 'true')
     await userEvent.setup().click(button)
     expect(onClick).not.toHaveBeenCalled()
+  })
+
+  function renderInContext(disabled: boolean) {
+    ext.value = {
+      routes: [],
+      publicRoutes: [],
+      useOnlineOnly: () => ({ disabled, reason: disabled ? 'Bağlantı gerekir.' : undefined }),
+    }
+    const spies = {
+      submit: vi.fn((e: { preventDefault: () => void }) => e.preventDefault()),
+      rowClick: vi.fn(),
+      rowKeyDown: vi.fn(),
+      onClick: vi.fn(),
+      onMouseDown: vi.fn(),
+      onKeyDown: vi.fn(),
+    }
+    render(
+      <Providers queryClient={createQueryClient()}>
+        {/* A clickable row around a submit button, as in list rows with inline actions. */}
+        <div role="row" tabIndex={-1} onClick={spies.rowClick} onKeyDown={spies.rowKeyDown}>
+          <form onSubmit={spies.submit}>
+            <OnlineOnlyButton
+              action="sales-invoices.finalize"
+              type="submit"
+              onClick={spies.onClick}
+              onMouseDown={spies.onMouseDown}
+              onKeyDown={spies.onKeyDown}
+            >
+              Kesinleştir
+            </OnlineOnlyButton>
+          </form>
+        </div>
+      </Providers>,
+    )
+    return { spies, button: screen.getByRole('button', { name: 'Kesinleştir' }) }
+  }
+
+  it('a disabled submit button neither submits its form nor reaches outer handlers', async () => {
+    const { spies, button } = renderInContext(true)
+    const user = userEvent.setup()
+    await user.click(button)
+    button.focus()
+    await user.keyboard('{Enter}')
+    await user.keyboard(' ')
+    expect(spies.submit).not.toHaveBeenCalled()
+    expect(spies.rowClick).not.toHaveBeenCalled()
+    expect(spies.rowKeyDown).not.toHaveBeenCalled()
+    expect(spies.onClick).not.toHaveBeenCalled()
+    expect(spies.onMouseDown).not.toHaveBeenCalled()
+    expect(spies.onKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('an available button submits, bubbles and calls its handlers as before', async () => {
+    const { spies, button } = renderInContext(false)
+    await userEvent.setup().click(button)
+    expect(spies.submit).toHaveBeenCalledTimes(1)
+    expect(spies.rowClick).toHaveBeenCalledTimes(1)
+    expect(spies.onClick).toHaveBeenCalledTimes(1)
+    expect(spies.onMouseDown).toHaveBeenCalledTimes(1)
+    expect(button).not.toHaveAttribute('aria-disabled')
+  })
+
+  it('looks disabled only while disabled', () => {
+    const { button } = renderInContext(true)
+    expect(button).toHaveClass('opacity-50', 'cursor-not-allowed')
+    cleanup()
+    const { button: enabled } = renderInContext(false)
+    expect(enabled).not.toHaveClass('opacity-50')
+    expect(enabled).not.toHaveClass('cursor-not-allowed')
   })
 
   it('respects the caller disabling an available button', () => {

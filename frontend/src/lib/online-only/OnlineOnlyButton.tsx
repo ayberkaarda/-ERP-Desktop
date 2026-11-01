@@ -1,4 +1,4 @@
-import type { MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import { Button, type ButtonProps } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -9,32 +9,65 @@ export interface OnlineOnlyButtonProps extends ButtonProps {
   action: string
 }
 
-function swallow(event: MouseEvent<HTMLButtonElement>) {
-  // Also stops a submit button from submitting its form.
+// A disabled action must not submit its form nor reach outer handlers (clickable rows).
+function stopClick(event: MouseEvent<HTMLButtonElement>) {
   event.preventDefault()
+  event.stopPropagation()
+}
+
+function stopActivationKey(event: KeyboardEvent<HTMLButtonElement>) {
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    event.stopPropagation()
+  }
 }
 
 /**
  * A Button that the runtime can disable for a server-only action. It is disabled with
  * aria-disabled rather than the native attribute, so it stays focusable and the reason
- * reaches keyboard and screen-reader users as the tooltip / accessible description.
+ * reaches keyboard and screen-reader users as the tooltip / accessible description. While
+ * disabled, the caller's activation handlers are not called.
  */
 export function OnlineOnlyButton({
   action,
   disabled,
   className,
   onClick,
+  onDoubleClick,
+  onMouseDown,
+  onMouseUp,
+  onPointerDown,
+  onPointerUp,
+  onKeyDown,
+  onKeyUp,
   ...props
 }: OnlineOnlyButtonProps) {
   const state = useOnlineOnly(action)
   if (!state.disabled) {
-    return <Button disabled={disabled} className={className} onClick={onClick} {...props} />
+    return (
+      <Button
+        disabled={disabled}
+        className={className}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+        onMouseDown={onMouseDown}
+        onMouseUp={onMouseUp}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
+        {...props}
+      />
+    )
   }
   const button = (
     <Button
       {...props}
       aria-disabled
-      onClick={swallow}
+      onClick={stopClick}
+      onDoubleClick={stopClick}
+      onKeyDown={stopActivationKey}
+      onKeyUp={stopActivationKey}
       className={cn('cursor-not-allowed opacity-50', className)}
     />
   )

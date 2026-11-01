@@ -24,6 +24,21 @@ describe('createPlatform (web runtime)', () => {
     expect(typeof p.connectivity.isOnline()).toBe('boolean')
   })
 
+  it('configures web realtime from the VITE_REVERB_* build env', () => {
+    vi.stubEnv('VITE_REVERB_APP_KEY', 'test-key')
+    try {
+      expect(createPlatform(deps()).realtime.state()).toBe('idle')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+    vi.stubEnv('VITE_REVERB_APP_KEY', '')
+    try {
+      expect(createPlatform(deps()).realtime.state()).toBe('disabled')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('wires company, locale and auth failures from the given deps', async () => {
     const seen: { company: string | null; locale: string | null } = { company: null, locale: null }
     server.use(
