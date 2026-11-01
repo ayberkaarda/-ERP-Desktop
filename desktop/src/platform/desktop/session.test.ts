@@ -89,7 +89,7 @@ describe('desktop session', () => {
       resolved = true
     })
     await flush()
-    expect(s.bridge.calls).toEqual([{ command: 'profile_select_company', args: { companyId: 'c2' } }])
+    expect(s.bridge.calls).toEqual([{ command: 'profile_select_company', args: { company: 'c2', force: false } }])
     expect(resolved).toBe(false)
     expect(s.steps).toEqual([])
     answer.resolve({ company_required: false })
@@ -106,8 +106,8 @@ describe('desktop session', () => {
     const s = setup({ profile_select_company: guardedSelect, sync_status: () => counts }, 'discard')
     await expect(s.session.switchCompany('c2')).resolves.toBeUndefined()
     expect(s.bridge.callsOf('profile_select_company').map((c) => c.args)).toEqual([
-      { companyId: 'c2' },
-      { companyId: 'c2', force: true },
+      { company: 'c2', force: false },
+      { company: 'c2', force: true },
     ])
     expect(s.steps).toEqual(['ask switchCompany 3/1', 'changed'])
   })

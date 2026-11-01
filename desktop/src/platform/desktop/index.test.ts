@@ -84,6 +84,48 @@ describe('createDesktopPlatform', () => {
     await expect(platform.session.logout()).rejects.toBeInstanceOf(PendingWorkError)
   })
 
+  it('learns a lost server behind a local fallback answer from the connectivity event', async () => {
+    const { platform, bridge } = await setup()
+    const local = { status: 200, headers: [], body: { kind: 'json', value: { data: [] } }, source: 'local' }
+    bridge.handle({ api_request: () => local })
+    await platform.http.get('/parties')
+    expect(platform.connectivity.isOnline()).toBe(true)
+    bridge.handle({
+      api_request: () => {
+        bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: false })
+        return local
+      },
+    })
+    await platform.http.get('/parties')
+    expect(platform.connectivity.isOnline()).toBe(false)
+  })
+
+  it('a confirmed sign-out resets the connection state; a kept one does not', async () => {
+    const { platform, bridge } = await setup()
+    bridge.handle({
+      api_request: () => fail('NETWORK_ERROR'),
+      auth_sign_out: () => ({ status: 'pending_work', outbox: 1, conflicts: 0 }),
+    })
+    await expect(platform.http.get('/x')).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+    platform.desktop.setPendingWorkHandler(() => Promise.resolve('keep'))
+    await expect(platform.session.logout()).rejects.toBeInstanceOf(PlatformCancelledError)
+    expect(platform.connectivity.isOnline()).toBe(false)
+    bridge.handle({ auth_sign_out: () => ({ status: 'done' }) })
+    await platform.session.logout()
+    expect(platform.connectivity.isOnline()).toBe(true)
+  })
+
+  it('a company switch keeps the connection state', async () => {
+    const { platform, bridge } = await setup()
+    bridge.handle({
+      api_request: () => fail('NETWORK_ERROR'),
+      profile_select_company: () => ({ company_required: false }),
+    })
+    await expect(platform.http.get('/x')).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+    await platform.session.switchCompany('c2')
+    expect(platform.connectivity.isOnline()).toBe(false)
+  })
+
   it('shows toasts through sonner', async () => {
     const { platform } = await setup()
     platform.notify.success('a', { description: 'd' })

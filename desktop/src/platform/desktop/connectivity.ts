@@ -1,6 +1,9 @@
-// Online means: the active profile's engine is not `offline`, and the last
-// request did not fail to reach the server. The engine state comes from
-// `sync_status` first, then from `engine-event` status events.
+// Online means: the active profile's engine is not `offline`, and the server
+// was not last found unreachable. The engine state comes from `sync_status`
+// first, then from `engine-event` status events. Reachability comes from the
+// requests this client sends and from the shell's `connectivity` events, which
+// also cover what a request answer does not show (a read answered from this
+// device after the server did not answer in time).
 
 import { listenEngine, type Listen, type Unlisten } from '../../bridge/events'
 import type { StatusDto } from '../../bridge/generated/StatusDto'
@@ -12,6 +15,11 @@ import type { Connectivity } from '@/platform/types'
 export interface DesktopConnectivity extends Connectivity {
   /** What the http client reports after each request. */
   network: NetworkReport
+  /**
+   * After a sign-out: the shell forgets what it announced for the profile and
+   * may not announce its return, so the state starts over from the engine.
+   */
+  reset(): void
   dispose(): void
 }
 
@@ -48,23 +56,34 @@ export function createDesktopConnectivity(options: {
     )
   }
 
-  const stopProfile = profile.subscribe((id) => {
+  const startOver = (id: string | null | undefined) => {
     version += 1
     update(() => {
       engineOffline = false
       networkDown = false
     })
-    if (id !== null) readStatus(id)
-  })
+    if (typeof id === 'string') readStatus(id)
+  }
+
+  const stopProfile = profile.subscribe(startOver)
 
   const unlisten: Promise<Unlisten> = listenEngine(listen, (event) => {
-    if (event.type !== 'status') return
-    profile.accept(event.profile_id, () => {
-      version += 1
-      update(() => {
-        engineOffline = event.status.state === 'offline'
+    if (event.type === 'status') {
+      profile.accept(event.profile_id, () => {
+        version += 1
+        update(() => {
+          engineOffline = event.status.state === 'offline'
+        })
       })
-    })
+    } else if (event.type === 'connectivity') {
+      profile.accept(event.profile_id, () => {
+        version += 1
+        update(() => {
+          networkDown = !event.online
+          if (event.online) engineOffline = false
+        })
+      })
+    }
   })
 
   return {
@@ -88,6 +107,9 @@ export function createDesktopConnectivity(options: {
           engineOffline = false
         })
       },
+    },
+    reset: () => {
+      startOver(profile.current())
     },
     dispose: () => {
       stopProfile()

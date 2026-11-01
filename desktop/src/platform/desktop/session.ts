@@ -47,7 +47,7 @@ export function createDesktopSession(options: {
   /** The handler in charge now (the desktop dialog registers one). */
   pendingWork?: () => PendingWorkHandler | undefined
   /** After a confirmed sign-out or company switch, before the promise resolves. */
-  onChanged?: () => void
+  onChanged?: (action: PendingWork['action']) => void
 }): DesktopSession {
   const { invoke, onChanged } = options
 
@@ -77,9 +77,7 @@ export function createDesktopSession(options: {
   }
 
   async function selectCompany(id: string, force: boolean): Promise<void> {
-    // Depends on P4: the argument becomes `company` and `force` is read there.
-    const args: Record<string, unknown> = force ? { companyId: id, force } : { companyId: id }
-    await call(invoke, 'profile_select_company', args)
+    await call(invoke, 'profile_select_company', { company: id, force })
   }
 
   return {
@@ -98,7 +96,7 @@ export function createDesktopSession(options: {
           conflicts: answer.conflicts,
         })
       }
-      onChanged?.()
+      onChanged?.('logout')
     },
     switchCompany: async (id) => {
       try {
@@ -113,7 +111,7 @@ export function createDesktopSession(options: {
           throw commandToApiError(toCommandError(again))
         }
       }
-      onChanged?.()
+      onChanged?.('switchCompany')
     },
   }
 }

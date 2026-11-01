@@ -105,6 +105,78 @@ describe('desktop connectivity', () => {
     expect(s.bridge.callsOf('sync_status')).toHaveLength(2)
   })
 
+  it('follows connectivity events of the active profile, once per change', async () => {
+    const s = await setup()
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: false })
+    expect(s.connectivity.isOnline()).toBe(false)
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: false })
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: true })
+    expect(s.connectivity.isOnline()).toBe(true)
+    expect(s.seen).toEqual([false, true])
+  })
+
+  it('a reachable server ends a NETWORK_ERROR and an engine offline state', async () => {
+    const s = await setup()
+    s.connectivity.network.failed()
+    s.bridge.emitEngine({ type: 'status', profile_id: 'p1', status: status('offline') })
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: true })
+    expect(s.connectivity.isOnline()).toBe(true)
+    expect(s.seen).toEqual([false, true])
+  })
+
+  it('ignores connectivity events of another profile', async () => {
+    const s = await setup()
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p2', online: false })
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(true)
+    s.connectivity.network.failed()
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p2', online: true })
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(false)
+  })
+
+  it('a connectivity event is newer than a status answer still on its way', async () => {
+    const answer = deferred<StatusDto>()
+    const s = await setup(() => answer.promise)
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: true })
+    answer.resolve(status('offline'))
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(true)
+  })
+
+  it('a sign-out starts over online and reads the engine state again', async () => {
+    const s = await setup()
+    s.connectivity.network.failed()
+    s.bridge.emitEngine({ type: 'status', profile_id: 'p1', status: status('offline') })
+    s.bridge.emitEngine({ type: 'connectivity', profile_id: 'p1', online: false })
+    expect(s.connectivity.isOnline()).toBe(false)
+    s.bridge.handle({ sync_status: () => status('idle') })
+    s.connectivity.reset()
+    expect(s.connectivity.isOnline()).toBe(true)
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(true)
+    expect(s.bridge.callsOf('sync_status')).toHaveLength(2)
+    expect(s.seen).toEqual([false, true])
+  })
+
+  it('a sign-out drops a status answer asked before it', async () => {
+    const before = deferred<StatusDto>()
+    const s = await setup(() => before.promise)
+    s.bridge.handle({ sync_status: () => status('idle') })
+    s.connectivity.reset()
+    before.resolve(status('offline'))
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(true)
+  })
+
+  it('a sign-out still follows the engine state the shell reports afterwards', async () => {
+    const s = await setup()
+    s.bridge.handle({ sync_status: () => status('offline') })
+    s.connectivity.reset()
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(false)
+  })
+
   it('stops listening on dispose', async () => {
     const s = await setup()
     expect(s.bridge.listeners('engine-event')).toBe(1)

@@ -38,6 +38,18 @@ describe('parseEngineEvent', () => {
     expect(parseEngineEvent(payload)).toEqual(payload)
   })
 
+  it.each([true, false])('accepts a connectivity event (online: %s)', (online) => {
+    const payload = { type: 'connectivity', profile_id: 'p1', online }
+    expect(parseEngineEvent(payload)).toEqual(payload)
+  })
+
+  it('refuses a connectivity event without a boolean online', () => {
+    expect(parseEngineEvent({ type: 'connectivity', profile_id: 'p1' })).toBeUndefined()
+    expect(parseEngineEvent({ type: 'connectivity', profile_id: 'p1', online: 'true' })).toBeUndefined()
+    expect(parseEngineEvent({ type: 'connectivity', profile_id: 'p1', online: 1 })).toBeUndefined()
+    expect(parseEngineEvent({ type: 'connectivity', online: true })).toBeUndefined()
+  })
+
   it('refuses malformed payloads', () => {
     expect(parseEngineEvent(null)).toBeUndefined()
     expect(parseEngineEvent('status')).toBeUndefined()

@@ -50,8 +50,9 @@ export function createDesktopPlatform(options: {
   const session = createDesktopSession({
     invoke,
     pendingWork: () => pendingWork ?? undefined,
-    onChanged: () => {
+    onChanged: (action) => {
       offlineMeta.clear()
+      if (action === 'logout') connectivity.reset()
     },
   })
   void profile.refresh()
