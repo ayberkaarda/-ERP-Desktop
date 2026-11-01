@@ -2,9 +2,9 @@
 //! Laravel envelope of local answers ([`envelope`]), the connectivity view
 //! ([`Connectivity`]) and the door for local answers ([`LocalResolver`]).
 //!
-//! Local reads and drafts (mirror, snapshot, outbox) plug in through
-//! [`LocalResolver`]; until they do, [`local_resolver`] returns one that has
-//! no local copy, so every request is answered online or refused offline.
+//! [`local_resolver`] answers from the mirror and the snapshots
+//! ([`local_read`]) and queues drafts in the outbox ([`local_write`]);
+//! [`query_map`] says which list parameters the local copy can apply.
 
 pub mod decide;
 pub mod envelope;
@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use keystone_sync::client::ProxyMethod;
-use keystone_sync::store::LocalCopy;
+use keystone_sync::store::{LocalCopy, Store};
 use keystone_sync::wire::ResourceName;
 use serde_json::Value;
 
@@ -89,16 +89,30 @@ pub enum LocalOutcome {
 /// Answers requests on this device. Called on a blocking thread
 /// (`spawn_blocking`): store work may block.
 pub trait LocalResolver: Send + Sync + 'static {
-    /// State of the local copy of `resource`.
-    fn local_copy(&self, engine: &Engine, resource: &ResourceName) -> CommandResult<LocalCopy>;
+    /// State of the local copy of `resource`. `store` is the one `engine`
+    /// works on, of the same profile (`None`: not attached).
+    fn local_copy(
+        &self,
+        engine: &Engine,
+        store: Option<&Store>,
+        resource: &ResourceName,
+    ) -> CommandResult<LocalCopy>;
 
     /// Carries out `plan` for `call`.
     fn resolve(
         &self,
         engine: &Engine,
+        store: Option<&Store>,
         plan: &LocalPlan,
         call: &ApiCall,
     ) -> CommandResult<LocalOutcome>;
+
+    /// The answer to a write whose `Idempotency-Key` this device has seen
+    /// already. Asked before any routing: online too, a repeat of a pushed
+    /// draft must not reach the server as a new request.
+    fn replay(&self, _engine: &Engine, _call: &ApiCall) -> CommandResult<Option<ApiResponseDto>> {
+        Ok(None)
+    }
 }
 
 /// No local copy of anything: online requests go to the server, offline
@@ -107,11 +121,22 @@ pub trait LocalResolver: Send + Sync + 'static {
 pub struct NoLocalCopy;
 
 impl LocalResolver for NoLocalCopy {
-    fn local_copy(&self, _: &Engine, _: &ResourceName) -> CommandResult<LocalCopy> {
+    fn local_copy(
+        &self,
+        _: &Engine,
+        _: Option<&Store>,
+        _: &ResourceName,
+    ) -> CommandResult<LocalCopy> {
         Ok(LocalCopy::Missing)
     }
 
-    fn resolve(&self, _: &Engine, _: &LocalPlan, _: &ApiCall) -> CommandResult<LocalOutcome> {
+    fn resolve(
+        &self,
+        _: &Engine,
+        _: Option<&Store>,
+        _: &LocalPlan,
+        _: &ApiCall,
+    ) -> CommandResult<LocalOutcome> {
         Ok(LocalOutcome::Unsupported {
             unsupported_filters: Vec::new(),
         })
@@ -120,7 +145,7 @@ impl LocalResolver for NoLocalCopy {
 
 /// The resolver `api_request` uses.
 pub fn local_resolver() -> Arc<dyn LocalResolver> {
-    Arc::new(local_read::LocalAnswers::default())
+    Arc::new(local_read::LocalAnswers)
 }
 
 /// How long a proxy result decides online/offline before the engine

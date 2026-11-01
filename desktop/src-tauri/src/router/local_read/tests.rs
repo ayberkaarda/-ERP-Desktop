@@ -30,10 +30,6 @@ fn offline_of(answer: &ApiResponseDto) -> &Value {
     &answer.json().unwrap()["meta"]["offline"]
 }
 
-fn with_store(fx: &Fixture) -> Arc<LocalAnswers> {
-    Arc::new(LocalAnswers::with_store(fx.store.clone()))
-}
-
 // ------------------------------------------------------------- list, item
 
 #[tokio::test(flavor = "multi_thread")]
@@ -145,10 +141,7 @@ async fn online_an_unsupported_filter_goes_to_the_server() {
         .await;
 
     let answer = fx
-        .call_with(
-            with_store(&fx),
-            get(PARTIES, json!([["filter[role]", "customer"]])),
-        )
+        .call(get(PARTIES, json!([["filter[role]", "customer"]])))
         .await;
 
     assert_eq!(answer.source, ResponseSource::Network);
@@ -160,7 +153,7 @@ async fn online_a_complete_copy_answers_without_the_server() {
     let (a, row_a) = party("Acme");
     let fx = fixture(vec![("parties", vec![row_a])]).await;
 
-    let answer = fx.call_with(with_store(&fx), get(PARTIES, json!([]))).await;
+    let answer = fx.call(get(PARTIES, json!([]))).await;
 
     assert_eq!(answer.source, ResponseSource::Local);
     assert_eq!(ids(&answer), [a]);
@@ -179,7 +172,7 @@ async fn an_item_comes_from_the_mirror_and_a_missing_one_is_not_found() {
     assert_eq!(offline_of(&answer)["pending"], Value::Null);
 
     let path = format!("{PARTIES}/{}", Uuid::now_v7());
-    let missing = fx.call_with(with_store(&fx), get(&path, json!([]))).await;
+    let missing = fx.call(get(&path, json!([]))).await;
     assert_eq!(missing.status, 404);
     assert_eq!(code(&missing), "NOT_FOUND");
 }
@@ -207,7 +200,7 @@ async fn a_document_outside_the_window_is_unavailable_not_missing() {
     fx.go_offline();
 
     let path = format!("{QUOTES}/{}", Uuid::now_v7());
-    let answer = fx.call_with(with_store(&fx), get(&path, json!([]))).await;
+    let answer = fx.call(get(&path, json!([]))).await;
 
     assert_eq!(answer.status, 503);
     assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
@@ -271,17 +264,48 @@ async fn drafts_are_laid_over_reads() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_draft_makes_a_resource_readable_before_it_has_rows() {
+async fn a_finished_copy_without_rows_is_an_empty_list() {
     let fx = fixture(vec![]).await;
     fx.go_offline();
-    assert_eq!(fx.call(get(PARTIES, json!([]))).await.status, 503);
+
+    let answer = fx.call(get(PARTIES, json!([]))).await;
+
+    assert_eq!(answer.status, 200);
+    assert!(ids(&answer).is_empty());
+    assert_eq!(offline_of(&answer)["partial"], false);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_copy_never_downloaded_is_unavailable_until_a_draft_shows_rows() {
+    let fx = fixture_with(vec![], NO_PULL, 2).await;
+    fx.go_offline();
+    let answer = fx.call(get(PARTIES, json!([]))).await;
+    assert_eq!(answer.status, 503);
+    assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
 
     let created = fx
         .call(send("POST", PARTIES, None, Some(json!({"name": "Yeni"}))))
         .await;
-
     assert_eq!(created.status, 202);
-    assert_eq!(ids(&fx.call(get(PARTIES, json!([]))).await).len(), 1);
+
+    let list = fx.call(get(PARTIES, json!([]))).await;
+    assert_eq!(ids(&list).len(), 1);
+    assert_eq!(offline_of(&list)["partial"], true);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn online_an_unfinished_copy_lets_the_server_answer_first() {
+    let (_, row_a) = party("Acme");
+    let fx = fixture_with(vec![("parties", vec![row_a])], &["parties"], 2).await;
+    Mock::given(method("GET"))
+        .and(path(PARTIES))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": [] })))
+        .mount(&fx.server)
+        .await;
+
+    let answer = fx.call(get(PARTIES, json!([]))).await;
+
+    assert_eq!(answer.source, ResponseSource::Network);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -306,7 +330,7 @@ async fn answers_say_how_fresh_they_are() {
     let fx = fixture(vec![("parties", vec![row_a])]).await;
     fx.go_offline();
 
-    let answer = fx.call_with(with_store(&fx), get(PARTIES, json!([]))).await;
+    let answer = fx.call(get(PARTIES, json!([]))).await;
 
     let offline = offline_of(&answer);
     assert_eq!(offline["partial"], false);
@@ -321,7 +345,7 @@ async fn an_unfinished_download_is_labelled_partial() {
     let fx = fixture_with(vec![("parties", vec![row_a])], &["parties"], 2).await;
     fx.go_offline();
 
-    let answer = fx.call_with(with_store(&fx), get(PARTIES, json!([]))).await;
+    let answer = fx.call(get(PARTIES, json!([]))).await;
 
     assert_eq!(answer.status, 200);
     assert_eq!(offline_of(&answer)["partial"], true);
@@ -342,40 +366,6 @@ async fn online_first_answers_are_stale_offline() {
 
     assert_eq!(ids(&list), [id]);
     assert_eq!(offline_of(&list)["stale"], true);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn without_the_store_a_copy_is_never_claimed_complete() {
-    let (_, row_a) = party("Acme");
-    let fx = fixture(vec![("parties", vec![row_a])]).await;
-    let resolver = LocalAnswers::default();
-
-    assert_eq!(
-        resolver.local_copy(&fx.engine, &name("parties")).unwrap(),
-        LocalCopy::Partial
-    );
-    assert_eq!(
-        resolver.local_copy(&fx.engine, &name("units")).unwrap(),
-        LocalCopy::Missing
-    );
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn the_store_decides_the_state_of_the_copy_when_it_is_given() {
-    let (_, row_a) = party("Acme");
-    let (_, row_b) = party("Bursa");
-    let seed = vec![("parties", vec![row_a]), ("units", vec![row_b])];
-    let fx = fixture_with(seed, &["units"], 2).await;
-    let resolver = LocalAnswers::with_store(fx.store.clone());
-
-    assert_eq!(
-        resolver.local_copy(&fx.engine, &name("parties")).unwrap(),
-        LocalCopy::Complete
-    );
-    assert_eq!(
-        resolver.local_copy(&fx.engine, &name("units")).unwrap(),
-        LocalCopy::Partial
-    );
 }
 
 // ---------------------------------------------------------------- snapshots
@@ -454,6 +444,212 @@ async fn no_snapshot_is_unavailable_offline() {
     assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
 }
 
+// ------------------------------------------- snapshots from online answers
+
+fn balances_body() -> Value {
+    json!({
+        "data": [{"item_id": "a", "quantity": "4"}],
+        "meta": {"pagination": {"current_page": 1, "per_page": 25, "total": 1, "last_page": 1}}
+    })
+}
+
+async fn mount_balances(fx: &Fixture, delay_ms: u64) {
+    Mock::given(method("GET"))
+        .and(path(BALANCES))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(balances_body())
+                .set_delay(std::time::Duration::from_millis(delay_ms)),
+        )
+        .mount(&fx.server)
+        .await;
+}
+
+fn balances_copy(fx: &Fixture) -> LocalCopy {
+    fx.store.local_copy(&name("stock-balances")).unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_online_answer_is_the_snapshot_read_offline() {
+    let fx = fixture(vec![]).await;
+    mount_balances(&fx, 0).await;
+
+    let online = fx.call(get(BALANCES, json!([["per_page", "25"]]))).await;
+    assert_eq!(online.source, ResponseSource::Network);
+    assert_eq!(online.json(), Some(&balances_body()));
+    assert_eq!(fx.received(BALANCES).await, 1);
+
+    fx.go_offline();
+    let offline = fx.call(get(BALANCES, json!([]))).await;
+
+    assert_eq!(offline.status, 200);
+    assert_eq!(offline.source, ResponseSource::Local);
+    let json = offline.json().unwrap();
+    assert_eq!(json["data"], balances_body()["data"]);
+    assert_eq!(json["meta"]["pagination"]["total"], 1);
+    assert_eq!(json["meta"]["offline"]["stale"], true);
+    let stored = fx
+        .engine
+        .snapshot(&name("stock-balances"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(json["meta"]["offline"]["as_of"], json!(stored.fetched_at.0));
+    let stamp = regex::Regex::new(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$").unwrap();
+    assert!(
+        stamp.is_match(&stored.fetched_at.0),
+        "{}",
+        stored.fetched_at.0
+    );
+    assert_eq!(fx.received(BALANCES).await, 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_newer_online_answer_replaces_the_snapshot() {
+    let fx = fixture(vec![]).await;
+    stored(&fx, &json!({"data": []}));
+    mount_balances(&fx, 0).await;
+
+    fx.call(get(BALANCES, json!([]))).await;
+
+    let stored = fx
+        .engine
+        .snapshot(&name("stock-balances"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.data, balances_body());
+    assert_ne!(stored.fetched_at.0, AT);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_narrowed_answer_is_not_a_snapshot() {
+    let fx = fixture(vec![]).await;
+    mount_balances(&fx, 0).await;
+
+    for query in [
+        json!([["filter[warehouse_id]", "a"]]),
+        json!([["page", "2"]]),
+    ] {
+        let answer = fx.call(get(BALANCES, query)).await;
+        assert_eq!(answer.status, 200);
+    }
+
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_answer_is_not_a_snapshot() {
+    let fx = fixture(vec![]).await;
+    Mock::given(method("GET"))
+        .and(path(BALANCES))
+        .respond_with(ResponseTemplate::new(422).set_body_json(json!({
+            "errors": {"message": "x", "code": "VALIDATION_ERROR"}
+        })))
+        .mount(&fx.server)
+        .await;
+
+    let answer = fx.call(get(BALANCES, json!([]))).await;
+
+    assert_eq!(answer.status, 422);
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn only_a_plain_success_envelope_is_a_snapshot() {
+    for (status, body) in [(202, json!({"data": []})), (200, json!({"rows": []}))] {
+        let fx = fixture(vec![]).await;
+        Mock::given(method("GET"))
+            .and(path(BALANCES))
+            .respond_with(ResponseTemplate::new(status).set_body_json(body))
+            .mount(&fx.server)
+            .await;
+
+        let answer = fx.call(get(BALANCES, json!([]))).await;
+
+        assert_eq!(answer.status, status);
+        assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unverified_sign_in_stores_nothing_and_keeps_the_answer() {
+    let fx = fixture(vec![]).await;
+    mount_balances(&fx, 0).await;
+    fx.sign_in_again().await;
+
+    let answer = fx.call(get(BALANCES, json!([]))).await;
+
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.json(), Some(&balances_body()));
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_answer_of_an_earlier_sign_in_is_not_stored() {
+    let fx = Arc::new(fixture(vec![]).await);
+    mount_balances(&fx, 800).await;
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.call(get(BALANCES, json!([]))).await })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    fx.sign_in_again().await;
+    // The new sign-in is verified, so only the generation can refuse the answer.
+    fx.engine
+        .run_once(keystone_sync::engine::Trigger::Manual)
+        .await
+        .unwrap();
+    let client = fx.state.client().unwrap();
+    let generation = client.session().record().unwrap().generation;
+    let probe = fx.engine.put_snapshot(
+        &name("treasury-reports.payables-ageing"),
+        &json!({"data": []}),
+        &Timestamp(AT.into()),
+        generation,
+    );
+    assert!(probe.is_ok(), "{probe:?}");
+
+    let answer = call.await.unwrap();
+
+    assert_eq!(answer.status, 200);
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_answer_of_a_left_profile_is_not_stored() {
+    let fx = Arc::new(fixture(vec![]).await);
+    mount_balances(&fx, 400).await;
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.call(get(BALANCES, json!([]))).await })
+    };
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    fx.switch_profile();
+
+    let answer = call.await.unwrap();
+
+    assert_eq!(answer.status, 200);
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sign_out_leaves_no_snapshot() {
+    let fx = fixture(vec![]).await;
+    mount_balances(&fx, 0).await;
+    fx.call(get(BALANCES, json!([]))).await;
+    assert_eq!(balances_copy(&fx), LocalCopy::Complete);
+
+    fx.engine.sign_out(true).await.unwrap();
+
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+    fx.sign_in_again().await;
+    fx.engine
+        .run_once(keystone_sync::engine::Trigger::Manual)
+        .await
+        .unwrap();
+    fx.go_offline();
+    assert_eq!(fx.call(get(BALANCES, json!([]))).await.status, 503);
+}
+
 // ------------------------------------------------------------- local access
 
 #[tokio::test(flavor = "multi_thread")]
@@ -465,11 +661,9 @@ async fn a_new_sign_in_reads_nothing_of_the_previous_one() {
     fx.sign_in_again().await;
 
     for path in [PARTIES, BALANCES] {
-        for resolver in [with_store(&fx), Arc::new(LocalAnswers::default())] {
-            let answer = fx.call_with(resolver, get(path, json!([]))).await;
-            assert_eq!(answer.status, 503, "{path}");
-            assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
-        }
+        let answer = fx.call(get(path, json!([]))).await;
+        assert_eq!(answer.status, 503, "{path}");
+        assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
     }
 }
 

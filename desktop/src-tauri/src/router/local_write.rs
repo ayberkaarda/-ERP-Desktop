@@ -12,27 +12,23 @@
 //! - `depends_on` names the queued creates a payload refers to, so a document
 //!   of a new party waits for that party.
 //!
-//! `Idempotency-Key`: the engine picks the outbox key of a draft, so a
-//! repeat is recognised from what the key leaves behind. A create takes its
-//! row id from the key ([`draft_id`]): the row already being there is the
-//! repeat, also after the push and across restarts. Any other write is a
-//! repeat while it is still the last write queued for its row; once that
-//! write has been settled, a repeat is a new draft with the same content,
-//! which the server checks against `base_version` like any other. Writes run
-//! one at a time, so repeats racing each other queue one draft.
-
-use std::sync::{Mutex, PoisonError};
+//! `Idempotency-Key`: the key is recorded with the draft in one transaction
+//! ([`Engine::enqueue_keyed`]) and the record outlives the outbox entry, so
+//! a repeat queues nothing and reaches no server, offline or after the push
+//! ([`replay`]). It answers with the first status and the row as it reads
+//! now, not with a copy of the first answer: `pending` must not outlive the
+//! draft. The same key on another request is `IDEMPOTENCY_KEY_REUSED`.
 
 use keystone_sync::SyncError;
-use keystone_sync::outbox::{EnqueueOutcome, NewMutation, OutboxEntry, OutboxState};
+use keystone_sync::outbox::{
+    EnqueueOutcome, KeyedOutcome, NewMutation, OutboxEntry, OutboxState, RequestKey, RequestRecord,
+};
 use keystone_sync::wire::{MutationOp, ResourceName, Timestamp};
 use serde_json::{Map, Value, json};
-use time::OffsetDateTime;
-use time::macros::format_description;
 use uuid::Uuid;
 
 use super::envelope::{self, OfflineMeta};
-use super::local_read::row_json;
+use super::local_read::{open, row_json, timestamp};
 use super::{ApiCall, LocalOutcome};
 use crate::commands::CommandResult;
 use crate::dto::api::ApiResponseDto;
@@ -41,9 +37,6 @@ use crate::state::Engine;
 const VALIDATION_ERROR: &str = "VALIDATION_ERROR";
 const OFFLINE_UNAVAILABLE: &str = "OFFLINE_UNAVAILABLE";
 const DEPENDENCY_FAILED: &str = "SYNC_DEPENDENCY_FAILED";
-
-/// Check for a repeat and enqueue are one step.
-static WRITES: Mutex<()> = Mutex::new(());
 
 /// The fields of a [`super::LocalPlan::Write`].
 #[derive(Debug, Clone, Copy)]
@@ -70,7 +63,6 @@ pub fn write(engine: &Engine, target: &Target<'_>, call: &ApiCall) -> CommandRes
         Ok(draft) => draft,
         Err(answer) => return Ok(LocalOutcome::Answer(answer)),
     };
-    let _one_at_a_time = WRITES.lock().unwrap_or_else(PoisonError::into_inner);
     let entries = match engine.outbox_entries() {
         Ok(entries) => entries,
         Err(error) => return refusal(error),
@@ -79,6 +71,23 @@ pub fn write(engine: &Engine, target: &Target<'_>, call: &ApiCall) -> CommandRes
         create(engine, target, call, draft, &entries)
     } else {
         change(engine, target, call, draft, &entries)
+    }
+}
+
+/// The answer to a repeat of `call`: `None` when its key is unknown here,
+/// or local data is closed to this sign-in.
+pub fn replay(engine: &Engine, call: &ApiCall) -> CommandResult<Option<ApiResponseDto>> {
+    let Some(key) = request_key(call) else {
+        return Ok(None);
+    };
+    match engine.request_record(&key) {
+        Ok(Some(record)) => repeat_answer(engine, &record).map(Some),
+        Ok(None) => Ok(None),
+        Err(error) if error.code() == "IDEMPOTENCY_KEY_REUSED" => match refusal(error)? {
+            LocalOutcome::Answer(answer) => Ok(Some(answer)),
+            LocalOutcome::Unsupported { .. } => Ok(None),
+        },
+        Err(error) => open(Err(error)),
     }
 }
 
@@ -99,38 +108,15 @@ fn create(
     draft: Draft,
     entries: &[OutboxEntry],
 ) -> CommandResult<LocalOutcome> {
-    let key = call.header("idempotency-key");
-    let id = draft
-        .id
-        .or_else(|| key.map(|key| draft_id(target.resource, key)))
-        .unwrap_or_else(Uuid::now_v7);
-    let existing = match engine.get(target.resource, id) {
-        Ok(existing) => existing,
-        Err(error) => return refusal(error),
-    };
-    if let Some(existing) = existing {
-        if key.is_none() {
-            return Ok(invalid("id", "this id cannot be used for a new record"));
+    let id = draft.id.unwrap_or_else(Uuid::now_v7);
+    if draft.id.is_some() {
+        match engine.get(target.resource, id) {
+            Ok(Some(_)) => return Ok(invalid("id", "this id cannot be used for a new record")),
+            Ok(None) => {}
+            Err(error) => return refusal(error),
         }
-        let create = entries.iter().find(|e| {
-            e.mutation.op == MutationOp::Create
-                && e.mutation.id == id
-                && &e.mutation.resource == target.resource
-        });
-        if create.is_some_and(|e| !holds(&e.mutation.payload, &draft.payload)) {
-            return Ok(LocalOutcome::Answer(envelope::local(
-                422,
-                envelope::error(
-                    "IDEMPOTENCY_KEY_REUSED",
-                    "this idempotency key was used for another request",
-                    None,
-                ),
-            )));
-        }
-        let data = row_json(&existing.row)?;
-        return Ok(LocalOutcome::Answer(queued(data, existing.draft)));
     }
-    enqueue(engine, target, id, None, draft.payload, entries)
+    enqueue(engine, target, call, id, None, draft.payload, entries)
 }
 
 fn change(
@@ -147,15 +133,6 @@ fn change(
         Ok(current) => current,
         Err(error) => return refusal(error),
     };
-    if call.header("idempotency-key").is_some()
-        && last_write(entries, target.resource, id).is_some_and(|last| {
-            last.mutation.op == target.op
-                && last.mutation.action.as_deref() == target.action
-                && holds(&last.mutation.payload, &draft.payload)
-        })
-    {
-        return pending(engine, target.resource, id);
-    }
     let Some(current) = current else {
         if last_write(entries, target.resource, id)
             .is_some_and(|last| last.mutation.op == MutationOp::Delete)
@@ -174,12 +151,14 @@ fn change(
     let Some(base) = base else {
         return Ok(unavailable("this record has no version on this device"));
     };
-    enqueue(engine, target, id, Some(base), draft.payload, entries)
+    let payload = draft.payload;
+    enqueue(engine, target, call, id, Some(base), payload, entries)
 }
 
 fn enqueue(
     engine: &Engine,
     target: &Target<'_>,
+    call: &ApiCall,
     id: Uuid,
     base_version: Option<u64>,
     payload: Map<String, Value>,
@@ -195,30 +174,42 @@ fn enqueue(
         base_version,
         payload,
         depends_on,
-        occurred_at: Timestamp(now()?),
+        occurred_at: Timestamp(timestamp()?),
         resolution: None,
     };
-    match engine.enqueue(mutation) {
-        Ok(EnqueueOutcome::Queued(_)) => pending(engine, target.resource, id),
-        // The create was never sent: nothing is left to do.
-        Ok(EnqueueOutcome::Cancelled(_)) => Ok(LocalOutcome::Answer(envelope::local(
-            200,
-            envelope::with_offline(
-                envelope::success(Value::Null, Map::new()),
-                &OfflineMeta::default(),
-            ),
-        ))),
-        Err(error) => refusal(error),
-    }
+    let outcome = match request_key(call) {
+        Some(key) => engine.enqueue_keyed(mutation, &key),
+        None => engine.enqueue(mutation).map(KeyedOutcome::New),
+    };
+    let answer = match outcome {
+        Ok(KeyedOutcome::New(EnqueueOutcome::Queued(_))) => {
+            queued(row_data(engine, target.resource, id)?, true)
+        }
+        Ok(KeyedOutcome::New(EnqueueOutcome::Cancelled(_))) => cancelled(),
+        Ok(KeyedOutcome::Repeat(record)) => repeat_answer(engine, &record)?,
+        Err(error) => return refusal(error),
+    };
+    Ok(LocalOutcome::Answer(answer))
 }
 
-/// `202` with the row as it reads now (`null` once deleted).
-fn pending(engine: &Engine, resource: &ResourceName, id: Uuid) -> CommandResult<LocalOutcome> {
-    let data = match engine.get(resource, id)? {
+fn repeat_answer(engine: &Engine, record: &RequestRecord) -> CommandResult<ApiResponseDto> {
+    if record.cancelled {
+        return Ok(cancelled());
+    }
+    let entries = engine.outbox_entries()?;
+    let pending = last_write(&entries, &record.resource, record.id).is_some();
+    Ok(queued(
+        row_data(engine, &record.resource, record.id)?,
+        pending,
+    ))
+}
+
+/// The row as it reads now, `null` once it is gone.
+fn row_data(engine: &Engine, resource: &ResourceName, id: Uuid) -> CommandResult<Value> {
+    Ok(match engine.get(resource, id)? {
         Some(local) => row_json(&local.row)?,
         None => Value::Null,
-    };
-    Ok(LocalOutcome::Answer(queued(data, true)))
+    })
 }
 
 fn queued(data: Value, pending: bool) -> ApiResponseDto {
@@ -229,6 +220,17 @@ fn queued(data: Value, pending: bool) -> ApiResponseDto {
     envelope::local(
         202,
         envelope::with_offline(envelope::success(data, Map::new()), &offline),
+    )
+}
+
+/// The delete of a create that was never sent: nothing is left to do.
+fn cancelled() -> ApiResponseDto {
+    envelope::local(
+        200,
+        envelope::with_offline(
+            envelope::success(Value::Null, Map::new()),
+            &OfflineMeta::default(),
+        ),
     )
 }
 
@@ -330,18 +332,59 @@ fn client_id(value: &Value) -> Result<Uuid, ApiResponseDto> {
         .ok_or_else(|| invalid_body(Some("id"), "this id cannot be used for a new record"))
 }
 
-/// Row id of a create repeated under `key`: FNV-1a over resource and key
-/// (fixed for good: it must give the same id after an update of the app),
-/// with the bits of a UUIDv7.
-fn draft_id(resource: &ResourceName, key: &str) -> Uuid {
+/// The `Idempotency-Key` of `call` with a digest of the request: method,
+/// path, query and body, JSON object keys in sorted order.
+fn request_key(call: &ApiCall) -> Option<RequestKey> {
+    let key = call.header("idempotency-key")?;
+    let mut request = format!("{:?} {}\n", call.method, call.path);
+    for (name, value) in &call.query {
+        request.push_str(&format!("{name}={value}\n"));
+    }
+    match call.json_body() {
+        Some(Ok(body)) => canonical(&body, &mut request),
+        _ => request.push_str(&String::from_utf8_lossy(
+            call.body.as_deref().unwrap_or_default(),
+        )),
+    }
+    Some(RequestKey {
+        key: key.to_owned(),
+        fingerprint: format!("{:032x}", fnv1a(request.as_bytes())),
+    })
+}
+
+fn canonical(value: &Value, out: &mut String) {
+    match value {
+        Value::Object(fields) => {
+            let mut names: Vec<&String> = fields.keys().collect();
+            names.sort();
+            out.push('{');
+            for name in names {
+                out.push_str(&Value::from(name.as_str()).to_string());
+                out.push(':');
+                canonical(&fields[name], out);
+                out.push(',');
+            }
+            out.push('}');
+        }
+        Value::Array(values) => {
+            out.push('[');
+            for value in values {
+                canonical(value, out);
+                out.push(',');
+            }
+            out.push(']');
+        }
+        scalar => out.push_str(&scalar.to_string()),
+    }
+}
+
+/// FNV-1a, 128 bits: tells requests apart, nobody attacks their own outbox.
+fn fnv1a(bytes: &[u8]) -> u128 {
     const OFFSET: u128 = 0x6c62_272e_07bb_0142_62b8_2175_6295_c58d;
     const PRIME: u128 = 0x0000_0000_0100_0000_0000_0000_0000_013b;
-    let bytes = resource.as_str().bytes().chain([0]).chain(key.bytes());
-    let hash = bytes.fold(OFFSET, |hash, byte| {
-        (hash ^ u128::from(byte)).wrapping_mul(PRIME)
-    });
-    let versioned = (hash & !(0xf << 76)) | (0x7 << 76);
-    Uuid::from_u128((versioned & !(0b11 << 62)) | (0b10 << 62))
+    bytes.iter().fold(OFFSET, |hash, byte| {
+        (hash ^ u128::from(*byte)).wrapping_mul(PRIME)
+    })
 }
 
 fn last_write<'a>(
@@ -353,13 +396,6 @@ fn last_write<'a>(
         .iter()
         .filter(|e| e.mutation.id == id && &e.mutation.resource == resource)
         .max_by_key(|e| e.seq)
-}
-
-/// `queued` has every field of `payload` with the same value.
-fn holds(queued: &Map<String, Value>, payload: &Map<String, Value>) -> bool {
-    payload
-        .iter()
-        .all(|(field, value)| queued.get(field) == Some(value))
 }
 
 /// Keys of the queued creates `payload` refers to. A create that failed is
@@ -389,14 +425,6 @@ fn references(value: &Value, id: Uuid) -> bool {
         Value::Object(values) => values.values().any(|v| references(v, id)),
         _ => false,
     }
-}
-
-fn now() -> CommandResult<String> {
-    let format =
-        format_description!("[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3]Z");
-    OffsetDateTime::now_utc()
-        .format(&format)
-        .map_err(|_| SyncError::InvalidRequest("the clock cannot be read".to_owned()).into())
 }
 
 #[cfg(test)]

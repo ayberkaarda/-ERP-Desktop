@@ -19,6 +19,12 @@
 //!   sign-in (the user is signed in; the old generation is gone).
 //! - Store work (local copy, local answers, token record reads) runs on
 //!   `spawn_blocking`.
+//! - A write whose `Idempotency-Key` this device recorded is answered here
+//!   ([`LocalResolver::replay`]) before any routing: online too, a repeat of
+//!   a pushed draft must not reach the server as a new request.
+//! - A whole `200` answer of a `source: snapshot` resource is kept for the
+//!   offline read, for the sign-in it was fetched in and only while its
+//!   profile is still the active one. Keeping it never fails the answer.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -29,14 +35,15 @@ use keystone_sync::client::{
     REQUEST_HEADERS,
 };
 use keystone_sync::engine::SyncState;
-use keystone_sync::store::LocalCopy;
+use keystone_sync::store::{LocalCopy, Store};
+use keystone_sync::wire::{ResourceName, Source};
 
 use crate::commands::{CommandError, CommandResult, codes};
 use crate::dto::api::{ApiBody, ApiRequestDto, ApiResponseDto};
 use crate::router::envelope::{self, OfflineMeta};
 use crate::router::{
     ApiCall, Connectivity, Decision, Facts, LocalOutcome, LocalPlan, LocalResolver, OfflineWrites,
-    Refusal, Router, local_resolver,
+    Refusal, Router, Target, TargetKind, local_read, local_resolver,
 };
 use crate::state::{AppState, Engine};
 
@@ -77,6 +84,7 @@ pub async fn handle(
     let profile = state.active_profile_id().ok_or_else(no_profile)?;
     let client = state.client()?;
     let engine = state.engine().ok();
+    let store = state.store().ok();
     if state.active_profile_id().as_deref() != Some(profile.as_str()) {
         return Err(CommandError::new(
             codes::NO_ACTIVE_PROFILE,
@@ -85,6 +93,15 @@ pub async fn handle(
     }
 
     let target = Router::embedded().target(call.method, &call.path);
+    if let Some(engine) = &engine
+        && matches!(&target, Some(t) if matches!(t.kind, TargetKind::Write { .. }))
+        && call.header("idempotency-key").is_some()
+    {
+        let (resolver, engine, repeat) = (resolver.clone(), engine.clone(), call.clone());
+        if let Some(answer) = blocking(move || resolver.replay(&engine, &repeat)).await? {
+            return Ok(answer);
+        }
+    }
     let status = engine.as_ref().map(|engine| engine.status());
     let online = connectivity.online(
         &profile,
@@ -95,7 +112,9 @@ pub async fn handle(
         (Some(engine), Some(target)) => {
             let (resolver, engine, resource) =
                 (resolver.clone(), engine.clone(), target.resource.clone());
-            match blocking(move || resolver.local_copy(&engine, &resource)).await {
+            let store = store.clone();
+            let copy = move || resolver.local_copy(&engine, store.as_deref(), &resource);
+            match blocking(copy).await {
                 Ok(copy) => copy,
                 // Online the server still answers; offline the error is the answer.
                 Err(_) if online => LocalCopy::Missing,
@@ -119,11 +138,14 @@ pub async fn handle(
         offline_writes,
     };
     let decision = Router::decide(target.as_ref(), &facts, policy.as_ref());
+    let snapshot = target.as_ref().filter(|t| is_whole_snapshot(t, &call));
 
     let run = Run {
+        state,
         profile,
         client,
         engine,
+        store,
         resolver,
         connectivity,
     };
@@ -131,12 +153,15 @@ pub async fn handle(
         Decision::Refuse(refusal) => Ok(refuse(refusal, Vec::new())),
         Decision::Local { plan, else_online } => match run.local(plan, &call).await? {
             LocalOutcome::Answer(answer) => Ok(answer),
-            LocalOutcome::Unsupported { .. } if else_online => run.online(&call, None).await,
+            LocalOutcome::Unsupported { .. } if else_online => run.online(&call, None, None).await,
             LocalOutcome::Unsupported {
                 unsupported_filters,
             } => Ok(refuse(Refusal::Offline, unsupported_filters)),
         },
-        Decision::Online { deadline, fallback } => match run.online(&call, deadline).await {
+        Decision::Online { deadline, fallback } => match run
+            .online(&call, deadline, snapshot.map(|t| &t.resource))
+            .await
+        {
             Err(error) if error.code == NETWORK_ERROR => match fallback {
                 Some(plan) => match run.local(plan, &call).await? {
                     LocalOutcome::Answer(answer) => Ok(answer),
@@ -151,10 +176,19 @@ pub async fn handle(
 
 const NETWORK_ERROR: &str = "NETWORK_ERROR";
 
+/// A GET of a snapshot resource that is not narrowed to part of it.
+fn is_whole_snapshot(target: &Target, call: &ApiCall) -> bool {
+    target.source == Source::Snapshot
+        && target.kind == TargetKind::List
+        && local_read::narrowing(&call.query).is_empty()
+}
+
 struct Run<'a> {
+    state: &'a AppState,
     profile: String,
     client: Arc<HttpClient>,
     engine: Option<Arc<Engine>>,
+    store: Option<Arc<Store>>,
     resolver: Arc<dyn LocalResolver>,
     connectivity: &'a Connectivity,
 }
@@ -166,16 +200,18 @@ impl Run<'_> {
                 unsupported_filters: Vec::new(),
             });
         };
-        let (resolver, call) = (self.resolver.clone(), call.clone());
-        blocking(move || resolver.resolve(&engine, &plan, &call)).await
+        let (resolver, store, call) = (self.resolver.clone(), self.store.clone(), call.clone());
+        blocking(move || resolver.resolve(&engine, store.as_deref(), &plan, &call)).await
     }
 
     /// Sends `call` and records whether the server answered (a connection
-    /// that could not be made: unreachable).
+    /// that could not be made: unreachable). `snapshot`: the resource a
+    /// successful answer is kept for.
     async fn online(
         &self,
         call: &ApiCall,
         deadline: Option<Duration>,
+        snapshot: Option<&ResourceName>,
     ) -> CommandResult<ApiResponseDto> {
         let result = send(self.client.clone(), proxy_request(call), deadline).await?;
         let reachable = match &result {
@@ -189,7 +225,47 @@ impl Run<'_> {
             self.connectivity
                 .observe(&self.profile, reachable, Instant::now());
         }
-        result.map(envelope::from_proxy).map_err(CommandError::from)
+        let (response, generation) = result.map_err(CommandError::from)?;
+        let answer = envelope::from_proxy(response);
+        if let Some(resource) = snapshot {
+            self.keep_snapshot(resource, &answer, generation).await;
+        }
+        Ok(answer)
+    }
+
+    /// Keeps a `200` envelope while this call's client and engine are still
+    /// the active ones: another company or profile may share the store now.
+    /// The engine refuses the rest (see [`local_read::save_snapshot`]).
+    async fn keep_snapshot(
+        &self,
+        resource: &ResourceName,
+        answer: &ApiResponseDto,
+        generation: u64,
+    ) {
+        let Some(engine) = self.engine.clone() else {
+            return;
+        };
+        let body = answer.json().filter(|body| body.get("data").is_some());
+        let (true, Some(body)) = (answer.status == 200, body) else {
+            return;
+        };
+        let current = self
+            .state
+            .client()
+            .is_ok_and(|client| Arc::ptr_eq(&client, &self.client))
+            && self
+                .state
+                .engine()
+                .is_ok_and(|active| Arc::ptr_eq(&active, &engine));
+        if !current {
+            return;
+        }
+        let (resource, body) = (resource.clone(), body.clone());
+        let saved =
+            blocking(move || local_read::save_snapshot(&engine, &resource, &body, generation));
+        if let Err(error) = saved.await {
+            log::debug!("snapshot not kept: {}", error.code);
+        }
     }
 }
 
@@ -199,7 +275,7 @@ async fn send(
     client: Arc<HttpClient>,
     request: ProxyRequest,
     deadline: Option<Duration>,
-) -> CommandResult<Result<ProxyResponse, SyncError>> {
+) -> CommandResult<Result<(ProxyResponse, u64), SyncError>> {
     let task = tauri::async_runtime::spawn(async move { proxy(&client, &request).await });
     let joined = match deadline {
         Some(wait) => match tokio::time::timeout(wait, task).await {
@@ -218,18 +294,20 @@ async fn send(
 
 /// One proxy call bound to the current sign-in, sent once more when it
 /// failed with `UNAUTHENTICATED` because another sign-in happened meanwhile.
+/// Comes with the generation of the sign-in that answered.
 async fn proxy(
     client: &Arc<HttpClient>,
     request: &ProxyRequest,
-) -> Result<ProxyResponse, SyncError> {
+) -> Result<(ProxyResponse, u64), SyncError> {
     let before = record(client).await?;
     let error = match client.proxy_in(request, before.generation).await {
         Err(error) if error.code() == "UNAUTHENTICATED" => error,
-        other => return other,
+        other => return other.map(|answer| (answer, before.generation)),
     };
     let after = record(client).await?;
     if after.generation != before.generation && after.tokens.is_some() && !after.deactivated {
-        return client.proxy_in(request, after.generation).await;
+        let answer = client.proxy_in(request, after.generation).await?;
+        return Ok((answer, after.generation));
     }
     Err(error)
 }

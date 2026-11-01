@@ -13,7 +13,6 @@ use wiremock::{Mock, Request, ResponseTemplate};
 use super::*;
 use crate::dto::api::ResponseSource;
 use crate::router::decide::OFFLINE_MANIFEST;
-use crate::router::local_read::LocalAnswers;
 use crate::router::local_support::*;
 
 const PARTIES: &str = "/api/v1/parties";
@@ -554,8 +553,8 @@ async fn different_keys_create_different_rows() {
     let c = fx.call(send("POST", QUOTES, Some("a"), body())).await;
 
     assert_ne!(data_id(&a), data_id(&b));
-    assert_ne!(data_id(&a), data_id(&c));
-    assert_eq!(fx.outbox().len(), 3);
+    refused(&c, 422, "IDEMPOTENCY_KEY_REUSED");
+    assert_eq!(fx.outbox().len(), 2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -572,20 +571,245 @@ async fn the_same_key_with_another_body_is_refused() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_repeated_create_after_the_push_gives_the_row() {
+async fn a_repeated_create_after_the_push_is_the_same_row_online_and_offline() {
     let fx = fixture(vec![]).await;
     fx.mount_push_applied().await;
     fx.go_offline();
     let request = send("POST", PARTIES, Some("k"), Some(json!({"name": "A"})));
     let first = fx.call(request.clone()).await;
+    pending(&first);
     fx.engine.run_once(Trigger::Manual).await.unwrap();
     assert!(fx.outbox().is_empty());
 
+    fx.go_online();
+    let online = fx.call(request.clone()).await;
+    fx.go_offline();
+    let offline = fx.call(request).await;
+
+    for again in [&online, &offline] {
+        assert_eq!(again.status, 202);
+        assert_eq!(again.source, ResponseSource::Local);
+        assert_eq!(data_id(again), data_id(&first));
+        assert_eq!(again.json().unwrap()["data"]["name"], "A");
+    }
+    assert_eq!(
+        online.json().unwrap()["meta"]["offline"]["pending"],
+        Value::Null
+    );
+    assert!(fx.outbox().is_empty(), "no new draft");
+    assert_eq!(fx.pushed().await.len(), 1, "no second push");
+    assert_eq!(
+        fx.received(PARTIES).await,
+        0,
+        "no second create on the server"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn repeats_after_the_push_queue_nothing_for_any_operation() {
+    let (a, row_a) = doc("draft", json!({}));
+    let (b, row_b) = doc("draft", json!({}));
+    let id = Uuid::now_v7();
+    let stock = row(
+        id,
+        2,
+        json!({"status": "draft", "doc_type": "count", "document_date": "2026-10-20"}),
+    );
+    let fx = fixture(vec![
+        ("sales-quotes", vec![row_a, row_b]),
+        ("stock-documents", vec![stock]),
+    ])
+    .await;
+    fx.mount_push_applied().await;
+    fx.go_offline();
+    let requests = [
+        send(
+            "PATCH",
+            &format!("{QUOTES}/{a}"),
+            Some("u"),
+            Some(json!({"notes": "x"})),
+        ),
+        send("DELETE", &format!("{QUOTES}/{b}"), Some("d"), None),
+        send(
+            "PATCH",
+            &format!("{STOCK}/{id}/counts"),
+            Some("c"),
+            Some(json!({"counts": [1]})),
+        ),
+    ];
+    for request in &requests {
+        pending(&fx.call(request.clone()).await);
+    }
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    assert!(fx.outbox().is_empty());
+    let pushed = fx.pushed().await.len();
+
+    for online in [true, false] {
+        if online {
+            fx.go_online();
+        } else {
+            fx.go_offline();
+        }
+        for request in &requests {
+            let again = fx.call(request.clone()).await;
+            assert_eq!(again.status, 202, "{:?}", again.json());
+            assert_eq!(again.source, ResponseSource::Local);
+        }
+    }
+
+    assert!(fx.outbox().is_empty());
+    assert_eq!(fx.pushed().await.len(), pushed);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_is_answered_after_the_row_was_locked() {
+    let (a, row_a) = doc("draft", json!({}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    fx.mount_push_applied().await;
+    fx.go_offline();
+    let path_a = format!("{QUOTES}/{a}");
+    let request = send(
+        "PATCH",
+        &path_a,
+        Some("k"),
+        Some(json!({"status": "approved"})),
+    );
+    pending(&fx.call(request.clone()).await);
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    let other = send("PATCH", &path_a, Some("n"), Some(json!({"notes": "x"})));
+    refused(&fx.call(other).await, 409, "DOCUMENT_LOCKED");
+
     let again = fx.call(request).await;
 
-    assert_eq!(data_id(&again), data_id(&first));
+    assert_eq!(again.status, 202);
     assert!(fx.outbox().is_empty());
-    assert_eq!(fx.pushed().await.len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_racing_past_the_lookup_is_not_stopped_by_a_locked_row() {
+    use keystone_sync::outbox::{KeyedOutcome, NewMutation, RequestKey};
+    let (a, row_a) = doc("approved", json!({}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    let key = RequestKey {
+        key: "k".to_owned(),
+        fingerprint: "f".to_owned(),
+    };
+    let update = NewMutation {
+        op: MutationOp::Update,
+        action: None,
+        resource: name("sales-quotes"),
+        id: a,
+        parent_id: None,
+        base_version: Some(4),
+        payload: json!({"notes": "x"}).as_object().cloned().unwrap(),
+        depends_on: Vec::new(),
+        occurred_at: keystone_sync::wire::Timestamp("2026-10-27T10:15:00Z".into()),
+        resolution: None,
+    };
+    let locked = fx.engine.enqueue(update.clone()).unwrap_err();
+    assert_eq!(locked.code(), "DOCUMENT_LOCKED");
+    let draft = |status: &str| {
+        let mut draft = update.clone();
+        draft.id = Uuid::now_v7();
+        draft.op = MutationOp::Create;
+        draft.base_version = None;
+        draft.payload.insert("status".into(), json!(status));
+        draft
+    };
+    let created = draft("approved");
+    let id = created.id;
+    fx.engine.enqueue_keyed(created, &key).unwrap();
+
+    let again = NewMutation { id, ..update };
+
+    assert!(matches!(
+        fx.engine.enqueue_keyed(again, &key).unwrap(),
+        KeyedOutcome::Repeat(_)
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_same_key_with_another_body_is_refused_after_the_push() {
+    let fx = fixture(vec![]).await;
+    fx.mount_push_applied().await;
+    fx.go_offline();
+    let body = |name: &str| Some(json!({ "name": name }));
+    fx.call(send("POST", PARTIES, Some("k"), body("A"))).await;
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+
+    fx.go_online();
+    let answer = fx.call(send("POST", PARTIES, Some("k"), body("B"))).await;
+
+    refused(&answer, 422, "IDEMPOTENCY_KEY_REUSED");
+    assert_eq!(fx.received(PARTIES).await, 0);
+    assert!(fx.outbox().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_gives_the_row_as_it_reads_now() {
+    let (a, row_a) = doc("draft", json!({}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    fx.go_offline();
+    let path_a = format!("{QUOTES}/{a}");
+    let first = send("PATCH", &path_a, Some("k1"), Some(json!({"notes": "one"})));
+    fx.call(first.clone()).await;
+    fx.call(send(
+        "PATCH",
+        &path_a,
+        Some("k2"),
+        Some(json!({"notes": "two"})),
+    ))
+    .await;
+
+    let again = fx.call(first).await;
+
+    assert_eq!(again.json().unwrap()["data"]["notes"], "two");
+    assert_eq!(fx.outbox()[0].mutation.payload["notes"], "two");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_of_a_cancelling_delete_stays_cancelled() {
+    let fx = fixture(vec![]).await;
+    fx.go_offline();
+    let created = fx
+        .call(send("POST", QUOTES, Some("c"), Some(json!({"notes": "a"}))))
+        .await;
+    let delete = send(
+        "DELETE",
+        &format!("{QUOTES}/{}", data_id(&created)),
+        Some("d"),
+        None,
+    );
+    let first = fx.call(delete.clone()).await;
+    assert_eq!(first.status, 200);
+
+    let again = fx.call(delete).await;
+    let recreate = fx
+        .call(send("POST", QUOTES, Some("c"), Some(json!({"notes": "a"}))))
+        .await;
+
+    assert_eq!(again, first);
+    assert_eq!(recreate.json().unwrap()["data"], Value::Null);
+    assert!(fx.outbox().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_key_nothing_recorded_goes_to_the_server_online() {
+    let fx = fixture(vec![]).await;
+    Mock::given(method("POST"))
+        .and(path(PARTIES))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({"data": {}})))
+        .mount(&fx.server)
+        .await;
+    let request = send("POST", PARTIES, Some("fresh"), Some(json!({"name": "A"})));
+
+    let answer = fx.call(request.clone()).await;
+    fx.sign_in_again().await;
+    let unverified = fx.call(request).await;
+
+    assert_eq!(answer.source, ResponseSource::Network);
+    assert_eq!(unverified.source, ResponseSource::Network);
+    assert_eq!(fx.received(PARTIES).await, 2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -693,16 +917,6 @@ async fn repeats_racing_each_other_queue_one_draft() {
     }
 
     assert_eq!(fx.outbox().len(), 1);
-}
-
-#[test]
-fn draft_ids_are_valid_uuid_v7_and_stable() {
-    let a = draft_id(&name("parties"), "key");
-    assert_eq!(a, draft_id(&name("parties"), "key"));
-    assert_ne!(a, draft_id(&name("parties"), "other"));
-    assert_ne!(a, draft_id(&name("items"), "key"));
-    assert_eq!(a.get_version_num(), 7);
-    assert_eq!(a.get_variant(), uuid::Variant::RFC4122);
 }
 
 // --------------------------------------------------------------- end to end
@@ -815,10 +1029,7 @@ async fn online_a_write_never_becomes_a_draft() {
         .await;
 
     let answer = fx
-        .call_with(
-            Arc::new(LocalAnswers::with_store(fx.store.clone())),
-            send("POST", PARTIES, None, Some(json!({"name": "A"}))),
-        )
+        .call(send("POST", PARTIES, None, Some(json!({"name": "A"}))))
         .await;
 
     assert_eq!(answer.status, 201);

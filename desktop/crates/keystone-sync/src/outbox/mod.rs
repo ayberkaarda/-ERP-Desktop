@@ -7,10 +7,10 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use crate::conflicts::{ConflictRecord, persist_record};
-use crate::error::{Result, SyncError};
+use crate::error::{Result, SyncError, refused};
 use crate::store::{Migration, Store};
 use crate::wire::{
-    Mutation, MutationOp, PushResult, PushStatus, Resolution, ResourceName, Timestamp,
+    ErrorCode, Mutation, MutationOp, PushResult, PushStatus, Resolution, ResourceName, Timestamp,
 };
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -32,7 +32,24 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     UPDATE outbox_entries SET sent=1 WHERE attempts>0 OR state!='pending';
     CREATE TABLE outbox_key_remaps(old_key TEXT PRIMARY KEY,new_key TEXT NOT NULL) STRICT;
     CREATE TABLE outbox_id_remaps(old_id TEXT PRIMARY KEY,new_id TEXT NOT NULL) STRICT;",
+}, Migration {
+    id: 102,
+    module: "outbox",
+    name: "request_keys",
+    sql: "CREATE TABLE outbox_request_keys (
+        key TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,
+        resource TEXT NOT NULL,
+        id TEXT NOT NULL,
+        cancelled INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+    ) STRICT;
+    CREATE INDEX outbox_request_keys_age ON outbox_request_keys(created_at);",
 }];
+
+/// How long a request key answers repeats: the server's
+/// `idempotency_retention_days`. Records go on the next keyed write after that.
+pub const REQUEST_KEY_RETENTION_DAYS: u32 = 7;
 
 pub const MAX_ATTEMPTS: u32 = 5;
 
@@ -84,6 +101,34 @@ pub enum EnqueueOutcome {
     Cancelled(Uuid),
 }
 
+/// `Idempotency-Key` of a request and a digest of the request it came with.
+/// Both are opaque here. The key is not a wire value: the `idempotency_key`
+/// of a mutation stays the outbox's own UUIDv7, and a coalesced draft keeps it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequestKey {
+    pub key: String,
+    pub fingerprint: String,
+}
+
+/// What a request key was used for. It outlives the outbox entry: repeats
+/// are answered after the push settled it (see [`REQUEST_KEY_RETENTION_DAYS`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RequestRecord {
+    pub resource: ResourceName,
+    /// Target row, following identity replacements.
+    pub id: Uuid,
+    /// The write cancelled an unsent create: nothing was queued.
+    pub cancelled: bool,
+}
+
+/// Answer of a keyed enqueue.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyedOutcome {
+    New(EnqueueOutcome),
+    /// The key was used already: nothing was queued.
+    Repeat(RequestRecord),
+}
+
 pub trait OutboxQueue {
     fn enqueue_outcome(&self, mutation: NewMutation) -> Result<EnqueueOutcome>;
     fn transient_failure(&self, key: Uuid) -> Result<()>;
@@ -114,6 +159,49 @@ impl Outbox {
     pub fn store(&self) -> &Arc<Store> {
         &self.store
     }
+    /// The record of `key`. A key used for another request is refused with
+    /// `IDEMPOTENCY_KEY_REUSED`.
+    pub(crate) fn request_record(&self, key: &RequestKey) -> Result<Option<RequestRecord>> {
+        self.store.read(|conn| {
+            ensure_unsealed(conn)?;
+            find_request(conn, key)
+        })
+    }
+
+    /// [`OutboxQueue::enqueue_outcome`] that records `key` in the same
+    /// transaction, or a [`KeyedOutcome::Repeat`] when it is recorded already.
+    pub(crate) fn enqueue_keyed(
+        &self,
+        draft: NewMutation,
+        key: &RequestKey,
+    ) -> Result<KeyedOutcome> {
+        self.store.write(|tx| {
+            ensure_unsealed(tx)?;
+            tx.execute(
+                "DELETE FROM outbox_request_keys
+                 WHERE created_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1)",
+                [format!("-{REQUEST_KEY_RETENTION_DAYS} days")],
+            )?;
+            if let Some(record) = find_request(tx, key)? {
+                return Ok(KeyedOutcome::Repeat(record));
+            }
+            let (resource, id) = (draft.resource.clone(), draft.id);
+            let outcome = enqueue_on(tx, draft)?;
+            tx.execute(
+                "INSERT INTO outbox_request_keys(key,fingerprint,resource,id,cancelled,created_at)
+                 VALUES (?1,?2,?3,?4,?5,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+                params![
+                    key.key,
+                    key.fingerprint,
+                    resource.as_str(),
+                    id.to_string(),
+                    matches!(outcome, EnqueueOutcome::Cancelled(_)),
+                ],
+            )?;
+            Ok(KeyedOutcome::New(outcome))
+        })
+    }
+
     /// Includes rejected and quarantined entries for the user-facing queue.
     pub(crate) fn list(&self) -> Result<Vec<OutboxEntry>> {
         self.store.read(|conn| {
@@ -131,9 +219,48 @@ pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
     tx.execute_batch(
         "DELETE FROM outbox_settled;
          DELETE FROM outbox_key_remaps;
-         DELETE FROM outbox_id_remaps;",
+         DELETE FROM outbox_id_remaps;
+         DELETE FROM outbox_request_keys;",
     )?;
     Ok(removed)
+}
+
+fn find_request(conn: &Connection, key: &RequestKey) -> Result<Option<RequestRecord>> {
+    let found: Option<(String, String, String, bool)> = conn
+        .query_row(
+            "SELECT fingerprint,resource,id,cancelled FROM outbox_request_keys WHERE key=?1",
+            [&key.key],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional()?;
+    let Some((fingerprint, resource, mut id, cancelled)) = found else {
+        return Ok(None);
+    };
+    if fingerprint != key.fingerprint {
+        return Err(refused(
+            ErrorCode::IdempotencyKeyReused,
+            "this idempotency key was used for another request",
+        ));
+    }
+    let mut seen = HashSet::new();
+    while seen.insert(id.clone()) {
+        let replaced: Option<String> = conn
+            .query_row(
+                "SELECT new_id FROM outbox_id_remaps WHERE old_id=?1",
+                [&id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        match replaced {
+            Some(new) => id = new,
+            None => break,
+        }
+    }
+    Ok(Some(RequestRecord {
+        resource: ResourceName(resource),
+        id: Uuid::parse_str(&id).map_err(|_| invalid("invalid request key target"))?,
+        cancelled,
+    }))
 }
 
 pub(crate) fn invalid(message: &str) -> SyncError {
@@ -265,211 +392,212 @@ fn reaches(start: Uuid, target: Uuid, all: &[OutboxEntry]) -> bool {
     false
 }
 
-impl OutboxQueue for Outbox {
-    fn enqueue_outcome(&self, mut draft: NewMutation) -> Result<EnqueueOutcome> {
-        self.store.write(|tx| {
-            ensure_unsealed(tx)?;
-            if draft.id.get_version_num() != 7
-                || draft.payload.contains_key("version")
-                || (draft.op == MutationOp::Create) != draft.base_version.is_none()
-                || draft.base_version == Some(0)
-                || (draft.op == MutationOp::Action) != draft.action.is_some()
-                || (draft.op == MutationOp::Delete && !draft.payload.is_empty())
-                || (matches!(draft.op, MutationOp::Update | MutationOp::Action)
-                    && draft.payload.is_empty())
+fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOutcome> {
+    ensure_unsealed(tx)?;
+    if draft.id.get_version_num() != 7
+        || draft.payload.contains_key("version")
+        || (draft.op == MutationOp::Create) != draft.base_version.is_none()
+        || draft.base_version == Some(0)
+        || (draft.op == MutationOp::Action) != draft.action.is_some()
+        || (draft.op == MutationOp::Delete && !draft.payload.is_empty())
+        || (matches!(draft.op, MutationOp::Update | MutationOp::Action) && draft.payload.is_empty())
+    {
+        return Err(invalid("invalid mutation body"));
+    }
+    let all = load(tx)?;
+    let original = draft.clone();
+    remap_draft(tx, &mut draft)?;
+    let mut deps = draft.depends_on.clone();
+    for dep in &mut deps {
+        let mut seen = HashSet::new();
+        loop {
+            if !seen.insert(*dep) {
+                return Err(invalid("dependency remap cycle"));
+            }
+            let mapped: Option<String> = tx
+                .query_row(
+                    "SELECT new_key FROM outbox_key_remaps WHERE old_key=?1",
+                    [dep.to_string()],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            match mapped {
+                Some(mapped) => {
+                    *dep =
+                        Uuid::parse_str(&mapped).map_err(|_| invalid("invalid dependency remap"))?
+                }
+                None => break,
+            }
+        }
+    }
+    if draft != original {
+        for entry in &all {
+            if entry.mutation.op == MutationOp::Create
+                && (draft.id == entry.mutation.id
+                    || draft.parent_id == Some(entry.mutation.id)
+                    || draft
+                        .payload
+                        .values()
+                        .any(|v| references_id(v, entry.mutation.id)))
             {
-                return Err(invalid("invalid mutation body"));
+                deps.push(entry.mutation.idempotency_key);
             }
-            let all = load(tx)?;
-            let original = draft.clone();
-            remap_draft(tx, &mut draft)?;
-            let mut deps = draft.depends_on.clone();
-            for dep in &mut deps {
-                let mut seen = HashSet::new();
-                loop {
-                    if !seen.insert(*dep) {
-                        return Err(invalid("dependency remap cycle"));
-                    }
-                    let mapped: Option<String> = tx
-                        .query_row(
-                            "SELECT new_key FROM outbox_key_remaps WHERE old_key=?1",
-                            [dep.to_string()],
-                            |r| r.get(0),
-                        )
-                        .optional()?;
-                    match mapped {
-                        Some(mapped) => {
-                            *dep = Uuid::parse_str(&mapped)
-                                .map_err(|_| invalid("invalid dependency remap"))?
-                        }
-                        None => break,
-                    }
-                }
+        }
+    }
+    deps.sort();
+    deps.dedup();
+    if deps.len() > 50 {
+        return Err(invalid("too many dependencies"));
+    }
+    for key in &deps {
+        let dead = all.iter().any(|e| {
+            e.mutation.idempotency_key == *key
+                && (matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)
+                    || e.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED"))
+        }) || tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1 AND success=0)",
+            [key.to_string()],
+            |r| r.get::<_, bool>(0),
+        )?;
+        if dead {
+            return Err(invalid("dependency failed or cancelled"));
+        }
+        let known = all.iter().any(|e| e.mutation.idempotency_key == *key)
+            || tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1)",
+                [key.to_string()],
+                |r| r.get::<_, bool>(0),
+            )?;
+        if !known {
+            return Err(invalid("unknown dependency"));
+        }
+    }
+    // Only the last write to a row can coalesce, and only before its first send.
+    let previous = all
+        .iter()
+        .filter(|e| e.mutation.resource == draft.resource && e.mutation.id == draft.id)
+        .max_by_key(|e| e.seq);
+    if draft.resolution.is_none()
+        && let Some(old) = previous.filter(|e| {
+            e.state == OutboxState::Pending
+                && !e.sent
+                && e.mutation.resolution.is_none()
+                && e.mutation.parent_id == draft.parent_id
+        })
+    {
+        let pair = (old.mutation.op, draft.op);
+        if matches!(pair, (MutationOp::Create, MutationOp::Delete)) {
+            cancel(tx, old.mutation.idempotency_key, false)?;
+            return Ok(EnqueueOutcome::Cancelled(old.mutation.idempotency_key));
+        }
+        if matches!(
+            pair,
+            (MutationOp::Create, MutationOp::Update)
+                | (MutationOp::Update, MutationOp::Update)
+                | (MutationOp::Update, MutationOp::Delete)
+        ) {
+            let mut merged = old.mutation.clone();
+            let old_key = merged.idempotency_key;
+            // A later independent prerequisite is valid; a path back is a cycle.
+            if deps.iter().any(|key| reaches(*key, old_key, &all)) {
+                return Err(invalid("coalescing would create a dependency cycle"));
             }
-            if draft != original {
-                for entry in &all {
-                    if entry.mutation.op == MutationOp::Create
-                        && (draft.id == entry.mutation.id
-                            || draft.parent_id == Some(entry.mutation.id)
-                            || draft
-                                .payload
-                                .values()
-                                .any(|v| references_id(v, entry.mutation.id)))
-                    {
-                        deps.push(entry.mutation.idempotency_key);
-                    }
-                }
-            }
-            deps.sort();
-            deps.dedup();
-            if deps.len() > 50 {
+            let mut edges = merged.depends_on.take().unwrap_or_default();
+            edges.extend(deps);
+            edges.sort();
+            edges.dedup();
+            if edges.len() > 50 {
                 return Err(invalid("too many dependencies"));
             }
-            for key in &deps {
-                let dead = all.iter().any(|e| {
-                    e.mutation.idempotency_key == *key
-                        && (matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)
-                            || e.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED"))
-                }) || tx.query_row(
-                    "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1 AND success=0)",
-                    [key.to_string()],
-                    |r| r.get::<_, bool>(0),
-                )?;
-                if dead {
-                    return Err(invalid("dependency failed or cancelled"));
-                }
-                let known = all.iter().any(|e| e.mutation.idempotency_key == *key)
-                    || tx.query_row(
-                        "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1)",
-                        [key.to_string()],
-                        |r| r.get::<_, bool>(0),
-                    )?;
-                if !known {
-                    return Err(invalid("unknown dependency"));
-                }
+            merged.depends_on = (!edges.is_empty()).then_some(edges);
+            if draft.op == MutationOp::Delete {
+                merged.op = MutationOp::Delete;
+                merged.payload.clear();
+            } else {
+                merged.payload.extend(draft.payload);
             }
-            // Only the last write to a row can coalesce, and only before its first send.
-            let previous = all
-                .iter()
-                .filter(|e| e.mutation.resource == draft.resource && e.mutation.id == draft.id)
-                .max_by_key(|e| e.seq);
-            if draft.resolution.is_none()
-                && let Some(old) = previous.filter(|e| {
-                    e.state == OutboxState::Pending
-                        && !e.sent
-                        && e.mutation.resolution.is_none()
-                        && e.mutation.parent_id == draft.parent_id
-                })
-            {
-                let pair = (old.mutation.op, draft.op);
-                if matches!(pair, (MutationOp::Create, MutationOp::Delete)) {
-                    cancel(tx, old.mutation.idempotency_key, false)?;
-                    return Ok(EnqueueOutcome::Cancelled(old.mutation.idempotency_key));
-                }
-                if matches!(
-                    pair,
-                    (MutationOp::Create, MutationOp::Update)
-                        | (MutationOp::Update, MutationOp::Update)
-                        | (MutationOp::Update, MutationOp::Delete)
-                ) {
-                    let mut merged = old.mutation.clone();
-                    let old_key = merged.idempotency_key;
-                    // A later independent prerequisite is valid; a path back is a cycle.
-                    if deps.iter().any(|key| reaches(*key, old_key, &all)) {
-                        return Err(invalid("coalescing would create a dependency cycle"));
-                    }
-                    let mut edges = merged.depends_on.take().unwrap_or_default();
-                    edges.extend(deps);
-                    edges.sort();
-                    edges.dedup();
-                    if edges.len() > 50 {
-                        return Err(invalid("too many dependencies"));
-                    }
-                    merged.depends_on = (!edges.is_empty()).then_some(edges);
-                    if draft.op == MutationOp::Delete {
-                        merged.op = MutationOp::Delete;
-                        merged.payload.clear();
-                    } else {
-                        merged.payload.extend(draft.payload);
-                    }
-                    merged.changed_fields = changed_fields(merged.op, &merged.payload);
-                    tx.execute(
-                        "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
-                        params![serde_json::to_string(&merged)?, old_key.to_string()],
-                    )?;
-                    return Ok(EnqueueOutcome::Queued(old_key));
-                }
-            }
-            let key = Uuid::now_v7();
-            let mutation = Mutation {
-                idempotency_key: key,
-                op: draft.op,
-                action: draft.action,
-                resource: draft.resource,
-                id: draft.id,
-                parent_id: draft.parent_id,
-                base_version: draft.base_version,
-                changed_fields: changed_fields(draft.op, &draft.payload),
-                occurred_at: draft.occurred_at,
-                payload: draft.payload,
-                depends_on: (!deps.is_empty()).then_some(deps),
-                resolution: draft.resolution,
-            };
-            if let Some(resolution) = mutation.resolution {
-                let old = all
-                    .iter()
-                    .find(|e| {
-                        e.mutation.idempotency_key == resolution.resolves
-                            && e.state == OutboxState::Conflict
-                    })
-                    .ok_or_else(|| invalid("resolution does not address an active conflict"))?;
-                if old.mutation.id != mutation.id || old.mutation.resource != mutation.resource {
-                    return Err(invalid("resolution target differs"));
-                }
-                crate::conflicts::validate_resolution(tx, &mutation)?;
-                if mutation.depends_on.as_ref().is_some_and(|edges| {
-                    edges
-                        .iter()
-                        .any(|dep| reaches(*dep, resolution.resolves, &all))
-                }) {
-                    return Err(invalid("resolution would create a dependency cycle"));
-                }
-                // Replace explicit edges before deleting the old entry. Never alter sent bodies.
-                for entry in &all {
-                    if entry.state == OutboxState::Pending && !entry.sent {
-                        let mut rewritten = entry.mutation.clone();
-                        if let Some(edges) = &mut rewritten.depends_on {
-                            for edge in edges {
-                                if *edge == resolution.resolves {
-                                    *edge = key;
-                                }
-                            }
-                        }
-                        tx.execute(
-                            "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
-                            params![
-                                serde_json::to_string(&rewritten)?,
-                                rewritten.idempotency_key.to_string()
-                            ],
-                        )?;
-                    }
-                }
-                cancel(tx, resolution.resolves, false)?;
-                tx.execute(
-                    "DELETE FROM conflict_records WHERE key=?1",
-                    [resolution.resolves.to_string()],
-                )?;
-            }
-            crate::conflicts::complete_draft(tx, &mutation)?;
+            merged.changed_fields = changed_fields(merged.op, &merged.payload);
             tx.execute(
-                "INSERT INTO outbox_entries(key,mutation,state) VALUES (?1,?2,'pending')",
-                params![key.to_string(), serde_json::to_string(&mutation)?],
+                "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
+                params![serde_json::to_string(&merged)?, old_key.to_string()],
             )?;
-            if mutation.op == MutationOp::Create {
-                Store::seed_draft_on(tx, &mutation.resource, mutation.id)?;
+            return Ok(EnqueueOutcome::Queued(old_key));
+        }
+    }
+    let key = Uuid::now_v7();
+    let mutation = Mutation {
+        idempotency_key: key,
+        op: draft.op,
+        action: draft.action,
+        resource: draft.resource,
+        id: draft.id,
+        parent_id: draft.parent_id,
+        base_version: draft.base_version,
+        changed_fields: changed_fields(draft.op, &draft.payload),
+        occurred_at: draft.occurred_at,
+        payload: draft.payload,
+        depends_on: (!deps.is_empty()).then_some(deps),
+        resolution: draft.resolution,
+    };
+    if let Some(resolution) = mutation.resolution {
+        let old = all
+            .iter()
+            .find(|e| {
+                e.mutation.idempotency_key == resolution.resolves
+                    && e.state == OutboxState::Conflict
+            })
+            .ok_or_else(|| invalid("resolution does not address an active conflict"))?;
+        if old.mutation.id != mutation.id || old.mutation.resource != mutation.resource {
+            return Err(invalid("resolution target differs"));
+        }
+        crate::conflicts::validate_resolution(tx, &mutation)?;
+        if mutation.depends_on.as_ref().is_some_and(|edges| {
+            edges
+                .iter()
+                .any(|dep| reaches(*dep, resolution.resolves, &all))
+        }) {
+            return Err(invalid("resolution would create a dependency cycle"));
+        }
+        // Replace explicit edges before deleting the old entry. Never alter sent bodies.
+        for entry in &all {
+            if entry.state == OutboxState::Pending && !entry.sent {
+                let mut rewritten = entry.mutation.clone();
+                if let Some(edges) = &mut rewritten.depends_on {
+                    for edge in edges {
+                        if *edge == resolution.resolves {
+                            *edge = key;
+                        }
+                    }
+                }
+                tx.execute(
+                    "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
+                    params![
+                        serde_json::to_string(&rewritten)?,
+                        rewritten.idempotency_key.to_string()
+                    ],
+                )?;
             }
-            Ok(EnqueueOutcome::Queued(key))
-        })
+        }
+        cancel(tx, resolution.resolves, false)?;
+        tx.execute(
+            "DELETE FROM conflict_records WHERE key=?1",
+            [resolution.resolves.to_string()],
+        )?;
+    }
+    crate::conflicts::complete_draft(tx, &mutation)?;
+    tx.execute(
+        "INSERT INTO outbox_entries(key,mutation,state) VALUES (?1,?2,'pending')",
+        params![key.to_string(), serde_json::to_string(&mutation)?],
+    )?;
+    if mutation.op == MutationOp::Create {
+        Store::seed_draft_on(tx, &mutation.resource, mutation.id)?;
+    }
+    Ok(EnqueueOutcome::Queued(key))
+}
+
+impl OutboxQueue for Outbox {
+    fn enqueue_outcome(&self, draft: NewMutation) -> Result<EnqueueOutcome> {
+        self.store.write(|tx| enqueue_on(tx, draft))
     }
 
     fn next_batch(&self, max: usize) -> Result<Vec<Mutation>> {

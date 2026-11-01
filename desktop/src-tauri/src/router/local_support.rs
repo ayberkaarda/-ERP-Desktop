@@ -35,6 +35,7 @@ pub struct Fixture {
     pub connectivity: Connectivity,
     pub engine: Arc<Engine>,
     pub store: Arc<Store>,
+    tokens: Arc<MemoryTokenStore>,
     _dir: tempfile::TempDir,
 }
 
@@ -96,10 +97,36 @@ fn sync_manifest(version: u32) -> Value {
     })
 }
 
+/// `paging` value for a server whose pull fails at once: nothing is downloaded.
+pub const NO_PULL: &[&str] = &["*"];
+
+fn client(uri: &str, tokens: &Arc<MemoryTokenStore>) -> HttpClient {
+    HttpClient::new(
+        &ApiConfig {
+            base_url: uri.to_owned(),
+            company_id: COMPANY.parse().unwrap(),
+            user_agent: "keystone-desktop-test".into(),
+        },
+        PROFILE,
+        tokens.clone(),
+        &ClientOptions {
+            connect_timeout: Duration::from_secs(2),
+            request_timeout: Duration::from_secs(20),
+            allow_http_localhost: true,
+        },
+    )
+    .unwrap()
+}
+
 /// Pull answer: the seeded rows on the first download of a resource. Those
 /// in `paging` report `has_more` and then fail, so they stay partial.
 fn pull(seed: Seed, paging: &'static [&'static str]) -> impl Fn(&Request) -> ResponseTemplate {
     move |request: &Request| {
+        if paging == NO_PULL {
+            return ResponseTemplate::new(500).set_body_json(json!({
+                "errors": {"message": "x", "code": "SERVER_ERROR"}
+            }));
+        }
         let body: Value = serde_json::from_slice(&request.body).unwrap();
         let mut pages = Vec::new();
         for entry in body["resources"].as_array().unwrap() {
@@ -155,28 +182,11 @@ pub async fn fixture_with(seed: Seed, paging: &'static [&'static str], version: 
         .await;
 
     let tokens = Arc::new(MemoryTokenStore::signed_in(PROFILE, &self::tokens(1)));
-    let client = || {
-        HttpClient::new(
-            &ApiConfig {
-                base_url: server.uri(),
-                company_id: COMPANY.parse().unwrap(),
-                user_agent: "keystone-desktop-test".into(),
-            },
-            PROFILE,
-            tokens.clone(),
-            &ClientOptions {
-                connect_timeout: Duration::from_secs(2),
-                request_timeout: Duration::from_secs(20),
-                allow_http_localhost: true,
-            },
-        )
-        .unwrap()
-    };
     let dir = tempfile::tempdir().unwrap();
     let store =
         Arc::new(Store::open(dir.path().join("p.db"), &DbKey::from_bytes([7; 32])).unwrap());
     let engine = Arc::new(
-        SyncEngine::new(client(), store.clone())
+        SyncEngine::new(client(&server.uri(), &tokens), store.clone())
             .with_offline_manifest(offline_manifest(OFFLINE_MANIFEST).unwrap()),
     );
     let run = engine.run_once(Trigger::Startup).await;
@@ -185,15 +195,19 @@ pub async fn fixture_with(seed: Seed, paging: &'static [&'static str], version: 
     let state = AppState::default();
     state.activate(ActiveProfile {
         id: PROFILE.into(),
-        client: Arc::new(client()),
-        engine: Some(engine.clone()),
+        client: Arc::new(client(&server.uri(), &tokens)),
+        engine: None,
     });
+    state
+        .attach(PROFILE, engine.clone(), store.clone(), None)
+        .unwrap();
     Fixture {
         server,
         state,
         connectivity: Connectivity::default(),
         engine,
         store,
+        tokens,
         _dir: dir,
     }
 }
@@ -203,17 +217,22 @@ impl Fixture {
         self.connectivity.observe(PROFILE, false, Instant::now());
     }
 
-    /// `api_request` with the resolver the command uses.
-    pub async fn call(&self, request: Value) -> ApiResponseDto {
-        self.call_with(local_resolver(), request).await
+    pub fn go_online(&self) {
+        self.connectivity.observe(PROFILE, true, Instant::now());
     }
 
-    pub async fn call_with(
-        &self,
-        resolver: Arc<dyn LocalResolver>,
-        request: Value,
-    ) -> ApiResponseDto {
-        self.try_call(resolver, request).await.unwrap()
+    /// Another profile takes the slot: a call in flight belongs to nobody.
+    pub fn switch_profile(&self) {
+        self.state.activate(ActiveProfile {
+            id: "another-profile".into(),
+            client: Arc::new(client(&self.server.uri(), &self.tokens)),
+            engine: None,
+        });
+    }
+
+    /// `api_request` with the resolver the command uses.
+    pub async fn call(&self, request: Value) -> ApiResponseDto {
+        self.try_call(local_resolver(), request).await.unwrap()
     }
 
     async fn try_call(
@@ -257,14 +276,15 @@ impl Fixture {
                     .iter()
                     .map(|m| {
                         let id = m["id"].as_str().unwrap().parse().unwrap();
+                        let version = m["base_version"].as_u64().unwrap_or(0) + 1;
                         json!({
                             "idempotency_key": m["idempotency_key"],
                             "resource": m["resource"],
                             "id": m["id"],
                             "status": "applied",
                             "replayed": false,
-                            "version": 1,
-                            "data": row(id, 1, m["payload"].clone()),
+                            "version": version,
+                            "data": row(id, version, m["payload"].clone()),
                         })
                     })
                     .collect();
