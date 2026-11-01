@@ -3,14 +3,14 @@
 //! Selecting a profile opens, in this order: the session record check
 //! (keychain), the profile's HTTP clients, its encrypted store (key from
 //! the keychain), the sync engine over the compiled offline manifest, the
-//! sync loop on the engine runtime ([`crate::runtime`]) and the event
-//! bridge ([`crate::events`]). The loop runs only once a company is chosen;
-//! before that the engine exists for sign-out alone.
+//! sync loop on the engine runtime ([`crate::runtime`]), the event bridge
+//! ([`crate::events`]) and the realtime bridge ([`crate::realtime`]). The
+//! loop runs only once a company is chosen; before that the engine exists
+//! for sign-out alone.
 //!
 //! Rules this module keeps:
 //! - One profile is active at a time. Switching stops the old loop and
-//!   bridge (aborted and awaited) before the new profile opens; profile
-//!   switches, sign-in follow-ups, resets and removals are serialized.
+//!   bridges (all awaited) before the new profile opens; profile switches, sign-in follow-ups, resets and removals are serialized.
 //! - A database key is created only for a profile that has no database
 //!   yet. When the database exists, a missing or unreadable key is
 //!   `STORE_KEY_INVALID` / `PROFILE_RECORD_MALFORMED`: the user decides
@@ -27,6 +27,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Weak};
 use std::time::Duration;
 
+use keystone_realtime::Options as RealtimeOptions;
 use keystone_secrets::{DbKeyStore, Keychain, KeychainTokenStore, SecretSlot};
 use keystone_sync::SyncError;
 use keystone_sync::auth::{Session, SessionRecord, TokenStore};
@@ -44,8 +45,10 @@ use uuid::Uuid;
 use crate::commands::{CommandError, CommandResult};
 use crate::dto::auth::{AuthStateDto, CompanyDto, LoginDto, SignOutDto, UserDto};
 use crate::dto::profile::{ProfileDto, ProfilesDto};
+use crate::dto::realtime::{RealtimeStateDto, RealtimeStatusDto};
 use crate::events::{EventSink, bridge};
 use crate::profiles::{MetaSnapshot, Profile, ProfileRegistry, compare_versions};
+use crate::realtime::{Bridge, Link, RealtimeSink, TauriRealtimeSink, reverb_params};
 use crate::runtime::EngineRuntime;
 use crate::state::{ActiveProfile, AppState, Engine};
 
@@ -114,6 +117,8 @@ pub struct Config {
     pub app_version: String,
     /// How long removal waits for requests of the profile still running.
     pub release_wait: Duration,
+    /// Timing of the realtime connection.
+    pub realtime: RealtimeOptions,
 }
 
 impl Config {
@@ -129,14 +134,17 @@ impl Config {
             user_agent: format!("Keystone-Desktop/{app_version} ({})", std::env::consts::OS),
             app_version: app_version.to_owned(),
             release_wait: Duration::from_secs(5),
+            realtime: RealtimeOptions::default(),
         })
     }
 }
 
 /// Tasks of the active profile on the engine runtime.
 struct Running {
+    profile_id: String,
     sync_loop: Option<JoinHandle<()>>,
     events: JoinHandle<()>,
+    realtime: Bridge,
 }
 
 /// What opening a profile produced.
@@ -159,6 +167,11 @@ pub struct Desktop {
     release_wait: Duration,
     runtime: EngineRuntime,
     sink: Arc<dyn EventSink>,
+    realtime_sink: Arc<dyn RealtimeSink>,
+    realtime_options: RealtimeOptions,
+    /// Moves on every sign-in, for the realtime bridge. Not every sign-in
+    /// changes the engine status it also watches.
+    sessions_moved: tokio::sync::watch::Sender<u64>,
     /// Session of every profile a client was made for, to see it closed
     /// before its records go (active or not, engine or not).
     sessions: std::sync::Mutex<std::collections::HashMap<String, Weak<Session>>>,
@@ -176,7 +189,11 @@ impl std::fmt::Debug for Desktop {
 }
 
 impl Desktop {
-    pub fn new(config: Config, sink: Arc<dyn EventSink>) -> std::io::Result<Self> {
+    pub fn new(
+        config: Config,
+        sink: Arc<dyn EventSink>,
+        realtime_sink: Arc<dyn RealtimeSink>,
+    ) -> std::io::Result<Self> {
         Ok(Self {
             profiles: Arc::new(ProfileRegistry::new(&config.data_dir)),
             tokens: Arc::new(KeychainTokenStore::new(&config.keychain)),
@@ -189,6 +206,9 @@ impl Desktop {
             release_wait: config.release_wait,
             runtime: EngineRuntime::start()?,
             sink,
+            realtime_sink,
+            realtime_options: config.realtime,
+            sessions_moved: tokio::sync::watch::Sender::new(0),
             sessions: std::sync::Mutex::default(),
             running: tokio::sync::Mutex::new(None),
         })
@@ -386,15 +406,29 @@ impl Desktop {
             fingerprint,
         };
         client.login(&request).await.map_err(token_error)?;
-        let generation = record(&client).await?.generation;
-        let me = fetch_me(&client).await?;
-        let profile = self.profile(&id).await?;
+        let settled = self.after_sign_in(state, &id, &client).await;
+        // After the restart a changed company brings, or a failure on the
+        // way: a bridge still on the old sign-in moves to the new one.
+        self.session_moved();
+        settled
+    }
+
+    /// User and company of the sign-in that just happened.
+    async fn after_sign_in(
+        &self,
+        state: &AppState,
+        id: &str,
+        client: &HttpClient,
+    ) -> CommandResult<LoginDto> {
+        let generation = record(client).await?.generation;
+        let me = fetch_me(client).await?;
+        let profile = self.profile(id).await?;
         let company = match profile.company_id {
             Some(current) if me.companies.iter().any(|c| c.id == current) => Some(current),
             _ if me.companies.len() == 1 => Some(me.companies[0].id),
             _ => None,
         };
-        self.settle_company(state, &id, company, me, generation)
+        self.settle_company(state, id, company, me, generation)
             .await
     }
 
@@ -431,7 +465,23 @@ impl Desktop {
         })
     }
 
+    /// The realtime state of the active profile.
+    pub async fn realtime_status(&self) -> RealtimeStatusDto {
+        let running = self.running.lock().await;
+        RealtimeStatusDto {
+            profile_id: running.as_ref().map(|tasks| tasks.profile_id.clone()),
+            state: running
+                .as_ref()
+                .map_or(RealtimeStateDto::Idle, |tasks| tasks.realtime.state()),
+        }
+    }
+
     // ---- internals ------------------------------------------------------
+
+    /// Tells the realtime bridge to look at the session again.
+    fn session_moved(&self) {
+        self.sessions_moved.send_modify(|moves| *moves += 1);
+    }
 
     async fn profile(&self, id: &str) -> CommandResult<Profile> {
         let registry = self.profiles_blocking();
@@ -483,13 +533,34 @@ impl Desktop {
             opened.engine.subscribe_changes(),
             self.sink.clone(),
         ));
+        let realtime = Bridge::start(
+            &self.runtime,
+            Link {
+                profile_id: profile.id.clone(),
+                client,
+                reverb: reverb_params(&profile.meta_snapshot.reverb),
+                app_version: self.app_version.clone(),
+                // `KEYSTONE_DEV_ALLOW_HTTP` in a debug build, see `allow_http`.
+                allow_dev_plain: self.options.allow_http_localhost,
+                sync: sync.clone(),
+                status: opened.engine.subscribe(),
+                sessions: self.sessions_moved.subscribe(),
+                sink: self.realtime_sink.clone(),
+                options: self.realtime_options.clone(),
+            },
+        );
         let attached = state.attach(
             &profile.id,
             opened.engine.clone(),
             opened.store.clone(),
             sync.clone(),
         );
-        *running = Some(Running { sync_loop, events });
+        *running = Some(Running {
+            profile_id: profile.id.clone(),
+            sync_loop,
+            events,
+            realtime,
+        });
         drop(sync);
         attached.map(drop)
     }
@@ -551,10 +622,12 @@ impl Desktop {
     }
 
     /// Stops the active profile: out of the state first (no new command
-    /// gets it), then its loop and bridge, aborted and awaited.
+    /// gets it), then its realtime connection, loop and event bridge, each
+    /// awaited.
     async fn stop(&self, state: &AppState, running: &mut Option<Running>) {
         state.deactivate();
         if let Some(tasks) = running.take() {
+            tasks.realtime.close().await;
             if let Some(task) = tasks.sync_loop {
                 task.abort();
                 let _ = task.await;
@@ -768,7 +841,7 @@ pub(crate) async fn proxy_json(
     answer_json(&response)
 }
 
-fn answer_json(response: &ProxyResponse) -> CommandResult<Value> {
+pub(crate) fn answer_json(response: &ProxyResponse) -> CommandResult<Value> {
     if (200..300).contains(&response.status) {
         if response.body.is_empty() {
             return Ok(Value::Null);
@@ -859,7 +932,8 @@ pub fn setup<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn s
     let version = app.package_info().version.to_string();
     let config = Config::for_app(data_dir, &version)?;
     let sink = Arc::new(crate::events::TauriSink(app.handle().clone()));
-    app.manage(Desktop::new(config, sink)?);
+    let realtime_sink = Arc::new(TauriRealtimeSink(app.handle().clone()));
+    app.manage(Desktop::new(config, sink, realtime_sink)?);
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
         let desktop = handle.state::<Desktop>();
@@ -873,13 +947,8 @@ pub fn setup<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn s
 
 /// Sends `trigger` to the active profile's sync loop; `Ok(false)` when it
 /// has none. The door for other parts of the shell (a proxy call that
-/// finds the server again, the realtime bridge).
-///
-/// Realtime bridge input point: on `.session.revoked` the bridge calls
-/// this with `Trigger::Manual` and emits a UI event; it never signs out
-/// and never wipes local data (the next run meets the revoked token and
-/// the engine turns to `AuthRequired` by itself). A generation-bound
-/// token drop (`forget_tokens(generation)`) comes later in the crate.
+/// finds the server again). The realtime bridge holds the handle of its
+/// own profile's loop instead.
 pub fn trigger(state: &AppState, trigger: Trigger) -> CommandResult<bool> {
     let id = state.active_profile_id().ok_or_else(no_profile)?;
     state.trigger(&id, trigger)

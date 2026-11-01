@@ -7,6 +7,7 @@
 //! - [`state::AppState`]: the active profile slot, `client()` / `engine()`.
 //! - [`commands::CommandError`]: `{code, message, retry_after?}` of every command.
 //! - [`ENGINE_EVENT`]: the one Tauri event the engine bridge emits.
+//! - [`REALTIME_EVENT`]: the one Tauri event the realtime bridge emits.
 
 #![forbid(unsafe_code)]
 
@@ -18,6 +19,7 @@ pub mod dto;
 pub mod events;
 pub mod logging;
 pub mod profiles;
+pub mod realtime;
 pub mod router;
 pub mod runtime;
 pub mod state;
@@ -28,6 +30,10 @@ use tauri::Manager;
 /// in order. Payload: `{"type": "status", ...}` (a `SyncStatus` change) or
 /// `{"type": "resources_changed", ...}` (resources the engine rewrote).
 pub const ENGINE_EVENT: &str = "engine-event";
+
+/// Name of the single Tauri event that carries realtime news to the webview,
+/// in order; the payload is [`dto::realtime::RealtimeEventDto`].
+pub const REALTIME_EVENT: &str = "realtime-event";
 
 /// Label of the main window (`tauri.conf.json`, `capabilities/default.json`).
 pub const MAIN_WINDOW: &str = "main";
@@ -75,7 +81,8 @@ pub fn run() {
             commands::sync::outbox_retry,
             commands::sync::outbox_discard,
             commands::sync::conflicts_list,
-            commands::sync::conflicts_resolve
+            commands::sync::conflicts_resolve,
+            realtime::realtime_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running the Keystone desktop shell");

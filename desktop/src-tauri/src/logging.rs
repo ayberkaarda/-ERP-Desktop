@@ -23,10 +23,23 @@ pub fn level_for_build() -> LevelFilter {
     }
 }
 
+/// Targets kept below the build level: tungstenite prints whole frames,
+/// channel signatures included, at `Trace`.
+fn capped_targets() -> [(&'static str, LevelFilter); 2] {
+    [
+        ("tungstenite", LevelFilter::Info),
+        ("tokio_tungstenite", LevelFilter::Info),
+    ]
+}
+
 /// The log plugin as the shell registers it.
 pub fn plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
-    tauri_plugin_log::Builder::new()
-        .level(level_for_build())
+    capped_targets()
+        .into_iter()
+        .fold(
+            tauri_plugin_log::Builder::new().level(level_for_build()),
+            |builder, (target, level)| builder.level_for(target, level),
+        )
         .format(masking_format)
         .build()
 }
@@ -231,6 +244,18 @@ mod tests {
         assert!(
             out.contains("[keystone_desktop_lib][INFO] device linked for [email]"),
             "{out}"
+        );
+    }
+
+    #[test]
+    fn websocket_frames_stay_out_of_the_log() {
+        let targets: Vec<_> = capped_targets().iter().map(|(t, _)| *t).collect();
+        assert_eq!(targets, ["tungstenite", "tokio_tungstenite"]);
+        // Trace prints whole frames, channel signatures included.
+        assert!(
+            capped_targets()
+                .iter()
+                .all(|(_, level)| *level <= LevelFilter::Info)
         );
     }
 

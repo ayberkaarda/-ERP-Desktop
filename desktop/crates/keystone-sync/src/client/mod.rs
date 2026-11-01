@@ -50,6 +50,7 @@ pub mod paths {
     pub const DEVICE_LOGIN: &str = "/api/v1/auth/device";
     pub const DEVICE_REFRESH: &str = "/api/v1/auth/device/refresh";
     pub const PASSWORD_CHANGE: &str = "/api/v1/auth/password/change";
+    pub const BROADCASTING_AUTH: &str = "/api/v1/broadcasting/auth";
 }
 
 /// Server profile chosen at runtime (never baked in at build time).

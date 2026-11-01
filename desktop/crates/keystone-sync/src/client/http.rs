@@ -52,6 +52,7 @@ use super::retry_after::parse_retry_after;
 use super::url::ServerUrl;
 use super::{ApiConfig, DeviceAuthApi, SyncApi, paths};
 
+mod broadcasting;
 mod proxy;
 
 pub use proxy::{
@@ -198,6 +199,22 @@ impl HttpClient {
         Req: Serialize + Sync,
         Resp: DeserializeOwned,
     {
+        self.authorized_with(method, path, body, expected, |raw| decode(&raw))
+            .await
+    }
+
+    /// [`HttpClient::authorized`] with the last answer read by `finish`.
+    async fn authorized_with<Req, R>(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&Req>,
+        expected: Option<u64>,
+        finish: impl FnOnce(RawResponse) -> Result<R> + Send,
+    ) -> Result<R>
+    where
+        Req: Serialize + Sync,
+    {
         let url = self.server.endpoint(path)?;
         let body = body.map(serde_json::to_vec).transpose()?;
         // Token and generation come from one snapshot.
@@ -227,7 +244,7 @@ impl HttpClient {
                 generation = fresh_generation;
                 raw = self.send_authorized(method, url, body, &fresh).await?;
             }
-            decode(&raw)
+            finish(raw)
         }
         .await;
         self.settle(result, generation).await

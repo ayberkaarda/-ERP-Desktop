@@ -4,4 +4,5 @@
 pub mod api;
 pub mod auth;
 pub mod profile;
+pub mod realtime;
 pub mod status;

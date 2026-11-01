@@ -2,11 +2,16 @@
 // documented shape is dropped (and reported to `onInvalid`), never passed on.
 
 import type { EngineEvent } from './generated/EngineEvent'
+import type { RealtimeEventDto } from './generated/RealtimeEventDto'
+import type { RealtimeStateDto } from './generated/RealtimeStateDto'
 
-export type { EngineEvent }
+export type { EngineEvent, RealtimeEventDto, RealtimeStateDto }
 
 /** Name of the Tauri event the engine bridge emits (`ENGINE_EVENT` in Rust). */
 export const ENGINE_EVENT = 'engine-event'
+
+/** Name of the Tauri event the realtime bridge emits (`REALTIME_EVENT` in Rust). */
+export const REALTIME_EVENT = 'realtime-event'
 
 export type Unlisten = () => void
 export type Listen = (
@@ -45,6 +50,55 @@ export function listenEngine(
 ): Promise<Unlisten> {
   return listen(ENGINE_EVENT, ({ payload }) => {
     const event = parseEngineEvent(payload)
+    if (event) handler(event)
+    else onInvalid?.(payload)
+  })
+}
+
+const REALTIME_STATES: readonly string[] = [
+  'disabled',
+  'idle',
+  'connecting',
+  'connected',
+  'unavailable',
+] satisfies RealtimeStateDto[]
+
+/** The `realtime-event` payload as a typed event, or `undefined` when malformed. */
+export function parseRealtimeEvent(payload: unknown): RealtimeEventDto | undefined {
+  if (!isRecord(payload) || typeof payload.profile_id !== 'string') return undefined
+  switch (payload.type) {
+    case 'state':
+      if (typeof payload.state !== 'string' || !REALTIME_STATES.includes(payload.state)) {
+        return undefined
+      }
+      break
+    case 'session_revoked':
+      if (typeof payload.reason !== 'string') return undefined
+      break
+    case 'membership_revoked':
+      if (typeof payload.company_id !== 'string') return undefined
+      break
+    case 'notification_created': {
+      const notification = payload.notification
+      if (!isRecord(notification) || typeof notification.id !== 'string') return undefined
+      if (typeof notification.type !== 'string') return undefined
+      if (typeof notification.created_at !== 'string') return undefined
+      break
+    }
+    default:
+      return undefined
+  }
+  return payload as unknown as RealtimeEventDto
+}
+
+/** Subscribes to `realtime-event`; returns the unsubscribe function. */
+export function listenRealtime(
+  listen: Listen,
+  handler: (event: RealtimeEventDto) => void,
+  onInvalid?: (payload: unknown) => void,
+): Promise<Unlisten> {
+  return listen(REALTIME_EVENT, ({ payload }) => {
+    const event = parseRealtimeEvent(payload)
     if (event) handler(event)
     else onInvalid?.(payload)
   })
