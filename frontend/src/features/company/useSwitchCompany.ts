@@ -19,6 +19,15 @@ export function useSwitchCompany() {
       const { activeCompanyId, companies, setActiveCompany } = useCompanyStore.getState()
       const next = companies.find((c) => c.id === id)
       if (!next || id === activeCompanyId) return
+      // A runtime that holds the company itself switches first; a refusal keeps this one.
+      if (platform.session) {
+        try {
+          await platform.session.switchCompany(id)
+        } catch (error) {
+          platform.notify.error(errorMessage(error, t))
+          return
+        }
+      }
       await queryClient.cancelQueries()
       setActiveCompany(id)
       queryClient.removeQueries({ type: 'inactive' })

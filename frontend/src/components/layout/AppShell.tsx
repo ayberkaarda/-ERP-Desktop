@@ -3,6 +3,7 @@ import { Dialog as DialogPrimitive } from 'radix-ui'
 import { Suspense, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet } from 'react-router'
+import { appExtensions } from '@/app/extensions'
 import { Button } from '@/components/ui/button'
 import { AssistantHost } from '@/features/assistant/AssistantHost'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -27,6 +28,7 @@ export function AppShell() {
   const toggle = useUiStore((s) => s.toggleSidebar)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const accessRevoked = useCompanyStore((s) => s.accessRevoked)
+  const { HeaderExtras } = appExtensions
   useAccountRealtime()
 
   return (
@@ -88,6 +90,7 @@ export function AppShell() {
             <PaletteTrigger />
             <AssistantHost />
             <ConnectivityBadge />
+            {HeaderExtras ? <HeaderExtras /> : null}
             <NotificationBell />
             <ThemeToggle />
             <span className="mx-1 h-5 w-px bg-border sm:mx-1.5" />

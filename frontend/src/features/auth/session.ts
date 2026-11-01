@@ -176,11 +176,12 @@ async function serverLogout() {
 }
 
 /**
- * Ends the session on the server, then locally. Throws when the server did not confirm, so
- * the caller can retry or explicitly fall back to signOutLocally().
+ * Ends the session on the server (or in the runtime that owns it), then locally. Throws when
+ * that did not confirm, so the caller can retry or explicitly fall back to signOutLocally().
  */
 export async function logout() {
-  await serverLogout()
+  if (platform.session) await platform.session.logout()
+  else await serverLogout()
   endSession()
 }
 
