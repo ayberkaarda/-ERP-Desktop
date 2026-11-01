@@ -8,6 +8,7 @@ import { purchaseReceiptsRoutes } from '@/features/purchasing/receipts/routes'
 import { purchaseInvoicesRoutes } from '@/features/purchasing/invoices/routes'
 import { purchaseReturnsRoutes } from '@/features/purchasing/returns/routes'
 import { purchaseReportsRoutes } from '@/features/purchasing/reports/routes'
+import type { ComponentType } from 'react'
 import { createBrowserRouter, type RouteObject } from 'react-router'
 import { AppShell } from '@/components/layout/AppShell'
 import { accountsRoutes } from '@/features/accounting/accounts/routes'
@@ -34,6 +35,7 @@ import { ordersRoutes } from '@/features/sales/orders/routes'
 import { quotesRoutes } from '@/features/sales/quotes/routes'
 import { salesReportsRoutes } from '@/features/sales/reports/routes'
 import { salesReturnsRoutes } from '@/features/sales/returns/routes'
+import { appExtensions } from './extensions'
 import { GuestOnly, RequireAuth } from './guards'
 import { RouteError } from './RouteError'
 
@@ -44,6 +46,15 @@ const devModules = import.meta.env.DEV
   : {}
 const devRoutes = Object.values(devModules).flatMap((m) => m.devRoutes ?? [])
 
+/** Index page that another shell may replace (see ./extensions); lazy web page otherwise. */
+function indexPage(
+  override: ComponentType | undefined,
+  load: () => Promise<ComponentType>,
+): RouteObject {
+  if (override) return { index: true, Component: override }
+  return { index: true, lazy: async () => ({ Component: await load() }) }
+}
+
 // Each page is its own chunk; modules add their routes here as they land.
 export const routes: RouteObject[] = [
   {
@@ -51,12 +62,10 @@ export const routes: RouteObject[] = [
     element: <GuestOnly />,
     errorElement: <RouteError />,
     children: [
-      {
-        index: true,
-        lazy: async () => ({
-          Component: (await import('@/features/auth/pages/LoginPage')).LoginPage,
-        }),
-      },
+      indexPage(
+        appExtensions.LoginPage,
+        async () => (await import('@/features/auth/pages/LoginPage')).LoginPage,
+      ),
     ],
   },
   {
@@ -64,15 +73,14 @@ export const routes: RouteObject[] = [
     element: <RequireAuth allowPasswordChange />,
     errorElement: <RouteError />,
     children: [
-      {
-        index: true,
-        lazy: async () => ({
-          Component: (await import('@/features/auth/pages/ForcePasswordChangePage'))
-            .ForcePasswordChangePage,
-        }),
-      },
+      indexPage(
+        appExtensions.PasswordChangePage,
+        async () =>
+          (await import('@/features/auth/pages/ForcePasswordChangePage')).ForcePasswordChangePage,
+      ),
     ],
   },
+  ...appExtensions.publicRoutes,
   {
     path: '/',
     element: (
@@ -137,6 +145,7 @@ export const routes: RouteObject[] = [
           ...purchaseReturnsRoutes,
           ...purchaseReportsRoutes,
           ...devRoutes,
+          ...appExtensions.routes,
           {
             path: '*',
             lazy: async () => ({
