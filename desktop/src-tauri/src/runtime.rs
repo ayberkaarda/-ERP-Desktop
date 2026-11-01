@@ -1,6 +1,6 @@
 //! The engine runtime: one tokio runtime on its own OS thread
-//! (`keystone-sync`) that runs the sync loop, the engine's sign-out and
-//! the event bridge of the active profile.
+//! (`keystone-sync`) that runs the sync loop, the engine's sign-out, the
+//! event bridge and the realtime bridge of the active profile.
 //!
 //! The engine does its SQLite work inline on the task that calls it (crate
 //! note O6). Running it here keeps that work off the Tauri runtime that

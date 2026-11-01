@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ENGINE_EVENT,
+  REALTIME_EVENT,
   listenEngine,
+  listenRealtime,
   parseEngineEvent,
+  parseRealtimeEvent,
   type EngineEvent,
   type Listen,
+  type RealtimeEventDto,
 } from './events'
 
 const status = {
@@ -73,5 +77,69 @@ describe('listenEngine', () => {
     expect(invalid).toEqual([{ nope: true }])
     unlisten()
     expect(unlistened).toBe(true)
+  })
+})
+
+describe('parseRealtimeEvent', () => {
+  const notification = {
+    id: 'n1',
+    type: 'approval',
+    data: { x: 1 },
+    read_at: null,
+    created_at: '2026-10-27T10:00:00Z',
+  }
+
+  it('accepts every documented event', () => {
+    for (const payload of [
+      { type: 'state', profile_id: 'p1', state: 'disabled' },
+      { type: 'state', profile_id: 'p1', state: 'connected' },
+      { type: 'session_revoked', profile_id: 'p1', reason: 'deactivated' },
+      { type: 'membership_revoked', profile_id: 'p1', company_id: 'c1' },
+      { type: 'notification_created', profile_id: 'p1', notification },
+    ]) {
+      expect(parseRealtimeEvent(payload)).toEqual(payload)
+    }
+  })
+
+  it('drops what does not have the documented shape', () => {
+    for (const payload of [
+      null,
+      'state',
+      { type: 'state', state: 'idle' },
+      { type: 'state', profile_id: 'p1', state: 'online' },
+      { type: 'session_revoked', profile_id: 'p1' },
+      { type: 'membership_revoked', profile_id: 'p1', company_id: 1 },
+      { type: 'notification_created', profile_id: 'p1', notification: { id: 'n1' } },
+      { type: 'other', profile_id: 'p1' },
+    ]) {
+      expect(parseRealtimeEvent(payload)).toBeUndefined()
+    }
+  })
+})
+
+describe('listenRealtime', () => {
+  it('passes valid events on and reports the others', async () => {
+    const handlers: ((event: { payload: unknown }) => void)[] = []
+    const names: string[] = []
+    const listen: Listen = (name, handler) => {
+      names.push(name)
+      handlers.push(handler)
+      return Promise.resolve(() => undefined)
+    }
+    const seen: RealtimeEventDto[] = []
+    const invalid: unknown[] = []
+    await listenRealtime(
+      listen,
+      (event) => seen.push(event),
+      (payload) => invalid.push(payload),
+    )
+
+    const event = { type: 'state', profile_id: 'p1', state: 'idle' }
+    handlers[0]?.({ payload: event })
+    handlers[0]?.({ payload: { type: 'state' } })
+
+    expect(names).toEqual([REALTIME_EVENT])
+    expect(seen).toEqual([event])
+    expect(invalid).toEqual([{ type: 'state' }])
   })
 })

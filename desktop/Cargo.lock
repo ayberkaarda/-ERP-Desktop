@@ -2445,6 +2445,8 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "fern",
+ "futures-util",
+ "keystone-realtime",
  "keystone-secrets",
  "keystone-sync",
  "log",
@@ -2462,6 +2464,7 @@ dependencies = [
  "tempfile",
  "time",
  "tokio",
+ "tokio-tungstenite",
  "ts-rs",
  "uuid",
  "wiremock",

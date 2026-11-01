@@ -19,6 +19,7 @@ serde_json.workspace = true
 [dependencies]
 keystone-sync = { path = "../crates/keystone-sync" }
 keystone-secrets = { path = "../crates/keystone-secrets" }
+keystone-realtime = { path = "../crates/keystone-realtime" }
 
 tauri = { version = "2", features = [] }
 tauri-plugin-log = "2"
@@ -62,3 +63,6 @@ linker_messages = "allow"
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
 wiremock.workspace = true
+# Fake Reverb server of the realtime bridge tests.
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect"] }

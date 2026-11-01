@@ -15,6 +15,7 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 use super::*;
 use crate::events::{EngineEvent, Recorder};
+use crate::realtime::Recorder as RealtimeRecorder;
 
 const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
 const COMPANY_2: &str = "0192f5a0-0000-7000-8000-000000000002";
@@ -38,6 +39,7 @@ struct Fx {
     desktop: Desktop,
     state: AppState,
     events: Arc<Recorder>,
+    realtime: Arc<RealtimeRecorder>,
 }
 
 fn options() -> ClientOptions {
@@ -45,6 +47,20 @@ fn options() -> ClientOptions {
         connect_timeout: Duration::from_secs(2),
         request_timeout: Duration::from_secs(10),
         allow_http_localhost: true,
+    }
+}
+
+fn fast_realtime() -> RealtimeOptions {
+    RealtimeOptions {
+        connect_timeout: Duration::from_secs(2),
+        max_activity_timeout: Duration::from_secs(30),
+        pong_timeout: Duration::from_secs(1),
+        authorize_timeout: Duration::from_secs(2),
+        backoff: keystone_realtime::Backoff {
+            initial: Duration::from_millis(50),
+            max: Duration::from_millis(200),
+            jitter: 0.0,
+        },
     }
 }
 
@@ -56,7 +72,7 @@ fn fx_with(options: ClientOptions) -> Fx {
     let dir = tempfile::tempdir().unwrap();
     let mock = mock::Store::new().unwrap();
     let service = unique("keystone-desktop-test");
-    let (desktop, events) = desktop_over(dir.path(), &service, &mock, options);
+    let (desktop, events, realtime) = desktop_over(dir.path(), &service, &mock, options);
     Fx {
         dir,
         mock,
@@ -64,6 +80,7 @@ fn fx_with(options: ClientOptions) -> Fx {
         desktop,
         state: AppState::default(),
         events,
+        realtime,
     }
 }
 
@@ -72,7 +89,7 @@ fn desktop_over(
     service: &str,
     mock: &Arc<mock::Store>,
     options: ClientOptions,
-) -> (Desktop, Arc<Recorder>) {
+) -> (Desktop, Arc<Recorder>, Arc<RealtimeRecorder>) {
     let store: Arc<CredentialStore> = mock.clone();
     let config = Config {
         data_dir: dir.to_path_buf(),
@@ -81,9 +98,12 @@ fn desktop_over(
         user_agent: "keystone-desktop-test".into(),
         app_version: "0.1.0".into(),
         release_wait: Duration::from_millis(300),
+        realtime: fast_realtime(),
     };
     let events = Arc::new(Recorder::default());
-    (Desktop::new(config, events.clone()).unwrap(), events)
+    let realtime = Arc::new(RealtimeRecorder::default());
+    let desktop = Desktop::new(config, events.clone(), realtime.clone()).unwrap();
+    (desktop, events, realtime)
 }
 
 use std::path::Path;
@@ -125,10 +145,19 @@ impl Fx {
     }
 }
 
+/// A server without Reverb: most tests have no use for a connection.
 fn meta(min_version: &str, min_schema: u32) -> Value {
+    meta_with(
+        min_version,
+        min_schema,
+        json!({"host": null, "port": null, "scheme": null, "key": null}),
+    )
+}
+
+fn meta_with(min_version: &str, min_schema: u32, reverb: Value) -> Value {
     json!({"data": {
         "name": "Keystone Test", "version": "1.4.0", "api_version": "v1",
-        "reverb": {"host": "ws.example.com", "port": 443, "scheme": "https", "key": "public-key"},
+        "reverb": reverb,
         "desktop": {"min_version": min_version, "update_channel": null},
         "sync": {"schema_version": 1, "min_schema_version": min_schema}
     }})
@@ -203,10 +232,16 @@ fn pull(request: &Request) -> ResponseTemplate {
 /// A server that answers meta, sign-in (token `n` per sign-in), `/auth/me`
 /// with `companies`, the manifest and pulls.
 async fn server(companies: &[(&str, &str)]) -> MockServer {
+    let none = json!({"host": null, "port": null, "scheme": null, "key": null});
+    server_with(companies, none).await
+}
+
+/// [`server`] with `reverb` in its meta.
+async fn server_with(companies: &[(&str, &str)], reverb: Value) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/api/v1/meta"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(meta("0.1.0", 1)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(meta_with("0.1.0", 1, reverb)))
         .mount(&server)
         .await;
     let next = Arc::new(AtomicU64::new(1));
@@ -304,7 +339,14 @@ fn draft() -> NewMutation {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn adding_a_profile_stores_the_server_meta_without_secrets() {
-    let server = server(&[(COMPANY, "Acme")]).await;
+    let server = MockServer::start().await;
+    let reverb =
+        json!({"host": "ws.example.com", "port": 443, "scheme": "https", "key": "public-key"});
+    Mock::given(method("GET"))
+        .and(path("/api/v1/meta"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(meta_with("0.1.0", 1, reverb)))
+        .mount(&server)
+        .await;
     let fx = fx();
     let profile = fx.add(&server).await;
 
@@ -574,7 +616,7 @@ async fn the_stored_active_profile_is_selected_at_start_up() {
     let fx = fx();
     let profile = synced(&fx, &server).await;
 
-    let (again, _events) = desktop_over(fx.dir.path(), &fx.service, &fx.mock, options());
+    let (again, _events, _realtime) = desktop_over(fx.dir.path(), &fx.service, &fx.mock, options());
     // The first desktop's loop is stopped as the app would on exit.
     fx.desktop
         .stop(&fx.state, &mut *fx.desktop.running.lock().await)
@@ -1105,8 +1147,10 @@ async fn native_two_profiles_switch_on_the_credential_manager() {
             user_agent: "keystone-desktop-test".into(),
             app_version: "0.1.0".into(),
             release_wait: Duration::from_secs(2),
+            realtime: RealtimeOptions::default(),
         },
         events.clone(),
+        Arc::new(RealtimeRecorder::default()),
     )
     .unwrap();
     let state = AppState::default();
@@ -1160,3 +1204,5 @@ async fn native_two_profiles_switch_on_the_credential_manager() {
     SecretSlot::device_fingerprint(&keychain).remove().unwrap();
     println!("removed both profiles of service {service}");
 }
+
+mod realtime;
