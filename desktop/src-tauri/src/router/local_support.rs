@@ -230,6 +230,38 @@ impl Fixture {
         });
     }
 
+    /// The same profile on a new client, the engine unchanged.
+    pub fn replace_client(&self) {
+        self.state.activate(ActiveProfile {
+            id: PROFILE.into(),
+            client: Arc::new(client(&self.server.uri(), &self.tokens)),
+            engine: Some(self.engine.clone()),
+        });
+    }
+
+    /// The same profile, client and store under a new engine.
+    pub fn replace_engine(&self) {
+        let manifest = offline_manifest(OFFLINE_MANIFEST).unwrap();
+        let engine = SyncEngine::new(client(&self.server.uri(), &self.tokens), self.store.clone())
+            .with_offline_manifest(manifest);
+        self.state.activate(ActiveProfile {
+            id: PROFILE.into(),
+            client: self.state.client().unwrap(),
+            engine: Some(Arc::new(engine)),
+        });
+    }
+
+    /// Returns once the server received a request on `wanted`.
+    pub async fn request_arrived(&self, wanted: &str) {
+        for _ in 0..500 {
+            if self.received(wanted).await > 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        panic!("no request on {wanted}");
+    }
+
     /// `api_request` with the resolver the command uses.
     pub async fn call(&self, request: Value) -> ApiResponseDto {
         self.try_call(local_resolver(), request).await.unwrap()

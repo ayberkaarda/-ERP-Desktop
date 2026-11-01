@@ -244,6 +244,24 @@ async fn a_manifest_mismatch_closes_writes_but_not_reads() {
     assert_eq!(ids(&fx.call(get(QUOTES, json!([]))).await), [a]);
 }
 
+/// The reason is the mismatch, whatever else is wrong with the write: the
+/// engine alone only sees writes that got as far as a draft.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_manifest_mismatch_comes_before_the_checks_of_a_draft() {
+    let fx = fixture_with(vec![], &[], 3).await;
+    fx.go_offline();
+    let unknown = format!("{QUOTES}/{}", Uuid::now_v7());
+
+    let not_held = fx
+        .call(send("PATCH", &unknown, None, Some(json!({"notes": "n"}))))
+        .await;
+    refused(&not_held, 422, "SYNC_OFFLINE_WRITE_NOT_ALLOWED");
+    let bad_body = fx.call(send("POST", QUOTES, None, None)).await;
+    refused(&bad_body, 422, "SYNC_OFFLINE_WRITE_NOT_ALLOWED");
+
+    assert!(fx.outbox().is_empty());
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_target_this_device_does_not_hold_cannot_be_drafted() {
     let fx = fixture(vec![]).await;

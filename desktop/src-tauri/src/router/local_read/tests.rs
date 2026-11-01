@@ -682,6 +682,42 @@ async fn an_answer_of_an_earlier_sign_in_is_not_stored() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn an_answer_of_a_replaced_client_is_not_stored() {
+    let fx = Arc::new(fixture(vec![]).await);
+    mount_balances(&fx, 400).await;
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.call(get(BALANCES, json!([]))).await })
+    };
+    fx.request_arrived(BALANCES).await;
+    fx.replace_client();
+
+    let answer = call.await.unwrap();
+
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.json(), Some(&balances_body()));
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_answer_of_a_replaced_engine_is_not_stored() {
+    let fx = Arc::new(fixture(vec![]).await);
+    mount_balances(&fx, 400).await;
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.call(get(BALANCES, json!([]))).await })
+    };
+    fx.request_arrived(BALANCES).await;
+    fx.replace_engine();
+
+    let answer = call.await.unwrap();
+
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.json(), Some(&balances_body()));
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn an_answer_of_a_left_profile_is_not_stored() {
     let fx = Arc::new(fixture(vec![]).await);
     mount_balances(&fx, 400).await;
