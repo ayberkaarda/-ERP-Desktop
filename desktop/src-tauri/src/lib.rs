@@ -59,37 +59,64 @@ pub fn app_url_allowed(url: &tauri::Url, dev_url: Option<&tauri::Url>) -> bool {
     })
 }
 
+/// The `on_navigation` hook of the main window: [`app_url_allowed`], and a
+/// log line naming only the scheme of a blocked URL (the rest may carry data).
+pub fn navigation_hook(
+    dev_url: Option<tauri::Url>,
+) -> impl Fn(&tauri::Url) -> bool + Send + 'static {
+    move |url| {
+        let allowed = app_url_allowed(url, dev_url.as_ref());
+        if !allowed {
+            log::warn!("navigation to a {}: URL blocked", url.scheme());
+        }
+        allowed
+    }
+}
+
+/// Whether `window.open` / `target=_blank` may open `url`: never. An
+/// allowed popup would be a WebView2 window Tauri does not manage, outside
+/// the capability and the navigation lock.
+pub fn new_window_allowed(url: &tauri::Url) -> bool {
+    log::warn!("new window for a {}: URL blocked", url.scheme());
+    false
+}
+
+/// The config entry the main window is built from: the one labelled
+/// [`MAIN_WINDOW`], with `create: false` so Tauri does not build it first
+/// without the hooks.
+pub fn main_window_config(
+    windows: &[tauri::utils::config::WindowConfig],
+) -> Result<tauri::utils::config::WindowConfig, String> {
+    let main = windows
+        .iter()
+        .find(|window| window.label == MAIN_WINDOW)
+        .ok_or("tauri.conf.json has no main window")?;
+    if main.create {
+        return Err("the main window must have `create: false`; it is built with its hooks".into());
+    }
+    Ok(main.clone())
+}
+
 /// Builds the main window from its config entry (`create: false` there) with
 /// the navigation lock and no new windows: `window.open` and `target=_blank`
 /// open nothing. Links out go through `shell` open (`https` only).
 fn create_main_window<R: tauri::Runtime>(
     app: &tauri::App<R>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let config = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|window| window.label == MAIN_WINDOW)
-        .cloned()
-        .ok_or("tauri.conf.json has no main window")?;
+    let config = main_window_config(&app.config().app.windows)?;
     let dev_url = if tauri::is_dev() {
         app.config().build.dev_url.clone()
     } else {
         None
     };
     tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
-        .on_navigation(move |url| {
-            let allowed = app_url_allowed(url, dev_url.as_ref());
-            if !allowed {
-                // The scheme only: the rest of the URL may carry data.
-                log::warn!("navigation to a {}: URL blocked", url.scheme());
+        .on_navigation(navigation_hook(dev_url))
+        .on_new_window(|url, _features| {
+            if new_window_allowed(&url) {
+                tauri::webview::NewWindowResponse::Allow
+            } else {
+                tauri::webview::NewWindowResponse::Deny
             }
-            allowed
-        })
-        .on_new_window(|url, _| {
-            log::warn!("new window for a {}: URL blocked", url.scheme());
-            tauri::webview::NewWindowResponse::Deny
         })
         .build()?;
     Ok(())
@@ -197,6 +224,103 @@ mod navigation_tests {
         }
     }
 
+    /// Exact host match: no suffix, prefix or subdomain of the app host.
+    #[test]
+    fn lookalike_hosts_are_refused() {
+        for url in [
+            "http://evil.tauri.localhost/",
+            "http://xtauri.localhost/",
+            "http://eviltauri.localhost/",
+            "http://tauri.localhost.evil.com/",
+            "tauri://evil.localhost/",
+            "tauri://xlocalhost/",
+        ] {
+            assert!(!allowed(url, None), "{url}");
+        }
+        let dev = Some("http://localhost:1420");
+        for url in [
+            "http://evillocalhost:1420/",
+            "http://a.localhost:1420/",
+            "http://localhost.evil.com:1420/",
+        ] {
+            assert!(!allowed(url, dev), "{url}");
+        }
+    }
+
+    fn url(text: &str) -> tauri::Url {
+        tauri::Url::parse(text).unwrap()
+    }
+
+    /// The hook the main window is built with, not only the rule it uses.
+    #[test]
+    fn the_navigation_hook_applies_the_rule() {
+        let hook = super::navigation_hook(None);
+        assert!(hook(&url("http://tauri.localhost/index.html")));
+        assert!(hook(&url("tauri://localhost/")));
+        for refused in [
+            "https://example.com/?d=secret",
+            "http://tauri.localhost@example.com/",
+            "data:text/html,x",
+            "http://localhost:1420/",
+        ] {
+            assert!(!hook(&url(refused)), "{refused}");
+        }
+        let dev = super::navigation_hook(Some(url("http://localhost:1420")));
+        assert!(dev(&url("http://localhost:1420/src/main.ts")));
+        assert!(!dev(&url("https://example.com/")));
+    }
+
+    #[test]
+    fn new_windows_are_never_allowed() {
+        for target in [
+            "https://example.com/?d=secret",
+            "http://tauri.localhost/",
+            "tauri://localhost/",
+            "about:blank",
+        ] {
+            assert!(!super::new_window_allowed(&url(target)), "{target}");
+        }
+    }
+
+    fn windows(json: serde_json::Value) -> Vec<tauri::utils::config::WindowConfig> {
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn the_main_window_is_built_from_its_config_entry() {
+        let conf: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let shipped = windows(conf["app"]["windows"].clone());
+        let main = super::main_window_config(&shipped).unwrap();
+        assert_eq!(main.label, super::MAIN_WINDOW);
+        assert!(!main.create);
+        assert_eq!((main.width, main.height), (1280.0, 800.0));
+        assert!(!main.drag_drop_enabled);
+
+        let picked = super::main_window_config(&windows(serde_json::json!([
+            { "label": "other", "create": false },
+            { "label": "main", "create": false, "title": "Keystone" }
+        ])))
+        .unwrap();
+        assert_eq!(picked.label, "main");
+        assert_eq!(picked.title, "Keystone");
+    }
+
+    #[test]
+    fn a_config_without_a_lockable_main_window_is_an_error() {
+        for json in [
+            serde_json::json!([]),
+            serde_json::json!([{ "label": "other", "create": false }]),
+            // Tauri would build this one itself, without the hooks.
+            serde_json::json!([{ "label": "main" }]),
+        ] {
+            assert!(
+                super::main_window_config(&windows(json.clone())).is_err(),
+                "{json}"
+            );
+        }
+    }
+
     #[test]
     fn the_dev_server_only_in_dev() {
         let dev = Some("http://localhost:1420");
@@ -244,6 +368,70 @@ mod config_tests {
         assert!(
             !manifest.contains("\"devtools\""),
             "tauri devtools feature enabled"
+        );
+    }
+
+    /// The `desktop-shell` CI job, between its header and the next job.
+    fn shell_job() -> String {
+        let workflow =
+            include_str!("../../../.github/workflows/desktop-rust.yml").replace("\r\n", "\n");
+        let start = workflow
+            .find("\n  desktop-shell:\n")
+            .expect("desktop-shell job")
+            + 1;
+        let body = &workflow[start..];
+        // The next line indented by exactly two spaces starts the next job.
+        let end = body
+            .match_indices("\n  ")
+            .map(|(i, _)| i)
+            .find(|&i| body[i + 3..].chars().next().is_some_and(|c| c != ' '))
+            .unwrap_or(body.len());
+        body[..end].to_owned()
+    }
+
+    /// The release gate steps run unconditionally and fail the job.
+    #[test]
+    fn ci_runs_the_release_gate_without_escape_hatches() {
+        let workflow = include_str!("../../../.github/workflows/desktop-rust.yml");
+        assert!(
+            !workflow.contains("continue-on-error"),
+            "continue-on-error in the workflow"
+        );
+        let job = shell_job();
+        assert!(
+            !job.contains("\n        if:"),
+            "a conditional step in desktop-shell:\n{job}"
+        );
+        assert!(
+            job.contains("\n      - run: cargo check --release -p keystone-desktop --locked\n"),
+            "{job}"
+        );
+        assert!(
+            job.contains("\n      - run: cargo test -p keystone-desktop --locked\n"),
+            "{job}"
+        );
+        assert!(job.contains("run: sh scripts/check-ts-types.sh"), "{job}");
+    }
+
+    /// The negative step wants the build script's panic (cargo exit 101)
+    /// and the guard's own message, not just any failure.
+    #[test]
+    fn ci_expects_the_refused_release_build_to_exit_101() {
+        let job = shell_job();
+        let step = job
+            .split("\n      - ")
+            .find(|step| step.contains("TAURI_CONFIG="))
+            .expect("negative release step");
+        assert!(
+            step.contains("connect-src ipc: http://ipc.localhost https:"),
+            "{step}"
+        );
+        assert!(step.contains("set +e"), "{step}");
+        assert!(step.contains(r#"[ "$status" -ne 101 ]"#), "{step}");
+        assert!(step.contains("exit 1"), "{step}");
+        assert!(
+            step.contains("grep -F 'release build refused: connect-src allows https:' refused.log"),
+            "{step}"
         );
     }
 

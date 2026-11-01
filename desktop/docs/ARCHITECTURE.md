@@ -128,6 +128,7 @@ CSP üst düzey gezinmeyi ve `window.open`'ı kapsamaz. Ana pencere bu yüzden y
 - `on_navigation`: yalnız uygulama kökeni (`http://tauri.localhost`, `tauri://localhost`) ve yalnız `tauri dev` derlemesinde `build.devUrl` kökeni kabul edilir. Kullanıcı bilgisi taşıyan adresler (`http://tauri.localhost@evil.com`, `http://user@tauri.localhost`), benzer ana makineler, başka port, `https://tauri.localhost`, `data:`, `file:`, `about:`, `blob:` reddedilir. Karar `app_url_allowed` saf fonksiyonunda, tablo testli. Engellenen gezinme yalnız şemasıyla loglanır.
 - `on_new_window`: her istek reddedilir. `window.open` `null` döner, `target=_blank` hiçbir şey açmaz. İzin verilen bir açılır pencere Tauri'nin yönetmediği, capability dışı bir WebView2 penceresi olurdu.
 - Pencerede ölçüldü: `window.open('https://example.com/?d=…')` `null` döndü ve yeni hedef açılmadı; `location` ile `https://`, kullanıcı bilgili, benzer ana makineli, `data:`, `file:` adreslerine gidilemedi; aynı köken içi gezinme çalıştı. Kilit geçici kaldırılınca aynı denemede pencere açıldı ve sayfa `https://example.com/?d=secret` adresine gitti.
+- Kararlar saf fonksiyonlardadır ve testlidir: `main_window_config` (yalnız `main` etiketli ve `create: false` olan girdi), `navigation_hook` (pencereye takılan kancanın kendisi), `new_window_allowed` (her zaman `false`). Kurucu zincirinin kendisi birim testle sınanmaz: `tauri::Wry` tipini test ikilisine sokmak Windows'ta ikiliyi açılmaz yapıyor (`0xc0000139`), mock runtime ise `tauri` `test` özelliğini istiyor. Bu iki boşluk gerçek pencerede ölçüldü: `on_new_window` eşlemesi `Allow`'a çevrilince `window.open` pencere açtı ve dışarı gitti; `create_main_window` çağrısı kaldırılınca hiç pencere açılmadı (kapalı kalır).
 - Gezinme kilidi bir plugin'in `on_navigation` kancası yerine pencere kurucusunda durur: plugin kancası webview kaydı tamamlanmadan gelen gezinmede çağrılmaz, pencere kancası her gezinmede çağrılır. Yeni pencere kancası zaten yalnız pencere kurucusunda vardır.
 
 ### Derleme kapısı
@@ -139,10 +140,13 @@ CSP üst düzey gezinmeyi ve `window.open`'ı kapsamaz. Ana pencere bu yüzden y
 - başka herhangi bir yönergede şema ya da ana makine adlandıran kaynak (`img-src https:`, `media-src *`, `frame-src https://…`, `font-src http:` vb.); bu yönergelerde yalnız `'self'`, `'none'`, hash, nonce, `data:`, `blob:` ve anahtar sözcükler kalır;
 - betik yönergelerinde (`default-src`, `script-src`, `script-src-elem`, `script-src-attr`, `worker-src`) `'unsafe-inline'`, `'unsafe-eval'`, `'unsafe-hashes'`, `'wasm-unsafe-eval'` gibi anahtar sözcükler, `data:` ya da `blob:`;
 - `report-uri` ya da `report-to` (ihlal raporu cihaz dışına gider);
+- `app.windows` tek bir `main` penceresi değil, `create: false` değil ya da pencere `url` alanı uygulama yolu yerine adres (`https://…`, `data:…`). Gezinme kilidi yalnız kodda kurulan ana pencerede olduğundan, overlay ile eklenen ikinci bir pencere kilitsiz açılırdı;
 - `dangerousDisableAssetCspModification` açık;
 - `KEYSTONE_DEV_ALLOW_HTTP` ayarlı.
 
-CI `desktop-shell` işi `cargo check --release -p keystone-desktop` ile kapıyı gerçek yapılandırmada koşar ve `connect-src https:` ekleyen bir `TAURI_CONFIG` ile derlemenin reddedildiğini doğrular.
+Ortam ve dosya okuma `build_guard::gather` içindedir (`PROFILE`, `CARGO_CFG_TARGET_OS` ile seçilen platform dosyası, `TAURI_CONFIG`, `KEYSTONE_DEV_ALLOW_HTTP`), `build.rs` yalnız bunu çağırır; böylece bağlama da birim testle sınanır.
+
+CI `desktop-shell` işi `cargo check --release -p keystone-desktop` ile kapıyı gerçek yapılandırmada koşar ve `connect-src https:` ekleyen bir `TAURI_CONFIG` ile derlemenin 101 ile (betik panik) reddedildiğini ve kapının mesajını doğrular. `config_tests` iş akışı dosyasını okuyup bu adımların koşulsuz olduğunu (`continue-on-error`, `if:` yok) ve 101 beklendiğini sabitler.
 
 Debug derlemesi aynı sorunlarda yalnız uyarır; `tauri build --debug` çıktısı dağıtılmaz. `KEYSTONE_DEV_ALLOW_HTTP=1` yalnız debug derlemede etkilidir (`bootstrap::allow_http`), release ikilisi değişkeni okusa da yok sayar.
 

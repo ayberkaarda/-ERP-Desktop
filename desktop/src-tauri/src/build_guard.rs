@@ -26,6 +26,53 @@ pub const DEV_ALLOW_HTTP: &str = "KEYSTONE_DEV_ALLOW_HTTP";
 /// does not fail, it falls back to the slower `postMessage`.
 pub const CONNECT_SOURCES: [&str; 2] = ["ipc:", "http://ipc.localhost"];
 
+/// Label of the one window (`MAIN_WINDOW` of the crate).
+pub const MAIN_WINDOW_LABEL: &str = "main";
+
+/// The build script's inputs as read from the environment and the disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Gathered {
+    pub release: bool,
+    pub config: String,
+    /// `tauri.<target os>.conf.json`, read when present.
+    pub platform_file: String,
+    pub platform: Option<String>,
+    pub overlay: Option<String>,
+    pub dev_allow_http: bool,
+}
+
+impl Gathered {
+    pub fn inputs(&self) -> Inputs<'_> {
+        Inputs {
+            release: self.release,
+            config: &self.config,
+            platform: self.platform.as_deref(),
+            overlay: self.overlay.as_deref(),
+            dev_allow_http: self.dev_allow_http,
+        }
+    }
+}
+
+/// Reads the inputs through `var` (an environment variable, lossy UTF-8)
+/// and `read` (a file next to `tauri.conf.json`). Cargo `PROFILE` is
+/// `release` for release-like profiles, `debug` otherwise. The platform file
+/// is the one tauri-build picks for the target OS.
+pub fn gather(
+    var: impl Fn(&str) -> Option<String>,
+    read: impl Fn(&str) -> Option<String>,
+) -> Result<Gathered, String> {
+    let target_os = var("CARGO_CFG_TARGET_OS").ok_or("CARGO_CFG_TARGET_OS is not set")?;
+    let platform_file = format!("tauri.{target_os}.conf.json");
+    Ok(Gathered {
+        release: var("PROFILE").as_deref() == Some("release"),
+        config: read("tauri.conf.json").ok_or("cannot read tauri.conf.json")?,
+        platform: read(&platform_file),
+        platform_file,
+        overlay: var("TAURI_CONFIG").filter(|value| !value.trim().is_empty()),
+        dev_allow_http: var(DEV_ALLOW_HTTP).is_some_and(|value| !value.is_empty()),
+    })
+}
+
 /// What the build script knows about the build.
 #[derive(Debug, Clone, Copy)]
 pub struct Inputs<'a> {
@@ -51,7 +98,7 @@ pub enum Verdict {
 /// `Err` means the build must stop, with that text.
 pub fn check(inputs: &Inputs<'_>) -> Result<Verdict, String> {
     let config = effective_config(inputs)?;
-    let problem = policy_problem(&config);
+    let problem = policy_problem(&config).or_else(|| window_problem(&config));
 
     if inputs.release {
         if inputs.dev_allow_http {
@@ -132,6 +179,51 @@ fn policy_problem(config: &Value) -> Option<String> {
         );
     }
     connect_problem(&csp).or_else(|| source_problem(&csp))
+}
+
+/// The navigation lock sits on the main window only, which the app builds
+/// itself (`create: false`). So `app.windows` holds that window and nothing
+/// else, and it loads an app path, not a URL.
+fn window_problem(config: &Value) -> Option<String> {
+    let windows = config
+        .pointer("/app/windows")
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    if windows.is_empty() {
+        return Some("app.windows has no main window".into());
+    }
+    for window in windows {
+        // Tauri's default label is `main`.
+        let label = window
+            .get("label")
+            .and_then(Value::as_str)
+            .unwrap_or(MAIN_WINDOW_LABEL);
+        if label != MAIN_WINDOW_LABEL {
+            return Some(format!(
+                "app.windows has a window `{label}`; only the main window carries the \
+                 navigation lock"
+            ));
+        }
+        if window.get("create") != Some(&Value::Bool(false)) {
+            return Some(
+                "the main window needs `create: false`; the app builds it with the navigation \
+                 lock"
+                    .into(),
+            );
+        }
+        if let Some(url) = window.get("url").and_then(Value::as_str)
+            && url.contains(':')
+        {
+            return Some(format!(
+                "the main window loads {url}; only an app path is allowed"
+            ));
+        }
+    }
+    if windows.len() > 1 {
+        return Some("app.windows holds the main window more than once".into());
+    }
+    None
 }
 
 /// Directives scripts can come from: no inline, eval, `data:` or `blob:`
@@ -401,6 +493,163 @@ mod tests {
         ] {
             assert_eq!(release_with(directive), Ok(Verdict::Ok), "{directive}");
         }
+    }
+
+    /// `gather` over a fake environment and file system.
+    fn gathered(env: &[(&str, &str)], files: &[(&str, &str)]) -> Result<Gathered, String> {
+        let env: Vec<(String, String)> = env
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect();
+        let files: Vec<(String, String)> = files
+            .iter()
+            .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+            .collect();
+        gather(
+            |name| env.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone()),
+            |path| {
+                files
+                    .iter()
+                    .find(|(k, _)| k == path)
+                    .map(|(_, v)| v.clone())
+            },
+        )
+    }
+
+    const LOOSE: &str =
+        r#"{"app":{"security":{"csp":"connect-src ipc: http://ipc.localhost https:"}}}"#;
+
+    #[test]
+    fn the_dev_http_switch_reaches_the_check() {
+        let release = [("PROFILE", "release"), ("CARGO_CFG_TARGET_OS", "windows")];
+        for value in ["1", "0", "yes"] {
+            let env = [release[0], release[1], (DEV_ALLOW_HTTP, value)];
+            let g = gathered(&env, &[("tauri.conf.json", SHIPPED)]).unwrap();
+            assert!(g.dev_allow_http, "{value}");
+            assert!(check(&g.inputs()).unwrap_err().contains(DEV_ALLOW_HTTP));
+        }
+        let unset = gathered(&release, &[("tauri.conf.json", SHIPPED)]).unwrap();
+        assert!(!unset.dev_allow_http);
+        assert_eq!(check(&unset.inputs()), Ok(Verdict::Ok));
+        let empty = [release[0], release[1], (DEV_ALLOW_HTTP, "")];
+        assert!(
+            !gathered(&empty, &[("tauri.conf.json", SHIPPED)])
+                .unwrap()
+                .dev_allow_http
+        );
+    }
+
+    #[test]
+    fn the_platform_file_of_the_target_reaches_the_check() {
+        let files = [
+            ("tauri.conf.json", SHIPPED),
+            ("tauri.windows.conf.json", LOOSE),
+        ];
+        let windows = gathered(
+            &[("PROFILE", "release"), ("CARGO_CFG_TARGET_OS", "windows")],
+            &files,
+        )
+        .unwrap();
+        assert_eq!(windows.platform_file, "tauri.windows.conf.json");
+        assert_eq!(windows.platform.as_deref(), Some(LOOSE));
+        assert!(check(&windows.inputs()).unwrap_err().contains("https:"));
+
+        let linux = gathered(
+            &[("PROFILE", "release"), ("CARGO_CFG_TARGET_OS", "linux")],
+            &files,
+        )
+        .unwrap();
+        assert_eq!(linux.platform_file, "tauri.linux.conf.json");
+        assert_eq!(linux.platform, None);
+        assert_eq!(check(&linux.inputs()), Ok(Verdict::Ok));
+    }
+
+    #[test]
+    fn profile_and_overlay_are_read() {
+        let files = [("tauri.conf.json", SHIPPED)];
+        let debug = gathered(
+            &[("PROFILE", "debug"), ("CARGO_CFG_TARGET_OS", "linux")],
+            &files,
+        )
+        .unwrap();
+        assert!(!debug.release);
+        let release = gathered(
+            &[
+                ("PROFILE", "release"),
+                ("CARGO_CFG_TARGET_OS", "linux"),
+                ("TAURI_CONFIG", LOOSE),
+            ],
+            &files,
+        )
+        .unwrap();
+        assert!(release.release);
+        assert!(check(&release.inputs()).unwrap_err().contains("https:"));
+        let blank = gathered(
+            &[("CARGO_CFG_TARGET_OS", "linux"), ("TAURI_CONFIG", "  ")],
+            &files,
+        )
+        .unwrap();
+        assert_eq!(blank.overlay, None);
+        assert!(gathered(&[("CARGO_CFG_TARGET_OS", "linux")], &[]).is_err());
+    }
+
+    #[test]
+    fn the_window_label_is_the_crate_one() {
+        assert_eq!(MAIN_WINDOW_LABEL, crate::MAIN_WINDOW);
+    }
+
+    /// A release build whose overlay sets `app.windows` (an array: merge
+    /// patch replaces it whole).
+    fn release_with_windows(windows: &str) -> Result<Verdict, String> {
+        let overlay = format!(r#"{{"app":{{"windows":{windows}}}}}"#);
+        check(&Inputs {
+            overlay: Some(&overlay),
+            ..inputs(true, None)
+        })
+    }
+
+    #[test]
+    fn release_with_a_window_outside_the_lock_is_refused() {
+        for (windows, expected) in [
+            (
+                r#"[{"label":"main","create":false},{"label":"popup","url":"https://evil.example"}]"#,
+                "popup",
+            ),
+            (r#"[{"label":"other","create":false}]"#, "other"),
+            // No label is Tauri's `main`, built by Tauri itself without `create`.
+            (r#"[{}]"#, "create"),
+            (r#"[{"label":"main"}]"#, "create"),
+            (r#"[{"label":"main","create":true}]"#, "create"),
+            (
+                r#"[{"label":"main","create":false,"url":"https://evil.example"}]"#,
+                "https://evil.example",
+            ),
+            (
+                r#"[{"label":"main","create":false,"url":"data:text/html,x"}]"#,
+                "data:text/html,x",
+            ),
+            (r#"[]"#, "main window"),
+        ] {
+            let error = release_with_windows(windows).expect_err(windows);
+            assert!(error.contains(expected), "{windows}: {error}");
+        }
+        let no_windows = check(&Inputs {
+            config: r#"{"app":{"security":{"csp":"default-src 'self'; connect-src ipc: http://ipc.localhost"}}}"#,
+            ..inputs(true, None)
+        });
+        assert!(no_windows.unwrap_err().contains("main window"));
+    }
+
+    #[test]
+    fn the_main_window_with_an_app_path_passes() {
+        assert_eq!(
+            release_with_windows(r#"[{"label":"main","create":false,"url":"index.html"}]"#),
+            Ok(Verdict::Ok)
+        );
+        assert_eq!(
+            release_with_windows(r#"[{"label":"main","create":false,"title":"Keystone"}]"#),
+            Ok(Verdict::Ok)
+        );
     }
 
     #[test]

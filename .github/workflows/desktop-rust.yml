@@ -93,10 +93,16 @@ jobs:
       # build.rs runs its release guard on the shipped config (no bundling).
       - run: cargo check --release -p keystone-desktop --locked
       - name: Release build refuses an open connect-src
+        # The build script panics on a refused policy: cargo exits with 101.
         run: |
-          if TAURI_CONFIG='{"app":{"security":{"csp":"connect-src ipc: http://ipc.localhost https:"}}}' \
-            cargo check --release -p keystone-desktop --locked 2> refused.log; then
-            echo "::error::a release build with connect-src https: was not refused"
+          set +e
+          TAURI_CONFIG='{"app":{"security":{"csp":"connect-src ipc: http://ipc.localhost https:"}}}' \
+            cargo check --release -p keystone-desktop --locked 2> refused.log
+          status=$?
+          set -e
+          if [ "$status" -ne 101 ]; then
+            cat refused.log
+            echo "::error::expected the refused release build to exit 101, got $status"
             exit 1
           fi
           grep -F 'release build refused: connect-src allows https:' refused.log
