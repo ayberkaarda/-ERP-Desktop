@@ -1,4 +1,20 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <rect width="1024" height="1024" rx="200" fill="#1f2a44"/>
-  <path d="M312 232h120v232l216-232h152L560 488l256 304H656L476 568l-44 46v178H312z" fill="#f4f1ea"/>
+  <g fill="#f4f1ea" stroke="#1f2a44" stroke-width="6" stroke-linejoin="round">
+    <!-- capital -->
+    <rect x="392" y="130" width="240" height="52"/>
+    <rect x="342" y="182" width="340" height="56"/>
+    <!-- shaft -->
+    <rect x="412" y="238" width="200" height="538"/>
+    <!-- base -->
+    <rect x="342" y="776" width="340" height="56"/>
+    <rect x="292" y="832" width="440" height="62"/>
+  </g>
+  <!-- key cut into the shaft -->
+  <g fill="#1f2a44">
+    <path fill-rule="evenodd" d="M512 296a64 64 0 1 0 0 128a64 64 0 1 0 0-128zm0 38a26 26 0 1 1 0 52a26 26 0 1 1 0-52z"/>
+    <rect x="497" y="416" width="30" height="304" rx="6"/>
+    <rect x="522" y="640" width="68" height="32" rx="6"/>
+    <rect x="522" y="584" width="46" height="28" rx="6"/>
+  </g>
 </svg>
