@@ -88,6 +88,8 @@ jobs:
       - run: npm run build
       - run: cargo clippy -p keystone-desktop --all-targets --locked -- -D warnings
       - run: cargo test -p keystone-desktop --locked
+      - name: TypeScript types match the Rust DTOs
+        run: sh scripts/check-ts-types.sh
   secrets-macos:
     runs-on: macos-latest
     defaults:

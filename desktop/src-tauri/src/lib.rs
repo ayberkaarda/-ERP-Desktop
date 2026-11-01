@@ -131,49 +131,85 @@ mod config_tests {
     }
 
     #[test]
-    fn capability_grants_only_the_skeleton_set() {
-        let permissions = capability()["permissions"].as_array().unwrap().clone();
-        let ids: Vec<String> = permissions
-            .iter()
-            .map(|p| match p {
-                Value::String(id) => id.clone(),
-                other => other["identifier"].as_str().unwrap().to_owned(),
-            })
-            .collect();
+    fn capability_grants_only_the_listed_permissions() {
+        let granted = capability()["permissions"].as_array().unwrap().clone();
         assert_eq!(
-            ids,
+            granted,
             [
-                "core:default",
+                "core:event:allow-listen",
+                "core:event:allow-unlisten",
+                "core:event:allow-emit",
+                "core:window:allow-show",
+                "core:window:allow-hide",
+                "core:window:allow-set-focus",
+                "core:window:allow-minimize",
+                "core:window:allow-close",
                 "os:allow-platform",
                 "process:allow-restart",
-                "shell:allow-open"
+                "shell:allow-open",
             ]
         );
-        for banned in [
-            "fs:",
-            "http:",
-            "dialog:",
-            "updater:",
-            "deep-link:",
-            "notification:",
-        ] {
-            assert!(
-                !ids.iter().any(|id| id.starts_with(banned)),
-                "{banned} granted"
-            );
-        }
     }
 
     #[test]
-    fn shell_open_is_https_only() {
-        let open = capability()["permissions"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|p| p["identifier"] == "shell:allow-open")
-            .cloned()
-            .unwrap();
-        assert_eq!(open["allow"], serde_json::json!([{ "url": "https://*" }]));
-        assert_eq!(tauri_conf()["plugins"]["shell"]["open"], "^https://");
+    fn it_is_the_only_capability() {
+        let names: Vec<String> =
+            std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/capabilities"))
+                .unwrap()
+                .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+                .collect();
+        assert_eq!(names, ["default.json"]);
+    }
+
+    /// The plugin takes the URLs `open` accepts from `plugins.shell.open`
+    /// alone: its capability scope has no URL entry, so one here would only
+    /// look like a limit. It compiles the pattern as `^{pattern}$`.
+    #[test]
+    fn shell_open_is_limited_by_the_config_pattern() {
+        let conf = tauri_conf();
+        let pattern = conf["plugins"]["shell"]["open"].as_str().unwrap();
+        let open = regex::Regex::new(&format!("^{pattern}$")).unwrap();
+        assert!(open.is_match("https://example.com/report?id=1"));
+        for refused in [
+            "https://",
+            "https://example.com/a b",
+            "https://example.com\ncalc.exe",
+            "http://example.com",
+            "HTTP://example.com",
+            "file:///C:/Windows/System32/calc.exe",
+            "mailto:someone@example.com",
+            "tel:+905550000000",
+            "javascript:alert(1)",
+            "C:\\Windows\\System32\\calc.exe",
+            " https://example.com",
+            "keystone://open",
+        ] {
+            assert!(!open.is_match(refused), "{refused}");
+        }
+    }
+
+    /// Everything but `connect-src` matches the shipped policy; what `tauri
+    /// dev` adds is the Vite hot-reload socket.
+    #[test]
+    fn dev_policy_adds_only_the_vite_socket() {
+        let conf = tauri_conf();
+        let security = &conf["app"]["security"];
+        let csp = security["csp"].as_str().unwrap();
+        assert_eq!(
+            security["devCsp"].as_str().unwrap(),
+            csp.replace(
+                "connect-src ipc: http://ipc.localhost",
+                "connect-src ipc: http://ipc.localhost ws://localhost:1420"
+            )
+        );
+    }
+
+    #[test]
+    fn the_asset_rewrite_stays_on_and_the_asset_protocol_off() {
+        let conf = tauri_conf();
+        let security = conf["app"]["security"].as_object().unwrap();
+        let mut keys: Vec<&str> = security.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["csp", "devCsp"]);
     }
 }

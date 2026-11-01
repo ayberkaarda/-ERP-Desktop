@@ -1,15 +1,19 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Shell skeleton permissions of the main window. fs, http, dialog and the D5/D6 plugins are not granted.",
+  "description": "Everything the main window may do besides the app's own commands. No fs, http or dialog. The URLs shell open accepts are set by plugins.shell.open in tauri.conf.json.",
   "windows": ["main"],
   "permissions": [
-    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:event:allow-emit",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
     "os:allow-platform",
     "process:allow-restart",
-    {
-      "identifier": "shell:allow-open",
-      "allow": [{ "url": "https://*" }]
-    }
+    "shell:allow-open"
   ]
 }

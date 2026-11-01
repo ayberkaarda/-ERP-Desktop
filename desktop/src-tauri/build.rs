@@ -11,6 +11,14 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", build_guard::DEV_ALLOW_HTTP);
 
     let config = std::fs::read_to_string("tauri.conf.json").expect("read tauri.conf.json");
+    // Same file tauri-build picks up. A path that does not exist would rerun
+    // this script on every build, so only a present file is watched.
+    let target_os = env::var("CARGO_CFG_TARGET_OS").expect("CARGO_CFG_TARGET_OS");
+    let platform_file = format!("tauri.{target_os}.conf.json");
+    let platform = std::fs::read_to_string(&platform_file).ok();
+    if platform.is_some() {
+        println!("cargo:rerun-if-changed={platform_file}");
+    }
     let overlay = env::var("TAURI_CONFIG")
         .ok()
         .filter(|value| !value.trim().is_empty());
@@ -20,6 +28,7 @@ fn main() {
         // `PROFILE` is `release` for release-like profiles, `debug` otherwise.
         release: env::var("PROFILE").as_deref() == Ok("release"),
         config: &config,
+        platform: platform.as_deref(),
         overlay: overlay.as_deref(),
         dev_allow_http,
     };
