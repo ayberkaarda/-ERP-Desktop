@@ -166,9 +166,15 @@ fn ends_the_session(error: &SyncError) -> bool {
 }
 
 /// The generation a connection can be opened for: tokens there, no
-/// deactivation. An unreadable record counts as none.
-fn signed_in(client: &HttpClient) -> Option<u64> {
-    match client.session().record() {
+/// deactivation. An unreadable record counts as none. Read under the session
+/// lock: a refresh keeps the tokens out of the store until its answer is in,
+/// and must not look like a lost sign-in.
+async fn signed_in(client: &HttpClient) -> Option<u64> {
+    let record = {
+        let _gate = client.session().lock().await;
+        client.session().record()
+    };
+    match record {
         Ok(record) if record.tokens.is_some() && !record.deactivated => Some(record.generation),
         Ok(_) => None,
         Err(error) => {
@@ -376,7 +382,9 @@ impl Worker {
         let mut failures = 0;
         loop {
             self.mark_session_seen();
-            let current = signed_in(&self.handler.client);
+            let Some(current) = self.session_now().await else {
+                return;
+            };
             let Some(generation) = current.filter(|g| Some(*g) != retired) else {
                 if current.is_none() {
                     self.publish(RealtimeStateDto::Idle);
@@ -474,10 +482,10 @@ impl Worker {
                         return Ended::Stopped;
                     }
                     Some(RealtimeEvent::Stopped(_)) => {
-                        return if signed_in(&self.handler.client) == Some(generation) {
-                            Ended::Stopped
-                        } else {
-                            Ended::SessionMoved
+                        return match self.session_now().await {
+                            None => Ended::Shutdown,
+                            Some(current) if current == Some(generation) => Ended::Stopped,
+                            Some(_) => Ended::SessionMoved,
                         };
                     }
                     Some(event) => self.handler.handle(event, generation).await,
@@ -490,11 +498,26 @@ impl Worker {
                     Err(_) => states_open = false,
                 },
                 () = session_news(&mut self.status, &mut self.sessions) => {
-                    if signed_in(&self.handler.client) != Some(generation) {
-                        return Ended::SessionMoved;
+                    match self.session_now().await {
+                        None => return Ended::Shutdown,
+                        Some(current) if current != Some(generation) => {
+                            return Ended::SessionMoved;
+                        }
+                        Some(_) => {}
                     }
                 }
             }
+        }
+    }
+
+    /// [`signed_in`], or `None` when the bridge is asked to stop while a
+    /// refresh holds the session.
+    async fn session_now(&mut self) -> Option<Option<u64>> {
+        let client = self.handler.client.clone();
+        tokio::select! {
+            biased;
+            () = wait_stop(&mut self.stop) => None,
+            current = signed_in(&client) => Some(current),
         }
     }
 
@@ -985,6 +1008,33 @@ mod tests {
                 state: RealtimeStateDto::Disabled,
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn closing_does_not_wait_for_a_refresh_holding_the_session() {
+        let runtime = EngineRuntime::start().unwrap();
+        let store = signed_in();
+        let sink = Arc::new(Recorder::default());
+        let reverb = params(Some("127.0.0.1"), Some("key"), Some("http"));
+        let (link, _status, _sessions) = link(reverb, true, &store, &sink);
+        let session = link.client.session().clone();
+        let held = session.lock().await;
+
+        let bridge = Bridge::start(&runtime, link);
+        sink.wait_for(|e| {
+            matches!(
+                e,
+                RealtimeEventDto::State {
+                    state: RealtimeStateDto::Idle,
+                    ..
+                }
+            )
+        })
+        .await;
+        tokio::time::timeout(CLOSE_WAIT / 3, bridge.close())
+            .await
+            .expect("bridge ends without being cut off");
+        drop(held);
     }
 
     #[tokio::test]

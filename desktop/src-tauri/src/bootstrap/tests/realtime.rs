@@ -5,7 +5,7 @@
 use std::sync::atomic::AtomicUsize;
 
 use futures_util::{SinkExt, StreamExt};
-use keystone_sync::client::paths;
+use keystone_sync::client::{ProxyMethod, ProxyRequest, paths};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
 use tokio::time::timeout;
@@ -576,4 +576,97 @@ async fn sign_in_and_sign_out_without_a_sync_loop_still_move_the_socket() {
     fx.desktop.sign_out(&fx.state, true).await.unwrap();
     second.gone().await;
     fx.settles_on(&profile.id, RealtimeStateDto::Idle).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refresh_in_flight_does_not_close_a_healthy_socket() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let (profile, mut conn) = fx.connected(&mut reverb, &server).await;
+
+    // A call meets an expired token: the refresh holds the tokens out of
+    // the store while its answer is on the way.
+    let expired = fx.record().tokens.unwrap().access_token;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/parties"))
+        .and(wiremock::matchers::header(
+            "authorization",
+            format!("Bearer {}", expired.expose()).as_str(),
+        ))
+        .respond_with(
+            ResponseTemplate::new(401).set_body_json(
+                json!({"errors": {"message": "expired", "code": "UNAUTHENTICATED"}}),
+            ),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(paths::DEVICE_REFRESH))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(token_body(9))
+                .set_delay(Duration::from_millis(600)),
+        )
+        .mount(&server)
+        .await;
+    let client = fx.state.client().unwrap();
+    let call = tokio::spawn(async move {
+        let request = ProxyRequest {
+            method: ProxyMethod::Get,
+            path: "/api/v1/parties".into(),
+            query: Vec::new(),
+            headers: Vec::new(),
+            body: None,
+        };
+        client.proxy(&request).await
+    });
+    eventually("the refresh is on its way", async || {
+        fx.record().tokens.is_none()
+    })
+    .await;
+
+    // Engine news in that window makes the bridge read the session.
+    crate::bootstrap::trigger(&fx.state, Trigger::Manual).unwrap();
+    call.await.unwrap().unwrap();
+
+    // Same socket, no second one.
+    assert!(reverb.quiet_for(Duration::from_millis(300)).await);
+    conn.event(
+        "notification.created",
+        json!({"id": "after", "type": "x", "created_at": "2026-10-27T10:00:00Z"}),
+    )
+    .await;
+    fx.realtime
+        .wait_for(|e| matches!(e, RealtimeEventDto::NotificationCreated { .. }))
+        .await;
+    fx.settles_on(&profile.id, RealtimeStateDto::Connected)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_old_socket_closes_before_the_sign_in_is_settled() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let (_profile, mut first) = fx.connected(&mut reverb, &server).await;
+    let generation = fx.record().generation;
+
+    // `/auth/me` does not answer in this test: the sign-in stays unsettled.
+    Mock::given(method("GET"))
+        .and(path(ME))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(me_body(&[(COMPANY, "Acme")]))
+                .set_delay(Duration::from_secs(30)),
+        )
+        .with_priority(1)
+        .mount(&server)
+        .await;
+
+    tokio::select! {
+        _ = fx.login() => panic!("the sign-in settled first"),
+        () = first.closed() => {}
+    }
+    assert_eq!(fx.record().generation, generation + 1);
 }

@@ -406,6 +406,8 @@ impl Desktop {
             fingerprint,
         };
         client.login(&request).await.map_err(token_error)?;
+        // Now: the calls below take their time, or fail.
+        self.session_moved();
         let settled = self.after_sign_in(state, &id, &client).await;
         // After the restart a changed company brings, or a failure on the
         // way: a bridge still on the old sign-in moves to the new one.
