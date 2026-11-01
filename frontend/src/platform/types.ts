@@ -75,12 +75,35 @@ export interface Notify {
   error(message: string, options?: NotifyOptions): void
 }
 
+/**
+ * Account flows a runtime owns itself instead of the web's cookie-session endpoints.
+ * Absent on web: callers fall back to the HTTP flows.
+ */
+export interface PlatformSession {
+  /** Ends the session on the server side of this runtime; rejects when it did not confirm. */
+  logout(): Promise<void>
+  /** Makes `id` the active company in this runtime; rejecting keeps the current company. */
+  switchCompany(id: string): Promise<void>
+  /** 'external': passwords (and 2FA, sessions) are managed outside this app. */
+  passwordChange: 'inline' | 'external'
+}
+
 export interface Platform {
   kind: 'web' | 'desktop'
   http: HttpClient
   connectivity: Connectivity
   notify: Notify
   realtime: Realtime
+  session?: PlatformSession
+}
+
+/** What the app hands the runtime module (platform/runtime.ts) to build its Platform. */
+export interface PlatformDeps {
+  getCompanyId: () => string | null
+  getLocale: () => string
+  /** Bumped on every sign-in/sign-out; work from an older session must not replay. */
+  getSessionGeneration: () => number
+  onAuthFailure: (failure: AuthFailure) => void
 }
 
 /** API envelopes, see CONTRACT: {data, meta} and {errors:{message, code, fields?}}. */
