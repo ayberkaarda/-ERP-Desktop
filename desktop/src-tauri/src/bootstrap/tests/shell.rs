@@ -596,6 +596,55 @@ async fn the_return_of_another_profiles_server_neither_is_told_nor_starts_a_run(
     );
 }
 
+/// What `connectivity` announced since `rx` was made.
+fn announced(
+    rx: &mut tokio::sync::broadcast::Receiver<crate::router::ConnectivityChange>,
+) -> Vec<bool> {
+    std::iter::from_fn(|| rx.try_recv().ok())
+        .map(|change| change.online)
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_removed_profile_leaves_nothing_announced_behind() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let connectivity = fx.desktop.connectivity().clone();
+    let mut rx = connectivity.subscribe();
+    let now = std::time::Instant::now();
+    connectivity.observe(&profile.id, false, now);
+    assert_eq!(announced(&mut rx), [false]);
+
+    fx.desktop
+        .remove(&fx.state, &profile.id, true)
+        .await
+        .unwrap();
+    // Forgotten: a profile starts reachable, so this is no change.
+    connectivity.observe(&profile.id, true, now);
+    assert_eq!(announced(&mut rx), Vec::<bool>::new());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_out_leaves_nothing_announced_behind() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let connectivity = fx.desktop.connectivity().clone();
+    let mut rx = connectivity.subscribe();
+    let now = std::time::Instant::now();
+    connectivity.observe(&profile.id, false, now);
+    assert_eq!(announced(&mut rx), [false]);
+
+    assert_eq!(
+        fx.desktop.sign_out(&fx.state, true).await.unwrap(),
+        SignOutDto::Done
+    );
+    connectivity.observe(&profile.id, true, now);
+    connectivity.observe(&profile.id, false, now);
+    assert_eq!(announced(&mut rx), [false]);
+}
+
 // ---- snapshot refresh --------------------------------------------------------------
 
 fn balances_body(label: &str) -> Value {

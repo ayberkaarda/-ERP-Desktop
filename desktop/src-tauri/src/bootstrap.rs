@@ -554,6 +554,9 @@ impl Desktop {
         let registry = self.profiles_blocking();
         let removed = id.to_owned();
         let result = blocking(move || registry.remove(&removed)).await;
+        if result.is_ok() {
+            self.connectivity.forget(id);
+        }
         if told {
             self.publish_closed(state, id, result.as_ref().err());
         }
@@ -673,6 +676,7 @@ impl Desktop {
     /// Signs out of the active profile through its engine (tokens of the
     /// current sign-in, then local data). Unsent work refuses unless `force`.
     pub async fn sign_out(&self, state: &AppState, force: bool) -> CommandResult<SignOutDto> {
+        let id = state.active_profile_id();
         let engine = state.engine()?;
         let outcome = self
             .runtime
@@ -681,7 +685,12 @@ impl Desktop {
             .map_err(|_| task_failed())?
             .map_err(token_error)?;
         Ok(match outcome {
-            SignOut::Done => SignOutDto::Done,
+            SignOut::Done => {
+                if let Some(id) = id {
+                    self.connectivity.forget(&id);
+                }
+                SignOutDto::Done
+            }
             SignOut::PendingWork { outbox, conflicts } => {
                 SignOutDto::PendingWork { outbox, conflicts }
             }

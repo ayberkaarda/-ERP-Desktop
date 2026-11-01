@@ -14,6 +14,7 @@ mod local_support;
 mod local_write;
 mod query_map;
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -175,8 +176,9 @@ struct Shared {
 #[derive(Debug, Default)]
 struct Seen {
     last: Option<Observation>,
-    /// Profile and reachability of the last change announced.
-    told: Option<(String, bool)>,
+    /// Profiles last announced unreachable. Any other profile was last
+    /// announced reachable, or never, and counts as reachable.
+    told_offline: HashSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -226,18 +228,23 @@ impl Connectivity {
             at: now,
             reachable,
         });
-        let before = match &seen.told {
-            Some((told, online)) if told == profile => *online,
-            _ => true,
+        let changed = if reachable {
+            seen.told_offline.remove(profile)
+        } else {
+            seen.told_offline.insert(profile.to_owned())
         };
-        if before != reachable {
-            seen.told = Some((profile.to_owned(), reachable));
+        if changed {
             // Sent under the lock: changes go out in the order they happened.
             let _ = self.shared.changes.send(ConnectivityChange {
                 profile: profile.to_owned(),
                 online: reachable,
             });
         }
+    }
+
+    /// Drops what was announced for `profile` (removed or signed out).
+    pub fn forget(&self, profile: &str) {
+        self.seen().told_offline.remove(profile);
     }
 
     /// Changes from now on.
@@ -331,6 +338,96 @@ mod tests {
             [("p1".into(), false), ("p2".into(), false)]
         );
         assert!(!c.online("p2", Some(false), now));
+    }
+
+    #[test]
+    fn the_return_of_a_profile_is_told_after_another_profile_fails() {
+        let c = Connectivity::default();
+        let mut rx = c.subscribe();
+        let now = Instant::now();
+        c.observe("p1", false, now);
+        c.observe("p2", false, now);
+        c.observe("p1", true, now);
+        assert_eq!(
+            changes(&mut rx),
+            [
+                ("p1".into(), false),
+                ("p2".into(), false),
+                ("p1".into(), true)
+            ]
+        );
+    }
+
+    #[test]
+    fn each_profile_returns_on_its_own() {
+        let c = Connectivity::default();
+        let mut rx = c.subscribe();
+        let now = Instant::now();
+        c.observe("p1", false, now);
+        c.observe("p2", false, now);
+        c.observe("p2", true, now);
+        c.observe("p1", true, now);
+        assert_eq!(
+            changes(&mut rx),
+            [
+                ("p1".into(), false),
+                ("p2".into(), false),
+                ("p2".into(), true),
+                ("p1".into(), true)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_state_told_once_is_not_told_again_between_other_profiles() {
+        let c = Connectivity::default();
+        let mut rx = c.subscribe();
+        let now = Instant::now();
+        c.observe("p1", false, now);
+        c.observe("p2", false, now);
+        c.observe("p1", false, now);
+        c.observe("p2", false, now);
+        c.observe("p2", true, now);
+        c.observe("p1", false, now);
+        c.observe("p2", true, now);
+        assert_eq!(
+            changes(&mut rx),
+            [
+                ("p1".into(), false),
+                ("p2".into(), false),
+                ("p2".into(), true)
+            ]
+        );
+    }
+
+    #[test]
+    fn a_forgotten_profile_starts_reachable_again() {
+        let c = Connectivity::default();
+        let mut rx = c.subscribe();
+        let now = Instant::now();
+        c.observe("p2", false, now);
+        c.observe("p1", false, now);
+        c.forget("p1");
+        // Reachable is where a forgotten profile starts: nothing to tell.
+        c.observe("p1", true, now);
+        c.observe("p1", false, now);
+        // The other profile keeps what it was told.
+        c.observe("p2", false, now);
+        c.observe("p2", true, now);
+        assert_eq!(
+            changes(&mut rx),
+            [
+                ("p2".into(), false),
+                ("p1".into(), false),
+                ("p1".into(), false),
+                ("p2".into(), true)
+            ]
+        );
+        // Only p1 is unreachable now; forgetting it leaves nothing kept.
+        assert_eq!(c.seen().told_offline.len(), 1);
+        c.forget("p1");
+        c.forget("never-seen");
+        assert!(c.seen().told_offline.is_empty());
     }
 
     #[test]
