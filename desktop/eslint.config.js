@@ -1,5 +1,7 @@
 import js from '@eslint/js'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
@@ -50,11 +52,13 @@ const networkBan = {
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'src-tauri', 'crates', 'target', 'src/bridge/generated']),
   {
-    files: ['**/*.ts'],
+    files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
       tseslint.configs.strictTypeChecked,
       tseslint.configs.stylisticTypeChecked,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
     ],
     languageOptions: {
       ecmaVersion: 2023,
@@ -71,7 +75,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.{ts,tsx}'],
     rules: networkBan,
   },
   {
@@ -79,7 +83,7 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['eslint.config.js'],
+    files: ['scripts/**/*.mjs', 'eslint.config.js'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },
