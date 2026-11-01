@@ -83,15 +83,36 @@ pub fn replay(engine: &Engine, call: &ApiCall) -> CommandResult<Option<ApiRespon
         return Ok(None);
     };
     match engine.request_record(&key) {
-        // The record is there but this device cannot show the row: the
-        // server still can.
-        Ok(Some(record)) => Ok(repeat_answer(engine, &record).ok()),
+        Ok(Some(record)) => repeat_outcome(repeat_answer(engine, &record)),
         Ok(None) => Ok(None),
         Err(error) if error.code() == "IDEMPOTENCY_KEY_REUSED" => match refusal(error)? {
             LocalOutcome::Answer(answer) => Ok(Some(answer)),
             LocalOutcome::Unsupported { .. } => Ok(None),
         },
         Err(error) => open(Err(error)),
+    }
+}
+
+/// A recorded key never reaches the server, whatever happens to the local
+/// answer: the first write went through the sync push, so the REST layer
+/// does not know the key and would create a second record. A row closed to
+/// this user is refused without its data; any other failure stays an error.
+fn repeat_outcome(answer: CommandResult<ApiResponseDto>) -> CommandResult<Option<ApiResponseDto>> {
+    match answer {
+        Ok(answer) => Ok(Some(answer)),
+        Err(error) if error.code == "FORBIDDEN" => Ok(Some(envelope::local(
+            403,
+            envelope::error("FORBIDDEN", "this record is not available to you", None),
+        ))),
+        Err(error) if error.code == OFFLINE_UNAVAILABLE => Ok(Some(envelope::local(
+            503,
+            envelope::error(
+                OFFLINE_UNAVAILABLE,
+                "this record cannot be read on this device now",
+                None,
+            ),
+        ))),
+        Err(error) => Err(error),
     }
 }
 

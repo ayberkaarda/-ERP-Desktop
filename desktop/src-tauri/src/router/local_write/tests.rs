@@ -813,8 +813,17 @@ async fn a_repeat_after_a_discard_is_a_new_request() {
     assert_eq!(fx.outbox().len(), 1);
 }
 
+/// A POST on the server, to count what reaches it.
+async fn mount_server_create(fx: &Fixture) {
+    Mock::given(method("POST"))
+        .and(path(PARTIES))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"id": "s"}})))
+        .mount(&fx.server)
+        .await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
-async fn a_repeat_this_device_cannot_read_goes_to_the_server() {
+async fn a_repeat_of_a_resource_the_user_lost_is_refused_here() {
     let fx = fixture(vec![]).await;
     fx.mount_push_applied().await;
     fx.go_offline();
@@ -823,18 +832,67 @@ async fn a_repeat_this_device_cannot_read_goes_to_the_server() {
     fx.engine.run_once(Trigger::Manual).await.unwrap();
     fx.drop_from_manifest("parties").await;
     fx.engine.run_once(Trigger::Manual).await.unwrap();
-    Mock::given(method("POST"))
-        .and(path(PARTIES))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"id": "s"}})))
-        .mount(&fx.server)
-        .await;
+    mount_server_create(&fx).await;
 
     fx.go_online();
     let answer = fx.call(request).await;
 
-    assert_eq!(answer.source, ResponseSource::Network);
-    assert_eq!(answer.status, 200);
-    assert_eq!(fx.received(PARTIES).await, 1);
+    refused(&answer, 403, "FORBIDDEN");
+    assert_eq!(answer.json().unwrap().get("data"), None);
+    assert_eq!(
+        fx.received(PARTIES).await,
+        0,
+        "the key must not reach the server"
+    );
+}
+
+/// A recorded key whose row cannot be read because the store failed. The
+/// store cannot be made to fail between the lookup and the read from here,
+/// so the failure is handed to the real mapping.
+struct StoreFailsOnRepeat;
+
+impl crate::router::LocalResolver for StoreFailsOnRepeat {
+    fn local_copy(
+        &self,
+        _: &Engine,
+        _: Option<&keystone_sync::store::Store>,
+        _: &ResourceName,
+    ) -> CommandResult<keystone_sync::store::LocalCopy> {
+        Ok(keystone_sync::store::LocalCopy::Missing)
+    }
+
+    fn resolve(
+        &self,
+        _: &Engine,
+        _: Option<&keystone_sync::store::Store>,
+        _: &crate::router::LocalPlan,
+        _: &ApiCall,
+    ) -> CommandResult<LocalOutcome> {
+        Ok(LocalOutcome::Unsupported {
+            unsupported_filters: Vec::new(),
+        })
+    }
+
+    fn replay(&self, _: &Engine, _: &ApiCall) -> CommandResult<Option<ApiResponseDto>> {
+        let failed = crate::commands::CommandError::new("STORE_ERROR", "database is locked");
+        repeat_outcome(Err(failed))
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_store_failure_of_a_repeat_stays_an_error_and_sends_nothing() {
+    let fx = fixture(vec![]).await;
+    mount_server_create(&fx).await;
+    let request = send("POST", PARTIES, Some("k"), Some(json!({"name": "A"})));
+
+    let answer = fx.try_call(Arc::new(StoreFailsOnRepeat), request).await;
+
+    assert_eq!(answer.unwrap_err().code, "STORE_ERROR");
+    assert_eq!(
+        fx.received(PARTIES).await,
+        0,
+        "the key must not reach the server"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

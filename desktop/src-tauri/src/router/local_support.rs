@@ -235,7 +235,7 @@ impl Fixture {
         self.try_call(local_resolver(), request).await.unwrap()
     }
 
-    async fn try_call(
+    pub async fn try_call(
         &self,
         resolver: Arc<dyn LocalResolver>,
         request: Value,
