@@ -7,6 +7,7 @@ import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import {
   Dialog,
   DialogContent,
@@ -192,7 +193,8 @@ export function ReturnView({ ret, onReload }: ReturnViewProps) {
             {available
               .filter((a) => a.allowed)
               .map((a) => (
-                <Button
+                <OnlineOnlyButton
+                  action="processPurchaseReturn"
                   key={a.action}
                   type="button"
                   variant={a.danger ? 'ghost' : 'primary'}
@@ -200,7 +202,7 @@ export function ReturnView({ ret, onReload }: ReturnViewProps) {
                 >
                   <a.icon aria-hidden="true" />
                   {t(`return.actions.${a.action}`)}
-                </Button>
+                </OnlineOnlyButton>
               ))}
           </>
         }

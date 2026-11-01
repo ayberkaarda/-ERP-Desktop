@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
@@ -93,10 +93,15 @@ export function DocumentView({
         meta={<DocStatusBadge status={doc.status} />}
         actions={
           doc.status === 'posted' && canReverse ? (
-            <Button type="button" variant="secondary" onClick={() => setReversing(true)}>
+            <OnlineOnlyButton
+              action="postStockDocument"
+              type="button"
+              variant="secondary"
+              onClick={() => setReversing(true)}
+            >
               <Undo2 aria-hidden="true" />
               {t('reverse.action')}
-            </Button>
+            </OnlineOnlyButton>
           ) : undefined
         }
       />

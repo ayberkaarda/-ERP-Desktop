@@ -14,7 +14,7 @@ import {
 } from '@/components/shared/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { toIsoDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
 import { cn } from '@/lib/utils'
@@ -210,14 +210,14 @@ export function PricingPlaygroundPage() {
                 )}
               />
             </div>
-            <Button type="submit" disabled={result.isFetching}>
+            <OnlineOnlyButton action="serverCalculation" type="submit" disabled={result.isFetching}>
               {result.isFetching ? (
                 <Loader2 className="animate-spin" aria-hidden="true" />
               ) : (
                 <Calculator aria-hidden="true" />
               )}
               {t('pricing.resolve')}
-            </Button>
+            </OnlineOnlyButton>
             {result.isError && (
               <FormErrorSummary error={result.error} title={t('pricing.failed')} />
             )}

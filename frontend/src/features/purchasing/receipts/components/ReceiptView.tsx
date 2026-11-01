@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { money, qty } from '@/features/sales/invoices/kit/money'
 import { useCompanyCurrency } from '@/features/sales/invoices/kit/viewKey'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
@@ -115,10 +116,15 @@ export function ReceiptView({ receipt: r, onReload }: ReceiptViewProps) {
               </Link>
             </Button>
             {invoiceable && canInvoice && (
-              <Button type="button" variant="secondary" onClick={() => setInvoicing(true)}>
+              <OnlineOnlyButton
+                action="postPurchaseReceipt"
+                type="button"
+                variant="secondary"
+                onClick={() => setInvoicing(true)}
+              >
                 <FileText aria-hidden="true" />
                 {t('receipt.createInvoice')}
-              </Button>
+              </OnlineOnlyButton>
             )}
             {posted && canReturn && (
               <Button asChild variant="secondary">
@@ -129,10 +135,15 @@ export function ReceiptView({ receipt: r, onReload }: ReceiptViewProps) {
               </Button>
             )}
             {posted && canReverse && (
-              <Button type="button" variant="danger" onClick={() => setReversing(true)}>
+              <OnlineOnlyButton
+                action="postPurchaseReceipt"
+                type="button"
+                variant="danger"
+                onClick={() => setReversing(true)}
+              >
                 <Undo2 aria-hidden="true" />
                 {t('receipt.reverse')}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </>
         }

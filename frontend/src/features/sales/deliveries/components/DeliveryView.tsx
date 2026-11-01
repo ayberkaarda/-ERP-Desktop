@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { formatDate, formatDateTime, toIsoDate, useIntlLocale } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
@@ -136,7 +137,8 @@ export function DeliveryView({ delivery: d, onReload }: DeliveryViewProps) {
               </Link>
             </Button>
             {invoiceable && canInvoice && (
-              <Button
+              <OnlineOnlyButton
+                action="postSalesDelivery"
                 type="button"
                 disabled={invoice.isPending}
                 onClick={() => invoice.mutate({ company: activeCompany() })}
@@ -147,13 +149,18 @@ export function DeliveryView({ delivery: d, onReload }: DeliveryViewProps) {
                   <FileText aria-hidden="true" />
                 )}
                 {t('delivery.createInvoice')}
-              </Button>
+              </OnlineOnlyButton>
             )}
             {posted && canCancel && (
-              <Button type="button" variant="danger" onClick={() => setCancelling(true)}>
+              <OnlineOnlyButton
+                action="postSalesDelivery"
+                type="button"
+                variant="danger"
+                onClick={() => setCancelling(true)}
+              >
                 <Ban aria-hidden="true" />
                 {t('delivery.cancel')}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </>
         }

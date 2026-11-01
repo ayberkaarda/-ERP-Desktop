@@ -8,6 +8,7 @@ import { FieldShell } from '@/components/shared/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useIntlLocale } from '@/lib/datetime'
@@ -175,10 +176,10 @@ export function TrialBalancePage() {
           />
           {t('trialBalance.compare')}
         </label>
-        <Button type="submit" disabled={!hasRange(draft)}>
+        <OnlineOnlyButton action="liveReports" type="submit" disabled={!hasRange(draft)}>
           <Play aria-hidden="true" />
           {t('reports.run')}
-        </Button>
+        </OnlineOnlyButton>
       </form>
 
       {!enabled ? (

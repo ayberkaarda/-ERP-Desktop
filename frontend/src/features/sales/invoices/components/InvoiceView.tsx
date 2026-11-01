@@ -6,6 +6,7 @@ import { Link } from 'react-router'
 import { AuditTrail } from '@/components/shared/AuditTrail'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
 import type { Invoice } from '../api'
@@ -115,10 +116,15 @@ export function InvoiceView({ invoice: inv, onReload }: InvoiceViewProps) {
               </Button>
             )}
             {reversible && canReverse && (
-              <Button type="button" variant="danger" onClick={() => setReversing(true)}>
+              <OnlineOnlyButton
+                action="issueSalesInvoice"
+                type="button"
+                variant="danger"
+                onClick={() => setReversing(true)}
+              >
                 <Undo2 aria-hidden="true" />
                 {t('invoice.reverse')}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </>
         }

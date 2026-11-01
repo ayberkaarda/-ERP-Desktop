@@ -7,6 +7,7 @@ import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
@@ -133,16 +134,25 @@ export function ReturnView({ ret, onReload }: { ret: SalesReturn; onReload: () =
               </Button>
             )}
             {cancellable(ret.status) && canCancel && (
-              <Button type="button" variant="secondary" onClick={() => setAction('cancel')}>
+              <OnlineOnlyButton
+                action="processSalesReturn"
+                type="button"
+                variant="secondary"
+                onClick={() => setAction('cancel')}
+              >
                 <Ban aria-hidden="true" />
                 {t('returnAction.cancel.button')}
-              </Button>
+              </OnlineOnlyButton>
             )}
             {step && StepIcon && canStep && (
-              <Button type="button" onClick={() => setAction(step)}>
+              <OnlineOnlyButton
+                action="processSalesReturn"
+                type="button"
+                onClick={() => setAction(step)}
+              >
                 <StepIcon aria-hidden="true" />
                 {t(`returnAction.${step}.button`)}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </>
         }
