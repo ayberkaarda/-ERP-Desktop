@@ -4,7 +4,7 @@ import type { RealtimeStatusDto } from '../../bridge/generated/RealtimeStatusDto
 import { createFakeBridge, deferred, fail, flush } from '../../test/fakeBridge'
 import { createActiveProfile } from './profile'
 import { createDesktopRealtime } from './realtime'
-import type { RealtimeState, SubscriptionStatus } from './u1-shim'
+import type { RealtimeState, SubscriptionStatus } from '@/platform/types'
 
 const notification = { id: 'n1', type: 'approval.requested', data: { title: 'Onay' }, read_at: null, created_at: '2026-11-01T10:00:00Z' }
 

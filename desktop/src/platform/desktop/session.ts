@@ -8,7 +8,8 @@ import type { SignOutDto } from '../../bridge/generated/SignOutDto'
 import type { StatusDto } from '../../bridge/generated/StatusDto'
 import { call, toCommandError, type Invoke } from '../../bridge/invoke'
 import { commandToApiError } from './errors'
-import { ApiError, PlatformCancelledError, type PlatformSession } from './u1-shim'
+import { PlatformCancelledError } from '@/platform/shared'
+import { ApiError, type PlatformSession } from '@/platform/types'
 
 export const PENDING_WORK = 'PROFILE_HAS_PENDING_WORK'
 

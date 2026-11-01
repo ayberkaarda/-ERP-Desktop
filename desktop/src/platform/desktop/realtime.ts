@@ -6,7 +6,7 @@ import { listenRealtime, type Listen, type RealtimeEventDto, type Unlisten } fro
 import type { RealtimeStatusDto } from '../../bridge/generated/RealtimeStatusDto'
 import { call, type Invoke } from '../../bridge/invoke'
 import type { ActiveProfile } from './profile'
-import type { Realtime, RealtimeState, SubscriptionStatus } from './u1-shim'
+import type { Realtime, RealtimeState, SubscriptionStatus } from '@/platform/types'
 
 /** Web event names (with Echo's leading dot) of each shell event type. */
 export const REALTIME_EVENT_NAMES = {

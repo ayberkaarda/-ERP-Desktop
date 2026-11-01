@@ -4,7 +4,8 @@ import type { ApiRequest, ApiResponse } from '../../bridge/api'
 import { createFakeBridge, deferred, fail, flush } from '../../test/fakeBridge'
 import { createDesktopHttp } from './http'
 import { createOfflineMetaStore } from './offlineMeta'
-import { ApiError, STALE_REQUEST, type AuthFailure, type PlatformDeps } from './u1-shim'
+import { STALE_REQUEST } from '@/platform/shared'
+import { ApiError, type AuthFailure, type PlatformDeps } from '@/platform/types'
 
 function ok(value: unknown, extra: Partial<ApiResponse> = {}): ApiResponse {
   return {

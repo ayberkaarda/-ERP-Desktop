@@ -1,7 +1,7 @@
 // A failed shell command as the web `ApiError` the features already handle.
 
 import type { CommandError } from '../../bridge/invoke'
-import { ApiError } from './u1-shim'
+import { ApiError } from '@/platform/types'
 
 /**
  * HTTP status a command failure stands for. A session code gets the status the

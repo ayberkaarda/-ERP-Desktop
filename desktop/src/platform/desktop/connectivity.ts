@@ -7,7 +7,7 @@ import type { StatusDto } from '../../bridge/generated/StatusDto'
 import { call, type Invoke } from '../../bridge/invoke'
 import type { NetworkReport } from './http'
 import type { ActiveProfile } from './profile'
-import type { Connectivity } from './u1-shim'
+import type { Connectivity } from '@/platform/types'
 
 export interface DesktopConnectivity extends Connectivity {
   /** What the http client reports after each request. */

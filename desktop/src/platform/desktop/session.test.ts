@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { createFakeBridge, deferred, fail, flush, type CommandHandler } from '../../test/fakeBridge'
 import { createDesktopSession, PendingWorkError, type PendingWorkDecision, type PendingWorkHandler } from './session'
-import { ApiError, isPlatformCancelled, PlatformCancelledError } from './u1-shim'
+import { isPlatformCancelled, PlatformCancelledError } from '@/platform/shared'
+import { ApiError } from '@/platform/types'
 
 function setup(commands: Record<string, CommandHandler> = {}, decision?: PendingWorkDecision) {
   const bridge = createFakeBridge({ commands })

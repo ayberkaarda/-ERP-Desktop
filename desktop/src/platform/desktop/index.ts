@@ -10,7 +10,7 @@ import { createOfflineMetaStore, type OfflineMetaStore } from './offlineMeta'
 import { createActiveProfile } from './profile'
 import { createDesktopRealtime } from './realtime'
 import { createDesktopSession, type DesktopSession, type PendingWorkHandler } from './session'
-import type { Notify, Platform, PlatformDeps } from './u1-shim'
+import type { Notify, Platform, PlatformDeps } from '@/platform/types'
 
 export interface DesktopPlatform extends Platform {
   kind: 'desktop'
@@ -86,6 +86,6 @@ export {
   type PendingWorkDecision,
   type PendingWorkHandler,
 } from './session'
-export { isPlatformCancelled, PlatformCancelledError } from './u1-shim'
+export { isPlatformCancelled, PlatformCancelledError } from '@/platform/shared'
 export type { OfflineMeta, OfflineMetaStore } from './offlineMeta'
 export { REALTIME_EVENT_NAMES } from './realtime'

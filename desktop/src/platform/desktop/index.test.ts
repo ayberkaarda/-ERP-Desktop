@@ -5,7 +5,7 @@ vi.mock('sonner', () => ({ toast }))
 
 import { createFakeBridge, fail, flush } from '../../test/fakeBridge'
 import { createDesktopPlatform, isDesktopPlatform, PendingWorkError, PlatformCancelledError } from './index'
-import type { PlatformDeps } from './u1-shim'
+import type { PlatformDeps } from '@/platform/types'
 
 const deps: PlatformDeps = {
   getCompanyId: () => 'c1',

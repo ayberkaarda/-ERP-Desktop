@@ -2,7 +2,7 @@
 
 import { toast } from 'sonner'
 
-import type { Notify } from './u1-shim'
+import type { Notify } from '@/platform/types'
 
 export function createDesktopNotify(): Notify {
   return {

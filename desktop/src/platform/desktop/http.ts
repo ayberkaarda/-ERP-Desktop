@@ -7,7 +7,6 @@ import { toCommandError, type Invoke } from '../../bridge/invoke'
 import { commandToApiError } from './errors'
 import type { OfflineMeta, OfflineMetaStore } from './offlineMeta'
 import {
-  ApiError,
   apiErrorFromEnvelope,
   assertApiPath,
   classifyAuthFailure,
@@ -15,11 +14,14 @@ import {
   filenameFromDisposition,
   isRecord,
   STALE_REQUEST,
+} from '@/platform/shared'
+import {
+  ApiError,
   type DownloadResult,
   type HttpClient,
   type HttpRequestOptions,
   type PlatformDeps,
-} from './u1-shim'
+} from '@/platform/types'
 
 export const API_BASE = '/api/v1'
 
