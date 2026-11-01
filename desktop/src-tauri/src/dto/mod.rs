@@ -3,6 +3,8 @@
 
 pub mod api;
 pub mod auth;
+pub mod codes;
+pub mod external;
 pub mod profile;
 pub mod realtime;
 pub mod status;

@@ -4,4 +4,4 @@ import type { StatusDto } from "./StatusDto";
 /**
  * Payload of `engine-event`.
  */
-export type EngineEvent = { "type": "status", profile_id: string, status: StatusDto, } | { "type": "resources_changed", profile_id: string, resources: Array<string>, all: boolean, };
+export type EngineEvent = { "type": "status", profile_id: string, status: StatusDto, } | { "type": "resources_changed", profile_id: string, resources: Array<string>, all: boolean, } | { "type": "connectivity", profile_id: string, online: boolean, };

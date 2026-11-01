@@ -35,22 +35,26 @@ use keystone_sync::client::{
     ApiConfig, ClientOptions, DeviceAuthApi, HttpClient, ProxyMethod, ProxyRequest, ProxyResponse,
     ServerUrl, fetch_server_meta, parse_retry_after,
 };
-use keystone_sync::engine::{SignOut, SyncEngine, Trigger, sync_loop};
+use keystone_sync::engine::{SignOut, SyncEngine, SyncHandle, Trigger, sync_loop};
 use keystone_sync::store::{Store, offline_manifest};
-use keystone_sync::wire::{DeviceLoginRequest, ErrorResponse, SCHEMA_VERSION};
+use keystone_sync::wire::{DeviceLoginRequest, ErrorResponse, SCHEMA_VERSION, ServerMeta};
 use serde_json::Value;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use crate::commands::{CommandError, CommandResult};
 use crate::dto::auth::{AuthStateDto, CompanyDto, LoginDto, SignOutDto, UserDto};
-use crate::dto::profile::{ProfileDto, ProfilesDto};
+use crate::dto::profile::{ProfileDto, ProfilePhase, ProfileStateDto, ProfilesDto};
 use crate::dto::realtime::{RealtimeStateDto, RealtimeStatusDto};
-use crate::events::{EventSink, bridge};
+use crate::events::{EventSink, bridge, connectivity_bridge};
 use crate::profiles::{MetaSnapshot, Profile, ProfileRegistry, compare_versions};
 use crate::realtime::{Bridge, Link, RealtimeSink, TauriRealtimeSink, reverb_params};
+use crate::router::Connectivity;
 use crate::runtime::EngineRuntime;
 use crate::state::{ActiveProfile, AppState, Engine};
+
+mod snapshots;
 
 /// Error codes of profile and sign-in commands (besides the crate's).
 pub mod codes {
@@ -119,6 +123,11 @@ pub struct Config {
     pub release_wait: Duration,
     /// Timing of the realtime connection.
     pub realtime: RealtimeOptions,
+    /// The online view `api_request` keeps; its changes become
+    /// `engine-event` `connectivity`.
+    pub connectivity: Connectivity,
+    /// Period of the snapshot refresh ([`snapshot_period`]).
+    pub snapshot_period: Duration,
 }
 
 impl Config {
@@ -135,16 +144,49 @@ impl Config {
             app_version: app_version.to_owned(),
             release_wait: Duration::from_secs(5),
             realtime: RealtimeOptions::default(),
+            connectivity: Connectivity::default(),
+            snapshot_period: snapshot_period(),
         })
     }
+}
+
+/// `defaults.snapshot_refresh_minutes` of the compiled offline manifest.
+pub fn snapshot_period() -> Duration {
+    snapshots::period(OFFLINE_MANIFEST).expect("the offline manifest names the snapshot period")
 }
 
 /// Tasks of the active profile on the engine runtime.
 struct Running {
     profile_id: String,
+    /// Handle of the sync loop (`None` without a company).
+    sync: Option<SyncHandle>,
     sync_loop: Option<JoinHandle<()>>,
     events: JoinHandle<()>,
-    realtime: Bridge,
+    connectivity: JoinHandle<()>,
+    snapshots: Option<SnapshotTask>,
+    /// `None` only while it is being replaced.
+    realtime: Option<Bridge>,
+}
+
+/// The snapshot refresh loop of the active profile.
+struct SnapshotTask {
+    stop: watch::Sender<bool>,
+    task: JoinHandle<()>,
+}
+
+impl SnapshotTask {
+    /// Stops the loop and waits for it: a snapshot being written finishes
+    /// first, none starts after. A loop stuck past the wait is cut off.
+    async fn close(mut self) {
+        self.stop.send_replace(true);
+        if tokio::time::timeout(Duration::from_secs(5), &mut self.task)
+            .await
+            .is_err()
+        {
+            self.task.abort();
+            let _ = self.task.await;
+        }
+    }
 }
 
 /// What opening a profile produced.
@@ -177,6 +219,11 @@ pub struct Desktop {
     sessions: std::sync::Mutex<std::collections::HashMap<String, Weak<Session>>>,
     /// The active profile's tasks; also serializes switches.
     running: tokio::sync::Mutex<Option<Running>>,
+    connectivity: Connectivity,
+    snapshot_period: Duration,
+    snapshot_resources: Vec<snapshots::SnapshotResource>,
+    /// Last state told to the UI (`profile_state`).
+    profile_state: std::sync::Mutex<ProfileStateDto>,
 }
 
 impl std::fmt::Debug for Desktop {
@@ -211,11 +258,98 @@ impl Desktop {
             sessions_moved: tokio::sync::watch::Sender::new(0),
             sessions: std::sync::Mutex::default(),
             running: tokio::sync::Mutex::new(None),
+            connectivity: config.connectivity,
+            snapshot_period: config.snapshot_period,
+            snapshot_resources: snapshots::resources(OFFLINE_MANIFEST),
+            profile_state: std::sync::Mutex::new(ProfileStateDto::new(
+                ProfilePhase::None,
+                None,
+                None,
+            )),
         })
     }
 
     pub fn registry(&self) -> &ProfileRegistry {
         &self.profiles
+    }
+
+    pub fn connectivity(&self) -> &Connectivity {
+        &self.connectivity
+    }
+
+    /// Whether loopback `http://` servers are allowed ([`allow_http`]).
+    pub fn allows_plain_http(&self) -> bool {
+        self.options.allow_http_localhost
+    }
+
+    /// A stored profile.
+    pub async fn profile_of(&self, id: &str) -> CommandResult<Profile> {
+        self.profile(id).await
+    }
+
+    /// The state of the active profile as last told (`profile_state`).
+    pub fn profile_state(&self) -> ProfileStateDto {
+        self.profile_state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Start-up: the restore that follows runs in the background; until it
+    /// tells otherwise the UI waits.
+    pub fn mark_starting(&self) {
+        self.publish(ProfileStateDto::new(ProfilePhase::Starting, None, None));
+    }
+
+    /// Stores and tells `next` when it differs from the last state.
+    fn publish(&self, next: ProfileStateDto) {
+        let mut current = self
+            .profile_state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if *current == next {
+            return;
+        }
+        *current = next;
+        // Told under the lock: the UI sees changes in their order.
+        self.sink.profile_state(&current);
+    }
+
+    /// The state after an attempt to open `id`.
+    fn publish_opened(&self, state: &AppState, id: &str, error: Option<&CommandError>) {
+        let next = if state.active_profile_id().as_deref() == Some(id) {
+            match state.engine() {
+                Ok(_) => ProfileStateDto::new(ProfilePhase::Ready, Some(id), None),
+                Err(missing) => ProfileStateDto::new(
+                    ProfilePhase::Engineless,
+                    Some(id),
+                    Some(error.cloned().unwrap_or(missing)),
+                ),
+            }
+        } else {
+            ProfileStateDto::new(ProfilePhase::Failed, Some(id), error.cloned())
+        };
+        self.publish(next);
+    }
+
+    /// Whether the profile state names `id` as the profile that failed.
+    fn names_failed(&self, id: &str) -> bool {
+        let current = self.profile_state();
+        current.phase == ProfilePhase::Failed && current.profile_id.as_deref() == Some(id)
+    }
+
+    /// After a command that may have closed the active profile: tells
+    /// `none` (or `failed` with `error`) when no profile is active any more.
+    fn publish_closed(&self, state: &AppState, id: &str, error: Option<&CommandError>) {
+        if state.active_profile_id().is_some() {
+            return;
+        }
+        self.publish(match error {
+            Some(error) => {
+                ProfileStateDto::new(ProfilePhase::Failed, Some(id), Some(error.clone()))
+            }
+            None => ProfileStateDto::new(ProfilePhase::None, None, None),
+        });
     }
 
     pub fn runtime(&self) -> &EngineRuntime {
@@ -232,6 +366,28 @@ impl Desktop {
     /// Reads `/api/v1/meta` of `url`, checks it and stores a new profile.
     /// The profile is not selected.
     pub async fn add_profile(&self, url: &str, name: Option<&str>) -> CommandResult<ProfileDto> {
+        let (base_url, meta) = self.checked_meta(url).await?;
+        let name = name.map(str::trim).filter(|n| !n.is_empty());
+        if name.is_some_and(|n| n.chars().count() > 100) {
+            return Err(SyncError::InvalidRequest("the profile name is too long".into()).into());
+        }
+        let profile = Profile {
+            id: Uuid::now_v7().to_string(),
+            name: name.unwrap_or(&meta.name).to_owned(),
+            base_url,
+            meta_snapshot: MetaSnapshot::from(&meta),
+            company_id: None,
+            created_at: now(),
+        };
+        let registry = self.profiles_blocking();
+        let stored = profile.clone();
+        blocking(move || registry.add(stored)).await?;
+        Ok(ProfileDto::from(&profile))
+    }
+
+    /// `/api/v1/meta` of `url` (its origin), refused when the server needs
+    /// a newer app or sync schema.
+    async fn checked_meta(&self, url: &str) -> CommandResult<(String, ServerMeta)> {
         let server = ServerUrl::parse(url, self.options.allow_http_localhost)?;
         let base_url = server.origin();
         let meta = fetch_server_meta(&base_url, &self.user_agent, &self.options)
@@ -257,22 +413,27 @@ impl Desktop {
                 ),
             ));
         }
-        let name = name.map(str::trim).filter(|n| !n.is_empty());
-        if name.is_some_and(|n| n.chars().count() > 100) {
-            return Err(SyncError::InvalidRequest("the profile name is too long".into()).into());
-        }
-        let profile = Profile {
-            id: Uuid::now_v7().to_string(),
-            name: name.unwrap_or(&meta.name).to_owned(),
-            base_url,
-            meta_snapshot: MetaSnapshot::from(&meta),
-            company_id: None,
-            created_at: now(),
-        };
+        Ok((base_url, meta))
+    }
+
+    /// Reads the server's `/api/v1/meta` again and stores it with the
+    /// profile (same checks as adding it; refused, the stored one stays).
+    /// When the realtime settings changed on the active profile, its
+    /// realtime connection is made again with them.
+    pub async fn refresh_meta(&self, state: &AppState, id: &str) -> CommandResult<ProfileDto> {
+        let profile = self.profile(id).await?;
+        let (_, meta) = self.checked_meta(&profile.base_url).await?;
+        let snapshot = MetaSnapshot::from(&meta);
+        let mut running = self.running.lock().await;
+        let before = self.profile(id).await?;
         let registry = self.profiles_blocking();
-        let stored = profile.clone();
-        blocking(move || registry.add(stored)).await?;
-        Ok(ProfileDto::from(&profile))
+        let changed_id = id.to_owned();
+        let reverb_changed = before.meta_snapshot.reverb != snapshot.reverb;
+        let updated = blocking(move || registry.set_meta(&changed_id, snapshot)).await?;
+        if reverb_changed {
+            self.restart_realtime(state, &mut running, &updated).await;
+        }
+        Ok(ProfileDto::from(&updated))
     }
 
     pub async fn list_profiles(&self) -> CommandResult<ProfilesDto> {
@@ -293,25 +454,53 @@ impl Desktop {
     /// returned for the UI to offer `profile_reset`.
     pub async fn select(&self, state: &AppState, id: &str) -> CommandResult<ProfileDto> {
         let mut running = self.running.lock().await;
-        let profile = self.profile(id).await?;
-        self.check_record(id).await?;
-        // A profile whose client cannot be built leaves the active one alone.
-        drop(self.client(&profile)?);
+        let checked = async {
+            let profile = self.profile(id).await?;
+            self.check_record(id).await?;
+            // A profile whose client cannot be built leaves the active one alone.
+            drop(self.client(&profile)?);
+            Ok(profile)
+        };
+        let profile = match checked.await {
+            Ok(profile) => profile,
+            Err(error) => {
+                // Nothing changed; told only when nothing else is open.
+                self.publish_closed(state, id, Some(&error));
+                return Err(error);
+            }
+        };
         self.stop(state, &mut running).await;
         let registry = self.profiles_blocking();
         let active = id.to_owned();
-        blocking(move || registry.set_active(Some(&active))).await?;
+        if let Err(error) = blocking(move || registry.set_active(Some(&active))).await {
+            self.publish_closed(state, id, Some(&error));
+            return Err(error);
+        }
         self.start(state, &mut running, &profile).await?;
         Ok(ProfileDto::from(&profile))
     }
 
-    /// Selects the stored active profile at start-up, if any.
+    /// Selects the stored active profile at start-up, if any. The outcome
+    /// is told as the profile state (the UI did not call this).
     pub async fn restore(&self, state: &AppState) -> CommandResult<Option<ProfileDto>> {
         let registry = self.profiles_blocking();
-        let file = blocking(move || registry.load()).await?;
+        let file = match blocking(move || registry.load()).await {
+            Ok(file) => file,
+            Err(error) => {
+                self.publish(ProfileStateDto::new(
+                    ProfilePhase::Failed,
+                    None,
+                    Some(error.clone()),
+                ));
+                return Err(error);
+            }
+        };
         match file.active {
             Some(id) => self.select(state, &id).await.map(Some),
-            None => Ok(None),
+            None => {
+                self.publish_closed(state, "", None);
+                Ok(None)
+            }
         }
     }
 
@@ -327,13 +516,25 @@ impl Desktop {
         let mut running = self.running.lock().await;
         let profile = self.profile(id).await?;
         let was_active = state.active_profile_id().as_deref() == Some(id);
-        self.release(state, &mut running, id, force).await?;
+        // The profile that failed to open: the UI offers this reset for it.
+        let was_failed = !was_active && self.names_failed(id);
+        if let Err(error) = self.release(state, &mut running, id, force).await {
+            if was_active {
+                self.publish_closed(state, id, Some(&error));
+            }
+            return Err(error);
+        }
         let registry = self.profiles_blocking();
         let reset_id = id.to_owned();
         let profile = blocking(move || registry.set_company(&reset_id, None))
             .await
             .unwrap_or(profile);
-        if was_active {
+        if was_failed && state.active_profile_id().is_none() {
+            let registry = self.profiles_blocking();
+            let active = id.to_owned();
+            blocking(move || registry.set_active(Some(&active))).await?;
+            self.start(state, &mut running, &profile).await?;
+        } else if was_active {
             self.start(state, &mut running, &profile).await?;
         }
         Ok(ProfileDto::from(&profile))
@@ -343,15 +544,33 @@ impl Desktop {
     pub async fn remove(&self, state: &AppState, id: &str, force: bool) -> CommandResult<()> {
         let mut running = self.running.lock().await;
         self.profile(id).await?;
-        self.release(state, &mut running, id, force).await?;
+        let told = state.active_profile_id().as_deref() == Some(id) || self.names_failed(id);
+        if let Err(error) = self.release(state, &mut running, id, force).await {
+            if told {
+                self.publish_closed(state, id, Some(&error));
+            }
+            return Err(error);
+        }
         let registry = self.profiles_blocking();
-        let id = id.to_owned();
-        blocking(move || registry.remove(&id)).await
+        let removed = id.to_owned();
+        let result = blocking(move || registry.remove(&removed)).await;
+        if told {
+            self.publish_closed(state, id, result.as_ref().err());
+        }
+        result
     }
 
     /// Chooses the company of the active profile (one of the signed-in
-    /// user's) and restarts it in that company.
-    pub async fn select_company(&self, state: &AppState, company: Uuid) -> CommandResult<LoginDto> {
+    /// user's) and restarts it in that company. A change of company starts
+    /// the local data again for the new one: with unsent work (outbox or
+    /// conflicts) it is refused with `PROFILE_HAS_PENDING_WORK` unless
+    /// `force`. The same company again needs no check.
+    pub async fn select_company(
+        &self,
+        state: &AppState,
+        company: Uuid,
+        force: bool,
+    ) -> CommandResult<LoginDto> {
         let id = state.active_profile_id().ok_or_else(no_profile)?;
         let client = state.client()?;
         let me = fetch_me(&client).await?;
@@ -362,7 +581,7 @@ impl Desktop {
             ));
         }
         let generation = record(&client).await?.generation;
-        self.settle_company(state, &id, Some(company), me, generation)
+        self.settle_company(state, &id, Some(company), me, generation, force)
             .await
     }
 
@@ -430,7 +649,9 @@ impl Desktop {
             _ if me.companies.len() == 1 => Some(me.companies[0].id),
             _ => None,
         };
-        self.settle_company(state, id, company, me, generation)
+        // A sign-in that changes the company (the stored one is no longer
+        // the user's) is not held up: that company's work cannot be sent.
+        self.settle_company(state, id, company, me, generation, true)
             .await
     }
 
@@ -474,7 +695,8 @@ impl Desktop {
             profile_id: running.as_ref().map(|tasks| tasks.profile_id.clone()),
             state: running
                 .as_ref()
-                .map_or(RealtimeStateDto::Idle, |tasks| tasks.realtime.state()),
+                .and_then(|tasks| tasks.realtime.as_ref())
+                .map_or(RealtimeStateDto::Idle, Bridge::state),
         }
     }
 
@@ -502,9 +724,26 @@ impl Desktop {
         blocking(move || tokens.load_record(&id).map(drop).map_err(token_error)).await
     }
 
-    /// Opens `profile` and makes it active; starts its loop when it has a
+    /// Opens `profile` and makes it active; starts its loops when it has a
     /// company. On a store failure the profile stays active without engine.
+    /// Tells the UI `starting`, then how it ended.
     async fn start(
+        &self,
+        state: &AppState,
+        running: &mut Option<Running>,
+        profile: &Profile,
+    ) -> CommandResult<()> {
+        self.publish(ProfileStateDto::new(
+            ProfilePhase::Starting,
+            Some(&profile.id),
+            None,
+        ));
+        let result = self.open_active(state, running, profile).await;
+        self.publish_opened(state, &profile.id, result.as_ref().err());
+        result
+    }
+
+    async fn open_active(
         &self,
         state: &AppState,
         running: &mut Option<Running>,
@@ -535,21 +774,19 @@ impl Desktop {
             opened.engine.subscribe_changes(),
             self.sink.clone(),
         ));
+        let connectivity = self.runtime.spawn(connectivity_bridge(
+            profile.id.clone(),
+            self.connectivity.subscribe(),
+            sync.clone(),
+            self.sink.clone(),
+        ));
+        let snapshots = profile
+            .company_id
+            .is_some()
+            .then(|| self.start_snapshots(profile, &client, &opened.engine));
         let realtime = Bridge::start(
             &self.runtime,
-            Link {
-                profile_id: profile.id.clone(),
-                client,
-                reverb: reverb_params(&profile.meta_snapshot.reverb),
-                app_version: self.app_version.clone(),
-                // `KEYSTONE_DEV_ALLOW_HTTP` in a debug build, see `allow_http`.
-                allow_dev_plain: self.options.allow_http_localhost,
-                sync: sync.clone(),
-                status: opened.engine.subscribe(),
-                sessions: self.sessions_moved.subscribe(),
-                sink: self.realtime_sink.clone(),
-                options: self.realtime_options.clone(),
-            },
+            self.realtime_link(profile, client, &opened.engine, sync.clone()),
         );
         let attached = state.attach(
             &profile.id,
@@ -559,12 +796,82 @@ impl Desktop {
         );
         *running = Some(Running {
             profile_id: profile.id.clone(),
+            sync,
             sync_loop,
             events,
-            realtime,
+            connectivity,
+            snapshots,
+            realtime: Some(realtime),
         });
-        drop(sync);
         attached.map(drop)
+    }
+
+    /// What the realtime bridge of `profile` works with.
+    fn realtime_link(
+        &self,
+        profile: &Profile,
+        client: Arc<HttpClient>,
+        engine: &Engine,
+        sync: Option<SyncHandle>,
+    ) -> Link {
+        Link {
+            profile_id: profile.id.clone(),
+            client,
+            reverb: reverb_params(&profile.meta_snapshot.reverb),
+            app_version: self.app_version.clone(),
+            // `KEYSTONE_DEV_ALLOW_HTTP` in a debug build, see `allow_http`.
+            allow_dev_plain: self.options.allow_http_localhost,
+            sync,
+            status: engine.subscribe(),
+            sessions: self.sessions_moved.subscribe(),
+            sink: self.realtime_sink.clone(),
+            options: self.realtime_options.clone(),
+        }
+    }
+
+    /// Closes the realtime connection of the running `profile` and opens it
+    /// again with its (new) settings.
+    async fn restart_realtime(
+        &self,
+        state: &AppState,
+        running: &mut Option<Running>,
+        profile: &Profile,
+    ) {
+        let Some(tasks) = running.as_mut().filter(|t| t.profile_id == profile.id) else {
+            return;
+        };
+        let (Ok(client), Ok(engine)) = (state.client(), state.engine()) else {
+            return;
+        };
+        if let Some(old) = tasks.realtime.take() {
+            old.close().await;
+        }
+        let link = self.realtime_link(profile, client, &engine, tasks.sync.clone());
+        tasks.realtime = Some(Bridge::start(&self.runtime, link));
+    }
+
+    /// The snapshot refresh of `profile` on the engine runtime.
+    fn start_snapshots(
+        &self,
+        profile: &Profile,
+        client: &Arc<HttpClient>,
+        engine: &Arc<Engine>,
+    ) -> SnapshotTask {
+        let (stop, stopped) = watch::channel(false);
+        let live = snapshots::Live {
+            profile_id: profile.id.clone(),
+            client: client.clone(),
+            engine: engine.clone(),
+            connectivity: self.connectivity.clone(),
+            resources: self.snapshot_resources.clone(),
+        };
+        let task = self.runtime.spawn(snapshots::refresh_loop(
+            live,
+            self.snapshot_period,
+            engine.subscribe(),
+            stopped,
+        ));
+        SnapshotTask { stop, task }
     }
 
     /// Clients of `profile`: one for direct calls, one inside the engine;
@@ -624,18 +931,40 @@ impl Desktop {
     }
 
     /// Stops the active profile: out of the state first (no new command
-    /// gets it), then its realtime connection, loop and event bridge, each
-    /// awaited.
+    /// gets it), then its realtime connection, snapshot refresh, loop and
+    /// event bridges, each awaited.
     async fn stop(&self, state: &AppState, running: &mut Option<Running>) {
         state.deactivate();
         if let Some(tasks) = running.take() {
-            tasks.realtime.close().await;
+            if let Some(realtime) = tasks.realtime {
+                realtime.close().await;
+            }
+            if let Some(snapshots) = tasks.snapshots {
+                snapshots.close().await;
+            }
             if let Some(task) = tasks.sync_loop {
                 task.abort();
                 let _ = task.await;
             }
-            tasks.events.abort();
-            let _ = tasks.events.await;
+            for task in [tasks.events, tasks.connectivity] {
+                task.abort();
+                let _ = task.await;
+            }
+        }
+    }
+
+    /// Unsent work of the active profile's engine: outbox entries waiting,
+    /// rejected or quarantined, and open conflicts. None without an engine.
+    async fn unsent_work(&self, state: &AppState) -> CommandResult<(usize, usize)> {
+        match state.engine() {
+            Ok(engine) => {
+                let status = blocking(move || Ok(engine.refresh_status()?)).await?;
+                Ok((
+                    status.pending + status.rejected + status.quarantined,
+                    status.conflicts,
+                ))
+            }
+            Err(_) => Ok((0, 0)),
         }
     }
 
@@ -651,24 +980,12 @@ impl Desktop {
         let active = state.active_profile_id().as_deref() == Some(id);
         if !force {
             let (outbox, conflicts) = if active {
-                match state.engine() {
-                    Ok(engine) => {
-                        let status = blocking(move || Ok(engine.refresh_status()?)).await?;
-                        (
-                            status.pending + status.rejected + status.quarantined,
-                            status.conflicts,
-                        )
-                    }
-                    Err(_) => (0, 0),
-                }
+                self.unsent_work(state).await?
             } else {
                 self.pending_work_of(id).await
             };
             if outbox + conflicts > 0 {
-                return Err(CommandError::new(
-                    codes::PROFILE_HAS_PENDING_WORK,
-                    format!("{outbox} unsent changes and {conflicts} open conflicts"),
-                ));
+                return Err(pending_work(outbox, conflicts));
             }
         }
         if active {
@@ -774,6 +1091,7 @@ impl Desktop {
         company: Option<Uuid>,
         me: Me,
         generation: u64,
+        force: bool,
     ) -> CommandResult<LoginDto> {
         let mut running = self.running.lock().await;
         let mut profile = self.profile(id).await?;
@@ -784,6 +1102,14 @@ impl Desktop {
             ));
         }
         if profile.company_id != company {
+            // Checked under the switch lock: the restart below starts the
+            // local data again for the new company.
+            if !force {
+                let (outbox, conflicts) = self.unsent_work(state).await?;
+                if outbox + conflicts > 0 {
+                    return Err(pending_work(outbox, conflicts));
+                }
+            }
             // The new client must build before anything is stopped.
             let candidate = Profile {
                 company_id: company,
@@ -907,6 +1233,13 @@ fn no_profile() -> CommandError {
     )
 }
 
+fn pending_work(outbox: usize, conflicts: usize) -> CommandError {
+    CommandError::new(
+        codes::PROFILE_HAS_PENDING_WORK,
+        format!("{outbox} unsent changes and {conflicts} open conflicts"),
+    )
+}
+
 fn task_failed() -> CommandError {
     CommandError::new(codes::TASK_FAILED, "the background task stopped")
 }
@@ -926,16 +1259,20 @@ fn now() -> String {
 }
 
 /// Tauri `setup`: builds the [`Desktop`] (app data directory, native
-/// keychain, engine runtime, `engine-event` sink) and selects the stored
-/// active profile in the background.
+/// keychain, engine runtime, `engine-event` sink), shares its
+/// [`Connectivity`] with `api_request`, and selects the stored active
+/// profile in the background (`profile_state` says `starting` until then).
 pub fn setup<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::Manager;
     let data_dir = app.path().app_data_dir()?;
     let version = app.package_info().version.to_string();
     let config = Config::for_app(data_dir, &version)?;
+    app.manage(config.connectivity.clone());
     let sink = Arc::new(crate::events::TauriSink(app.handle().clone()));
     let realtime_sink = Arc::new(TauriRealtimeSink(app.handle().clone()));
-    app.manage(Desktop::new(config, sink, realtime_sink)?);
+    let desktop = Desktop::new(config, sink, realtime_sink)?;
+    desktop.mark_starting();
+    app.manage(desktop);
     let handle = app.handle().clone();
     tauri::async_runtime::spawn(async move {
         let desktop = handle.state::<Desktop>();
@@ -948,9 +1285,10 @@ pub fn setup<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn s
 }
 
 /// Sends `trigger` to the active profile's sync loop; `Ok(false)` when it
-/// has none. The door for other parts of the shell (a proxy call that
-/// finds the server again). The realtime bridge holds the handle of its
-/// own profile's loop instead.
+/// has none. The door for other parts of the shell. The realtime bridge
+/// and the connectivity bridge (`Trigger::NetworkChanged` when a proxy
+/// call finds the server again) hold the handle of their own profile's
+/// loop instead.
 pub fn trigger(state: &AppState, trigger: Trigger) -> CommandResult<bool> {
     let id = state.active_profile_id().ok_or_else(no_profile)?;
     state.trigger(&id, trigger)
