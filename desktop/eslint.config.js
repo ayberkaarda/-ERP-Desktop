@@ -17,11 +17,17 @@ const NET_MODULES = [
   // Tauri plugins that would open a network path around the shell commands.
   '@tauri-apps/plugin-http',
   '@tauri-apps/plugin-websocket',
+  '@tauri-apps/plugin-upload',
+  '@tauri-apps/plugin-shell',
 ]
 // Module names inside the esquery regex literal below.
 const NET_PATTERN = NET_MODULES.map((m) => m.replace(/[/.]/g, '\\$&')).join('|')
 const NET_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource']
-const NET_HOSTS = ['window', 'globalThis', 'self']
+// Any member access by these names, whatever the object: window.fetch,
+// globalThis.fetch, aliases (const w = window; w.fetch), casts
+// ((window as X).fetch) and nested hosts (window.navigator.sendBeacon).
+// Lint is the second line; CSP connect-src is the real control.
+const NET_MEMBERS = `/^(${[...NET_GLOBALS, 'sendBeacon'].join('|')})$/`
 
 const networkBan = {
   'no-restricted-imports': [
@@ -38,15 +44,21 @@ const networkBan = {
       selector: `ImportExpression[source.value=/^(${NET_PATTERN})(\\/|$)/]`,
       message: NET_MSG,
     },
+    {
+      // import('ax' + 'ios') or a template literal hides the module name.
+      selector: 'ImportExpression:not([source.type="Literal"])',
+      message: 'Dynamic import needs a plain string literal.',
+    },
+    {
+      selector: `MemberExpression[computed=false][property.name=${NET_MEMBERS}]`,
+      message: NET_MSG,
+    },
+    {
+      selector: `MemberExpression[computed=true][property.value=${NET_MEMBERS}]`,
+      message: NET_MSG,
+    },
   ],
   'no-restricted-globals': ['error', ...NET_GLOBALS.map((name) => ({ name, message: NET_MSG }))],
-  'no-restricted-properties': [
-    'error',
-    ...NET_HOSTS.flatMap((object) =>
-      NET_GLOBALS.map((property) => ({ object, property, message: NET_MSG })),
-    ),
-    { object: 'navigator', property: 'sendBeacon', message: NET_MSG },
-  ],
 }
 
 export default defineConfig([
