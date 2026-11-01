@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { StatusDto } from '../../bridge/generated/StatusDto'
 import { createFakeBridge, deferred, fail, flush } from '../../test/fakeBridge'
@@ -91,6 +91,24 @@ describe('desktop connectivity', () => {
     answer.resolve(status('idle'))
     await flush()
     expect(s.connectivity.isOnline()).toBe(false)
+  })
+
+  it('a status asked before a network answer does not overrule it', async () => {
+    const answer = deferred<StatusDto>()
+    const s = await setup(() => answer.promise)
+    s.connectivity.network.answered()
+    answer.resolve(status('offline'))
+    await flush()
+    expect(s.connectivity.isOnline()).toBe(true)
+  })
+
+  it('an unsubscribed listener hears no change', async () => {
+    const s = await setup()
+    const heard = vi.fn()
+    s.connectivity.subscribe(heard)()
+    s.connectivity.network.failed()
+    expect(s.connectivity.isOnline()).toBe(false)
+    expect(heard).not.toHaveBeenCalled()
   })
 
   it('a profile switch starts over from the new profile status', async () => {

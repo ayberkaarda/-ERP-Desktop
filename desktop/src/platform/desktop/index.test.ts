@@ -72,6 +72,18 @@ describe('createDesktopPlatform', () => {
     expect(platform.desktop.offlineMeta.get('/parties')).toBeUndefined()
   })
 
+  it('forgets the offline meta on a company switch', async () => {
+    const { platform, bridge } = await setup()
+    bridge.handle({
+      api_request: () => ({ status: 200, headers: [], body: { kind: 'json', value: { data: [], meta: { offline: { partial: false, stale: true } } } }, source: 'local' }),
+      profile_select_company: () => ({ company_required: false }),
+    })
+    await platform.http.get('/parties')
+    expect(platform.desktop.offlineMeta.get('/parties')).toBeDefined()
+    await platform.session.switchCompany('c2')
+    expect(platform.desktop.offlineMeta.get('/parties')).toBeUndefined()
+  })
+
   it('asks the registered pending-work handler; none registered is a PendingWorkError', async () => {
     const { platform, bridge } = await setup()
     bridge.handle({ auth_sign_out: () => ({ status: 'pending_work', outbox: 1, conflicts: 0 }) })
@@ -145,5 +157,19 @@ describe('createDesktopPlatform', () => {
     platform.desktop.dispose()
     await flush()
     expect(bridge.listeners('engine-event') + bridge.listeners('realtime-event')).toBe(0)
+  })
+
+  it('after dispose a profile change reads nothing and keeps the offline meta', async () => {
+    const { platform, bridge, profile } = await setup()
+    const offline = { partial: false, stale: true }
+    bridge.handle({ api_request: () => ({ status: 200, headers: [], body: { kind: 'json', value: { data: [], meta: { offline } } }, source: 'local' }) })
+    await platform.http.get('/parties')
+    platform.desktop.dispose()
+    const before = bridge.calls.length
+    profile.active = 'p2'
+    await platform.desktop.refreshProfile()
+    await flush()
+    expect(bridge.calls.slice(before).map((c) => c.command)).toEqual(['profile_list'])
+    expect(platform.desktop.offlineMeta.get('/parties')).toEqual(offline)
   })
 })

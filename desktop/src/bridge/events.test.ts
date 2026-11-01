@@ -43,6 +43,11 @@ describe('parseEngineEvent', () => {
     expect(parseEngineEvent(payload)).toEqual(payload)
   })
 
+  it('keeps a connectivity event with a field it does not know yet', () => {
+    const payload = { type: 'connectivity', profile_id: 'p1', online: true, since: 'x' }
+    expect(parseEngineEvent(payload)).toEqual(payload)
+  })
+
   it('refuses a connectivity event without a boolean online', () => {
     expect(parseEngineEvent({ type: 'connectivity', profile_id: 'p1' })).toBeUndefined()
     expect(parseEngineEvent({ type: 'connectivity', profile_id: 'p1', online: 'true' })).toBeUndefined()
@@ -55,6 +60,7 @@ describe('parseEngineEvent', () => {
     expect(parseEngineEvent('status')).toBeUndefined()
     expect(parseEngineEvent({ type: 'status', status })).toBeUndefined()
     expect(parseEngineEvent({ type: 'status', profile_id: 'p', status: 1 })).toBeUndefined()
+    expect(parseEngineEvent({ type: 'status', profile_id: 'p', status: {} })).toBeUndefined()
     expect(
       parseEngineEvent({ type: 'resources_changed', profile_id: 'p', resources: [1], all: true }),
     ).toBeUndefined()

@@ -1,7 +1,11 @@
 // A failed shell command as the web `ApiError` the features already handle.
 
+import type { ShellErrorCode } from '../../bridge/generated/ShellErrorCode'
 import type { CommandError } from '../../bridge/invoke'
 import { ApiError } from '@/platform/types'
+
+/** Server session codes the shell passes on as they are (`client/http/proxy.rs`). */
+type ServerSessionCode = 'UNAUTHENTICATED' | 'USER_DEACTIVATED' | 'PASSWORD_CHANGE_REQUIRED'
 
 /**
  * HTTP status a command failure stands for. A session code gets the status the
@@ -14,7 +18,7 @@ export const COMMAND_STATUS: Readonly<Record<string, number>> = {
   USER_DEACTIVATED: 403,
   PASSWORD_CHANGE_REQUIRED: 403,
   PAYLOAD_TOO_LARGE: 413,
-}
+} satisfies Partial<Record<ShellErrorCode | ServerSessionCode, number>>
 
 export function commandToApiError(error: CommandError): ApiError {
   const details: Record<string, unknown> =

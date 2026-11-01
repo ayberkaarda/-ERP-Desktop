@@ -132,6 +132,19 @@ describe('desktop http: request mapping', () => {
     expect(s.sent()[0]?.headers).toEqual([['Accept-Language', 'tr']])
   })
 
+  it('neither logs a caller Authorization header nor carries it on the error', async () => {
+    const spies = (['log', 'debug', 'info', 'warn', 'error'] as const).map((m) =>
+      vi.spyOn(console, m).mockImplementation(() => undefined),
+    )
+    const s = setup(() => fail('NETWORK_ERROR', 'down'))
+    const error = await s.http.get('/x', { headers: { Authorization: 'Bearer SECRET-TOKEN' } }).catch((e: unknown) => e)
+    const logged = spies.flatMap((spy): unknown[] => spy.mock.calls.flat()).map(String).join(' ')
+    for (const spy of spies) spy.mockRestore()
+    expect(logged).not.toContain('SECRET-TOKEN')
+    expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain('SECRET-TOKEN')
+    expect(Object.keys(error as object).sort()).toEqual(['code', 'details', 'fields', 'name', 'status'])
+  })
+
   it('turns FormData into the exact multipart bytes and boundary', async () => {
     const s = setup()
     const form = new FormData()
@@ -175,6 +188,35 @@ describe('desktop http: request mapping', () => {
       '--B\r\nContent-Disposition: form-data; name="a%22b%0D%0Ac"\r\n\r\nx\r\ny\r\nz\r\n' +
         '--B\r\nContent-Disposition: form-data; name="f"; filename="r%22%0D.txt"\r\nContent-Type: application/octet-stream\r\n\r\nç\r\n--B--\r\n',
     )
+  })
+
+  it('sends a file larger than one base64 chunk whole', async () => {
+    const s = setup()
+    const big = new Uint8Array(100_000).map((_, i) => i % 251)
+    const form = new FormData()
+    form.append('file', new Blob([big], { type: 'application/pdf' }), 'big.pdf')
+    await s.http.post('/attachments', form)
+    const req = s.sent()[0]
+    const contentType = req?.headers?.find(([n]) => n === 'Content-Type')?.[1] ?? ''
+    const bytes = Uint8Array.from(atob((req?.body as { base64: string }).base64), (ch) => ch.charCodeAt(0))
+    const file = (await new Response(bytes, { headers: { 'content-type': contentType } }).formData()).get('file') as File
+    expect(file.size).toBe(big.length)
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(big)
+  })
+
+  it('gives every form its own random boundary', async () => {
+    const s = setup()
+    const form = () => {
+      const data = new FormData()
+      data.append('a', 'b')
+      return data
+    }
+    await s.http.post('/x', form())
+    await s.http.post('/x', form())
+    const [first, second] = s.sent().map((r) => r.headers?.find(([n]) => n === 'Content-Type')?.[1])
+    expect(first).toMatch(/boundary=.*[0-9a-f]{32}$/)
+    expect(second).toMatch(/boundary=.*[0-9a-f]{32}$/)
+    expect(first).not.toBe(second)
   })
 
   it('refuses an absolute url before sending anything', async () => {
@@ -329,13 +371,16 @@ describe('desktop http: session failures', () => {
     expect(s.failures).toEqual([])
   })
 
-  it('a command failure of an older session is stale too', async () => {
+  it.each([
+    ['an older session', 'USER_DEACTIVATED', (ctx: { generation: number; company: string | null }) => { ctx.generation = 5 }],
+    ['another company', 'UNAUTHENTICATED', (ctx: { generation: number; company: string | null }) => { ctx.company = 'c2' }],
+  ])('a command failure of %s is stale too', async (_n, code, change) => {
     const answer = deferred<ApiResponse>()
     const s = setup(() => answer.promise)
     const pending = s.http.get('/x').catch((e: unknown) => e)
     await flush()
-    s.context.generation = 5
-    answer.reject({ code: 'USER_DEACTIVATED', message: 'x' })
+    change(s.context)
+    answer.reject({ code, message: 'x' })
     expect(await pending).toMatchObject({ code: STALE_REQUEST })
     expect(s.failures).toEqual([])
   })

@@ -4,6 +4,7 @@
 // with `PlatformCancelledError` (the web keeps the session/company, no toast).
 // Any other rejection is a real failure (the web shows one error).
 
+import type { ShellErrorCode } from '../../bridge/generated/ShellErrorCode'
 import type { SignOutDto } from '../../bridge/generated/SignOutDto'
 import type { StatusDto } from '../../bridge/generated/StatusDto'
 import { call, toCommandError, type Invoke } from '../../bridge/invoke'
@@ -11,7 +12,7 @@ import { commandToApiError } from './errors'
 import { PlatformCancelledError } from '@/platform/shared'
 import { ApiError, type PlatformSession } from '@/platform/types'
 
-export const PENDING_WORK = 'PROFILE_HAS_PENDING_WORK'
+export const PENDING_WORK = 'PROFILE_HAS_PENDING_WORK' satisfies ShellErrorCode
 
 /** What would be lost; counts are unknown when they could not be read. */
 export interface PendingWork {

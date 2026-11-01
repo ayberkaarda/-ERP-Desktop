@@ -147,7 +147,25 @@ describe('desktop session', () => {
       profile_select_company: (args) => fail((args as { force?: boolean }).force ? 'COMPANY_NOT_AVAILABLE' : 'PROFILE_HAS_PENDING_WORK'),
       sync_status: () => counts,
     }, 'discard')
-    await expect(s.session.switchCompany('c2')).rejects.toMatchObject({ code: 'COMPANY_NOT_AVAILABLE' })
+    const error = await s.session.switchCompany('c2').catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error).toMatchObject({ code: 'COMPANY_NOT_AVAILABLE' })
     expect(s.steps).toEqual(['ask switchCompany 3/1'])
+  })
+
+  it('counts pending, rejected and quarantined entries as outbox and conflicts on their own', async () => {
+    const s = setup({
+      profile_select_company: guardedSelect,
+      sync_status: () => ({ ...counts, pending: 2, rejected: 3, quarantined: 5, conflicts: 7 }),
+    }, 'keep')
+    await expect(s.session.switchCompany('c2')).rejects.toBeInstanceOf(PlatformCancelledError)
+    expect(s.handler).toHaveBeenCalledWith({ action: 'switchCompany', outbox: 10, conflicts: 7 })
+  })
+
+  it('a forced sign-out that still reports pending work is not a sign-out', async () => {
+    const s = setup({ auth_sign_out: () => ({ status: 'pending_work', outbox: 1, conflicts: 0 }) }, 'discard')
+    await expect(s.session.logout()).rejects.toBeInstanceOf(PendingWorkError)
+    expect(s.bridge.calls.map((c) => c.args)).toEqual([{ force: false }, { force: true }])
+    expect(s.steps).toEqual(['ask logout 1/0'])
   })
 })
