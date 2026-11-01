@@ -10,21 +10,18 @@ fn main() {
     println!("cargo:rerun-if-env-changed=TAURI_CONFIG");
     println!("cargo:rerun-if-env-changed={}", build_guard::DEV_ALLOW_HTTP);
 
-    let config = std::fs::read_to_string("tauri.conf.json").expect("read tauri.conf.json");
-    let overlay = env::var("TAURI_CONFIG")
-        .ok()
-        .filter(|value| !value.trim().is_empty());
-    let dev_allow_http =
-        env::var_os(build_guard::DEV_ALLOW_HTTP).is_some_and(|value| !value.is_empty());
-    let inputs = build_guard::Inputs {
-        // `PROFILE` is `release` for release-like profiles, `debug` otherwise.
-        release: env::var("PROFILE").as_deref() == Ok("release"),
-        config: &config,
-        overlay: overlay.as_deref(),
-        dev_allow_http,
-    };
+    let gathered = build_guard::gather(
+        |name| env::var_os(name).map(|value| value.to_string_lossy().into_owned()),
+        |path| std::fs::read_to_string(path).ok(),
+    )
+    .unwrap_or_else(|text| panic!("\n\n{text}\n"));
+    // A path that does not exist would rerun this script on every build, so
+    // only a present platform file is watched.
+    if gathered.platform.is_some() {
+        println!("cargo:rerun-if-changed={}", gathered.platform_file);
+    }
 
-    match build_guard::check(&inputs) {
+    match build_guard::check(&gathered.inputs()) {
         Ok(build_guard::Verdict::Ok) => {}
         // Only bundled builds load the policy; plain cargo check/test stay quiet.
         Ok(build_guard::Verdict::Warn(text)) => {
