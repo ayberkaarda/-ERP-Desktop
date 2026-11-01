@@ -35,6 +35,11 @@ pub const ENGINE_EVENT: &str = "engine-event";
 /// in order; the payload is [`dto::realtime::RealtimeEventDto`].
 pub const REALTIME_EVENT: &str = "realtime-event";
 
+/// Name of the Tauri event that tells each change of the active profile's
+/// state; the payload is [`dto::profile::ProfileStateDto`] (the command
+/// `profile_state` gives the current one).
+pub const PROFILE_STATE_EVENT: &str = "profile-state";
+
 /// Label of the main window (`tauri.conf.json`, `capabilities/default.json`).
 pub const MAIN_WINDOW: &str = "main";
 
@@ -105,7 +110,8 @@ pub fn allowed_dev_url(dev_build: bool, dev_url: Option<&tauri::Url>) -> Option<
 
 /// Builds the main window from its config entry (`create: false` there) with
 /// the navigation lock and no new windows: `window.open` and `target=_blank`
-/// open nothing. Links out go through `shell` open (`https` only).
+/// open nothing. Links out go through `open_external` (fixed pages of the
+/// active profile, opened from Rust).
 fn create_main_window<R: tauri::Runtime>(
     app: &tauri::App<R>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -145,7 +151,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_shell::init())
         .manage(state::AppState::default())
-        .manage(router::Connectivity::default())
+        // `router::Connectivity` is managed in `bootstrap::setup` (shared
+        // with the profile tasks).
         .setup(|app| {
             create_main_window(app)?;
             bootstrap::setup(app)
@@ -159,6 +166,9 @@ pub fn run() {
             commands::profiles::profile_reset,
             commands::profiles::profile_remove,
             commands::profiles::profile_select_company,
+            commands::profiles::profile_state,
+            commands::profiles::profile_refresh_meta,
+            commands::external::open_external,
             commands::auth::auth_login,
             commands::auth::auth_restore,
             commands::auth::auth_sign_out,

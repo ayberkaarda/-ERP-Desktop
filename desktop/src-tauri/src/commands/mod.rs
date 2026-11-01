@@ -8,6 +8,7 @@
 
 pub mod api;
 pub mod auth;
+pub mod external;
 pub mod profiles;
 pub mod sync;
 
@@ -23,6 +24,8 @@ pub mod codes {
     pub const NO_ACTIVE_PROFILE: &str = "NO_ACTIVE_PROFILE";
     /// The active profile has no sync engine (its local store is not open).
     pub const ENGINE_UNAVAILABLE: &str = "ENGINE_UNAVAILABLE";
+    /// The system browser could not be started (`open_external`).
+    pub const EXTERNAL_OPEN_FAILED: &str = "EXTERNAL_OPEN_FAILED";
 }
 
 /// Error of a Tauri command, as the webview receives it.

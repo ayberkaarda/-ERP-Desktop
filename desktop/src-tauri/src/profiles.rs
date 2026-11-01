@@ -197,6 +197,18 @@ impl ProfileRegistry {
         changed.ok_or_else(|| not_found(id))
     }
 
+    /// Replaces the stored `/api/v1/meta` of the profile (`profile_refresh_meta`).
+    pub fn set_meta(&self, id: &str, meta: MetaSnapshot) -> CommandResult<Profile> {
+        let mut changed = None;
+        self.update(|file| {
+            let profile = file.get_mut(id)?;
+            profile.meta_snapshot = meta;
+            changed = Some(profile.clone());
+            Ok(())
+        })?;
+        changed.ok_or_else(|| not_found(id))
+    }
+
     fn update(
         &self,
         change: impl FnOnce(&mut ProfilesFile) -> CommandResult<()>,

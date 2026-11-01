@@ -64,6 +64,9 @@ fn fast_realtime() -> RealtimeOptions {
     }
 }
 
+/// Snapshot rounds of most tests: the first one only.
+const SNAPSHOT_PERIOD: Duration = Duration::from_secs(3600);
+
 fn fx() -> Fx {
     fx_with(options())
 }
@@ -90,6 +93,16 @@ fn desktop_over(
     mock: &Arc<mock::Store>,
     options: ClientOptions,
 ) -> (Desktop, Arc<Recorder>, Arc<RealtimeRecorder>) {
+    desktop_with(dir, service, mock, options, SNAPSHOT_PERIOD)
+}
+
+fn desktop_with(
+    dir: &Path,
+    service: &str,
+    mock: &Arc<mock::Store>,
+    options: ClientOptions,
+    snapshot_period: Duration,
+) -> (Desktop, Arc<Recorder>, Arc<RealtimeRecorder>) {
     let store: Arc<CredentialStore> = mock.clone();
     let config = Config {
         data_dir: dir.to_path_buf(),
@@ -99,6 +112,8 @@ fn desktop_over(
         app_version: "0.1.0".into(),
         release_wait: Duration::from_millis(300),
         realtime: fast_realtime(),
+        connectivity: Connectivity::default(),
+        snapshot_period,
     };
     let events = Arc::new(Recorder::default());
     let realtime = Arc::new(RealtimeRecorder::default());
@@ -536,14 +551,14 @@ async fn several_companies_wait_for_a_choice() {
 
     let unknown = fx
         .desktop
-        .select_company(&fx.state, Uuid::now_v7())
+        .select_company(&fx.state, Uuid::now_v7(), false)
         .await
         .unwrap_err();
     assert_eq!(unknown.code, codes::COMPANY_NOT_AVAILABLE);
 
     let chosen = fx
         .desktop
-        .select_company(&fx.state, COMPANY_2.parse().unwrap())
+        .select_company(&fx.state, COMPANY_2.parse().unwrap(), false)
         .await
         .unwrap();
     assert_eq!(chosen.profile.company_id, Some(COMPANY_2.parse().unwrap()));
@@ -1148,6 +1163,8 @@ async fn native_two_profiles_switch_on_the_credential_manager() {
             app_version: "0.1.0".into(),
             release_wait: Duration::from_secs(2),
             realtime: RealtimeOptions::default(),
+            connectivity: Connectivity::default(),
+            snapshot_period: snapshot_period(),
         },
         events.clone(),
         Arc::new(RealtimeRecorder::default()),
@@ -1206,3 +1223,4 @@ async fn native_two_profiles_switch_on_the_credential_manager() {
 }
 
 mod realtime;
+mod shell;

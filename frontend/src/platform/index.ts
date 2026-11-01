@@ -1,11 +1,22 @@
 import i18n from '@/lib/i18n'
 import { useCompanyStore } from '@/stores/company'
+import { createPlatform } from './runtime'
 import type { AuthFailure } from './types'
-import { createWebPlatform } from './web'
-import { reverbConfigFromEnv } from './web/realtime'
 
 export * from './types'
-export { createIdempotencyKey, isStaleRequest, withIdempotency } from './web/http'
+export {
+  apiErrorFromEnvelope,
+  assertApiPath,
+  classifyAuthFailure,
+  createIdempotencyKey,
+  filenameFromDisposition,
+  isPlatformCancelled,
+  isStaleRequest,
+  PlatformCancelledError,
+  readFields,
+  STALE_REQUEST,
+  withIdempotency,
+} from './shared'
 
 let authFailureHandler: ((failure: AuthFailure) => void) | null = null
 let sessionGeneration = 0
@@ -25,11 +36,11 @@ export function bumpSessionGeneration(): number {
   return sessionGeneration
 }
 
-// Single runtime selection point; the desktop shell will provide its own adapter here.
-export const platform = createWebPlatform({
+// Single runtime selection point: ./runtime builds the web adapter; the desktop build swaps
+// that module for its own.
+export const platform = createPlatform({
   getCompanyId: () => useCompanyStore.getState().activeCompanyId,
   getLocale: () => i18n.language,
   getSessionGeneration,
   onAuthFailure: (failure) => authFailureHandler?.(failure),
-  reverb: reverbConfigFromEnv(import.meta.env),
 })

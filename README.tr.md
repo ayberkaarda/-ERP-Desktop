@@ -8,19 +8,19 @@ Geliştirme, resmî UBL-TR yapısal doğrulaması ve yerel sandbox içeren Faz 9
 
 ## Masaüstü uygulaması ilerlemesi
 
-`██████████████░░░░░░ 68%`
+`██████████████░░░░░░ 69%`
 
 | Faz | Teslimat | Ağırlık | Durum | Faz içi yüzde |
 |---|---|---|---|---|
 | D0 | Repo ve sözleşmeler | 5 | Tamam | %100 |
 | D1 | Sunucu sync modülü (web reposu) | 25 | Tamam | %100 |
 | D2 | `keystone-sync` crate | 20 | Tamam | %100 |
-| D3 | Tauri kabuğu | 20 | Sürüyor | %90 |
+| D3 | Tauri kabuğu | 20 | Sürüyor | %95 |
 | D4 | Frontend entegrasyonu | 15 | Başlamadı | %0 |
 | D5 | OS entegrasyonu | 5 | Başlamadı | %0 |
 | D6 | Release ve sertleştirme | 10 | Başlamadı | %0 |
 
-Ağırlıklı fazlar; faz içi yüzde birleştirilmiş iş paketlerine göre hesaplanır (D3: 10 iş paketinden 9'u birleştirildi). Son güncelleme: 2026-11-01. Ayrıntılar: [desktop/PLAN.md](desktop/PLAN.md).
+Ağırlıklı fazlar; faz içi yüzde birleştirilmiş iş paketlerine göre hesaplanır (D3: 10 iş paketinin 10'u birleştirildi; uçtan uca elle kontrol bekliyor). Son güncelleme: 2026-11-01. Ayrıntılar: [desktop/PLAN.md](desktop/PLAN.md).
 
 ## Ekran görüntüleri
 
