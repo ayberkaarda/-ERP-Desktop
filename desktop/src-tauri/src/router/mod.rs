@@ -8,6 +8,11 @@
 
 pub mod decide;
 pub mod envelope;
+pub mod local_read;
+#[cfg(test)]
+mod local_support;
+mod local_write;
+mod query_map;
 
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
@@ -115,7 +120,7 @@ impl LocalResolver for NoLocalCopy {
 
 /// The resolver `api_request` uses.
 pub fn local_resolver() -> Arc<dyn LocalResolver> {
-    Arc::new(NoLocalCopy)
+    Arc::new(local_read::LocalAnswers::default())
 }
 
 /// How long a proxy result decides online/offline before the engine
