@@ -276,6 +276,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_connectivity_bridge_outlives_lost_news() {
+        let connectivity = crate::router::Connectivity::default();
+        let recorder = Arc::new(Recorder::default());
+        let changes = connectivity.subscribe();
+        let now = std::time::Instant::now();
+        // Twenty changes before the bridge reads one: the channel keeps 16.
+        for n in 0..20 {
+            connectivity.observe("p1", n % 2 == 1, now);
+        }
+        let task = tokio::spawn(connectivity_bridge(
+            "p1".into(),
+            changes,
+            None,
+            recorder.clone(),
+        ));
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+        let wait_for = async |count: usize| {
+            while recorder.events().len() < count {
+                assert!(
+                    tokio::time::Instant::now() < deadline,
+                    "{:?}",
+                    recorder.events()
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        };
+        // The 16 the channel kept, after the loss.
+        wait_for(16).await;
+        // And news after that.
+        connectivity.observe("p1", false, now);
+        wait_for(17).await;
+        let events = recorder.events();
+        assert_eq!(events.len(), 17);
+        assert_eq!(
+            events.last(),
+            Some(&EngineEvent::Connectivity {
+                profile_id: "p1".into(),
+                online: false
+            })
+        );
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn lost_notices_ask_for_a_full_refetch() {
         let (_status_tx, status_rx) = watch::channel(SyncStatus::default());
         let (changes_tx, changes_rx) = broadcast::channel(1);

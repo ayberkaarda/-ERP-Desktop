@@ -345,6 +345,22 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
+    async fn the_period_counts_from_a_round_that_status_news_ran() {
+        let run = start_loop(false);
+        settle().await;
+        assert_eq!(run.after(PERIOD / 2).await, 0);
+        // Half a period late, ready: the status news runs the round.
+        run.fake.ready.store(true, Ordering::SeqCst);
+        run.move_status();
+        settle().await;
+        assert_eq!(run.rounds(), 1);
+        // Not when the first plan's period ends ...
+        assert_eq!(run.after(PERIOD / 2).await, 1);
+        // ... but one period after the round.
+        assert_eq!(run.after(PERIOD / 2).await, 2);
+    }
+
+    #[tokio::test(start_paused = true)]
     async fn a_round_that_is_not_done_runs_again_on_status_news() {
         let run = start_loop(true);
         run.fake.done.store(false, Ordering::SeqCst);

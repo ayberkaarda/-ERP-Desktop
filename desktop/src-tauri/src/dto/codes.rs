@@ -142,6 +142,20 @@ mod tests {
         }
     }
 
+    /// `ALL` is written by hand: every code of the type (what the TS union
+    /// says) must be in it, or the UI translation check never sees it.
+    #[test]
+    fn all_lists_every_code_of_the_type() {
+        let union = <ShellErrorCode as TS>::inline(&ts_rs::Config::default());
+        let quoted = regex::Regex::new(r#""([A-Z][A-Z0-9_]*)""#).unwrap();
+        let in_type: BTreeSet<String> = quoted
+            .captures_iter(&union)
+            .map(|found| found[1].to_owned())
+            .collect();
+        assert!(in_type.contains("NO_ACTIVE_PROFILE"), "{union}");
+        assert_eq!(in_type, names(), "{union}");
+    }
+
     /// Shell sources without their test modules.
     fn sources() -> Vec<(String, String)> {
         fn walk(dir: &Path, out: &mut Vec<(String, String)>) {
