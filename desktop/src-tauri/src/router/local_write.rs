@@ -17,13 +17,15 @@
 //! a repeat queues nothing and reaches no server, offline or after the push
 //! ([`replay`]). It answers with the first status and the row as it reads
 //! now, not with a copy of the first answer: `pending` must not outlive the
-//! draft. The same key on another request is `IDEMPOTENCY_KEY_REUSED`.
+//! draft. A draft the server rejected answers with that error, as the server
+//! repeats a stored rejection; after a discard the key is free again. The
+//! same key on another request is `IDEMPOTENCY_KEY_REUSED`.
 
 use keystone_sync::SyncError;
 use keystone_sync::outbox::{
     EnqueueOutcome, KeyedOutcome, NewMutation, OutboxEntry, OutboxState, RequestKey, RequestRecord,
 };
-use keystone_sync::wire::{MutationOp, ResourceName, Timestamp};
+use keystone_sync::wire::{ApiError, MutationOp, ResourceName, Timestamp};
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
@@ -81,7 +83,9 @@ pub fn replay(engine: &Engine, call: &ApiCall) -> CommandResult<Option<ApiRespon
         return Ok(None);
     };
     match engine.request_record(&key) {
-        Ok(Some(record)) => repeat_answer(engine, &record).map(Some),
+        // The record is there but this device cannot show the row: the
+        // server still can.
+        Ok(Some(record)) => Ok(repeat_answer(engine, &record).ok()),
         Ok(None) => Ok(None),
         Err(error) if error.code() == "IDEMPOTENCY_KEY_REUSED" => match refusal(error)? {
             LocalOutcome::Answer(answer) => Ok(Some(answer)),
@@ -193,6 +197,9 @@ fn enqueue(
 }
 
 fn repeat_answer(engine: &Engine, record: &RequestRecord) -> CommandResult<ApiResponseDto> {
+    if let Some(rejection) = &record.rejection {
+        return Ok(rejected(rejection));
+    }
     if record.cancelled {
         return Ok(cancelled());
     }
@@ -231,6 +238,20 @@ fn cancelled() -> ApiResponseDto {
             envelope::success(Value::Null, Map::new()),
             &OfflineMeta::default(),
         ),
+    )
+}
+
+/// The error the server rejected a draft with, in its envelope.
+fn rejected(error: &ApiError) -> ApiResponseDto {
+    let fields = error.fields.as_ref().map(|fields| {
+        fields
+            .iter()
+            .map(|(name, messages)| (name.clone(), json!(messages)))
+            .collect()
+    });
+    envelope::local(
+        error.code.http_status().unwrap_or(422),
+        envelope::error(error.code.ui_code(), &error.message, fields),
     )
 }
 

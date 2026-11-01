@@ -343,6 +343,71 @@ async fn keys_expire_after_their_retention() {
     assert_eq!(stored_keys(&env), 2);
 }
 
+#[tokio::test]
+async fn a_rejection_stays_with_the_key_until_a_retry_or_a_discard() {
+    let env = env().await;
+    verified(&env).await;
+    Mock::given(method("POST"))
+        .and(path(PUSH))
+        .respond_with(|request: &Request| {
+            let m = &body(request)["mutations"][0];
+            let error = json!({"message": "taken", "code": "VALIDATION_ERROR",
+                               "fields": {"name": ["taken"]}});
+            ResponseTemplate::new(200).set_body_json(json!({"data": {"results": [{
+                "idempotency_key": m["idempotency_key"], "resource": m["resource"],
+                "id": m["id"], "status": "rejected", "replayed": false, "error": error,
+            }]}, "meta": {}}))
+        })
+        .mount(&env.server)
+        .await;
+    env.engine
+        .enqueue_keyed(create(Uuid::now_v7()), &key("k"))
+        .unwrap();
+    let record = || env.engine.request_record(&key("k")).unwrap();
+    assert_eq!(record().unwrap().rejection, None);
+
+    env.engine.run_once(Trigger::Manual).await.unwrap();
+
+    let rejection = record().unwrap().rejection.unwrap();
+    assert_eq!(rejection.code.ui_code(), "VALIDATION_ERROR");
+    assert_eq!(
+        (rejection.message.as_str(), stored_keys(&env)),
+        ("taken", 1)
+    );
+    let entry = outbox_list(&env.store)[0].mutation.idempotency_key;
+
+    env.engine.retry(entry).unwrap();
+    assert_eq!(record().unwrap().rejection, None);
+
+    env.engine.run_once(Trigger::Manual).await.unwrap();
+    assert!(record().unwrap().rejection.is_some());
+
+    env.engine.discard(entry).unwrap();
+    assert_eq!(record(), None);
+    assert_eq!(stored_keys(&env), 0);
+}
+
+#[tokio::test]
+async fn an_expired_key_is_gone_for_reads_before_any_write() {
+    let env = env().await;
+    verified(&env).await;
+    env.engine
+        .enqueue_keyed(create(Uuid::now_v7()), &key("old"))
+        .unwrap();
+    env.store
+        .write(|tx| {
+            tx.execute(
+                "UPDATE outbox_request_keys
+                 SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-8 days')",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    assert_eq!(env.engine.request_record(&key("old")).unwrap(), None);
+}
+
 #[test]
 fn a_database_of_the_previous_version_is_upgraded_with_its_drafts() {
     let dir = tempfile::tempdir().unwrap();

@@ -10,7 +10,8 @@ use crate::conflicts::{ConflictRecord, persist_record};
 use crate::error::{Result, SyncError, refused};
 use crate::store::{Migration, Store};
 use crate::wire::{
-    ErrorCode, Mutation, MutationOp, PushResult, PushStatus, Resolution, ResourceName, Timestamp,
+    ApiError, ErrorCode, Mutation, MutationOp, PushResult, PushStatus, Resolution, ResourceName,
+    Timestamp,
 };
 
 pub const MIGRATIONS: &[Migration] = &[Migration {
@@ -42,13 +43,17 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
         resource TEXT NOT NULL,
         id TEXT NOT NULL,
         cancelled INTEGER NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        entry_key TEXT NOT NULL,
+        rejection TEXT
     ) STRICT;
-    CREATE INDEX outbox_request_keys_age ON outbox_request_keys(created_at);",
+    CREATE INDEX outbox_request_keys_age ON outbox_request_keys(created_at);
+    CREATE INDEX outbox_request_keys_entry ON outbox_request_keys(entry_key);",
 }];
 
 /// How long a request key answers repeats: the server's
-/// `idempotency_retention_days`. Records go on the next keyed write after that.
+/// `idempotency_retention_days`. An older record is no record; it is removed
+/// on the next keyed write.
 pub const REQUEST_KEY_RETENTION_DAYS: u32 = 7;
 
 pub const MAX_ATTEMPTS: u32 = 5;
@@ -119,6 +124,10 @@ pub struct RequestRecord {
     pub id: Uuid,
     /// The write cancelled an unsent create: nothing was queued.
     pub cancelled: bool,
+    /// The server rejected the draft; a repeat gets this error. Cleared by
+    /// a retry. A discard removes the whole record: the user gave the
+    /// request up, so the key is free again.
+    pub rejection: Option<ApiError>,
 }
 
 /// Answer of a keyed enqueue.
@@ -180,22 +189,25 @@ impl Outbox {
             tx.execute(
                 "DELETE FROM outbox_request_keys
                  WHERE created_at < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1)",
-                [format!("-{REQUEST_KEY_RETENTION_DAYS} days")],
+                [retention_limit()],
             )?;
             if let Some(record) = find_request(tx, key)? {
                 return Ok(KeyedOutcome::Repeat(record));
             }
             let (resource, id) = (draft.resource.clone(), draft.id);
             let outcome = enqueue_on(tx, draft)?;
+            let (EnqueueOutcome::Queued(entry) | EnqueueOutcome::Cancelled(entry)) = outcome;
             tx.execute(
-                "INSERT INTO outbox_request_keys(key,fingerprint,resource,id,cancelled,created_at)
-                 VALUES (?1,?2,?3,?4,?5,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
+                "INSERT INTO outbox_request_keys
+                 (key,fingerprint,resource,id,cancelled,created_at,entry_key)
+                 VALUES (?1,?2,?3,?4,?5,strftime('%Y-%m-%dT%H:%M:%fZ','now'),?6)",
                 params![
                     key.key,
                     key.fingerprint,
                     resource.as_str(),
                     id.to_string(),
                     matches!(outcome, EnqueueOutcome::Cancelled(_)),
+                    entry.to_string(),
                 ],
             )?;
             Ok(KeyedOutcome::New(outcome))
@@ -226,14 +238,15 @@ pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
 }
 
 fn find_request(conn: &Connection, key: &RequestKey) -> Result<Option<RequestRecord>> {
-    let found: Option<(String, String, String, bool)> = conn
+    let found: Option<(String, String, String, bool, Option<String>)> = conn
         .query_row(
-            "SELECT fingerprint,resource,id,cancelled FROM outbox_request_keys WHERE key=?1",
-            [&key.key],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            "SELECT fingerprint,resource,id,cancelled,rejection FROM outbox_request_keys
+             WHERE key=?1 AND created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?2)",
+            params![key.key, retention_limit()],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
         )
         .optional()?;
-    let Some((fingerprint, resource, mut id, cancelled)) = found else {
+    let Some((fingerprint, resource, mut id, cancelled, rejection)) = found else {
         return Ok(None);
     };
     if fingerprint != key.fingerprint {
@@ -260,7 +273,14 @@ fn find_request(conn: &Connection, key: &RequestKey) -> Result<Option<RequestRec
         resource: ResourceName(resource),
         id: Uuid::parse_str(&id).map_err(|_| invalid("invalid request key target"))?,
         cancelled,
+        rejection: rejection
+            .map(|error| serde_json::from_str(&error))
+            .transpose()?,
     }))
+}
+
+fn retention_limit() -> String {
+    format!("-{REQUEST_KEY_RETENTION_DAYS} days")
 }
 
 pub(crate) fn invalid(message: &str) -> SyncError {
@@ -329,7 +349,20 @@ pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
     Ok(entries)
 }
 
+/// Settles an entry. A failed one was given up: its request keys go too, and
+/// the same key is a new request.
 pub(crate) fn cancel(tx: &Transaction<'_>, key: Uuid, success: bool) -> Result<()> {
+    settle(tx, key, success)?;
+    if !success {
+        tx.execute(
+            "DELETE FROM outbox_request_keys WHERE entry_key=?1",
+            [key.to_string()],
+        )?;
+    }
+    Ok(())
+}
+
+fn settle(tx: &Transaction<'_>, key: Uuid, success: bool) -> Result<()> {
     if !success {
         let data: Option<String> = tx
             .query_row(
@@ -487,7 +520,8 @@ fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOut
     {
         let pair = (old.mutation.op, draft.op);
         if matches!(pair, (MutationOp::Create, MutationOp::Delete)) {
-            cancel(tx, old.mutation.idempotency_key, false)?;
+            // The record of the create stays: its repeat must not bring it back.
+            settle(tx, old.mutation.idempotency_key, false)?;
             return Ok(EnqueueOutcome::Cancelled(old.mutation.idempotency_key));
         }
         if matches!(
@@ -578,7 +612,11 @@ fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOut
                 )?;
             }
         }
-        cancel(tx, resolution.resolves, false)?;
+        settle(tx, resolution.resolves, false)?;
+        tx.execute(
+            "UPDATE outbox_request_keys SET entry_key=?1 WHERE entry_key=?2",
+            params![key.to_string(), resolution.resolves.to_string()],
+        )?;
         tx.execute(
             "DELETE FROM conflict_records WHERE key=?1",
             [resolution.resolves.to_string()],
@@ -697,6 +735,13 @@ impl OutboxQueue for Outbox {
                             "UPDATE outbox_entries SET state='rejected',last_error=?1 WHERE key=?2",
                             params![error.code.as_str(), result.idempotency_key.to_string()],
                         )?;
+                        tx.execute(
+                            "UPDATE outbox_request_keys SET rejection=?1 WHERE entry_key=?2",
+                            params![
+                                serde_json::to_string(error)?,
+                                result.idempotency_key.to_string()
+                            ],
+                        )?;
                         outcome.rejected += 1;
                     }
                 }
@@ -725,6 +770,7 @@ impl OutboxQueue for Outbox {
         self.store.write(|tx| {
             ensure_unsealed(tx)?;
             if tx.execute("UPDATE outbox_entries SET state='pending',attempts=0,last_error=NULL WHERE key=?1 AND state IN ('rejected','quarantined')", [key.to_string()])? != 1 { return Err(invalid("entry is not retryable")); }
+            tx.execute("UPDATE outbox_request_keys SET rejection=NULL WHERE entry_key=?1", [key.to_string()])?;
             tx.execute("UPDATE outbox_entries SET last_error=NULL WHERE last_error='SYNC_DEPENDENCY_FAILED'", [])?;
             Ok(())
         })

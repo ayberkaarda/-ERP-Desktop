@@ -14,8 +14,9 @@
 //! which count as partial.
 //!
 //! Snapshots are the whole answers of a `source: snapshot` resource:
-//! [`save_snapshot`] keeps a successful one, [`narrowing`] tells which query
-//! parameters make an answer something else.
+//! [`save_snapshot`] keeps a successful one, [`is_whole_answer`] tells which
+//! requests give one. A snapshot that holds fewer rows than a request asks
+//! for while more exist does not answer it.
 
 use std::sync::Arc;
 
@@ -232,6 +233,35 @@ pub fn narrowing(query: &[(String, String)]) -> Vec<String> {
         .collect()
 }
 
+/// Whether `query` asks for a whole answer: not narrowed, and with at least
+/// the default page size, so a small page never replaces a snapshot.
+pub fn is_whole_answer(query: &[(String, String)]) -> bool {
+    narrowing(query).is_empty()
+        && requested_page_size(query).is_some_and(|size| size >= query_map::DEFAULT_PER_PAGE)
+}
+
+/// `per_page` of `query`, the server's default without one; `None` when
+/// it is not a number.
+fn requested_page_size(query: &[(String, String)]) -> Option<u32> {
+    match query.iter().find(|(name, _)| name == "per_page") {
+        Some((_, value)) => value.parse().ok(),
+        None => Some(query_map::DEFAULT_PER_PAGE),
+    }
+}
+
+/// Whether `stored` has fewer rows than a page of `query` and more exist.
+fn holds_less_than_asked(stored: &Value, query: &[(String, String)]) -> bool {
+    let number = |field: &str| {
+        stored
+            .pointer(&format!("/meta/pagination/{field}"))
+            .and_then(Value::as_u64)
+    };
+    let (Some(held), Some(total)) = (number("per_page"), number("total")) else {
+        return false;
+    };
+    requested_page_size(query).is_none_or(|asked| u64::from(asked) > held) && total > held
+}
+
 /// The stored answer of a `source: snapshot` resource.
 fn snapshot(
     engine: &Engine,
@@ -247,6 +277,11 @@ fn snapshot(
     let Some(Some(snapshot)) = open(engine.snapshot(resource))? else {
         return Ok(unsupported());
     };
+    if holds_less_than_asked(&snapshot.data, &call.query) {
+        return Ok(LocalOutcome::Unsupported {
+            unsupported_filters: vec!["per_page".to_owned()],
+        });
+    }
     let body = if snapshot.data.get("data").is_some() {
         snapshot.data
     } else {

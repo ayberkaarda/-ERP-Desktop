@@ -537,6 +537,73 @@ async fn a_narrowed_answer_is_not_a_snapshot() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_short_page_is_not_a_snapshot() {
+    let fx = fixture(vec![]).await;
+    mount_balances(&fx, 0).await;
+    fx.call(get(BALANCES, json!([]))).await;
+    let kept = fx.engine.snapshot(&name("stock-balances")).unwrap();
+
+    fx.call(get(BALANCES, json!([["per_page", "5"]]))).await;
+    fx.call(get(BALANCES, json!([["per_page", "x"]]))).await;
+
+    assert_eq!(fx.engine.snapshot(&name("stock-balances")).unwrap(), kept);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_short_page_only_is_not_stored_at_all() {
+    let fx = fixture(vec![]).await;
+    mount_balances(&fx, 0).await;
+
+    fx.call(get(BALANCES, json!([["per_page", "5"]]))).await;
+    fx.go_offline();
+
+    assert_eq!(balances_copy(&fx), LocalCopy::Missing);
+    let answer = fx.call(get(BALANCES, json!([["per_page", "25"]]))).await;
+    assert_eq!(answer.status, 503);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_request_for_more_than_the_snapshot_holds_is_unavailable() {
+    let fx = fixture(vec![]).await;
+    stored(
+        &fx,
+        &json!({
+            "data": [{"quantity": "1"}],
+            "meta": {"pagination": {"current_page": 1, "per_page": 25, "total": 40, "last_page": 2}}
+        }),
+    );
+    fx.go_offline();
+
+    let more = fx.call(get(BALANCES, json!([["per_page", "100"]]))).await;
+    assert_eq!(more.status, 503);
+    assert_eq!(
+        offline_of(&more)["unsupported_filters"],
+        json!(["per_page"])
+    );
+    let same = fx.call(get(BALANCES, json!([["per_page", "25"]]))).await;
+    assert_eq!(same.status, 200);
+    let default = fx.call(get(BALANCES, json!([]))).await;
+    assert_eq!(default.status, 200);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_finished_snapshot_answers_any_page_size() {
+    let fx = fixture(vec![]).await;
+    stored(
+        &fx,
+        &json!({
+            "data": [{"quantity": "1"}],
+            "meta": {"pagination": {"current_page": 1, "per_page": 25, "total": 1, "last_page": 1}}
+        }),
+    );
+    fx.go_offline();
+
+    let answer = fx.call(get(BALANCES, json!([["per_page", "100"]]))).await;
+
+    assert_eq!(answer.status, 200);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_failed_answer_is_not_a_snapshot() {
     let fx = fixture(vec![]).await;
     Mock::given(method("GET"))

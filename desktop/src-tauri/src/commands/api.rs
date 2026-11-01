@@ -180,7 +180,7 @@ const NETWORK_ERROR: &str = "NETWORK_ERROR";
 fn is_whole_snapshot(target: &Target, call: &ApiCall) -> bool {
     target.source == Source::Snapshot
         && target.kind == TargetKind::List
-        && local_read::narrowing(&call.query).is_empty()
+        && local_read::is_whole_answer(&call.query)
 }
 
 struct Run<'a> {

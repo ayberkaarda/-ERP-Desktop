@@ -295,6 +295,53 @@ impl Fixture {
             .await;
     }
 
+    /// Every pushed mutation is answered `rejected` with this error.
+    pub async fn mount_push_rejected(&self, error: Value) {
+        Mock::given(method("POST"))
+            .and(path("/api/v1/sync/push"))
+            .respond_with(move |request: &Request| {
+                let body: Value = serde_json::from_slice(&request.body).unwrap();
+                let results: Vec<Value> = body["mutations"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|m| {
+                        json!({
+                            "idempotency_key": m["idempotency_key"],
+                            "resource": m["resource"],
+                            "id": m["id"],
+                            "status": "rejected",
+                            "replayed": false,
+                            "error": error,
+                        })
+                    })
+                    .collect();
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"data": {"results": results}, "meta": {}}))
+            })
+            .mount(&self.server)
+            .await;
+    }
+
+    /// From now on the sync manifest leaves `resource` out.
+    pub async fn drop_from_manifest(&self, resource: &str) {
+        let mut manifest = sync_manifest(2);
+        let kept: Vec<Value> = manifest["data"]["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|entry| entry["resource"] != resource)
+            .cloned()
+            .collect();
+        manifest["data"]["resources"] = Value::Array(kept);
+        Mock::given(method("GET"))
+            .and(path("/api/v1/sync/manifest"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(manifest))
+            .with_priority(1)
+            .mount(&self.server)
+            .await;
+    }
+
     /// Mutations the server received, in order.
     pub async fn pushed(&self) -> Vec<Value> {
         self.server

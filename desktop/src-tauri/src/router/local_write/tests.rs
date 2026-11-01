@@ -728,6 +728,115 @@ async fn a_key_racing_past_the_lookup_is_not_stopped_by_a_locked_row() {
     ));
 }
 
+fn name_rejected() -> Value {
+    json!({
+        "message": "the name is taken",
+        "code": "VALIDATION_ERROR",
+        "fields": {"name": ["taken"]},
+    })
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_of_a_rejected_draft_gives_the_rejection_online_and_offline() {
+    let fx = fixture(vec![]).await;
+    fx.mount_push_rejected(name_rejected()).await;
+    fx.go_offline();
+    let request = send("POST", PARTIES, Some("k"), Some(json!({"name": "A"})));
+    pending(&fx.call(request.clone()).await);
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    assert_eq!(fx.outbox()[0].state, OutboxState::Rejected);
+
+    let offline = fx.call(request.clone()).await;
+    fx.go_online();
+    let online = fx.call(request).await;
+
+    for again in [&offline, &online] {
+        refused(again, 422, "VALIDATION_ERROR");
+        assert_eq!(again.json().unwrap(), &json!({ "errors": name_rejected() }));
+    }
+    assert_eq!(fx.outbox().len(), 1, "no new draft");
+    assert_eq!(fx.received(PARTIES).await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_rejection_of_a_merged_draft_answers_every_key() {
+    let (a, row_a) = doc("draft", json!({}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    fx.mount_push_rejected(name_rejected()).await;
+    fx.go_offline();
+    let path_a = format!("{QUOTES}/{a}");
+    let write =
+        |key, notes: &str| send("PATCH", &path_a, Some(key), Some(json!({ "notes": notes })));
+    fx.call(write("k1", "one")).await;
+    fx.call(write("k2", "two")).await;
+    assert_eq!(fx.outbox().len(), 1);
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+
+    refused(&fx.call(write("k1", "one")).await, 422, "VALIDATION_ERROR");
+    refused(&fx.call(write("k2", "two")).await, 422, "VALIDATION_ERROR");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_retried_rejection_is_pending_again() {
+    let fx = fixture(vec![]).await;
+    fx.mount_push_rejected(name_rejected()).await;
+    fx.go_offline();
+    let request = send("POST", PARTIES, Some("k"), Some(json!({"name": "A"})));
+    fx.call(request.clone()).await;
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+
+    fx.engine
+        .retry(fx.outbox()[0].mutation.idempotency_key)
+        .unwrap();
+
+    pending(&fx.call(request).await);
+    assert_eq!(fx.outbox().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_after_a_discard_is_a_new_request() {
+    let fx = fixture(vec![]).await;
+    fx.mount_push_rejected(name_rejected()).await;
+    fx.go_offline();
+    let request = send("POST", PARTIES, Some("k"), Some(json!({"name": "A"})));
+    let first = fx.call(request.clone()).await;
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    fx.engine
+        .discard(fx.outbox()[0].mutation.idempotency_key)
+        .unwrap();
+    assert!(fx.outbox().is_empty());
+
+    let again = fx.call(request).await;
+
+    pending(&again);
+    assert_ne!(data_id(&again), data_id(&first));
+    assert_eq!(fx.outbox().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_this_device_cannot_read_goes_to_the_server() {
+    let fx = fixture(vec![]).await;
+    fx.mount_push_applied().await;
+    fx.go_offline();
+    let request = send("POST", PARTIES, Some("k"), Some(json!({"name": "A"})));
+    pending(&fx.call(request.clone()).await);
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    fx.drop_from_manifest("parties").await;
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    Mock::given(method("POST"))
+        .and(path(PARTIES))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {"id": "s"}})))
+        .mount(&fx.server)
+        .await;
+
+    fx.go_online();
+    let answer = fx.call(request).await;
+
+    assert_eq!(answer.source, ResponseSource::Network);
+    assert_eq!(answer.status, 200);
+    assert_eq!(fx.received(PARTIES).await, 1);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn the_same_key_with_another_body_is_refused_after_the_push() {
     let fx = fixture(vec![]).await;
@@ -977,14 +1086,8 @@ async fn an_offline_draft_is_pushed_online_and_applied() {
     assert_eq!(read.json().unwrap()["data"]["name"], "Yeni Cari");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn a_conflict_keeps_the_draft_visible_and_is_not_overwritten() {
-    let (a, row_a) = doc("draft", json!({"notes": "old"}));
-    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
-    fx.go_offline();
-    let path_a = format!("{QUOTES}/{a}");
-    fx.call(send("PATCH", &path_a, None, Some(json!({"notes": "mine"}))))
-        .await;
+/// Every pushed write of row `a` is answered with this conflict.
+async fn mount_conflict(fx: &Fixture, a: Uuid, code: &'static str, choices: Value) {
     Mock::given(method("POST"))
         .and(path("/api/v1/sync/push"))
         .respond_with(move |request: &Request| {
@@ -998,17 +1101,88 @@ async fn a_conflict_keeps_the_draft_visible_and_is_not_overwritten() {
                 "status": "conflict",
                 "replayed": false,
                 "conflict": {
-                    "code": "VERSION_CONFLICT",
+                    "code": code,
                     "base_version": 4,
                     "server_version": 5,
                     "server_data": server,
                     "conflicting_fields": ["notes"],
-                    "choices": ["keep_mine", "take_server", "merge"],
+                    "choices": choices,
                 },
             }]}, "meta": {}}))
         })
+        .up_to_n_times(1)
+        .with_priority(1)
         .mount(&fx.server)
         .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_rejection_of_a_conflict_decision_answers_the_first_key() {
+    use keystone_sync::conflicts::ResolutionAction;
+    use keystone_sync::wire::ConflictChoice;
+    let (a, row_a) = doc("draft", json!({"notes": "old"}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    fx.go_offline();
+    let request = send(
+        "PATCH",
+        &format!("{QUOTES}/{a}"),
+        Some("k"),
+        Some(json!({"notes": "mine"})),
+    );
+    fx.call(request.clone()).await;
+    let choices = json!(["keep_mine", "take_server", "merge"]);
+    mount_conflict(&fx, a, "VERSION_CONFLICT", choices).await;
+    fx.mount_push_rejected(name_rejected()).await;
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    let key = fx.outbox()[0].mutation.idempotency_key;
+
+    let action = fx.engine.resolve_conflict(key, ConflictChoice::KeepMine);
+    let ResolutionAction::Enqueue(decision) = action.unwrap() else {
+        panic!("keep_mine queues a decision");
+    };
+    fx.engine.enqueue(decision).unwrap();
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+
+    refused(&fx.call(request).await, 422, "VALIDATION_ERROR");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_repeat_after_a_discarded_conflict_is_a_new_request() {
+    use keystone_sync::wire::ConflictChoice;
+    let (a, row_a) = doc("draft", json!({"notes": "old"}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    fx.go_offline();
+    let request = send(
+        "PATCH",
+        &format!("{QUOTES}/{a}"),
+        Some("k"),
+        Some(json!({"notes": "mine"})),
+    );
+    fx.call(request.clone()).await;
+    let choices = json!(["save_as_new_draft", "discard"]);
+    mount_conflict(&fx, a, "DOCUMENT_LOCKED", choices).await;
+    fx.engine.run_once(Trigger::Manual).await.unwrap();
+    let key = fx.outbox()[0].mutation.idempotency_key;
+
+    fx.engine
+        .resolve_conflict(key, ConflictChoice::Discard)
+        .unwrap();
+    assert!(fx.outbox().is_empty());
+
+    pending(&fx.call(request).await);
+    assert_eq!(fx.outbox().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_conflict_keeps_the_draft_visible_and_is_not_overwritten() {
+    let (a, row_a) = doc("draft", json!({"notes": "old"}));
+    let fx = fixture(vec![("sales-quotes", vec![row_a])]).await;
+    fx.go_offline();
+    let path_a = format!("{QUOTES}/{a}");
+    fx.call(send("PATCH", &path_a, None, Some(json!({"notes": "mine"}))))
+        .await;
+    let choices = json!(["keep_mine", "take_server", "merge"]);
+    mount_conflict(&fx, a, "VERSION_CONFLICT", choices).await;
 
     fx.engine.run_once(Trigger::Manual).await.unwrap();
 
