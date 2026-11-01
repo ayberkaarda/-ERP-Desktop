@@ -1,5 +1,5 @@
 import type { HttpClient } from '@/platform/types'
-import { createIdempotencyKey, withIdempotency } from '@/platform/web/http'
+import { createIdempotencyKey, withIdempotency } from '@/platform/shared'
 import type { AttachmentApi, FileMeta } from './types'
 
 const PER_PAGE = 100
