@@ -97,6 +97,12 @@ pub fn main_window_config(
     Ok(main.clone())
 }
 
+/// The dev server origin the window may show: `build.devUrl` in a dev build
+/// (`tauri dev`, no `custom-protocol`), never in a bundled one.
+pub fn allowed_dev_url(dev_build: bool, dev_url: Option<&tauri::Url>) -> Option<tauri::Url> {
+    if dev_build { dev_url.cloned() } else { None }
+}
+
 /// Builds the main window from its config entry (`create: false` there) with
 /// the navigation lock and no new windows: `window.open` and `target=_blank`
 /// open nothing. Links out go through `shell` open (`https` only).
@@ -104,11 +110,7 @@ fn create_main_window<R: tauri::Runtime>(
     app: &tauri::App<R>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = main_window_config(&app.config().app.windows)?;
-    let dev_url = if tauri::is_dev() {
-        app.config().build.dev_url.clone()
-    } else {
-        None
-    };
+    let dev_url = allowed_dev_url(tauri::is_dev(), app.config().build.dev_url.as_ref());
     tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
         .on_navigation(navigation_hook(dev_url))
         .on_new_window(|url, _features| {
@@ -321,6 +323,23 @@ mod navigation_tests {
         }
     }
 
+    /// A bundled build (`custom-protocol`, release or `--debug`) never lets
+    /// the window go to the dev server, whatever `build.devUrl` says.
+    #[test]
+    fn the_dev_origin_is_allowed_only_in_a_dev_build() {
+        let dev = url("http://localhost:1420");
+        assert_eq!(super::allowed_dev_url(false, Some(&dev)), None);
+        assert_eq!(super::allowed_dev_url(false, None), None);
+        assert_eq!(super::allowed_dev_url(true, Some(&dev)), Some(dev.clone()));
+        assert_eq!(super::allowed_dev_url(true, None), None);
+
+        let bundled = super::navigation_hook(super::allowed_dev_url(false, Some(&dev)));
+        assert!(!bundled(&url("http://localhost:1420/")));
+        assert!(bundled(&url("http://tauri.localhost/")));
+        let dev_build = super::navigation_hook(super::allowed_dev_url(true, Some(&dev)));
+        assert!(dev_build(&url("http://localhost:1420/")));
+    }
+
     #[test]
     fn the_dev_server_only_in_dev() {
         let dev = Some("http://localhost:1420");
@@ -403,6 +422,10 @@ mod config_tests {
             "a conditional step in desktop-shell:\n{job}"
         );
         assert!(
+            !job.contains("\n    if:"),
+            "desktop-shell itself is conditional:\n{job}"
+        );
+        assert!(
             job.contains("\n      - run: cargo check --release -p keystone-desktop --locked\n"),
             "{job}"
         );
@@ -429,10 +452,16 @@ mod config_tests {
         assert!(step.contains("set +e"), "{step}");
         assert!(step.contains(r#"[ "$status" -ne 101 ]"#), "{step}");
         assert!(step.contains("exit 1"), "{step}");
-        assert!(
-            step.contains("grep -F 'release build refused: connect-src allows https:' refused.log"),
-            "{step}"
+        let grep = step
+            .lines()
+            .find(|line| line.contains("grep -F"))
+            .expect("grep line");
+        assert_eq!(
+            grep.trim(),
+            "grep -F 'release build refused: connect-src allows https:' refused.log",
+            "the grep must decide the step (no `|| true`)"
         );
+        assert!(!step.contains("|| true"), "{step}");
     }
 
     /// The main window is built in code, where its navigation and new-window

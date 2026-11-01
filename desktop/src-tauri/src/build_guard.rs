@@ -629,6 +629,10 @@ mod tests {
                 "data:text/html,x",
             ),
             (r#"[]"#, "main window"),
+            (
+                r#"[{"label":"main","create":false},{"label":"main","create":false}]"#,
+                "more than once",
+            ),
         ] {
             let error = release_with_windows(windows).expect_err(windows);
             assert!(error.contains(expected), "{windows}: {error}");
