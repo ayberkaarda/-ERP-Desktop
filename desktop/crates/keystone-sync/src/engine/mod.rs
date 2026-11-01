@@ -72,7 +72,10 @@ use crate::client::SyncApi;
 use crate::conflicts::{ConflictInbox, ConflictRecord, ConflictStore, ResolutionAction};
 use crate::error::refused;
 use crate::error::{Result, SyncError};
-use crate::outbox::{EnqueueOutcome, NewMutation, Outbox, OutboxEntry, OutboxQueue};
+use crate::outbox::{
+    EnqueueOutcome, KeyedOutcome, NewMutation, Outbox, OutboxEntry, OutboxQueue, RequestKey,
+    RequestRecord,
+};
 use crate::store::{
     ListQuery, Migration, OfflineManifest, PruneReport, PullBase, ResourceSpec, Snapshot, Store,
     WritePolicy,
@@ -593,27 +596,67 @@ impl<A: SyncApi> SyncEngine<A> {
             // No sign-in completes between the check below and the work.
             let _sign_in = self.session.hold();
             let session = self.check_access(&resource)?;
-            if self.mismatch(session.offline_manifest_version) {
-                return Err(refused(
-                    ErrorCode::SyncOfflineWriteNotAllowed,
-                    "the offline manifest differs from the server; offline writes are closed",
-                ));
-            }
-            if let Some(policy) = self.write_policy(&resource) {
-                let current = match mutation.op {
-                    MutationOp::Create => None,
-                    _ => overlay::get(&self.store, &resource, mutation.id)?,
-                };
-                policy.check(&mutation, current.as_ref().map(|r| &r.row.fields))?;
-            }
-            if mutation.op != MutationOp::Create {
-                local::save_base(&self.store, &resource, mutation.id)?;
-            }
+            self.prepare_draft(&session, &mutation)?;
             self.outbox.enqueue_outcome(mutation)?
         };
         self.refresh_status()?;
         self.emit(vec![resource]);
         Ok(outcome)
+    }
+
+    /// [`SyncEngine::enqueue`] of a request carrying an `Idempotency-Key`:
+    /// the key is recorded with the draft, and a key already recorded queues
+    /// nothing ([`KeyedOutcome::Repeat`]) whatever became of the draft: the
+    /// record outlives the outbox entry, and the row may be locked by now. A
+    /// key used for another request is refused (`IDEMPOTENCY_KEY_REUSED`).
+    pub fn enqueue_keyed(&self, mutation: NewMutation, key: &RequestKey) -> Result<KeyedOutcome> {
+        let resource = mutation.resource.clone();
+        let outcome = {
+            let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+            // No sign-in completes between the check below and the work.
+            let _sign_in = self.session.hold();
+            let session = self.check_access(&resource)?;
+            if let Some(record) = self.outbox.request_record(key)? {
+                return Ok(KeyedOutcome::Repeat(record));
+            }
+            self.prepare_draft(&session, &mutation)?;
+            self.outbox.enqueue_keyed(mutation, key)?
+        };
+        if matches!(outcome, KeyedOutcome::New(_)) {
+            self.refresh_status()?;
+            self.emit(vec![resource]);
+        }
+        Ok(outcome)
+    }
+
+    /// What `key` was used for, online or offline, without queueing. Same
+    /// verification rule as [`SyncEngine::enqueue`]; records go with every
+    /// wipe, so another user or company finds nothing.
+    pub fn request_record(&self, key: &RequestKey) -> Result<Option<RequestRecord>> {
+        self.guarded(|| self.outbox.request_record(key))
+    }
+
+    /// The checks of a draft, and its base. The caller holds `local` and
+    /// the sign-in.
+    fn prepare_draft(&self, session: &local::LocalSession, mutation: &NewMutation) -> Result<()> {
+        if self.mismatch(session.offline_manifest_version) {
+            return Err(refused(
+                ErrorCode::SyncOfflineWriteNotAllowed,
+                "the offline manifest differs from the server; offline writes are closed",
+            ));
+        }
+        let resource = &mutation.resource;
+        if let Some(policy) = self.write_policy(resource) {
+            let current = match mutation.op {
+                MutationOp::Create => None,
+                _ => overlay::get(&self.store, resource, mutation.id)?,
+            };
+            policy.check(mutation, current.as_ref().map(|r| &r.row.fields))?;
+        }
+        if mutation.op != MutationOp::Create {
+            local::save_base(&self.store, resource, mutation.id)?;
+        }
+        Ok(())
     }
 
     /// Local list: mirror rows with pending drafts laid over them. Same

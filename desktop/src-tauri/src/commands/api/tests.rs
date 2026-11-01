@@ -139,11 +139,22 @@ impl FakeLocal {
 }
 
 impl LocalResolver for FakeLocal {
-    fn local_copy(&self, _: &Engine, _: &ResourceName) -> CommandResult<LocalCopy> {
+    fn local_copy(
+        &self,
+        _: &Engine,
+        _: Option<&Store>,
+        _: &ResourceName,
+    ) -> CommandResult<LocalCopy> {
         Ok(self.copy)
     }
 
-    fn resolve(&self, _: &Engine, plan: &LocalPlan, _: &ApiCall) -> CommandResult<LocalOutcome> {
+    fn resolve(
+        &self,
+        _: &Engine,
+        _: Option<&Store>,
+        plan: &LocalPlan,
+        _: &ApiCall,
+    ) -> CommandResult<LocalOutcome> {
         self.plans.lock().unwrap().push(plan.clone());
         Ok(match &self.answer {
             Some(answer) => LocalOutcome::Answer(answer.clone()),
