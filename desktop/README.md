@@ -6,7 +6,7 @@ Keystone ERP'nin Tauri 2 masaüstü uygulaması. Plan: [PLAN.md](PLAN.md). Mimar
 
 Kabuk derlenir ve açılır; sunucu profili, giriş, yerel kopya, çevrimdışı taslak ve realtime Rust tarafında çalışır. Arayüz D4'te gelir, bugün pencerede `app_info` çağıran smoke sayfası vardır.
 
-Webview ağa çıkamaz: CSP `connect-src` yalnız IPC'ye izin verir, tüm istekler `api_request` komutundan geçer, token ve veritabanı anahtarı Rust tarafında kalır. Ayrıntı: [Güvenlik sınırı](docs/ARCHITECTURE.md#güvenlik-sınırı-csp-ve-izinler).
+Webview'ın `fetch`, XHR, WebSocket, EventSource ve dış görsel istekleri CSP ile kapalıdır (`connect-src` yalnız IPC). Dış adrese gezinme ve `window.open` navigasyon kilidiyle engellenir. Veri `api_request` komutundan geçer, token ve veritabanı anahtarı Rust tarafında kalır. Bilinen istisna: `shell:allow-open` (`https`) bugün kullanılmıyor ama sayfada betik çalıştırabilen biri bununla tarayıcıda adres açarak veri sızdırabilir. D4'te doğrulayan bir Rust komutuyla değiştirilecek. Ayrıntı: [Güvenlik sınırı](docs/ARCHITECTURE.md#güvenlik-sınırı-csp-ve-izinler).
 
 ### Gereksinimler
 
@@ -21,7 +21,7 @@ Webview ağa çıkamaz: CSP `connect-src` yalnız IPC'ye izin verir, tüm istekl
 
 | Komut | İş |
 |---|---|
-| `npm run tauri -- dev` | Vite ile geliştirme penceresi (`devCsp`) |
+| `npm run tauri -- dev` | Vite ile geliştirme penceresi. CSP burada uygulanmıyor (sayfa Vite'tan gelir); CSP ihlallerini görmek için debug ikilisi kullanılır |
 | `npm run tauri -- build --debug --no-bundle` | Paketsiz debug ikilisi, gerçek CSP ile |
 | `npm run lint`, `npm run typecheck`, `npm run test` | TS kapıları |
 | `cargo test --workspace --locked` | Rust testleri |

@@ -4,9 +4,10 @@
 //!
 //! `tauri.conf.json` carries the locked Content-Security-Policy. A release
 //! build stops when the effective policy is not locked: no policy, the
-//! deny-all placeholder, or a `connect-src` that reaches anything but the
-//! IPC. The webview talks to the outside world through commands only. A
-//! release build with the development HTTP switch set stops as well.
+//! deny-all placeholder, a `connect-src` that reaches anything but the IPC,
+//! a remote source in any other directive, an unsafe script source or a
+//! report endpoint. The webview talks to the outside world through commands
+//! only. A release build with the development HTTP switch set stops as well.
 //!
 //! The effective configuration is what `tauri-build` compiles in:
 //! `tauri.conf.json`, then `tauri.<os>.conf.json`, then the `TAURI_CONFIG`
@@ -130,7 +131,62 @@ fn policy_problem(config: &Value) -> Option<String> {
                 .into(),
         );
     }
-    connect_problem(&csp)
+    connect_problem(&csp).or_else(|| source_problem(&csp))
+}
+
+/// Directives scripts can come from: no inline, eval, `data:` or `blob:`
+/// there. `default-src` is the fallback of the others.
+const SCRIPT_DIRECTIVES: [&str; 5] = [
+    "default-src",
+    "script-src",
+    "script-src-elem",
+    "script-src-attr",
+    "worker-src",
+];
+
+/// Directives whose values are tokens, not sources.
+const TOKEN_DIRECTIVES: [&str; 2] = ["sandbox", "trusted-types"];
+
+/// Outside `connect-src` (see [`connect_problem`]) a source is `'self'`,
+/// `'none'`, a hash, a nonce, `data:`, `blob:` or another keyword: nothing
+/// that names a scheme or a host, so no directive loads from the network.
+/// Report endpoints would send violation reports off the device.
+fn source_problem(csp: &str) -> Option<String> {
+    for directive in csp.split(';') {
+        let mut words = directive.split_whitespace();
+        let Some(name) = words.next() else {
+            continue;
+        };
+        let name = name.to_ascii_lowercase();
+        if name == "connect-src" || TOKEN_DIRECTIVES.contains(&name.as_str()) {
+            continue;
+        }
+        if name == "report-uri" || name == "report-to" {
+            return Some(format!("{name} sends violation reports off the device"));
+        }
+        let script = SCRIPT_DIRECTIVES.contains(&name.as_str());
+        for source in words.map(str::to_ascii_lowercase) {
+            let local = match source.as_str() {
+                "'self'" | "'none'" => true,
+                "data:" | "blob:" => !script,
+                hash if ["'sha256-", "'sha384-", "'sha512-", "'nonce-"]
+                    .iter()
+                    .any(|prefix| hash.starts_with(prefix)) =>
+                {
+                    true
+                }
+                keyword if keyword.starts_with('\'') => !script,
+                _ => false,
+            };
+            if !local {
+                return Some(format!(
+                    "{name} allows {source}; the webview loads nothing from the network and \
+                     runs no inline or generated script"
+                ));
+            }
+        }
+    }
+    None
 }
 
 /// Every `connect-src` directive counts, in any case: the browser would use
@@ -241,6 +297,7 @@ mod tests {
             ("object-src", vec!["'none'"]),
             ("frame-ancestors", vec!["'none'"]),
             ("form-action", vec!["'none'"]),
+            ("base-uri", vec!["'self'"]),
         ]
         .into_iter()
         .map(|(name, sources)| {
@@ -251,6 +308,99 @@ mod tests {
         })
         .collect();
         assert_eq!(directives(&csp), expected);
+    }
+
+    /// A release build whose overlay adds `directive` to the locked policy.
+    fn release_with(directive: &str) -> Result<Verdict, String> {
+        let csp = format!("default-src 'self'; connect-src ipc: http://ipc.localhost; {directive}");
+        let overlay = serde_json::json!({ "app": { "security": { "csp": csp } } }).to_string();
+        check(&Inputs {
+            overlay: Some(&overlay),
+            ..inputs(true, None)
+        })
+    }
+
+    #[test]
+    fn release_with_remote_sources_anywhere_is_refused() {
+        for (directive, source) in [
+            ("default-src 'self' https:", "https:"),
+            ("img-src 'self' https:", "https:"),
+            (
+                "img-src https://images.example.com",
+                "https://images.example.com",
+            ),
+            ("media-src *", "*"),
+            ("frame-src https://example.com", "https://example.com"),
+            ("object-src example.com", "example.com"),
+            (
+                "style-src 'self' https://fonts.example.com",
+                "https://fonts.example.com",
+            ),
+            ("font-src http:", "http:"),
+            ("worker-src wss:", "wss:"),
+            ("Img-Src HTTPS:", "https:"),
+            ("form-action https://evil.example", "https://evil.example"),
+            ("base-uri https://evil.example", "https://evil.example"),
+            ("img-src ipc:", "ipc:"),
+            ("img-src http://ipc.localhost", "http://ipc.localhost"),
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains(source), "{directive}: {error}");
+        }
+    }
+
+    #[test]
+    fn release_with_unsafe_script_sources_is_refused() {
+        for (directive, source) in [
+            ("script-src 'self' 'unsafe-inline'", "'unsafe-inline'"),
+            ("script-src 'self' 'unsafe-eval'", "'unsafe-eval'"),
+            ("script-src 'self' 'unsafe-hashes'", "'unsafe-hashes'"),
+            ("script-src 'self' 'wasm-unsafe-eval'", "'wasm-unsafe-eval'"),
+            ("script-src 'self' data:", "data:"),
+            ("script-src 'self' blob:", "blob:"),
+            (
+                "script-src https://cdn.example.com",
+                "https://cdn.example.com",
+            ),
+            ("script-src *", "*"),
+            ("script-src-elem 'unsafe-inline'", "'unsafe-inline'"),
+            ("script-src-attr 'unsafe-inline'", "'unsafe-inline'"),
+            ("worker-src blob:", "blob:"),
+            ("default-src 'unsafe-eval'", "'unsafe-eval'"),
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains(source), "{directive}: {error}");
+        }
+    }
+
+    #[test]
+    fn release_with_a_report_endpoint_is_refused() {
+        for directive in [
+            "report-uri https://csp.example.com",
+            "report-to csp-endpoint",
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains("violation reports"), "{directive}: {error}");
+        }
+    }
+
+    #[test]
+    fn local_sources_stay_allowed() {
+        for directive in [
+            "img-src 'self' data: blob:",
+            "font-src 'self' data:",
+            "media-src 'self' blob:",
+            "style-src 'self'",
+            "style-src-attr 'unsafe-inline'",
+            "script-src 'self' 'sha256-tA8NLZ7sfk4Jr/izBVduKXeZBybtCT1klC9bh3Zu2Fo='",
+            "script-src 'self' 'nonce-abc123'",
+            "base-uri 'self'",
+            "object-src 'none'",
+            "frame-ancestors 'none'",
+            "upgrade-insecure-requests",
+        ] {
+            assert_eq!(release_with(directive), Ok(Verdict::Ok), "{directive}");
+        }
     }
 
     #[test]
