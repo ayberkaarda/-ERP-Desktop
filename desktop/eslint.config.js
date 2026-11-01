@@ -1,5 +1,7 @@
 import js from '@eslint/js'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
@@ -15,11 +17,17 @@ const NET_MODULES = [
   // Tauri plugins that would open a network path around the shell commands.
   '@tauri-apps/plugin-http',
   '@tauri-apps/plugin-websocket',
+  '@tauri-apps/plugin-upload',
+  '@tauri-apps/plugin-shell',
 ]
 // Module names inside the esquery regex literal below.
 const NET_PATTERN = NET_MODULES.map((m) => m.replace(/[/.]/g, '\\$&')).join('|')
 const NET_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource']
-const NET_HOSTS = ['window', 'globalThis', 'self']
+// Any member access by these names, whatever the object: window.fetch,
+// globalThis.fetch, aliases (const w = window; w.fetch), casts
+// ((window as X).fetch) and nested hosts (window.navigator.sendBeacon).
+// Lint is the second line; CSP connect-src is the real control.
+const NET_MEMBERS = `/^(${[...NET_GLOBALS, 'sendBeacon'].join('|')})$/`
 
 const networkBan = {
   'no-restricted-imports': [
@@ -36,25 +44,33 @@ const networkBan = {
       selector: `ImportExpression[source.value=/^(${NET_PATTERN})(\\/|$)/]`,
       message: NET_MSG,
     },
+    {
+      // import('ax' + 'ios') or a template literal hides the module name.
+      selector: 'ImportExpression:not([source.type="Literal"])',
+      message: 'Dynamic import needs a plain string literal.',
+    },
+    {
+      selector: `MemberExpression[computed=false][property.name=${NET_MEMBERS}]`,
+      message: NET_MSG,
+    },
+    {
+      selector: `MemberExpression[computed=true][property.value=${NET_MEMBERS}]`,
+      message: NET_MSG,
+    },
   ],
   'no-restricted-globals': ['error', ...NET_GLOBALS.map((name) => ({ name, message: NET_MSG }))],
-  'no-restricted-properties': [
-    'error',
-    ...NET_HOSTS.flatMap((object) =>
-      NET_GLOBALS.map((property) => ({ object, property, message: NET_MSG })),
-    ),
-    { object: 'navigator', property: 'sendBeacon', message: NET_MSG },
-  ],
 }
 
 export default defineConfig([
   globalIgnores(['dist', 'coverage', 'src-tauri', 'crates', 'target', 'src/bridge/generated']),
   {
-    files: ['**/*.ts'],
+    files: ['**/*.{ts,tsx}'],
     extends: [
       js.configs.recommended,
       tseslint.configs.strictTypeChecked,
       tseslint.configs.stylisticTypeChecked,
+      reactHooks.configs.flat.recommended,
+      reactRefresh.configs.vite,
     ],
     languageOptions: {
       ecmaVersion: 2023,
@@ -71,7 +87,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.{ts,tsx}'],
     rules: networkBan,
   },
   {
@@ -79,7 +95,7 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['eslint.config.js'],
+    files: ['scripts/**/*.mjs', 'eslint.config.js'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },
