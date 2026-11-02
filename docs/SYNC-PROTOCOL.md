@@ -407,7 +407,7 @@ Son dört kodun `status()` eşlemesi 422'dir, ancak bugün yalnızca push sonucu
 ## Cihaz kimliği
 
 - `POST /api/v1/auth/device`: e-posta, parola, TOTP (2FA açıksa), `device_name`, `fingerprint`. `desktop` yetenekli Sanctum token'ı verir; token cihaza (`user_devices`) bağlıdır.
-- `GET /api/v1/me/devices` ve `DELETE /api/v1/me/devices/{id}`: cihazları listeler ve iptal eder.
+- `GET /api/v1/me/devices` ve `DELETE /api/v1/me/devices/{id}`: cihazları listeler ve iptal eder. İsteği yapan cihaz kendini iptal edemez (`403 FORBIDDEN`), kendi oturumunu çıkışla kapatır.
 - Pasifleştirme, parola değişimi ve yönetici sıfırlaması cihaz token'larını iptal eder (`AccessRevoker`).
 - `POST /api/v1/auth/device/refresh`: refresh token'ı döndürerek erişim token'ını yeniler (ADR 0007). Şemalar: `device-login.request`, `device-token.response`, `device-refresh.request` (`contracts/sync/`; D1'de OpenAPI'ye taşınır).
 
