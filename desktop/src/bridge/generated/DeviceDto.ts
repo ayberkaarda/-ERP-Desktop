@@ -6,6 +6,6 @@
 export type DeviceDto = { id: string, name: string, ip_address: string | null, user_agent: string | null, last_used_at: string | null, expires_at: string, created_at: string | null, 
 /**
  * The sign-in of this desktop (the token the request was made with).
- * False when the server does not send it.
+ * False when the server does not send it, or sends null.
  */
 is_current: boolean, };
