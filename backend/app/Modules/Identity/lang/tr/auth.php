@@ -11,4 +11,5 @@ return [
     'password_policy' => 'Parola, parola politikasına uymuyor.',
     'password_too_short' => 'Parola en az :min karakter olmalıdır.',
     'password_matches_identity' => 'Parola e-posta adresiniz veya adınız olamaz.',
+    'current_device' => 'Bu cihaz kendini iptal edemez. Bunun yerine bu cihazda çıkış yapın.',
 ];
