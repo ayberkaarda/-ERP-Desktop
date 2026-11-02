@@ -239,15 +239,20 @@ async fn respond(
             LocalOutcome::Unsupported {
                 unsupported_filters,
             } => {
-                let online_only = target
+                let spec = target
                     .as_ref()
-                    .and_then(|t| query_map::spec_of(&t.resource))
+                    .and_then(|t| query_map::spec_of(&t.resource));
+                let online_only = spec
                     .map(|spec| query_map::online_only(spec, &call.query))
+                    .unwrap_or_default();
+                let invalid = spec
+                    .map(|spec| query_map::invalid_values(spec, &call.query))
                     .unwrap_or_default();
                 Ok(refuse_with(
                     Refusal::Offline,
                     unsupported_filters,
                     online_only,
+                    &invalid,
                 ))
             }
         },
@@ -496,18 +501,28 @@ fn proxy_request(call: &ApiCall) -> ProxyRequest {
 }
 
 fn refuse(refusal: Refusal, unsupported_filters: Vec<String>) -> ApiResponseDto {
-    refuse_with(refusal, unsupported_filters, Vec::new())
+    refuse_with(refusal, unsupported_filters, Vec::new(), &[])
 }
 
 /// [`refuse`] naming the filters it could not apply; those the offline
-/// manifest keeps for the server also come with their reason.
+/// manifest keeps for the server also come with their reason, and values
+/// the server would refuse are named in `errors.details.invalid_values`.
 fn refuse_with(
     refusal: Refusal,
     unsupported_filters: Vec<String>,
     online_only: Vec<OnlineOnly>,
+    invalid: &[query_map::InvalidValue],
 ) -> ApiResponseDto {
     let (code, status) = refusal.code_and_status();
-    let body = envelope::error(code, refusal.message(), None);
+    let mut body = envelope::error(code, refusal.message(), None);
+    if !invalid.is_empty()
+        && let Some(errors) = body.get_mut("errors").and_then(Value::as_object_mut)
+    {
+        let values = serde_json::to_value(invalid).unwrap_or(Value::Null);
+        let mut details = Map::new();
+        details.insert("invalid_values".into(), values);
+        errors.insert("details".into(), Value::Object(details));
+    }
     let body = if unsupported_filters.is_empty() {
         body
     } else {

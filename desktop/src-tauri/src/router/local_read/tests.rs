@@ -59,16 +59,19 @@ async fn a_list_comes_from_the_mirror_in_the_server_envelope() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn search_folds_turkish_text_under_both_parameter_names() {
+async fn search_folds_turkish_text_and_only_q_searches() {
     let (a, row_a) = party("İSTANBUL Şişli");
     let (_, row_b) = party("Bursa");
     let fx = fixture(vec![("parties", vec![row_a, row_b])]).await;
     fx.go_offline();
 
-    for name in ["search", "q"] {
-        let answer = fx.call(get(PARTIES, json!([[name, "ISTANBUL sis"]]))).await;
-        assert_eq!(ids(&answer), [a], "{name}");
-    }
+    let answer = fx.call(get(PARTIES, json!([["q", "ISTANBUL sis"]]))).await;
+    assert_eq!(ids(&answer), [a]);
+    // The server does not read `search`: no filter here either.
+    let ignored = fx
+        .call(get(PARTIES, json!([["search", "ISTANBUL sis"]])))
+        .await;
+    assert_eq!(ids(&ignored).len(), 2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -256,7 +259,7 @@ async fn drafts_are_laid_over_reads() {
     let item = fx.call(get(&format!("{PARTIES}/{id}"), json!([]))).await;
     assert_eq!(item.json().unwrap()["data"]["name"], "Yeni Cari");
     assert_eq!(offline_of(&item)["pending"], true);
-    let found = fx.call(get(PARTIES, json!([["search", "yeni"]]))).await;
+    let found = fx.call(get(PARTIES, json!([["q", "yeni"]]))).await;
     assert_eq!(ids(&found), [id]);
 }
 

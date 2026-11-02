@@ -457,6 +457,12 @@ mod tests {
     fn a_combining_mark_is_the_accent_of_its_letter() {
         assert_eq!(collation_key("s\u{0327}eker"), collation_key("şeker"));
         assert_eq!(collation_key("C\u{0327}a"), collation_key("Ça"));
+        // A mark outside the named ones (dot below) is an accent too:
+        // PostgreSQL gives `a-b < ab < aB < Ab < áb < ạb`.
+        let dot_below = collation_key("a\u{0323}b");
+        for before in ["a-b", "ab", "aB", "Ab", "áb"] {
+            assert!(collation_key(before) < dot_below, "{before}");
+        }
     }
 
     #[test]
@@ -515,6 +521,17 @@ mod tests {
             datetime_key("2026-10-27T00:00:00Z")
         );
         assert!(datetime_key("2026-10-27 09:00:00+03") < datetime_key("2026-10-27T06:30:00Z"));
+        // Offsets with minutes, and seconds, count.
+        let utc = datetime_key("2026-10-27T07:00:00Z");
+        for same in [
+            "2026-10-27T12:30:00+05:30",
+            "2026-10-27T12:30:00+0530",
+            "2026-10-27T06:30:00-00:30",
+        ] {
+            assert_eq!(datetime_key(same), utc, "{same}");
+        }
+        assert!(datetime_key("2026-10-27T07:00:00.999999Z") < datetime_key("2026-10-27T07:00:01Z"));
+        assert!(datetime_key("2026-10-27T07:00:59Z") > datetime_key("2026-10-27T07:00:01Z"));
         for bad in [
             "",
             "2026-13-01",

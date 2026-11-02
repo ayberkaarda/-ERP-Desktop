@@ -634,3 +634,108 @@ async fn rows_of_another_company_are_never_listed() {
         assert_eq!(ids(&after), [b]);
     }
 }
+
+// ------------------------------------------------- values as the server reads them
+
+#[tokio::test(flavor = "multi_thread")]
+async fn filter_values_are_trimmed_and_search_is_ignored_as_on_the_server() {
+    let (tr, turkey) = with_id(
+        1,
+        json!({"name": "Acme", "country": "TR", "city": "Ankara"}),
+    );
+    let (_, germany) = with_id(2, json!({"name": "Beta", "country": "DE"}));
+    let (draft, quote) = with_id(3, json!({"document_date": "2026-10-01", "status": "draft"}));
+    let fx = fixture(vec![
+        ("parties", vec![turkey, germany]),
+        ("sales-quotes", vec![quote]),
+    ])
+    .await;
+    fx.go_offline();
+
+    for value in [" TR", "TR ", " TR "] {
+        let answer = fx
+            .call(get(PARTIES, json!([["filter[country]", value]])))
+            .await;
+        assert_eq!(ids(&answer), [tr], "{value:?}");
+        assert_eq!(
+            offline_of(&answer)["applied_filters"],
+            json!(["filter[country]"])
+        );
+    }
+    let status = fx
+        .call(get(QUOTES, json!([["filter[status]", " draft"]])))
+        .await;
+    assert_eq!(ids(&status), [draft]);
+    let blank = fx
+        .call(get(PARTIES, json!([["filter[country]", "  "]])))
+        .await;
+    assert_eq!(ids(&blank).len(), 2);
+    assert!(offline_of(&blank)["applied_filters"].is_null());
+
+    // `search` is not a parameter of the server's lists: the full list.
+    let search = fx.call(get(PARTIES, json!([["search", "Ankara"]]))).await;
+    assert_eq!(search.status, 200);
+    assert_eq!(ids(&search).len(), 2);
+    assert!(offline_of(&search)["applied_filters"].is_null());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_value_that_is_not_a_uuid_is_refused_with_its_reason() {
+    let (i, bolt) = with_id(1, json!({"code": "BOLT"}));
+    let fx = fixture(vec![("items", vec![bolt])]).await;
+    fx.go_offline();
+
+    for value in ["abc", &format!("{i},")] {
+        let answer = fx.call(get(ITEMS, json!([["filter[id]", value]]))).await;
+        assert_eq!(answer.status, 503, "{value}");
+        assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
+        assert_eq!(
+            offline_of(&answer)["unsupported_filters"],
+            json!(["filter[id]"])
+        );
+        let details = &answer.json().unwrap()["errors"]["details"];
+        assert_eq!(
+            details["invalid_values"],
+            json!([{"param": "filter[id]", "reason": "not a uuid"}]),
+            "{value}"
+        );
+        assert_eq!(details["path"], "/items");
+    }
+    let quotes = fx
+        .call(get(QUOTES, json!([["filter[party_id]", "not-a-uuid"]])))
+        .await;
+    assert_eq!(quotes.status, 503);
+    let upper = i.to_string().to_uppercase();
+    let found = fx.call(get(ITEMS, json!([["filter[id]", upper]]))).await;
+    assert_eq!(ids(&found), [i]);
+    // An unknown name has no value reason.
+    let unknown = fx
+        .call(get(ITEMS, json!([["filter[colour]", "red"]])))
+        .await;
+    assert!(unknown.json().unwrap()["errors"]["details"]["invalid_values"].is_null());
+}
+
+/// `sort=` empty and no `sort` both give the default order: the server's
+/// global `ConvertEmptyStringsToNull` makes the empty value null, and the
+/// document controllers apply their default order for null.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_empty_sort_is_the_default_order_as_on_the_server() {
+    let (old, a) = with_id(
+        1,
+        json!({"document_date": "2026-10-01", "created_at": "2026-10-01T08:00:00Z"}),
+    );
+    let (new, b) = with_id(
+        2,
+        json!({"document_date": "2026-10-20", "created_at": "2026-10-20T08:00:00Z"}),
+    );
+    let (later, c) = with_id(
+        3,
+        json!({"document_date": "2026-10-20", "created_at": "2026-10-20T09:00:00+00:30"}),
+    );
+    let fx = fixture(vec![("sales-quotes", vec![a, b, c])]).await;
+    fx.go_offline();
+    for query in [json!([]), json!([["sort", ""]])] {
+        let answer = fx.call(get(QUOTES, query.clone())).await;
+        assert_eq!(ids(&answer), [later, new, old], "{query}");
+    }
+}

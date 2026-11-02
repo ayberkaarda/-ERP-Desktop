@@ -313,6 +313,63 @@ fn paging_follows_the_typed_order() {
     assert_eq!(seen, all);
 }
 
+/// Rows removed by tombstones (deleted, soft-deleted, out of scope) leave
+/// typed lists and their total.
+#[test]
+fn tombstoned_rows_leave_typed_lists() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store(&dir);
+    let query = ListQuery {
+        order: Some(vec![key("name", SortType::Text, true)]),
+        conditions: vec![Condition {
+            field: "roles".into(),
+            test: Test::AnyOf {
+                kind: ValueType::String,
+                element: None,
+                values: vec!["customer".into()],
+            },
+        }],
+        text: Some(TextSearch {
+            fields: vec!["name".into()],
+            text: "c".into(),
+        }),
+        ..ListQuery::default()
+    };
+    assert_eq!(listed(&store, &query), [4, 7]);
+    let tombstones = [(2u128, "deleted"), (4, "soft_deleted"), (5, "out_of_scope")]
+        .iter()
+        .map(|(n, reason)| {
+            serde_json::from_value(json!({
+                "resource": "things", "id": Uuid::from_u128(*n), "sync_txid": "2",
+                "deleted_at": "2026-11-01T10:00:00Z", "reason": reason
+            }))
+            .unwrap()
+        })
+        .collect();
+    let page = PullResourceResult {
+        resource: res("things"),
+        rows: Vec::new(),
+        tombstones,
+        next_cursor: Cursor {
+            txid: Xid8(2),
+            after_id: None,
+            generation: 1,
+            session: None,
+        },
+        has_more: false,
+        reset: false,
+        reset_reason: None,
+    };
+    let base = store.pull_base(&page.resource).unwrap();
+    store.apply_page(&page, &base).unwrap();
+    let page = store.list(&res("things"), &query).unwrap();
+    assert_eq!(
+        page.rows.iter().map(|r| r.id.as_u128()).collect::<Vec<_>>(),
+        [7]
+    );
+    assert_eq!(page.total, 1);
+}
+
 #[test]
 fn field_paths_never_reach_sql() {
     let dir = tempfile::tempdir().unwrap();
@@ -435,6 +492,10 @@ fn query_names_and_fields_outside_the_pattern_are_refused() {
         json!({"filters": {"lines": {"match": "any_of", "type": "uuid", "element_field": "$.id"}}}),
         json!({"search": {"fields": ["name OR 1"]}}),
         json!({"online_only": [{"param": "filter[x]"}]}),
+        // The name itself, with a valid field: never in SQL, still refused.
+        json!({"filters": {"Role": {"field": "roles", "match": "any_of", "type": "string"}}}),
+        json!({"sort": {"Name": {"field": "name", "type": "text"}}}),
+        json!({"sort": {"na-me": {"field": "name", "type": "text"}}}),
     ] {
         assert!(
             offline_manifest(&manifest(Some(3), query.clone())).is_err(),

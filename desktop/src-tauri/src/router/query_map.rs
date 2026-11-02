@@ -2,7 +2,9 @@
 //! on the local copy: what can be answered here and what cannot.
 //!
 //! Always: `page` and `per_page` (1..=[`MAX_PER_PAGE`], default
-//! [`DEFAULT_PER_PAGE`]); `q`, the server's search parameter, and `search`.
+//! [`DEFAULT_PER_PAGE`]); `q`, the server's search parameter. `search` is
+//! ignored, as on the server. Filter values are trimmed, and an empty one is
+//! no filter (the server's `TrimStrings` and `ConvertEmptyStringsToNull`).
 //!
 //! A resource with a manifest `query` section (version 3) maps exactly what
 //! it declares:
@@ -11,7 +13,8 @@
 //!   Typed order, then `id` ascending; without `sort`, `default_sort`, else
 //!   `id` ascending.
 //! - `filter[<name>]`: a declared filter, its value checked by type (`bool`
-//!   takes `1`/`true`/`0`/`false`, `date` takes `YYYY-MM-DD`, `max_values`).
+//!   takes `1`/`true`/`0`/`false`, `date` takes `YYYY-MM-DD`, `uuid` a uuid,
+//!   `max_values`); [`invalid_values`] gives the reasons of refused values.
 //! - `q`: substring over `search.fields` when declared.
 //! - `online_only` names are refused like unknown ones; [`online_only`]
 //!   gives their reasons.
@@ -33,6 +36,7 @@ use keystone_sync::store::{
     specs_from_offline_manifest,
 };
 use keystone_sync::wire::ResourceName;
+use serde::Serialize;
 use serde_json::Value;
 
 use super::decide::OFFLINE_MANIFEST;
@@ -91,8 +95,8 @@ pub fn list_query(
     let mut seen = HashSet::new();
     for (name, value) in params {
         let applied = match name.as_str() {
-            "q" | "search" | "sort" => !value.trim().is_empty(),
-            _ => filter_name(name).is_some() && !value.is_empty(),
+            "q" | "sort" => !value.trim().is_empty(),
+            _ => filter_name(name).is_some() && !value.trim().is_empty(),
         };
         let known = seen.insert(name.as_str())
             && match name.as_str() {
@@ -104,7 +108,9 @@ pub fn list_query(
                         .filter(|n| (1..=MAX_PER_PAGE).contains(n)),
                     &mut mapped.per_page,
                 ),
-                "q" | "search" => {
+                // The server reads `q` only; `search` changes nothing there.
+                "search" => true,
+                "q" => {
                     let text = value.trim();
                     if !text.is_empty() {
                         match declared.and_then(|q| q.search.as_ref()) {
@@ -136,12 +142,14 @@ pub fn list_query(
                         None => false,
                     },
                 },
+                // Values are trimmed and an empty one is no filter, as the
+                // server's TrimStrings and ConvertEmptyStringsToNull do.
                 _ => match filter_name(name) {
-                    Some(_) if value.is_empty() => true,
+                    Some(_) if value.trim().is_empty() => true,
                     Some(filter) => match declared {
                         Some(query) => {
                             let field = query.filters.get(filter);
-                            match field.and_then(|f| typed_filter(filter, f, value)) {
+                            match field.and_then(|f| typed_filter(filter, f, value.trim())) {
                                 Some(condition) => {
                                     mapped.query.conditions.push(condition);
                                     true
@@ -149,7 +157,7 @@ pub fn list_query(
                                 None => false,
                             }
                         }
-                        None => match window_filter(filter, value, window) {
+                        None => match window_filter(filter, value.trim(), window) {
                             Some(condition) => {
                                 mapped.query.filters.push(condition);
                                 true
@@ -275,7 +283,8 @@ fn typed_filter(name: &str, filter: &FilterField, value: &str) -> Option<Conditi
         ValueType::Bool => bool_value(v).is_some(),
         ValueType::Date => is_date(v),
         ValueType::Integer => v.parse::<i64>().is_ok(),
-        ValueType::String | ValueType::Uuid => true,
+        ValueType::Uuid => is_uuid(v),
+        ValueType::String => true,
         ValueType::Unknown => false,
     };
     let values: Vec<String> = value.split(',').map(str::to_owned).collect();
@@ -314,6 +323,65 @@ fn typed_filter(name: &str, filter: &FilterField, value: &str) -> Option<Conditi
     })
 }
 
+/// `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` in hex digits, any case (the
+/// server's `Str::isUuid`; a uuid column refuses anything else).
+fn is_uuid(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 36
+        && bytes.iter().enumerate().all(|(i, b)| match i {
+            8 | 13 | 18 | 23 => *b == b'-',
+            _ => b.is_ascii_hexdigit(),
+        })
+}
+
+/// A filter value of the request the server would refuse, and why.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct InvalidValue {
+    pub param: String,
+    pub reason: String,
+}
+
+/// Why `value` (trimmed, not empty) does not fit the declared filter.
+fn value_problem(filter: &FilterField, value: &str) -> String {
+    let count = value.split(',').count();
+    if let Some(max) = filter.max_values
+        && count > usize::try_from(max).unwrap_or(usize::MAX)
+        && !matches!(filter.matching, FilterMatch::Gte | FilterMatch::Lte)
+    {
+        return format!("more than {max} values");
+    }
+    match filter.kind {
+        ValueType::Uuid => "not a uuid",
+        ValueType::Date => "not a date (YYYY-MM-DD)",
+        ValueType::Bool => "not a bool (1, true, 0, false)",
+        ValueType::Integer => "not an integer",
+        ValueType::String | ValueType::Unknown => "not applied on this device",
+    }
+    .to_owned()
+}
+
+/// The declared filters of `params` whose value the server would refuse
+/// (`filter[id]=abc`), each with its reason; request order.
+pub fn invalid_values(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<InvalidValue> {
+    let Some(query) = &spec.query else {
+        return Vec::new();
+    };
+    params
+        .iter()
+        .filter_map(|(name, value)| {
+            let filter_name = filter_name(name)?;
+            let filter = query.filters.get(filter_name)?;
+            let value = value.trim();
+            (!value.is_empty() && typed_filter(filter_name, filter, value).is_none()).then(|| {
+                InvalidValue {
+                    param: name.clone(),
+                    reason: value_problem(filter, value),
+                }
+            })
+        })
+        .collect()
+}
+
 /// The `online_only` entries of `spec` that `params` use: `filter[x]` with a
 /// value, or a `sort` naming `x` (`sort=x`). Manifest order.
 pub fn online_only(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<OnlineOnly> {
@@ -330,7 +398,7 @@ pub fn online_only(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<Onli
                             .split(',')
                             .any(|part| part.strip_prefix('-').unwrap_or(part) == field)
                 }
-                None => name == param && !value.is_empty(),
+                None => name == param && !value.trim().is_empty(),
             })
     };
     query
@@ -434,7 +502,10 @@ mod tests {
         let text = mapped(&[("q", " acme ")]).query.text.unwrap();
         assert_eq!(text.text, "acme");
         assert_eq!(text.fields, ["number", "party_name", "notes"]);
-        assert!(mapped(&[("search", "acme")]).query.text.is_some());
+        // The server reads `q` only: `search` is no filter here either.
+        let ignored = mapped(&[("search", "acme")]);
+        assert_eq!((ignored.query.text, ignored.query.search), (None, None));
+        assert!(ignored.applied.is_empty());
         assert_eq!(mapped(&[("q", "  ")]).query.text, None);
         assert_eq!(mapped(&[("q", "acme")]).query.search, None);
         // Without a query section: the word search of the mirror.
@@ -570,7 +641,7 @@ mod tests {
             let list = list_query(parties(), &params(&[("filter[is_active]", value)])).unwrap();
             assert_eq!(list.query.conditions.len(), 1, "{value}");
         }
-        for value in ["yes", "2", "1,x", " 1"] {
+        for value in ["yes", "2", "1,x"] {
             assert_eq!(
                 refused(parties(), &[("filter[is_active]", value)]),
                 ["filter[is_active]"],
@@ -772,5 +843,188 @@ mod tests {
             );
         }
         assert!(spec_of(&name("items.barcodes")).unwrap().query.is_none());
+    }
+    #[test]
+    fn filter_values_are_trimmed_as_the_server_trims_them() {
+        let parties = parties();
+        let list = list_query(parties, &params(&[("filter[country]", " TR ")])).unwrap();
+        assert_eq!(
+            list.query.conditions,
+            [Condition {
+                field: "country".into(),
+                test: Test::Eq {
+                    kind: ValueType::String,
+                    values: strings(&["TR"]),
+                },
+            }]
+        );
+        let bool_value = list_query(parties, &params(&[("filter[is_active]", " 1 ")])).unwrap();
+        assert_eq!(bool_value.query.conditions.len(), 1);
+        // Blank is empty: no filter and not applied.
+        let blank = list_query(parties, &params(&[("filter[country]", "   ")])).unwrap();
+        assert!(blank.query.conditions.is_empty());
+        assert!(blank.applied.is_empty());
+        let number = mapped(&[("filter[number]", " SQ ")]);
+        assert_eq!(
+            number.query.conditions[0].test,
+            Test::Contains { text: "SQ".into() }
+        );
+        // Without a query section the window filter is trimmed too.
+        let spec = windowed();
+        let window = list_query(&spec, &params(&[("filter[date_from]", " 2026-10-01")])).unwrap();
+        assert_eq!(
+            window.query.filters,
+            [Filter::new("document_date", FilterOp::Gte, "2026-10-01")]
+        );
+    }
+
+    #[test]
+    fn a_uuid_filter_takes_uuids_only_and_names_the_reason() {
+        let items = spec_of(&name("items")).unwrap();
+        let good = "0192F5A0-0000-7000-8000-0000000000AA,0192f5a0-0000-7000-8000-0000000000bb";
+        assert!(list_query(items, &params(&[("filter[id]", good)])).is_ok());
+        for value in [
+            "abc",
+            "0192f5a0-0000-7000-8000-0000000000aa,",
+            "0192f5a0000070008000000000000000aaaa",
+            "0192f5a0-0000-7000-8000-0000000000ag",
+        ] {
+            let request = params(&[("filter[id]", value)]);
+            assert_eq!(
+                list_query(items, &request).unwrap_err(),
+                ["filter[id]"],
+                "{value}"
+            );
+            assert_eq!(
+                invalid_values(items, &request),
+                [InvalidValue {
+                    param: "filter[id]".into(),
+                    reason: "not a uuid".into(),
+                }],
+                "{value}"
+            );
+        }
+        let many: Vec<String> = (0..101)
+            .map(|n| format!("0192f5a0-0000-7000-8000-{n:012x}"))
+            .collect();
+        let request = params(&[("filter[id]", &many.join(","))]);
+        assert_eq!(
+            invalid_values(items, &request)[0].reason,
+            "more than 100 values"
+        );
+        let hundred = params(&[("filter[id]", &many[..100].join(","))]);
+        assert!(list_query(items, &hundred).is_ok());
+        assert!(invalid_values(items, &hundred).is_empty());
+        let reasons = invalid_values(
+            quotes(),
+            &params(&[
+                ("filter[date_from]", "#invalid-date"),
+                ("filter[status]", "draft"),
+                ("filter[colour]", "red"),
+                ("filter[party_id]", "not-a-uuid"),
+            ]),
+        );
+        assert_eq!(
+            reasons,
+            [
+                InvalidValue {
+                    param: "filter[date_from]".into(),
+                    reason: "not a date (YYYY-MM-DD)".into(),
+                },
+                InvalidValue {
+                    param: "filter[party_id]".into(),
+                    reason: "not a uuid".into(),
+                },
+            ]
+        );
+    }
+
+    /// An empty `sort=` is no sort, so the default order applies, as on the
+    /// server: Laravel's global `ConvertEmptyStringsToNull` turns it into
+    /// null and the document controllers take their default order for null.
+    #[test]
+    fn an_empty_or_missing_sort_is_the_default_sort() {
+        let default = Some(vec![
+            key("document_date", SortType::Date, true),
+            key("created_at", SortType::Datetime, true),
+        ]);
+        for request in [&[][..], &[("sort", "")][..]] {
+            let list = mapped(request);
+            assert_eq!(list.query.order, default, "{request:?}");
+            assert!(list.applied.is_empty(), "{request:?}");
+        }
+    }
+
+    #[test]
+    fn default_sort_stops_at_its_first_undeclared_name() {
+        let mut spec = quotes().clone();
+        spec.query.as_mut().unwrap().default_sort =
+            vec!["-document_date".into(), "-ghost".into(), "number".into()];
+        let list = list_query(&spec, &params(&[])).unwrap();
+        assert_eq!(
+            list.query.order,
+            Some(vec![key("document_date", SortType::Date, true)])
+        );
+    }
+
+    #[test]
+    fn a_sort_of_an_unknown_type_is_refused() {
+        let mut spec = quotes().clone();
+        spec.query.as_mut().unwrap().sort.insert(
+            "weird".into(),
+            keystone_sync::store::SortField {
+                field: None,
+                kind: SortType::Unknown,
+            },
+        );
+        for sort in ["weird", "number,-weird"] {
+            assert_eq!(
+                list_query(&spec, &params(&[("sort", sort)])).unwrap_err(),
+                ["sort"],
+                "{sort}"
+            );
+        }
+    }
+
+    #[test]
+    fn applied_names_are_exactly_what_was_applied() {
+        let list = mapped(&[
+            ("q", "acme"),
+            ("filter[status]", ""),
+            ("sort", ""),
+            ("search", "x"),
+            ("filter[number]", "SQ"),
+        ]);
+        assert_eq!(list.applied, ["q", "filter[number]"]);
+    }
+
+    #[test]
+    fn any_of_on_bool_values_is_refused() {
+        let mut spec = quotes().clone();
+        spec.query.as_mut().unwrap().filters.insert(
+            "flags".into(),
+            FilterField {
+                field: None,
+                matching: FilterMatch::AnyOf,
+                kind: ValueType::Bool,
+                element_field: None,
+                max_values: None,
+            },
+        );
+        assert_eq!(
+            list_query(&spec, &params(&[("filter[flags]", "1")])).unwrap_err(),
+            ["filter[flags]"]
+        );
+    }
+
+    #[test]
+    fn a_date_value_must_be_a_calendar_date() {
+        for value in ["2026-1x-01", "2026-13-01", "2026/10/01", "abcdefghij"] {
+            assert_eq!(
+                refused(quotes(), &[("filter[date_from]", value)]),
+                ["filter[date_from]"],
+                "{value}"
+            );
+        }
     }
 }
