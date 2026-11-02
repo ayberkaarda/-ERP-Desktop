@@ -79,6 +79,8 @@ export function createDesktopRealtime(options: {
     if (id !== null) readStatus(id)
   })
 
+  // A failed listen (no Tauri runtime, e.g. jsdom) hears nothing and must not
+  // surface as an unhandled rejection.
   const unlisten: Promise<Unlisten> = listenRealtime(listen, (event) => {
     profile.accept(event.profile_id, () => {
       if (event.type === 'state') {
@@ -90,7 +92,7 @@ export function createDesktopRealtime(options: {
       const payload = payloadOf(event)
       for (const sub of [...subscriptions]) if (sub.event === name) sub.handler(payload)
     })
-  })
+  }).catch((): Unlisten => () => undefined)
 
   return {
     connect: () => undefined,

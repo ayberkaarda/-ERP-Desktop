@@ -4,7 +4,7 @@ const toast = vi.hoisted(() => ({ success: vi.fn(), info: vi.fn(), warning: vi.f
 vi.mock('sonner', () => ({ toast }))
 
 import { createFakeBridge, fail, flush } from '../../test/fakeBridge'
-import { createDesktopPlatform, isDesktopPlatform, PendingWorkError, PlatformCancelledError } from './index'
+import { createDesktopPlatform, desktopBridgeOf, isDesktopPlatform, PendingWorkError, PlatformCancelledError } from './index'
 import type { PlatformDeps } from '@/platform/types'
 
 const deps: PlatformDeps = {
@@ -171,5 +171,82 @@ describe('createDesktopPlatform', () => {
     await flush()
     expect(bridge.calls.slice(before).map((c) => c.command)).toEqual(['profile_list'])
     expect(platform.desktop.offlineMeta.get('/parties')).toEqual(offline)
+  })
+})
+
+describe('desktop.bridge (the UI command and event surface)', () => {
+  it('is one frozen {invoke, listen} object on the platform', async () => {
+    const { platform } = await setup()
+    const { bridge } = platform.desktop
+    expect(Object.keys(bridge).sort()).toEqual(['invoke', 'listen'])
+    expect(Object.isFrozen(bridge)).toBe(true)
+    expect(platform.desktop.bridge).toBe(bridge)
+  })
+
+  it('calls the platform invoke and rejects with a CommandError', async () => {
+    const { platform, bridge } = await setup()
+    bridge.handle({ outbox_list: () => [{ id: 'o1' }], sync_now: () => fail('NO_ACTIVE_PROFILE') })
+    await expect(platform.desktop.bridge.invoke('outbox_list')).resolves.toEqual([{ id: 'o1' }])
+    await expect(platform.desktop.bridge.invoke('sync_now')).rejects.toMatchObject({
+      name: 'CommandError',
+      code: 'NO_ACTIVE_PROFILE',
+    })
+    expect(bridge.callsOf('outbox_list')).toHaveLength(1)
+  })
+
+  it('listens on the platform listen for engine, realtime and profile-state events', async () => {
+    const { platform, bridge } = await setup()
+    const heard = vi.fn()
+    const stops = await Promise.all(
+      ['engine-event', 'realtime-event', 'profile-state'].map((name) => platform.desktop.bridge.listen(name, heard)),
+    )
+    expect(bridge.listeners('profile-state')).toBe(1)
+    bridge.emit('profile-state', { phase: 'signed_out' })
+    expect(heard).toHaveBeenCalledWith({ payload: { phase: 'signed_out' } })
+    for (const stop of stops) stop()
+    expect(bridge.listeners('profile-state')).toBe(0)
+    // The adaptor's own listeners stay.
+    expect(bridge.listeners('engine-event')).toBe(1)
+    expect(bridge.listeners('realtime-event')).toBe(1)
+  })
+
+  it('desktopBridgeOf returns the desktop bridge and nothing for a web platform', async () => {
+    const { platform } = await setup()
+    expect(desktopBridgeOf(platform)).toBe(platform.desktop.bridge)
+    expect(desktopBridgeOf({ ...platform, kind: 'web' })).toBeUndefined()
+  })
+})
+
+describe('without a Tauri runtime (listen rejects, as in jsdom)', () => {
+  it('leaves no unhandled rejection, and dispose still works', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      const fake = createFakeBridge({ commands: { profile_list: () => ({ active_id: null, profiles: [] }) } })
+      const listen = vi.fn(() => Promise.reject(new TypeError("Cannot read properties of undefined (reading 'transformCallback')")))
+      const platform = createDesktopPlatform({ deps, invoke: fake.invoke, listen })
+      await flush()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      platform.desktop.dispose()
+      await flush()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(listen).toHaveBeenCalledTimes(2)
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+})
+
+describe('offline meta listeners of the platform', () => {
+  it('hear the path a local answer was recorded for', async () => {
+    const { platform, bridge } = await setup()
+    bridge.handle({
+      api_request: () => ({ status: 200, headers: [], body: { kind: 'json', value: { data: [], meta: { offline: { partial: false, stale: true } } } }, source: 'local' }),
+    })
+    const heard = vi.fn()
+    platform.desktop.offlineMeta.subscribe(heard)
+    await platform.http.get('/parties', { params: { page: 2 } })
+    expect(heard).toHaveBeenCalledWith('/parties')
   })
 })
