@@ -88,7 +88,7 @@ impl From<SyncError> for CommandError {
     }
 }
 
-/// Build facts of the running shell, for the smoke page and diagnostics.
+/// Build facts of the running shell, for diagnostics.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/bridge/generated/")]
 pub struct AppInfo {

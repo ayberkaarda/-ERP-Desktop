@@ -226,8 +226,8 @@ fn window_problem(config: &Value) -> Option<String> {
     None
 }
 
-/// Directives scripts can come from: no inline, eval, `data:` or `blob:`
-/// there. `default-src` is the fallback of the others. Style elements and
+/// Directives scripts can come from: no inline, eval, fixed nonce, `data:` or
+/// `blob:` there. `default-src` is the fallback of the others. Style elements and
 /// sheets are held to the same rule; `style-src-attr` (inline style
 /// attributes) is the one style directive left open to keywords.
 const STRICT_DIRECTIVES: [&str; 7] = [
@@ -244,7 +244,8 @@ const STRICT_DIRECTIVES: [&str; 7] = [
 const TOKEN_DIRECTIVES: [&str; 2] = ["sandbox", "trusted-types"];
 
 /// Outside `connect-src` (see [`connect_problem`]) a source is `'self'`,
-/// `'none'`, a hash, a nonce, `data:`, `blob:` or another keyword: nothing
+/// `'none'`, a hash, `data:`, `blob:` or another keyword (a nonce counts as
+/// one, so the strict directives refuse it): nothing
 /// that names a scheme or a host, so no directive loads from the network.
 /// Report endpoints would send violation reports off the device.
 fn source_problem(csp: &str) -> Option<String> {
@@ -265,12 +266,14 @@ fn source_problem(csp: &str) -> Option<String> {
             let local = match source.as_str() {
                 "'self'" | "'none'" => true,
                 "data:" | "blob:" => !strict,
-                hash if ["'sha256-", "'sha384-", "'sha512-", "'nonce-"]
+                hash if ["'sha256-", "'sha384-", "'sha512-"]
                     .iter()
                     .any(|prefix| hash.starts_with(prefix)) =>
                 {
                     true
                 }
+                // A nonce in the config is fixed and public: the same as
+                // 'unsafe-inline' there (the dev nonce lives in devCsp only).
                 keyword if keyword.starts_with('\'') => !strict,
                 _ => false,
             };
@@ -497,6 +500,34 @@ mod tests {
         }
     }
 
+    /// A nonce written in the config is the same on every start and known to
+    /// anyone who reads it: as good as `'unsafe-inline'`. Tauri adds its own
+    /// hashes to the policy at build time; the dev server's nonce stays in
+    /// devCsp. Overlay and platform file are held to the same rule.
+    #[test]
+    fn release_with_a_fixed_nonce_is_refused() {
+        for directive in [
+            "script-src 'self' 'nonce-keystone-dev'",
+            "script-src-elem 'nonce-abc123'",
+            "style-src 'self' 'nonce-keystone-dev'",
+            "style-src-elem 'self' 'NONCE-abc123'",
+            "default-src 'self' 'nonce-abc123'",
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains("'nonce-"), "{directive}: {error}");
+        }
+        let platform = serde_json::json!({ "app": { "security": { "csp":
+            "default-src 'self'; connect-src ipc: http://ipc.localhost; \
+             script-src 'self' 'nonce-keystone-dev'" } } })
+        .to_string();
+        let error = check(&Inputs {
+            platform: Some(&platform),
+            ..inputs(true, None)
+        })
+        .unwrap_err();
+        assert!(error.contains("'nonce-keystone-dev'"), "{error}");
+    }
+
     #[test]
     fn local_sources_stay_allowed() {
         for directive in [
@@ -506,7 +537,6 @@ mod tests {
             "style-src 'self'",
             "style-src-attr 'unsafe-inline'",
             "script-src 'self' 'sha256-tA8NLZ7sfk4Jr/izBVduKXeZBybtCT1klC9bh3Zu2Fo='",
-            "script-src 'self' 'nonce-abc123'",
             "base-uri 'self'",
             "object-src 'none'",
             "frame-ancestors 'none'",

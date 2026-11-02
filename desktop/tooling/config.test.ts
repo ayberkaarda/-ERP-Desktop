@@ -46,9 +46,17 @@ describe('vite.desktop.config.ts', () => {
     )
   })
 
-  it('lets the dev server read the web sources above desktop/', () => {
-    const allow = (resolve('serve').server?.fs?.allow ?? []).map((path) => normalizePath(path))
-    expect(allow).toEqual([here('../..')])
+  it('lets the dev server read desktop/, the web sources and node_modules only', () => {
+    const fsOptions = resolve('serve').server?.fs
+    const allow = (fsOptions?.allow ?? []).map((path) => normalizePath(path))
+    expect(allow).toEqual([here('..'), here('../../frontend'), here('../../node_modules')])
+    expect(fsOptions?.strict ?? true).toBe(true)
+  })
+
+  it('ships no source maps and exposes only VITE_ and TAURI_ENV_ variables', () => {
+    const build = resolve('build')
+    expect(build.build?.sourcemap).toBe(false)
+    expect(build.envPrefix).toEqual(['VITE_', 'TAURI_ENV_'])
   })
 
   it('resolves @ to the web sources and @desktop to the desktop ones', () => {

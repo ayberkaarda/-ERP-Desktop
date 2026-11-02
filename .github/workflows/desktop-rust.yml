@@ -131,8 +131,9 @@ jobs:
       - run: npm run build
       - name: The built bundle carries no web transport
         run: |
-          if grep -rlE 'sanctum/csrf-cookie|X-XSRF-TOKEN|broadcasting/auth' dist; then
-            echo "::error::the desktop bundle carries the web transport (axios/Echo)"
+          # axios (CSRF round trip), laravel-echo (auth endpoint, wsHost), pusher-js.
+          if grep -rlE 'sanctum/csrf-cookie|X-XSRF-TOKEN|broadcasting/auth|wsHost|pusher|Pusher' dist; then
+            echo "::error::the desktop bundle carries the web transport (axios/Echo/pusher)"
             exit 1
           fi
       - run: cargo clippy -p keystone-desktop --all-targets --locked -- -D warnings

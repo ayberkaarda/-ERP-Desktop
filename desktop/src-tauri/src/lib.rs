@@ -472,6 +472,9 @@ mod config_tests {
             "sanctum/csrf-cookie",
             "X-XSRF-TOKEN",
             "broadcasting/auth",
+            // pusher-js and laravel-echo (the Echo connector names wsHost).
+            "pusher",
+            "wsHost",
             " dist",
         ] {
             assert!(trace.contains(needle), "{needle}: {trace}");
@@ -544,6 +547,34 @@ mod config_tests {
             granted,
             ["core:event:allow-listen", "core:event:allow-unlisten"]
         );
+    }
+
+    /// A capability can also open the app's commands to remote origins
+    /// (`remote.urls`), to other windows or webviews, or per platform. The
+    /// file holds these keys and nothing else, for the main window only.
+    #[test]
+    fn capability_has_only_the_expected_keys() {
+        let capability = capability();
+        let mut keys: Vec<&str> = capability
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "$schema",
+                "description",
+                "identifier",
+                "permissions",
+                "windows"
+            ]
+        );
+        assert_eq!(capability.get("remote"), None);
+        assert_eq!(capability["identifier"], "default");
+        assert_eq!(capability["windows"], serde_json::json!(["main"]));
     }
 
     #[test]

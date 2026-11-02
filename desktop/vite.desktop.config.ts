@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
+import { DESKTOP_ALIASES } from './tooling/aliases'
 import { moduleSwap } from './tooling/moduleSwap'
 import { DESKTOP_SWAPS } from './tooling/swaps'
 
@@ -31,10 +32,7 @@ export default defineConfig(({ command }) => ({
   clearScreen: false,
   plugins: [moduleSwap(DESKTOP_SWAPS), react(), tailwindcss()],
   resolve: {
-    alias: {
-      '@desktop': here('./src'),
-      '@': here('../frontend/src'),
-    },
+    alias: { ...DESKTOP_ALIASES },
   },
   html: command === 'serve' ? { cspNonce: DEV_NONCE } : {},
   server: {
@@ -42,8 +40,9 @@ export default defineConfig(({ command }) => ({
     port: 1420,
     strictPort: true,
     headers: { 'Content-Security-Policy': DEV_CSP },
-    // The web sources and the hoisted node_modules live above desktop/.
-    fs: { allow: [here('..')] },
+    // desktop/, the web sources and the hoisted node_modules; not the rest
+    // of the repo (backend/, .orchestra/, target/).
+    fs: { allow: [here('.'), here('../frontend'), here('../node_modules')] },
     watch: { ignored: ['**/src-tauri/**', '**/target/**'] },
   },
   envPrefix: ['VITE_', 'TAURI_ENV_'],
