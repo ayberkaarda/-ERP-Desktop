@@ -16,7 +16,8 @@ import { call, toCommandError } from '../../bridge/invoke'
 import { useTd } from '../../i18n'
 import { errorText } from './errors'
 import { KEPT, withPendingWork } from './pending'
-import { useAccount } from './services'
+import { DesktopOnlyNotice } from './DesktopOnly'
+import { useAccount, useOptionalAccount } from './services'
 import { useProfiles } from './useProfiles'
 
 type Step = { kind: 'credentials' } | { kind: 'twoFactor' } | { kind: 'company'; login: LoginDto }
@@ -25,7 +26,12 @@ const TWO_FACTOR_REQUIRED = 'TWO_FACTOR_REQUIRED'
 // The web forced password-change route (features/auth/session PASSWORD_CHANGE_PATH).
 const PASSWORD_CHANGE_PATH = '/password/change'
 
+/** Outside the desktop window: a notice instead of a page that cannot work. */
 export function DesktopLoginPage() {
+  return useOptionalAccount() ? <LoginSteps /> : <DesktopOnlyNotice />
+}
+
+function LoginSteps() {
   const td = useTd()
   const account = useAccount()
   const navigate = useNavigate()
@@ -137,7 +143,11 @@ export function DesktopLoginPage() {
     <AuthFrame>
       <div className="mb-6 flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span data-testid="login-profile">
-          {active ? td('account.login.profile', { name: active.name }) : td('account.login.noProfile')}
+          {profiles.data === null
+            ? null
+            : active
+              ? td('account.login.profile', { name: active.name })
+              : td('account.login.noProfile')}
         </span>
         <Link to="/setup" className="text-primary underline-offset-4 hover:underline">
           {td('account.login.change')}

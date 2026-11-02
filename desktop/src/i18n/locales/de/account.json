@@ -4,6 +4,10 @@
     "loadFailed": "Der Profilstatus konnte nicht gelesen werden.",
     "retry": "Erneut versuchen"
   },
+  "desktopOnly": {
+    "title": "Desktop-App erforderlich",
+    "body": "Dieser Bildschirm funktioniert nur im Fenster der Keystone-Desktop-App. Öffnen Sie die App und fahren Sie dort fort."
+  },
   "setup": {
     "title": "Serverprofile",
     "subtitle": "Die Desktop-App verbindet sich mit einem Keystone-Server. Jeder Server ist ein eigenes Profil.",

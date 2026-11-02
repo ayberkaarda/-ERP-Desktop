@@ -15,7 +15,7 @@ import { call } from '../../bridge/invoke'
 import { useTd } from '../../i18n'
 import { errorText } from './errors'
 import { ErrorLine } from './GateFrame'
-import { useAccount } from './services'
+import { useOptionalAccount, type AccountContextValue } from './services'
 import { useAppInfo } from './useProfiles'
 
 const TARGET: ExternalTarget = 'security'
@@ -25,57 +25,65 @@ function formatDate(value: string, language: string): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString(language)
 }
 
+/** Nothing outside the desktop window (no shell to ask). */
 export function DesktopSecurityExtras() {
+  const account = useOptionalAccount()
+  return account ? <SecurityExtras account={account} /> : null
+}
+
+function SecurityExtras({ account }: { account: AccountContextValue }) {
   const td = useTd()
   const { i18n } = useTranslation()
-  const account = useAccount()
-  const info = useAppInfo(account.invoke)
+  const { invoke } = account
+  const info = useAppInfo(invoke)
   const [devices, setDevices] = useState<DeviceDto[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  // The failure itself, translated while rendering: effects must not depend
+  // on td, which is a new function on every render.
+  const [failure, setFailure] = useState<{ reason: unknown } | null>(null)
+  const [revoked, setRevoked] = useState(false)
   const [revoking, setRevoking] = useState<DeviceDto | null>(null)
 
   const load = useCallback(async () => {
     try {
-      setDevices(await call<DeviceDto[]>(account.invoke, 'auth_devices_list'))
+      setDevices(await call<DeviceDto[]>(invoke, 'auth_devices_list'))
     } catch (reason) {
-      setError(errorText(td, reason))
+      setFailure({ reason })
     }
-  }, [account.invoke, td])
+  }, [invoke])
 
   useEffect(() => {
     let live = true
-    call<DeviceDto[]>(account.invoke, 'auth_devices_list').then(
+    call<DeviceDto[]>(invoke, 'auth_devices_list').then(
       (list) => {
         if (live) setDevices(list)
       },
       (reason: unknown) => {
-        if (live) setError(errorText(td, reason))
+        if (live) setFailure({ reason })
       },
     )
     return () => {
       live = false
     }
-  }, [account.invoke, td])
+  }, [invoke])
 
   async function revoke(device: DeviceDto) {
-    setError(null)
-    setNotice(null)
+    setFailure(null)
+    setRevoked(false)
     try {
-      await call(account.invoke, 'auth_devices_revoke', { id: device.id })
-      setNotice(td('account.security.revoked'))
+      await call(invoke, 'auth_devices_revoke', { id: device.id })
+      setRevoked(true)
       await load()
     } catch (reason) {
-      setError(errorText(td, reason))
+      setFailure({ reason })
     }
   }
 
   async function openWeb() {
-    setError(null)
+    setFailure(null)
     try {
-      await call(account.invoke, 'open_external', { target: TARGET })
+      await call(invoke, 'open_external', { target: TARGET })
     } catch (reason) {
-      setError(errorText(td, reason))
+      setFailure({ reason })
     }
   }
 
@@ -87,10 +95,10 @@ export function DesktopSecurityExtras() {
           <CardDescription>{td('account.security.devicesBody')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <ErrorLine message={error} />
-          {notice ? (
+          <ErrorLine message={failure ? errorText(td, failure.reason) : null} />
+          {revoked ? (
             <p role="status" className="text-sm text-muted-foreground">
-              {notice}
+              {td('account.security.revoked')}
             </p>
           ) : null}
           {devices?.length === 0 ? (

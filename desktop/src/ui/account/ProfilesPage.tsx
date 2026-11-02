@@ -16,7 +16,8 @@ import { useTd } from '../../i18n'
 import { errorText } from './errors'
 import { ErrorLine, GateFrame } from './GateFrame'
 import { KEPT, withPendingWork } from './pending'
-import { useAccount } from './services'
+import { DesktopOnlyNotice } from './DesktopOnly'
+import { useAccount, useOptionalAccount } from './services'
 import { useAppInfo, useProfiles } from './useProfiles'
 
 const DEV_EXAMPLE = 'http://localhost:8000'
@@ -240,6 +241,10 @@ export function ProfilesPage({
 
 /** The /setup route: inside the router, back to the app after a switch. */
 export function SetupPage() {
+  return useOptionalAccount() ? <SetupRoute /> : <DesktopOnlyNotice />
+}
+
+function SetupRoute() {
   const navigate = useNavigate()
   return (
     <ProfilesPage

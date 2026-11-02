@@ -15,9 +15,12 @@ import type { PendingWorkAnswer, PendingWorkRequest } from './services'
  */
 export function PendingWorkDialog({
   request,
+  canShow,
   onAnswer,
 }: {
   request: PendingWorkRequest | null
+  /** False while the gate shows its own screens: there is no router to open the outbox. */
+  canShow: boolean
   onAnswer: (answer: PendingWorkAnswer) => void
 }) {
   const td = useTd()
@@ -40,9 +43,11 @@ export function PendingWorkDialog({
           </AlertDialogDescription>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={() => onAnswer('show')} data-testid="pending-work-show">
-            {td('account.pending.show')}
-          </Button>
+          {canShow ? (
+            <Button variant="ghost" onClick={() => onAnswer('show')} data-testid="pending-work-show">
+              {td('account.pending.show')}
+            </Button>
+          ) : null}
           <Button variant="secondary" onClick={() => onAnswer('keep')} data-testid="pending-work-keep">
             {td('account.pending.keep')}
           </Button>

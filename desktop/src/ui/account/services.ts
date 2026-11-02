@@ -58,3 +58,8 @@ export function useAccount(): AccountContextValue {
   if (!value) throw new Error('account screens need the desktop AppGate around them')
   return value
 }
+
+/** The account context, or null outside the desktop window's gate. */
+export function useOptionalAccount(): AccountContextValue | null {
+  return useContext(AccountContext)
+}

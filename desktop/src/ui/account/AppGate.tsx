@@ -54,7 +54,9 @@ export function AccountGate({ services, children }: { services: AccountServices;
     const asked = news.current
     let next: View
     try {
-      next = { kind: 'state', state: await call<ProfileStateDto>(services.invoke, 'profile_state') }
+      // An answer the UI does not know (a newer shell) is not the web app.
+      const state = parseProfileState(await call<unknown>(services.invoke, 'profile_state'))
+      next = state ? { kind: 'state', state } : { kind: 'unreadable' }
     } catch {
       next = { kind: 'unreadable' }
     }
@@ -166,9 +168,16 @@ export function AccountGate({ services, children }: { services: AccountServices;
       >
         {children}
       </GateBody>
-      <PendingWorkDialog request={pending?.request ?? null} onAnswer={answerPending} />
+      <PendingWorkDialog request={pending?.request ?? null} canShow={showsApp(view)} onAnswer={answerPending} />
     </AccountContext.Provider>
   )
+}
+
+/** The web app (and its router, which can open the outbox) is on screen. */
+function showsApp(view: View): boolean {
+  if (view.kind !== 'state') return false
+  const { phase, error } = view.state
+  return (phase === 'ready' || phase === 'engineless') && error?.code !== 'STORE_KEY_INVALID'
 }
 
 function GateBody({
@@ -183,18 +192,17 @@ function GateBody({
   children: ReactNode
 }) {
   if (view.kind === 'loading') return <Splash text={td('account.gate.starting')} />
-  if (view.kind === 'unreadable') {
-    return (
-      <GateFrame testId="account-gate-unreadable">
-        <div role="alert" className="space-y-3">
-          <p className="text-sm text-muted-foreground">{td('account.gate.loadFailed')}</p>
-          <Button variant="secondary" onClick={onRetry}>
-            {td('account.gate.retry')}
-          </Button>
-        </div>
-      </GateFrame>
-    )
-  }
+  const unreadable = (
+    <GateFrame testId="account-gate-unreadable">
+      <div role="alert" className="space-y-3">
+        <p className="text-sm text-muted-foreground">{td('account.gate.loadFailed')}</p>
+        <Button variant="secondary" onClick={onRetry}>
+          {td('account.gate.retry')}
+        </Button>
+      </div>
+    </GateFrame>
+  )
+  if (view.kind === 'unreadable') return unreadable
   const { state } = view
   const code = state.error?.code
   if (state.phase === 'starting') return <Splash text={td('account.gate.starting')} />
@@ -207,5 +215,6 @@ function GateBody({
     if (code === 'PROFILES_FILE_INVALID') return <ProfilesFileRecovery message={state.error?.message ?? ''} />
     return <FailedProfile error={state.error} />
   }
+  if (!showsApp(view)) return unreadable
   return <Fragment key={state.profile_id ?? ''}>{children}</Fragment>
 }

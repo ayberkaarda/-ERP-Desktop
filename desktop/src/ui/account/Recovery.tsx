@@ -36,7 +36,8 @@ export function StoreKeyRecovery({ profileId }: { profileId: string }) {
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const confirmed = typed === name && name !== ''
+  const [profiles, setProfiles] = useState(false)
+  const confirmed = name.trim() !== '' && typed.trim() === name.trim()
 
   async function reset() {
     if (!confirmed) return
@@ -52,6 +53,7 @@ export function StoreKeyRecovery({ profileId }: { profileId: string }) {
     }
   }
 
+  if (profiles) return <ProfilesPage />
   return (
     <GateFrame testId="recovery-store-key">
       <div className="space-y-2">
@@ -81,6 +83,11 @@ export function StoreKeyRecovery({ profileId }: { profileId: string }) {
           {td('account.recovery.storeKey.reset')}
         </Button>
       </form>
+      <div>
+        <Button variant="secondary" onClick={() => setProfiles(true)} data-testid="store-key-profiles">
+          {td('account.recovery.failed.profiles')}
+        </Button>
+      </div>
     </GateFrame>
   )
 }

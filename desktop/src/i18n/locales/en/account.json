@@ -4,6 +4,10 @@
     "loadFailed": "The profile state could not be read.",
     "retry": "Try again"
   },
+  "desktopOnly": {
+    "title": "Desktop app required",
+    "body": "This screen works only in the Keystone desktop app window. Open the app and continue there."
+  },
   "setup": {
     "title": "Server profiles",
     "subtitle": "The desktop app connects to a Keystone server. Each server is a separate profile.",

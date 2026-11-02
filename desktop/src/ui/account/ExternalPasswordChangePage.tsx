@@ -12,11 +12,17 @@ import type { ExternalTarget } from '../../bridge/generated/ExternalTarget'
 import { call } from '../../bridge/invoke'
 import { useTd } from '../../i18n'
 import { errorText } from './errors'
-import { useAccount } from './services'
+import { DesktopOnlyNotice } from './DesktopOnly'
+import { useAccount, useOptionalAccount } from './services'
 
 const TARGET: ExternalTarget = 'password_change'
 
+/** Outside the desktop window: a notice instead of a page that cannot work. */
 export function ExternalPasswordChangePage() {
+  return useOptionalAccount() ? <PasswordHandOff /> : <DesktopOnlyNotice />
+}
+
+function PasswordHandOff() {
   const td = useTd()
   const account = useAccount()
   const navigate = useNavigate()

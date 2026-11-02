@@ -4,6 +4,10 @@
     "loadFailed": "Profil durumu okunamadı.",
     "retry": "Tekrar dene"
   },
+  "desktopOnly": {
+    "title": "Masaüstü uygulaması gerekli",
+    "body": "Bu ekran yalnız Keystone masaüstü uygulamasının penceresinde çalışır. Uygulamayı açıp oradan devam edin."
+  },
   "setup": {
     "title": "Sunucu profilleri",
     "subtitle": "Masaüstü uygulaması bir Keystone sunucusuna bağlanır. Her sunucu ayrı bir profildir.",

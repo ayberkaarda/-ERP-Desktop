@@ -4,6 +4,10 @@
     "loadFailed": "L'état du profil n'a pas pu être lu.",
     "retry": "Réessayer"
   },
+  "desktopOnly": {
+    "title": "Application de bureau requise",
+    "body": "Cet écran ne fonctionne que dans la fenêtre de l'application de bureau Keystone. Ouvrez l'application et continuez-y."
+  },
   "setup": {
     "title": "Profils de serveur",
     "subtitle": "L'application de bureau se connecte à un serveur Keystone. Chaque serveur est un profil distinct.",
