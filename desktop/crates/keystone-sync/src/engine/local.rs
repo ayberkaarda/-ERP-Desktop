@@ -22,6 +22,35 @@ const OFFLINE_MANIFEST_VERSION: &str = "offline_manifest_version";
 /// stage it reached ([`SignOutStage`]); access stays closed meanwhile.
 const SIGN_OUT_GENERATION: &str = "sign_out_generation";
 const SIGN_OUT_STAGE: &str = "sign_out_stage";
+/// The last `GET /auth/me` answer of a sign-in ([`StoredSessionCopy`]).
+/// Every wipe, seal and close removes it.
+const SESSION_COPY: &str = "session_copy";
+
+/// Format of [`SESSION_COPY`]; any other is ignored.
+const SESSION_COPY_FORMAT: u32 = 1;
+
+/// The `GET /auth/me` answer kept for an offline start, with the sign-in,
+/// user and company it was fetched for. It never holds a token: the server
+/// sends none in that answer, and the engine refuses one that does.
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(super) struct StoredSessionCopy {
+    pub format: u32,
+    pub generation: u64,
+    pub user_id: Uuid,
+    pub company_id: Uuid,
+    pub fetched_at: String,
+    pub body: serde_json::Value,
+}
+
+/// The body (user data) is never printed.
+impl std::fmt::Debug for StoredSessionCopy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("StoredSessionCopy")
+            .field("generation", &self.generation)
+            .field("fetched_at", &self.fetched_at)
+            .finish_non_exhaustive()
+    }
+}
 
 /// Stages of a sign-out, persisted before the step they name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -313,15 +342,61 @@ pub(super) fn set_pending_sign_out(store: &Store, pending: Option<PendingSignOut
     })
 }
 
-/// Closes local access while retaining the identity and all data.
-pub(super) fn close(store: &Store) -> Result<()> {
+/// The kept `GET /auth/me` answer; `None` when there is none or it is
+/// unreadable or of another format.
+pub(super) fn session_copy(store: &Store) -> Result<Option<StoredSessionCopy>> {
+    store.read(|conn| {
+        let value: Option<String> = conn
+            .query_row(
+                "SELECT value FROM engine_meta WHERE key = ?1",
+                [SESSION_COPY],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(value
+            .and_then(|v| serde_json::from_str::<StoredSessionCopy>(&v).ok())
+            .filter(|copy| copy.format == SESSION_COPY_FORMAT))
+    })
+}
+
+/// Replaces the kept `GET /auth/me` answer.
+pub(super) fn set_session_copy(store: &Store, copy: &StoredSessionCopy) -> Result<()> {
+    let value = serde_json::to_string(&StoredSessionCopy {
+        format: SESSION_COPY_FORMAT,
+        ..copy.clone()
+    })?;
     store.write(|tx| {
-        tx.execute("DELETE FROM engine_meta WHERE key = ?1", [GENERATION])?;
+        tx.execute(
+            "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![SESSION_COPY, value],
+        )?;
         Ok(())
     })
 }
 
-/// Removes server data and seals work until the same identity is verified again.
+/// Drops the kept `GET /auth/me` answer.
+pub(super) fn clear_session_copy(store: &Store) -> Result<()> {
+    store.write(|tx| {
+        tx.execute("DELETE FROM engine_meta WHERE key = ?1", [SESSION_COPY])?;
+        Ok(())
+    })
+}
+
+/// Closes local access while retaining the identity and all data; the kept
+/// `GET /auth/me` answer goes.
+pub(super) fn close(store: &Store) -> Result<()> {
+    store.write(|tx| {
+        tx.execute(
+            "DELETE FROM engine_meta WHERE key IN (?1, ?2)",
+            [GENERATION, SESSION_COPY],
+        )?;
+        Ok(())
+    })
+}
+
+/// Removes server data (the kept `GET /auth/me` answer too) and seals work
+/// until the same identity is verified again.
 pub(super) fn seal(store: &Store) -> Result<Vec<ResourceName>> {
     store.write(|tx| {
         tx.execute(
@@ -330,7 +405,10 @@ pub(super) fn seal(store: &Store) -> Result<Vec<ResourceName>> {
         )?;
         let names = Store::clear_mirror_on(tx)?;
         tx.execute("DELETE FROM engine_draft_bases", [])?;
-        tx.execute("DELETE FROM engine_meta WHERE key = ?1", [GENERATION])?;
+        tx.execute(
+            "DELETE FROM engine_meta WHERE key IN (?1, ?2)",
+            [GENERATION, SESSION_COPY],
+        )?;
         Ok(names)
     })
 }

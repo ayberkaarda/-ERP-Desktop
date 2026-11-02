@@ -17,6 +17,9 @@
 //! [`save_snapshot`] keeps a successful one, [`is_whole_answer`] tells which
 //! requests give one. A snapshot that holds fewer rows than a request asks
 //! for while more exist does not answer it.
+//!
+//! The session read (`GET /auth/me`) works the same way: [`save_session`]
+//! keeps a successful answer, [`LocalResolver::session`] gives it back.
 
 use std::sync::Arc;
 
@@ -116,6 +119,36 @@ impl LocalResolver for LocalAnswers {
     fn replay(&self, engine: &Engine, call: &ApiCall) -> CommandResult<Option<ApiResponseDto>> {
         local_write::replay(engine, call)
     }
+
+    fn session(&self, engine: &Engine) -> CommandResult<Option<ApiResponseDto>> {
+        session_answer(engine)
+    }
+}
+
+/// The kept `GET /auth/me` answer as the server sent it, with
+/// `meta.offline` (as of its fetch, stale). `None` while the local data is
+/// closed to this sign-in or there is no copy of it.
+fn session_answer(engine: &Engine) -> CommandResult<Option<ApiResponseDto>> {
+    let Some(Some(copy)) = open(engine.session_copy())? else {
+        return Ok(None);
+    };
+    let offline = OfflineMeta {
+        as_of: Some(copy.fetched_at.0),
+        stale: true,
+        ..OfflineMeta::default()
+    };
+    Ok(Some(envelope::local(
+        200,
+        envelope::with_offline(copy.data, &offline),
+    )))
+}
+
+/// Keeps `body`, a `200` answer of `GET /auth/me` fetched in sign-in
+/// `generation`, as of now. The engine refuses it for any other sign-in,
+/// one without tokens or deactivated, and a body that carries a credential.
+pub fn save_session(engine: &Arc<Engine>, body: &Value, generation: u64) -> CommandResult<()> {
+    let fetched_at = Timestamp(timestamp()?);
+    Ok(engine.put_session_copy(body, &fetched_at, generation)?)
 }
 
 fn list(engine: &Engine, read: &Read<'_>, call: &ApiCall) -> CommandResult<LocalOutcome> {

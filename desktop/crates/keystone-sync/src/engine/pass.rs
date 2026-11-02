@@ -67,6 +67,16 @@ impl<A: SyncApi> SyncEngine<A> {
         let _sign_in = self.session.hold();
         self.ensure_generation(generation)?;
         let identity = format!("{}:{}", manifest.user_id, manifest.company_id);
+        // The kept `GET /auth/me` answer stays only when this sign-in fetched
+        // it for this user and company; any other goes, also in the wipe below.
+        let copy = local::session_copy(&self.store)?.filter(|copy| {
+            copy.generation == generation
+                && copy.user_id == manifest.user_id
+                && copy.company_id == manifest.company_id
+        });
+        if copy.is_none() {
+            local::clear_session_copy(&self.store)?;
+        }
         // A different user or company than the local data belongs to: wipe
         // before anything of the previous user is pushed.
         if local::session(&self.store)?
@@ -74,6 +84,9 @@ impl<A: SyncApi> SyncEngine<A> {
             .is_some_and(|known| known != identity)
         {
             let names = local::wipe(&self.store)?;
+            if let Some(copy) = &copy {
+                local::set_session_copy(&self.store, copy)?;
+            }
             self.pending_pulls
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)

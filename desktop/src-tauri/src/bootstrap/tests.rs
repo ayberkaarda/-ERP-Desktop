@@ -253,7 +253,11 @@ async fn server(companies: &[(&str, &str)]) -> MockServer {
 
 /// [`server`] with `reverb` in its meta.
 async fn server_with(companies: &[(&str, &str)], reverb: Value) -> MockServer {
-    let server = MockServer::start().await;
+    serve_on(MockServer::start().await, companies, reverb).await
+}
+
+/// The mocks of [`server_with`] on `server`.
+async fn serve_on(server: MockServer, companies: &[(&str, &str)], reverb: Value) -> MockServer {
     Mock::given(method("GET"))
         .and(path("/api/v1/meta"))
         .respond_with(ResponseTemplate::new(200).set_body_json(meta_with("0.1.0", 1, reverb)))
@@ -1230,5 +1234,6 @@ async fn native_two_profiles_switch_on_the_credential_manager() {
     println!("removed both profiles of service {service}");
 }
 
+mod offline_session;
 mod realtime;
 mod shell;
