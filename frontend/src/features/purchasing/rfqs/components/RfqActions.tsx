@@ -3,7 +3,7 @@ import { Award, Ban, Loader2, Send } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { errorMessage, isVersionConflict } from '@/features/sales/shared/lib/errors'
 import { usePayloadKeys } from '@/features/sales/shared/lib/idempotency'
 import { usePermission } from '@/lib/permissions'
@@ -88,7 +88,8 @@ export function RfqActions({ rfq, ensureSaved, onConflict, busy = false }: RfqAc
   return (
     <>
       {canState && allowed.includes('cancel') && (
-        <Button
+        <OnlineOnlyButton
+          action="processPurchaseRfq"
           type="button"
           variant="ghost"
           disabled={pending}
@@ -96,27 +97,33 @@ export function RfqActions({ rfq, ensureSaved, onConflict, busy = false }: RfqAc
         >
           <Ban aria-hidden="true" />
           {t('rfqs.actions.cancel')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canAward && allowed.includes('award') && (
-        <Button
+        <OnlineOnlyButton
+          action="processPurchaseRfq"
           type="button"
           disabled={pending || !comparison.data}
           onClick={() => setAwarding(true)}
         >
           <Award aria-hidden="true" />
           {t('rfqs.actions.award')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canState && allowed.includes('send') && (
-        <Button type="button" disabled={pending} onClick={() => void open('send')}>
+        <OnlineOnlyButton
+          action="processPurchaseRfq"
+          type="button"
+          disabled={pending}
+          onClick={() => void open('send')}
+        >
           {run.isPending ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
           ) : (
             <Send aria-hidden="true" />
           )}
           {t('rfqs.actions.send')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       <ConfirmDialog
         open={confirming !== null}

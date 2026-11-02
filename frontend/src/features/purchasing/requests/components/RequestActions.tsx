@@ -3,7 +3,7 @@ import { Ban, FileCheck2, FileQuestion, Loader2, Send } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { errorMessage, isVersionConflict } from '@/features/sales/shared/lib/errors'
 import { usePayloadKeys } from '@/features/sales/shared/lib/idempotency'
 import { usePermission } from '@/lib/permissions'
@@ -104,7 +104,8 @@ export function RequestActions({
   return (
     <>
       {canState && allowed.includes('cancel') && (
-        <Button
+        <OnlineOnlyButton
+          action="submitPurchaseRequest"
           type="button"
           variant="ghost"
           disabled={pending}
@@ -112,10 +113,11 @@ export function RequestActions({
         >
           <Ban aria-hidden="true" />
           {t('requests.actions.cancel')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canRfq && allowed.includes('toRfq') && (
-        <Button
+        <OnlineOnlyButton
+          action="submitPurchaseRequest"
           type="button"
           variant="secondary"
           disabled={pending}
@@ -123,10 +125,11 @@ export function RequestActions({
         >
           <FileQuestion aria-hidden="true" />
           {t('requests.actions.toRfq')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canOrder && allowed.includes('toOrder') && (
-        <Button
+        <OnlineOnlyButton
+          action="submitPurchaseRequest"
           type="button"
           variant="secondary"
           disabled={pending}
@@ -134,17 +137,22 @@ export function RequestActions({
         >
           <FileCheck2 aria-hidden="true" />
           {t('requests.actions.toOrder')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canState && allowed.includes('submit') && (
-        <Button type="button" disabled={pending} onClick={() => void open('submit')}>
+        <OnlineOnlyButton
+          action="submitPurchaseRequest"
+          type="button"
+          disabled={pending}
+          onClick={() => void open('submit')}
+        >
           {run.isPending ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
           ) : (
             <Send aria-hidden="true" />
           )}
           {t('requests.actions.submit')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       <ConfirmDialog
         open={confirming !== null}

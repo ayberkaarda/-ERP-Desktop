@@ -8,6 +8,7 @@ import { EmptyState } from '@/components/shared/EmptyState'
 import { FieldShell } from '@/components/shared/form'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
@@ -183,10 +184,10 @@ export function GeneralLedgerPage() {
           )}
         </FieldShell>
         <RangeFields value={draft} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} />
-        <Button type="submit" disabled={!valid(draft)}>
+        <OnlineOnlyButton action="liveReports" type="submit" disabled={!valid(draft)}>
           <Play aria-hidden="true" />
           {t('reports.run')}
-        </Button>
+        </OnlineOnlyButton>
       </form>
 
       {!enabled ? (

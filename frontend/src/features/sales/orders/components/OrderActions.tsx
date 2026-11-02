@@ -11,7 +11,7 @@ import {
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { useIntlLocale } from '@/lib/datetime'
 import { formatMoney } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
@@ -191,7 +191,8 @@ export function OrderActions({
   return (
     <>
       {canCancel && allowed.includes('cancel') && (
-        <Button
+        <OnlineOnlyButton
+          action="confirmSalesOrder"
           type="button"
           variant="ghost"
           disabled={pending}
@@ -199,22 +200,35 @@ export function OrderActions({
         >
           <Ban aria-hidden="true" />
           {t('actions.cancel')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canClose && allowed.includes('close') && (
-        <Button type="button" variant="ghost" disabled={pending} onClick={() => setClosing(true)}>
+        <OnlineOnlyButton
+          action="confirmSalesOrder"
+          type="button"
+          variant="ghost"
+          disabled={pending}
+          onClick={() => setClosing(true)}
+        >
           <Archive aria-hidden="true" />
           {t('actions.close')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canRevise && onRevise && allowed.includes('revise') && (
-        <Button type="button" variant="secondary" disabled={pending} onClick={onRevise}>
+        <OnlineOnlyButton
+          action="confirmSalesOrder"
+          type="button"
+          variant="secondary"
+          disabled={pending}
+          onClick={onRevise}
+        >
           <FilePenLine aria-hidden="true" />
           {t('actions.revise')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canDeliver && allowed.includes('createDelivery') && (
-        <Button
+        <OnlineOnlyButton
+          action="confirmSalesOrder"
           type="button"
           variant="secondary"
           disabled={pending}
@@ -222,10 +236,11 @@ export function OrderActions({
         >
           <PackageCheck aria-hidden="true" />
           {t('actions.createDelivery')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canInvoice && allowed.includes('createInvoice') && (
-        <Button
+        <OnlineOnlyButton
+          action="confirmSalesOrder"
           type="button"
           variant="secondary"
           disabled={pending}
@@ -233,17 +248,22 @@ export function OrderActions({
         >
           <ReceiptText aria-hidden="true" />
           {t('actions.createInvoice')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canConfirm && allowed.includes('confirm') && (
-        <Button type="button" disabled={pending} onClick={() => void openConfirm()}>
+        <OnlineOnlyButton
+          action="confirmSalesOrder"
+          type="button"
+          disabled={pending}
+          onClick={() => void openConfirm()}
+        >
           {confirm.isPending ? (
             <Loader2 className="animate-spin" aria-hidden="true" />
           ) : (
             <CheckCheck aria-hidden="true" />
           )}
           {t('actions.confirm')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       <ConfirmDialog
         open={confirming !== null}

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { AuditTrail, type AuditEntry } from '@/components/shared/AuditTrail'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
 import { usePermission } from '@/lib/permissions'
@@ -86,10 +86,15 @@ export function JournalEntryView({ entry }: { entry: JournalEntry }) {
         meta={<EntryStatusBadge status={entry.status} />}
         actions={
           entry.status === 'posted' && canReverse ? (
-            <Button type="button" variant="secondary" onClick={() => setReverseOpen(true)}>
+            <OnlineOnlyButton
+              action="postJournalEntry"
+              type="button"
+              variant="secondary"
+              onClick={() => setReverseOpen(true)}
+            >
               <Undo2 aria-hidden="true" />
               {t('reverse.action')}
-            </Button>
+            </OnlineOnlyButton>
           ) : null
         }
       />
