@@ -1,1 +1,120 @@
-{}
+{
+  "state": {
+    "idle": "Eşitlendi",
+    "syncing": "Eşitleniyor",
+    "offline": "Çevrimdışı",
+    "auth_required": "Oturum gerekli",
+    "failed": "Eşitleme hatası",
+    "unknown": "Eşitleme durumu bilinmiyor"
+  },
+  "realtime": {
+    "disabled": "Canlı bağlantı kapalı",
+    "idle": "Canlı bağlantı bekliyor",
+    "connecting": "Canlı bağlantı kuruluyor",
+    "connected": "Canlı bağlantı açık",
+    "unavailable": "Canlı bağlantı kurulamadı"
+  },
+  "badge": {
+    "status": "Eşitleme durumu: {{state}}",
+    "lastError": "Son hata: {{error}}",
+    "retryIn": "{{seconds}} sn sonra yeniden denenecek",
+    "syncNow": "Şimdi eşitle",
+    "syncNowFailed": "Eşitleme başlatılamadı: {{error}}",
+    "pending": "Bekleyen: {{count}}",
+    "pendingHint": "Gönderilmemiş değişiklikleri göster",
+    "conflicts": "Çakışma: {{count}}",
+    "conflictsHint": "Çakışma kutusunu aç",
+    "problems": "Reddedilen: {{rejected}}, karantina: {{quarantined}}",
+    "manifestMismatch": "Çevrimdışı yazma kapalı: bu sürüm sunucunun çevrimdışı tanımıyla uyuşmuyor, uygulamayı güncelleyin."
+  },
+  "outbox": {
+    "title": "Gönderilmemiş değişiklikler",
+    "description": "Bu cihazda kaydedilen ve sunucuya henüz ulaşmamış değişiklikler.",
+    "numberNote": "Çevrimdışı oluşturulan belgeler numarasızdır; numara sunucuya gönderildikten sonra gelir.",
+    "empty": "Bekleyen değişiklik yok.",
+    "loadFailed": "Liste okunamadı: {{error}}",
+    "resource": "Kaynak",
+    "operation": "İşlem",
+    "status": "Durum",
+    "attempts": "Deneme",
+    "lastError": "Son hata",
+    "occurredAt": "Zaman",
+    "actions": "Eylemler",
+    "retry": "Yeniden dene",
+    "discard": "Vazgeç",
+    "discardTitle": "Değişiklikten vazgeçilsin mi?",
+    "discardDescription": "Bu değişiklik bu cihazdan silinir ve sunucuya gönderilmez. Ona bağlı değişiklikler de gönderilemez.",
+    "retried": "Değişiklik yeniden gönderilecek.",
+    "discarded": "Değişiklikten vazgeçildi.",
+    "failed": "İşlem yapılamadı: {{error}}",
+    "openConflicts": "Çakışmayı çöz",
+    "op": {
+      "create": "Oluşturma",
+      "update": "Güncelleme",
+      "delete": "Silme",
+      "action": "Eylem"
+    },
+    "state": {
+      "pending": "Bekliyor",
+      "in_flight": "Gönderiliyor",
+      "conflict": "Çakışma",
+      "rejected": "Reddedildi",
+      "quarantined": "Karantinada"
+    }
+  },
+  "conflict": {
+    "title": "Çakışma kutusu",
+    "description": "Çevrimdışıyken yapılan ve sunucudaki kayıtla çakışan değişiklikler.",
+    "empty": "Açık çakışma yok.",
+    "loadFailed": "Liste okunamadı: {{error}}",
+    "record": "{{resource}} · {{id}}",
+    "detectedAt": "Bulunma zamanı: {{time}}",
+    "field": "Alan",
+    "mine": "Benim değerim",
+    "server": "Sunucudaki değer",
+    "useMine": "Benimki",
+    "useServer": "Sunucununki",
+    "noFields": "Çakışan alan bildirilmedi.",
+    "candidates": "Aynı olabilecek kayıtlar",
+    "candidateLoading": "Ad okunuyor…",
+    "mergeEmpty": "Birleştirmede gönderilecek alan kalmadı; sunucudaki kaydı alın.",
+    "failed": "Çözülemedi: {{error}}",
+    "code": {
+      "VERSION_CONFLICT": "Kayıt siz çevrimdışıyken sunucuda değişti.",
+      "DOCUMENT_LOCKED": "Belge sunucuda artık taslak değil; değiştirilemez.",
+      "DUPLICATE_RECORD": "Aynı bilgilerle bir kayıt sunucuda zaten var."
+    },
+    "choice": {
+      "keep_mine": "Benimkini koru",
+      "take_server": "Sunucudakini al",
+      "merge": "Seçtiğim alanlarla birleştir",
+      "save_as_new_draft": "Yeni taslak olarak kaydet",
+      "discard": "Değişikliğimden vazgeç",
+      "use_existing": "Bu kaydı kullan"
+    },
+    "resolved": {
+      "queued": "Karar kaydedildi; değişiklik sunucuya gönderilecek.",
+      "take_server": "Sunucudaki kayıt alındı.",
+      "use_existing": "Mevcut kayıt kullanılıyor.",
+      "discard": "Değişiklikten vazgeçildi."
+    },
+    "refused": "Bu çakışma bu sürümde çözülemiyor ({{detail}}).",
+    "refusedDiscard": "Değişikliğinizden vazgeçebilirsiniz.",
+    "refusedHint": "Yeniden eşitleyin; sorun sürerse uygulamayı güncelleyin.",
+    "resync": "Yeniden eşitle"
+  },
+  "freshness": {
+    "label": "Bu cihazdaki kopya gösteriliyor.",
+    "stale": "Veriler eski olabilir.",
+    "asOf": "{{time}} itibarıyla.",
+    "partial": "Yerel kopya eksik.",
+    "unsupportedFilters": "Bu filtreler çevrimdışında yok: {{filters}}"
+  },
+  "onlineOnly": {
+    "fallback": "Bu işlem yalnız çevrimiçiyken yapılabilir."
+  },
+  "refusal": {
+    "offline": "Bu işlem çevrimdışıyken yapılamaz; bağlantı gelince yeniden deneyin.",
+    "manifest": "Çevrimdışı yazma kapalı: uygulamayı güncelleyin."
+  }
+}
