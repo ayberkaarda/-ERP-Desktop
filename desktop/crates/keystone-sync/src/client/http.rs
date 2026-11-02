@@ -483,10 +483,10 @@ impl TokenTask {
         match post(tokens.access_token.clone()).await {
             Ok(raw) if raw.is_success() => return true,
             Ok(raw) if raw.status == 401 => {}
-            // The account is deactivated: the server deleted the access
-            // token this request carried and refuses every refresh while
-            // the account stays so; nobody can sign in to end it otherwise.
-            Ok(raw) if raw.status == 403 && is_deactivated(&raw) => return true,
+            // USER_DEACTIVATED (by its code; any other 403 leaves the token
+            // valid): the server's guard refuses every token of a
+            // deactivated account, so nothing usable is left there.
+            Ok(raw) if is_deactivated(&raw) => return true,
             _ => return false,
         }
         let taken = match self.store().take(&TokenWrite::new(), self.profile()) {
@@ -498,7 +498,8 @@ impl TokenTask {
                 post(Secret::new(response.data.token.clone())).await,
                 Ok(raw) if raw.is_success() || raw.status == 401
             ),
-            Err((status, _)) => status == Some(401),
+            // Deactivated: as on the logout itself (by code, not status).
+            Err((status, error)) => status == Some(401) || is_deactivated_error(&error),
         }
     }
 
@@ -813,12 +814,16 @@ fn decode<R: DeserializeOwned>(raw: &RawResponse) -> Result<R> {
 /// The answer is the error envelope with code `USER_DEACTIVATED` (only the
 /// code is looked at).
 fn is_deactivated(raw: &RawResponse) -> bool {
+    !raw.is_success() && decode::<()>(raw).is_err_and(|error| is_deactivated_error(&error))
+}
+
+fn is_deactivated_error(error: &SyncError) -> bool {
     matches!(
-        decode::<()>(raw),
-        Err(SyncError::Api {
+        error,
+        SyncError::Api {
             code: ErrorCode::UserDeactivated,
             ..
-        })
+        }
     )
 }
 

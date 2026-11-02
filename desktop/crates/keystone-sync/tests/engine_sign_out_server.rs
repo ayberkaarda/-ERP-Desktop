@@ -476,7 +476,7 @@ async fn a_failed_retry_after_the_refresh_is_not_confirmed() {
 }
 
 #[tokio::test]
-async fn a_refresh_refused_for_a_deactivated_account_is_not_confirmed() {
+async fn a_refresh_refused_for_a_deactivated_account_counts_as_ended() {
     let env = synced_env().await;
     mount_logout(&env, unauthenticated()).await;
     mount_refresh(
@@ -485,8 +485,49 @@ async fn a_refresh_refused_for_a_deactivated_account_is_not_confirmed() {
     )
     .await;
 
-    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(false));
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(true));
     signed_out_locally(&env);
+    assert_eq!(requests(&env, LOGOUT).await.len(), 1, "sent again");
+}
+
+#[tokio::test]
+async fn a_refresh_refused_with_another_403_is_not_confirmed() {
+    for code in ["FORBIDDEN", "PASSWORD_CHANGE_REQUIRED", "COMPANY_FORBIDDEN"] {
+        let env = synced_env().await;
+        mount_logout(&env, unauthenticated()).await;
+        mount_refresh(
+            &env,
+            ResponseTemplate::new(403).set_body_json(error_body(code, "no")),
+        )
+        .await;
+
+        assert_eq!(
+            env.engine.sign_out(false).await.unwrap(),
+            done(false),
+            "{code}"
+        );
+        signed_out_locally(&env);
+    }
+}
+
+#[tokio::test]
+async fn a_logout_refused_with_another_403_is_not_confirmed() {
+    for code in ["PASSWORD_CHANGE_REQUIRED", "COMPANY_FORBIDDEN", "FORBIDDEN"] {
+        let env = synced_env().await;
+        mount_logout(
+            &env,
+            ResponseTemplate::new(403).set_body_json(error_body(code, "no")),
+        )
+        .await;
+
+        assert_eq!(
+            env.engine.sign_out(false).await.unwrap(),
+            done(false),
+            "{code}"
+        );
+        signed_out_locally(&env);
+        assert!(requests(&env, REFRESH).await.is_empty(), "{code}");
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
