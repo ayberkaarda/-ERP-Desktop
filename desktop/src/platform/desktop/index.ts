@@ -3,6 +3,7 @@
 
 import type { Listen } from '../../bridge/events'
 import type { Invoke } from '../../bridge/invoke'
+import { createDesktopBridge, type DesktopBridge } from './bridge'
 import { createDesktopConnectivity } from './connectivity'
 import { createDesktopHttp } from './http'
 import { createDesktopNotify } from './notify'
@@ -16,6 +17,11 @@ export interface DesktopPlatform extends Platform {
   kind: 'desktop'
   session: DesktopSession
   desktop: {
+    /**
+     * Shell commands and the engine, realtime and profile-state events for the
+     * desktop screens (failures are `CommandError`s; no raw Tauri object).
+     */
+    bridge: DesktopBridge
     /** `meta.offline` of the last local answer per API path. */
     offlineMeta: OfflineMetaStore
     /** Reads the active profile again (after a profile was added, selected or removed). */
@@ -29,6 +35,11 @@ export interface DesktopPlatform extends Platform {
 
 export function isDesktopPlatform(platform: Platform): platform is DesktopPlatform {
   return platform.kind === 'desktop' && 'desktop' in platform
+}
+
+/** The shell bridge of a desktop platform; `undefined` on the web platform. */
+export function desktopBridgeOf(platform: Platform): DesktopBridge | undefined {
+  return isDesktopPlatform(platform) ? platform.desktop.bridge : undefined
 }
 
 export function createDesktopPlatform(options: {
@@ -65,6 +76,7 @@ export function createDesktopPlatform(options: {
     realtime,
     session,
     desktop: {
+      bridge: createDesktopBridge(invoke, listen),
       offlineMeta,
       refreshProfile: () => profile.refresh(),
       setPendingWorkHandler: (handler) => {
@@ -89,4 +101,5 @@ export {
 } from './session'
 export { isPlatformCancelled, PlatformCancelledError } from '@/platform/shared'
 export type { OfflineMeta, OfflineMetaStore } from './offlineMeta'
+export { DESKTOP_BRIDGE_EVENTS, type DesktopBridge } from './bridge'
 export { REALTIME_EVENT_NAMES } from './realtime'

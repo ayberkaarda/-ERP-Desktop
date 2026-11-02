@@ -1,1 +1,21 @@
-{}
+{
+  "finalizeSalesQuote": "L'envoi, l'acceptation, le refus, l'annulation, la révision et la conversion des devis nécessitent une connexion.",
+  "confirmSalesOrder": "La confirmation de commande et les étapes suivantes nécessitent une connexion.",
+  "postSalesDelivery": "Les livraisons mouvementent le stock et nécessitent une connexion.",
+  "issueSalesInvoice": "Les numéros de facture sont attribués par le serveur ; la facturation nécessite une connexion.",
+  "processSalesReturn": "Les retours de vente mouvementent stock et soldes et nécessitent une connexion.",
+  "submitPurchaseRequest": "La soumission d'une demande d'achat nécessite une connexion.",
+  "processPurchaseRfq": "Les demandes de devis nécessitent une connexion.",
+  "approvePurchaseOrder": "Les actions sur les commandes d'achat nécessitent une connexion.",
+  "postPurchaseReceipt": "Les réceptions mouvementent le stock et nécessitent une connexion.",
+  "bookPurchaseInvoice": "Les factures d'achat sont comptabilisées et nécessitent une connexion.",
+  "processPurchaseReturn": "Les retours d'achat mouvementent stock et soldes et nécessitent une connexion.",
+  "postStockDocument": "La validation des documents de stock et les réservations nécessitent une connexion.",
+  "decideApproval": "Les décisions d'approbation nécessitent une connexion.",
+  "treasuryPayment": "Les paiements, encaissements et virements nécessitent une connexion.",
+  "sendEDocument": "Les actions sur les documents électroniques nécessitent une connexion.",
+  "postJournalEntry": "La comptabilisation des écritures nécessite une connexion.",
+  "closePeriod": "La clôture des périodes et des exercices nécessite une connexion.",
+  "serverCalculation": "Les totaux, prix et risques sont calculés par le serveur ; connectez-vous.",
+  "liveReports": "Les rapports en direct ne sont disponibles qu'en ligne."
+}

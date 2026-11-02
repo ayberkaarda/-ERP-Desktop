@@ -13,6 +13,9 @@ export const ENGINE_EVENT = 'engine-event'
 /** Name of the Tauri event the realtime bridge emits (`REALTIME_EVENT` in Rust). */
 export const REALTIME_EVENT = 'realtime-event'
 
+/** Name of the Tauri event the profile state machine emits (`PROFILE_STATE_EVENT` in Rust). */
+export const PROFILE_STATE_EVENT = 'profile-state'
+
 export type Unlisten = () => void
 export type Listen = (
   event: string,

@@ -67,6 +67,8 @@ export function createDesktopConnectivity(options: {
 
   const stopProfile = profile.subscribe(startOver)
 
+  // A failed listen (no Tauri runtime, e.g. jsdom) hears nothing and must not
+  // surface as an unhandled rejection.
   const unlisten: Promise<Unlisten> = listenEngine(listen, (event) => {
     if (event.type === 'status') {
       profile.accept(event.profile_id, () => {
@@ -84,7 +86,7 @@ export function createDesktopConnectivity(options: {
         })
       })
     }
-  })
+  }).catch((): Unlisten => () => undefined)
 
   return {
     isOnline: online,

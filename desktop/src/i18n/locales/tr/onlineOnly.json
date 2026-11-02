@@ -1,1 +1,21 @@
-{}
+{
+  "finalizeSalesQuote": "Teklifi göndermek, kabul, ret, iptal, revizyon ve siparişe çevirme çevrimiçi yapılır.",
+  "confirmSalesOrder": "Sipariş onayı ve sonraki adımları çevrimiçi yapılır.",
+  "postSalesDelivery": "İrsaliye stok hareketi oluşturduğu için çevrimiçi yapılır.",
+  "issueSalesInvoice": "Fatura numarası sunucuda verildiği için fatura işlemleri çevrimiçi yapılır.",
+  "processSalesReturn": "Satış iadesi stok ve cari hareketi oluşturduğu için çevrimiçi yapılır.",
+  "submitPurchaseRequest": "Satın alma talebini onaya göndermek çevrimiçi yapılır.",
+  "processPurchaseRfq": "Teklif talebi işlemleri çevrimiçi yapılır.",
+  "approvePurchaseOrder": "Satın alma siparişi işlemleri çevrimiçi yapılır.",
+  "postPurchaseReceipt": "Mal kabul stok hareketi oluşturduğu için çevrimiçi yapılır.",
+  "bookPurchaseInvoice": "Alış faturası deftere işlendiği için çevrimiçi yapılır.",
+  "processPurchaseReturn": "Satın alma iadesi stok ve cari hareketi oluşturduğu için çevrimiçi yapılır.",
+  "postStockDocument": "Stok belgesi işleme ve rezervasyon çevrimiçi yapılır.",
+  "decideApproval": "Onay kararları çevrimiçi verilir.",
+  "treasuryPayment": "Ödeme, tahsilat ve virman işlemleri çevrimiçi yapılır.",
+  "sendEDocument": "e-Belge işlemleri çevrimiçi yapılır.",
+  "postJournalEntry": "Yevmiye kaydını deftere işlemek çevrimiçi yapılır.",
+  "closePeriod": "Dönem ve mali yıl kapanışı çevrimiçi yapılır.",
+  "serverCalculation": "Toplam, fiyat ve risk hesabı sunucuda yapılır; çevrimiçi olun.",
+  "liveReports": "Canlı raporlar yalnız çevrimiçi görüntülenir."
+}

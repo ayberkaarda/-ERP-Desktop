@@ -1,1 +1,21 @@
-{}
+{
+  "finalizeSalesQuote": "Sending, accepting, rejecting, cancelling, revising and converting quotes needs a connection.",
+  "confirmSalesOrder": "Confirming a sales order and its next steps needs a connection.",
+  "postSalesDelivery": "Deliveries move stock, so they need a connection.",
+  "issueSalesInvoice": "Invoice numbers come from the server, so invoicing needs a connection.",
+  "processSalesReturn": "Sales returns move stock and balances, so they need a connection.",
+  "submitPurchaseRequest": "Submitting a purchase request needs a connection.",
+  "processPurchaseRfq": "Requests for quotation need a connection.",
+  "approvePurchaseOrder": "Purchase order actions need a connection.",
+  "postPurchaseReceipt": "Goods receipts move stock, so they need a connection.",
+  "bookPurchaseInvoice": "Purchase invoices are booked to the ledger, so they need a connection.",
+  "processPurchaseReturn": "Purchase returns move stock and balances, so they need a connection.",
+  "postStockDocument": "Posting stock documents and managing reservations needs a connection.",
+  "decideApproval": "Approval decisions need a connection.",
+  "treasuryPayment": "Payments, receipts and transfers need a connection.",
+  "sendEDocument": "E-document actions need a connection.",
+  "postJournalEntry": "Posting journal entries needs a connection.",
+  "closePeriod": "Closing periods and fiscal years needs a connection.",
+  "serverCalculation": "Totals, prices and risk are calculated on the server; go online.",
+  "liveReports": "Live reports are only available online."
+}
