@@ -61,7 +61,118 @@
         "path": { "$ref": "#/$defs/path" },
         "detail_path": { "$ref": "#/$defs/path" },
         "api_resource": { "$ref": "#/$defs/apiResource" },
+        "query": { "$ref": "#/$defs/query" },
         "write": { "$ref": "#/$defs/write" }
+      }
+    },
+    "fieldPath": {
+      "description": "Satır JSON'unda (API Resource / pull satırı) üst düzey alan adı.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "queryName": {
+      "description": "Liste ucunun sort veya filter[...] parametresindeki ad; sunucunun kabul ettiği ad.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$"
+    },
+    "querySort": {
+      "description": "Yerelde uygulanabilen bir sıralama. field: satırdaki alan (yoksa adın kendisi). type, satırdaki değerin karşılaştırma kuralıdır: text (harmanlama kuralıyla), date (YYYY-MM-DD), datetime (ISO 8601), decimal (sayı olarak karşılaştırılan ondalık dize), integer, bool. null artan sırada sonda, azalan sırada baştadır; eşitlikte id artan.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "field": { "$ref": "#/$defs/fieldPath" },
+        "type": { "enum": ["text", "date", "datetime", "decimal", "integer", "bool"] }
+      }
+    },
+    "queryFilter": {
+      "description": "Yerelde uygulanabilen bir filtre. field: satırdaki alan (yoksa adın kendisi). match: eq (tek değer veya virgüllü liste; liste 'herhangi biri'), any_of (satırdaki dizi, virgüllü değerlerden en az birini içerir), gte / lte (dahil aralık ucu), contains (büyük/küçük harf duyarsız alt dize). type: string (tam, harf duyarlı), uuid (küçük harfle), bool (yalnız 1/0/true/false), integer, date (YYYY-MM-DD).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["match", "type"],
+      "properties": {
+        "field": { "$ref": "#/$defs/fieldPath" },
+        "match": { "enum": ["eq", "any_of", "gte", "lte", "contains"] },
+        "type": { "enum": ["string", "uuid", "bool", "integer", "date"] },
+        "element_field": {
+          "description": "any_of için: field nesne dizisidir (ör. gömülü lines) ve karşılaştırılan, her öğenin bu alanıdır.",
+          "$ref": "#/$defs/fieldPath"
+        },
+        "max_values": {
+          "description": "eq / any_of için sunucunun kabul ettiği en çok virgüllü değer sayısı.",
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "match": { "enum": ["gte", "lte"] } } },
+          "then": { "properties": { "type": { "enum": ["date", "integer"] } }, "not": { "required": ["max_values"] } }
+        },
+        {
+          "if": { "properties": { "match": { "const": "contains" } } },
+          "then": { "properties": { "type": { "const": "string" } }, "not": { "required": ["max_values"] } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "bool" } } },
+          "then": { "properties": { "match": { "const": "eq" } } }
+        },
+        {
+          "if": { "required": ["element_field"] },
+          "then": { "required": ["field"], "properties": { "match": { "const": "any_of" } } }
+        }
+      ]
+    },
+    "query": {
+      "description": "Liste ucunun (path) çevrimdışı yerel kopyada uygulanabilen sorgu parametreleri. Burada adı geçmeyen sort alanı veya filter[...] yerelde uygulanmaz; istemci o isteği çevrimdışıyken reddeder (503, unsupported_filters). Bölüm yoksa yalnız window_field kuralı geçerlidir. Bkz. docs/SYNC-PROTOCOL.md 'Çevrimdışı liste sorguları'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default_sort": {
+          "description": "sort parametresi yokken sunucunun uyguladığı sıra ('-' azalan); yoksa yalnız id artan.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^-?[a-z][a-z0-9_]*$" }
+        },
+        "sort": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/queryName" },
+          "additionalProperties": { "$ref": "#/$defs/querySort" }
+        },
+        "filters": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/queryName" },
+          "additionalProperties": { "$ref": "#/$defs/queryFilter" }
+        },
+        "search": {
+          "description": "q parametresinin yerelde arandığı satır alanları: sunucunun aradığı kolonlardan satırda bulunanlar. server_also: sunucunun ayrıca aradığı ama satırda olmayan şey; yerel arama onu bulamaz.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fields"],
+          "properties": {
+            "fields": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/fieldPath" }
+            },
+            "server_also": { "type": "string", "minLength": 1 }
+          }
+        },
+        "online_only": {
+          "description": "Web'in gönderdiği ama yerelde doğru uygulanamayan parametreler ve nedenleri; çevrimdışıyken reddedilir.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["param", "reason"],
+            "properties": {
+              "param": { "type": "string", "pattern": "^(filter\\[[a-z][a-z0-9_]*\\]|sort=[a-z][a-z0-9_]*)$" },
+              "reason": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
       }
     },
     "writeOp": {
@@ -237,6 +348,7 @@
           "type": "array",
           "items": { "$ref": "#/$defs/child" }
         },
+        "query": { "$ref": "#/$defs/query" },
         "write": { "$ref": "#/$defs/write" }
       },
       "allOf": [
@@ -248,7 +360,7 @@
           "if": { "properties": { "source": { "const": "snapshot" } } },
           "then": {
             "properties": { "read": { "const": "offline-fallback" } },
-            "not": { "anyOf": [{ "required": ["write"] }, { "required": ["children"] }] }
+            "not": { "anyOf": [{ "required": ["write"] }, { "required": ["children"] }, { "required": ["query"] }] }
           }
         },
         {
