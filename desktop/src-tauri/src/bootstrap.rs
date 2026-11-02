@@ -673,8 +673,9 @@ impl Desktop {
         })
     }
 
-    /// Signs out of the active profile through its engine (tokens of the
-    /// current sign-in, then local data). Unsent work refuses unless `force`.
+    /// Signs out of the active profile through its engine (the server is
+    /// told first, best effort; then tokens of the current sign-in, then
+    /// local data). Unsent work refuses unless `force`.
     pub async fn sign_out(&self, state: &AppState, force: bool) -> CommandResult<SignOutDto> {
         let id = state.active_profile_id();
         let engine = state.engine()?;
@@ -685,11 +686,11 @@ impl Desktop {
             .map_err(|_| task_failed())?
             .map_err(token_error)?;
         Ok(match outcome {
-            SignOut::Done => {
+            SignOut::Done { server_revoked } => {
                 if let Some(id) = id {
                     self.connectivity.forget(&id);
                 }
-                SignOutDto::Done
+                SignOutDto::Done { server_revoked }
             }
             SignOut::PendingWork { outbox, conflicts } => {
                 SignOutDto::PendingWork { outbox, conflicts }

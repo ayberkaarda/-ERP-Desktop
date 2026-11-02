@@ -39,9 +39,11 @@ impl<A: SyncApi> SyncEngine<A> {
         self.outbox.requeue_in_flight()?;
         // Finish a sign-out cut short earlier, from the stage it reached
         // and for its own generation: nothing local goes before the revoke
-        // of that generation is confirmed.
+        // of that generation is confirmed. One still holding its tokens
+        // tells the server first, as the sign-out itself would have.
         if let Some(pending) = local::pending_sign_out(&self.store)? {
             let _tokens = self.session.lock().await;
+            let pending = self.with_server_answer(pending).await;
             let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
             self.finish_sign_out(pending, false)?;
         }

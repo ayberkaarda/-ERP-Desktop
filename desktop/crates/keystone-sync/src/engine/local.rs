@@ -22,6 +22,7 @@ const OFFLINE_MANIFEST_VERSION: &str = "offline_manifest_version";
 /// stage it reached ([`SignOutStage`]); access stays closed meanwhile.
 const SIGN_OUT_GENERATION: &str = "sign_out_generation";
 const SIGN_OUT_STAGE: &str = "sign_out_stage";
+const SIGN_OUT_SERVER_ENDED: &str = "sign_out_server_ended";
 
 /// Stages of a sign-out, persisted before the step they name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,6 +57,11 @@ impl SignOutStage {
 pub(super) struct PendingSignOut {
     pub generation: u64,
     pub stage: SignOutStage,
+    /// The server confirmed that the sign-in of `generation` ended. Written
+    /// with the move to [`SignOutStage::Wipe`], so a sign-out finished later
+    /// reports what the server said, not that nothing was left to ask.
+    /// Missing (older records, a torn mark) reads as `false`.
+    pub server_ended: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -224,13 +230,19 @@ fn pending_sign_out_on(conn: &Connection) -> Result<Option<PendingSignOut>> {
     };
     let generation = get(SIGN_OUT_GENERATION)?.and_then(|g| g.parse().ok());
     let stage = get(SIGN_OUT_STAGE)?.and_then(|s| SignOutStage::parse(&s));
+    let server_ended = get(SIGN_OUT_SERVER_ENDED)?.as_deref() == Some("1");
     Ok(match (generation, stage) {
-        (Some(generation), Some(stage)) => Some(PendingSignOut { generation, stage }),
+        (Some(generation), Some(stage)) => Some(PendingSignOut {
+            generation,
+            stage,
+            server_ended,
+        }),
         // A torn or unknown mark is treated as the earliest stage: nothing
         // is wiped before the revoke of that generation is confirmed.
         (Some(generation), None) => Some(PendingSignOut {
             generation,
             stage: SignOutStage::Revoke,
+            server_ended: false,
         }),
         _ => None,
     })
@@ -291,9 +303,11 @@ pub(super) fn set_pending_sign_out(store: &Store, pending: Option<PendingSignOut
     store.write(|tx| {
         match pending {
             Some(pending) => {
+                let server_ended = if pending.server_ended { "1" } else { "0" };
                 for (key, value) in [
                     (SIGN_OUT_GENERATION, pending.generation.to_string()),
                     (SIGN_OUT_STAGE, pending.stage.as_str().to_owned()),
+                    (SIGN_OUT_SERVER_ENDED, server_ended.to_owned()),
                 ] {
                     tx.execute(
                         "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
@@ -304,8 +318,8 @@ pub(super) fn set_pending_sign_out(store: &Store, pending: Option<PendingSignOut
             }
             None => {
                 tx.execute(
-                    "DELETE FROM engine_meta WHERE key IN (?1, ?2)",
-                    [SIGN_OUT_GENERATION, SIGN_OUT_STAGE],
+                    "DELETE FROM engine_meta WHERE key IN (?1, ?2, ?3)",
+                    [SIGN_OUT_GENERATION, SIGN_OUT_STAGE, SIGN_OUT_SERVER_ENDED],
                 )?;
             }
         }

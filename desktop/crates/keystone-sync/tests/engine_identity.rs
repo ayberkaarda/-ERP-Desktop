@@ -320,7 +320,12 @@ async fn sign_out_with_pending_work_needs_force() {
     assert!(env.tokens.load(PROFILE).unwrap().is_some());
     assert_eq!(local_rows(&env), 1);
 
-    assert_eq!(env.engine.sign_out(true).await.unwrap(), SignOut::Done);
+    assert_eq!(
+        env.engine.sign_out(true).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
+        }
+    );
     assert!(env.tokens.load(PROFILE).unwrap().is_none());
     assert_eq!(local_rows(&env), 0);
     assert!(outbox_list(&env.store).is_empty());

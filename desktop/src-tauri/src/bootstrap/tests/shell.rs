@@ -650,7 +650,9 @@ async fn a_sign_out_leaves_nothing_announced_behind() {
 
     assert_eq!(
         fx.desktop.sign_out(&fx.state, true).await.unwrap(),
-        SignOutDto::Done
+        SignOutDto::Done {
+            server_revoked: true
+        }
     );
     connectivity.observe(&profile.id, true, now);
     connectivity.observe(&profile.id, false, now);

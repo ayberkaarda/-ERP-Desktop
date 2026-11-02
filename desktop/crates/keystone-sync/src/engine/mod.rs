@@ -34,7 +34,9 @@
 //! - Sign-out is persisted in stages bound to its generation: tokens of
 //!   that generation are revoked before any local data goes, and a
 //!   sign-out cut short is finished for that generation only (a later
-//!   sign-in keeps its tokens).
+//!   sign-in keeps its tokens). Just before the tokens go, the server is
+//!   asked to end the sign-in, best effort and within
+//!   [`SERVER_SIGN_OUT_TIMEOUT`]; the local sign-out never waits on more.
 //! - Offline writes: [`SyncEngine::enqueue`] applies the resource's
 //!   [`WritePolicy`] (offline manifest `write`) to the row the user sees,
 //!   and closes while the compiled offline manifest
@@ -110,6 +112,10 @@ pub const MAX_PUSH_BATCHES: usize = 100;
 /// Upper bound of pull requests in one run; a pull still unfinished after
 /// it fails the run.
 pub const MAX_PULL_REQUESTS: usize = 10_000;
+
+/// How long [`SyncEngine::sign_out`] waits for the server to end the
+/// sign-in (`POST /api/v1/auth/logout`) before it signs out locally anyway.
+pub const SERVER_SIGN_OUT_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// `Stale` answers per resource and run before the run fails.
 pub const MAX_STALE_PAGES: usize = 3;
@@ -218,8 +224,14 @@ impl SyncReport {
 /// Answer of [`SyncEngine::sign_out`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SignOut {
-    /// Tokens and local data are gone.
-    Done,
+    /// Tokens and local data are gone. `server_revoked`: the server
+    /// confirmed that the sign-in ended (or was already gone there), now or
+    /// when this sign-out first asked it. `false`: not confirmed: the server
+    /// could not be told within [`SERVER_SIGN_OUT_TIMEOUT`], refused, or no
+    /// token of the sign-in was left to tell it with; its tokens may stay
+    /// valid there until they expire or the device is signed out from
+    /// another session.
+    Done { server_revoked: bool },
     /// Nothing was changed: unsent work exists; call again with `force`.
     PendingWork { outbox: usize, conflicts: usize },
 }
@@ -281,6 +293,8 @@ enum Hook {
     GateDecided,
     /// `sign_out` counted the unsent work and has not wiped yet.
     SignOutCounted,
+    /// A sign-out revoked its tokens and has not wiped yet.
+    SignOutRevoked,
     /// A local read passed its access check and has not read yet.
     AccessChecked,
     /// A push answer passed its commit check and is not written yet.
@@ -746,35 +760,97 @@ impl<A: SyncApi> SyncEngine<A> {
     /// cut short earlier (failed revoke or cleanup, process gone) is
     /// finished by the next sign-out or run from the stage it reached, for
     /// its own generation: a sign-in made since keeps its tokens.
+    ///
+    /// Once the sign-out goes ahead (no unsent work, or `force`) and access
+    /// is closed, and before the tokens go, the server is asked to end the
+    /// sign-in with them ([`SyncEngine::end_server_session`]): at most
+    /// [`SERVER_SIGN_OUT_TIMEOUT`], never retried later, and whatever it
+    /// answers the local sign-out follows. `server_revoked` reports it.
     pub async fn sign_out(&self, force: bool) -> Result<SignOut> {
         let generation = self.generation()?;
         let _work = self.work.lock().await;
         let _tokens = self.session.lock().await;
-        let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
-        let unfinished = local::pending_sign_out(&self.store)?;
-        let counts = local::counts(&self.store)?;
-        self.hook(Hook::SignOutCounted);
-        let outbox = counts.pending + counts.rejected + counts.quarantined + counts.in_conflict;
-        if unfinished.is_none() && !force && (outbox > 0 || counts.conflicts > 0) {
-            return Ok(SignOut::PendingWork {
-                outbox,
-                conflicts: counts.conflicts,
-            });
-        }
-        let pending = match unfinished {
-            Some(pending) => pending,
-            None => {
-                let pending = local::PendingSignOut {
-                    generation,
-                    stage: local::SignOutStage::Revoke,
-                };
-                local::set_pending_sign_out(&self.store, Some(pending))?;
-                pending
+        let (pending, fresh) = {
+            let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+            let unfinished = local::pending_sign_out(&self.store)?;
+            let counts = local::counts(&self.store)?;
+            self.hook(Hook::SignOutCounted);
+            let outbox = counts.pending + counts.rejected + counts.quarantined + counts.in_conflict;
+            if unfinished.is_none() && !force && (outbox > 0 || counts.conflicts > 0) {
+                return Ok(SignOut::PendingWork {
+                    outbox,
+                    conflicts: counts.conflicts,
+                });
+            }
+            match unfinished {
+                Some(pending) => (pending, false),
+                None => {
+                    let pending = local::PendingSignOut {
+                        generation,
+                        stage: local::SignOutStage::Revoke,
+                        server_ended: false,
+                    };
+                    local::set_pending_sign_out(&self.store, Some(pending))?;
+                    (pending, true)
+                }
             }
         };
-        self.finish_sign_out(pending, unfinished.is_none())?;
+        // `local` is free while the server is asked: the open sign-out keeps
+        // access closed, and the work and session locks keep runs, refreshes
+        // and sign-ins out.
+        let pending = self.with_server_answer(pending).await;
+        let _local = self.local.write().unwrap_or_else(PoisonError::into_inner);
+        self.finish_sign_out(pending, fresh)?;
         self.set_state(SyncState::AuthRequired, None, None)?;
-        Ok(SignOut::Done)
+        Ok(SignOut::Done {
+            server_revoked: pending.server_ended,
+        })
+    }
+
+    /// `pending` with what the server said about its sign-in: asked now
+    /// while its tokens are still here ([`SyncEngine::end_server_session`]),
+    /// or, past the revoke, what was recorded when it was asked. The caller
+    /// holds the session lock and not `local`.
+    async fn with_server_answer(&self, pending: local::PendingSignOut) -> local::PendingSignOut {
+        if pending.stage != local::SignOutStage::Revoke {
+            return pending;
+        }
+        local::PendingSignOut {
+            server_ended: self.end_server_session(pending.generation).await,
+            ..pending
+        }
+    }
+
+    /// Asks the server to end sign-in `generation` with its tokens. The
+    /// caller holds the session lock, so the tokens read here are the ones
+    /// the revoke removes. `true` only when the server confirmed within
+    /// [`SERVER_SIGN_OUT_TIMEOUT`], or when the account is marked
+    /// deactivated: the server answered `USER_DEACTIVATED` to this sign-in,
+    /// deleting the access token it was sent with and refusing every
+    /// refresh while the account stays deactivated.
+    ///
+    /// Nothing is sent, and the answer is `false`, when no token of
+    /// `generation` is left here: they belong to a later sign-in (another
+    /// user's leaves this one's device signed in on the server), or they
+    /// were dropped without the server saying the sign-in ended (a refresh
+    /// whose answer was lost leaves a new pair there). Whether the server
+    /// still holds a live token is then unknown.
+    async fn end_server_session(&self, generation: u64) -> bool {
+        let Ok(record) = self.session.record() else {
+            return false;
+        };
+        if record.generation != generation {
+            return false;
+        }
+        if record.deactivated {
+            return true;
+        }
+        let Some(tokens) = record.tokens else {
+            return false;
+        };
+        tokio::time::timeout(SERVER_SIGN_OUT_TIMEOUT, self.api.end_session(&tokens))
+            .await
+            .unwrap_or(false)
     }
 
     /// Runs the stages of `pending` that are left: the compare-and-set
@@ -801,10 +877,11 @@ impl<A: SyncApi> SyncEngine<A> {
             local::set_pending_sign_out(
                 &self.store,
                 Some(local::PendingSignOut {
-                    generation: pending.generation,
                     stage: local::SignOutStage::Wipe,
+                    ..pending
                 }),
             )?;
+            self.hook(Hook::SignOutRevoked);
         }
         self.wipe()
     }
