@@ -1,13 +1,11 @@
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { PROFILE_STATE_EVENT } from './profileState'
 import { deferred, fail, flush } from '../../test/fakeBridge'
 import type { ProfileStateDto } from '../../bridge/generated/ProfileStateDto'
 import { harness, renderGate, useTurkish } from './testing'
-
-vi.mock('@/platform/runtime', () => import('./quietRuntime'))
 
 beforeEach(useTurkish)
 

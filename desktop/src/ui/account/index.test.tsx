@@ -1,11 +1,12 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { appExtensions as webSlotExtensions } from '@/app/extensions'
 import { Providers } from '@/app/providers'
+import { platform as webPlatform } from '@/platform'
 import { AppGate as RootGate } from '../../app/root'
 import { PARTS } from '../../app/extensions'
-import { createDesktopPlatform } from '../../platform'
+import { createDesktopPlatform, desktopBridgeOf } from '../../platform'
 import { createFakeBridge } from '../../test/fakeBridge'
 import {
   accountExtensions,
@@ -18,9 +19,7 @@ import {
   PendingWorkDialog,
 } from '.'
 
-vi.mock('@/platform/runtime', () => import('./quietRuntime'))
-
-function platformWith(extra: Record<string, unknown> = {}) {
+function desktopPlatform() {
   const fake = createFakeBridge({
     commands: { profile_list: () => ({ profiles: [] }), sync_status: () => null, realtime_status: () => null },
   })
@@ -29,7 +28,6 @@ function platformWith(extra: Record<string, unknown> = {}) {
     invoke: fake.invoke,
     listen: fake.listen,
   })
-  Object.assign(platform.desktop, extra)
   return { fake, platform }
 }
 
@@ -52,16 +50,18 @@ describe('ui/account surface', () => {
     expect(RootGate).toBe(AppGate)
   })
 
-  it('finds the bridge the desktop platform carries', () => {
-    const { fake, platform } = platformWith({ bridge: { invoke: 1, listen: 2 } })
-    expect(bridgeOf(platform)).toBeNull()
-    const ok = platformWith({ bridge: { invoke: fake.invoke, listen: fake.listen } })
-    expect(bridgeOf(ok.platform)).toEqual({ invoke: fake.invoke, listen: fake.listen })
-    expect(bridgeOf(platformWith().platform)).toBeNull()
+  it('takes the bridge the desktop platform carries, none on the web platform', () => {
+    const { platform } = desktopPlatform()
+    expect(bridgeOf(platform)).toBe(platform.desktop.bridge)
     expect(bridgeOf({ ...platform, kind: 'web' } as never)).toBeNull()
   })
 
-  it('without a bridge the default gate leaves the web app as it is', async () => {
+  it('the app platform carries a bridge', () => {
+    expect(bridgeOf(webPlatform)).not.toBeNull()
+    expect(bridgeOf(webPlatform)).toBe(desktopBridgeOf(webPlatform))
+  })
+
+  it('outside the shell window the default gate leaves the web app as it is', async () => {
     render(
       <Providers>
         <AppGate>

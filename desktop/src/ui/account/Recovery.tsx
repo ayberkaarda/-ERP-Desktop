@@ -96,9 +96,8 @@ export function MalformedRecovery({ profileId }: { profileId: string }) {
   async function run(kind: 'reset' | 'remove') {
     setError(null)
     try {
-      const command = kind === 'reset' ? 'profile_reset' : 'profile_remove'
       const done = await withPendingWork(account, kind === 'reset' ? 'resetProfile' : 'removeProfile', (force) =>
-        call(account.invoke, command, { id: profileId, force }),
+        call(account.invoke, kind === 'reset' ? 'profile_reset' : 'profile_remove', { id: profileId, force }),
       )
       if (done !== KEPT) await account.profileChanged()
     } catch (reason) {

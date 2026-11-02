@@ -1,12 +1,10 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { DeviceDto } from '../../bridge/generated/DeviceDto'
 import { fail } from '../../test/fakeBridge'
 import { harness, renderApp, useTurkish } from './testing'
-
-vi.mock('@/platform/runtime', () => import('./quietRuntime'))
 
 beforeEach(useTurkish)
 

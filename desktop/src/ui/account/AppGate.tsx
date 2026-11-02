@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import type { ProfileStateDto } from '../../bridge/generated/ProfileStateDto'
 import { call } from '../../bridge/invoke'
 import { useTd } from '../../i18n'
-import { inShell, loadAppServices } from './defaults'
+import { appServices, inShell } from './defaults'
 import { parseProfileState, PROFILE_STATE_EVENT } from './profileState'
 import { GateFrame, Splash } from './GateFrame'
 import { PendingWorkDialog } from './PendingWorkDialog'
@@ -31,30 +31,13 @@ interface Pending {
   resolve: (answer: PendingWorkAnswer) => void
 }
 
-/** The gate of the running app; without a shell bridge it leaves the web app as it is. */
+/**
+ * The gate of the running app. Outside the shell window (jsdom, a plain
+ * browser) every shell command fails, so it leaves the web app as it is.
+ */
 export function AppGate({ children }: { children: ReactNode }) {
-  const td = useTd()
-  // undefined: still loading the platform; null: no shell bridge.
-  const [services, setServices] = useState<AccountServices | null | undefined>(() =>
-    inShell() ? undefined : null,
-  )
-  useEffect(() => {
-    if (services !== undefined) return
-    let live = true
-    loadAppServices().then(
-      (loaded) => {
-        if (live) setServices(loaded)
-      },
-      () => {
-        if (live) setServices(null)
-      },
-    )
-    return () => {
-      live = false
-    }
-  }, [services])
-  if (services === undefined) return <Splash text={td('account.gate.starting')} />
-  if (services === null) return children
+  const services = useMemo(() => (inShell() ? appServices() : null), [])
+  if (!services) return children
   return <AccountGate services={services}>{children}</AccountGate>
 }
 

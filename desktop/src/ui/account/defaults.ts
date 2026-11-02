@@ -1,8 +1,9 @@
 // The services of the running app: the desktop platform built by the swapped
-// runtime, its shell bridge and the web session functions. The web platform
-// and session modules are loaded only inside the shell window, so importing
-// the account screens elsewhere (jsdom tests, a plain browser) builds no
-// platform.
+// runtime, its shell bridge and the web session functions.
+
+import { endSession, loadSession, logout, safeRedirect } from '@/features/auth/session'
+import { platform } from '@/platform'
+import type { Platform } from '@/platform/types'
 
 import { isDesktopPlatform } from '../../platform'
 import { bridgeOf } from './bridge'
@@ -19,19 +20,19 @@ export function inShell(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 }
 
-/** Null when there is no shell bridge: the gate then leaves the web app alone. */
-export async function loadAppServices(): Promise<AccountServices | null> {
-  const [{ platform }, session] = await Promise.all([import('@/platform'), import('@/features/auth/session')])
-  const bridge = bridgeOf(platform)
-  if (!bridge || !isDesktopPlatform(platform)) return null
+/** Null on the web platform (no shell bridge). */
+export function appServices(target: Platform = platform): AccountServices | null {
+  const bridge = bridgeOf(target)
+  if (!bridge || !isDesktopPlatform(target)) return null
   return {
-    ...bridge,
-    platform,
+    invoke: bridge.invoke,
+    listen: bridge.listen,
+    platform: target,
     session: {
-      load: () => session.loadSession({ fresh: true }),
-      end: session.endSession,
-      signOut: session.logout,
-      safeRedirect: (target) => session.safeRedirect(target),
+      load: () => loadSession({ fresh: true }),
+      end: endSession,
+      signOut: logout,
+      safeRedirect: (to) => safeRedirect(to),
     },
     openPath: openPathInApp,
   }
