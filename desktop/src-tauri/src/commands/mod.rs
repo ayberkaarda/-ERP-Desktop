@@ -175,6 +175,14 @@ mod tests {
     }
 
     #[test]
+    fn an_engine_error_carries_no_path() {
+        let error = CommandError::from(SyncError::Network("down".into()));
+        assert_eq!(error.path, None);
+        let json = serde_json::to_value(&error).unwrap();
+        assert!(json.get("path").is_none(), "{json}");
+    }
+
+    #[test]
     fn the_path_stays_out_of_the_log_line() {
         let file = std::env::temp_dir().join("profiles.json");
         let error = CommandError::new("PROFILES_FILE_INVALID", "bad").with_path(&file);

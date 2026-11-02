@@ -176,13 +176,11 @@ async fn received(server: &MockServer) -> usize {
     server.received_requests().await.unwrap_or_default().len()
 }
 
-/// A loopback base URL nothing listens on (a port bound and let go;
-/// wiremock keeps its own servers alive in a pool).
+/// A loopback base URL nothing can listen on: port 0 is never a listening
+/// port, so the connection fails at once. A port bound and let go could be
+/// taken by a wiremock server of a test running at the same time.
 async fn dead_url() -> String {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    drop(listener);
-    format!("http://127.0.0.1:{port}")
+    "http://127.0.0.1:0".to_owned()
 }
 
 // ------------------------------------------------------------ online path
@@ -519,6 +517,47 @@ fn both_local_refusals_name_the_refused_request() {
 }
 
 #[test]
+fn the_path_is_named_as_it_was_sent() {
+    let upper = ID.to_ascii_uppercase();
+    let answer = name_refused(
+        refused(503, "OFFLINE_UNAVAILABLE", ResponseSource::Local),
+        ProxyMethod::Post,
+        &format!("/api/v1/Sales-Quotes/{upper}/send"),
+    );
+    assert_eq!(
+        details(&answer),
+        Some(&json!({ "method": "POST", "path": format!("/Sales-Quotes/{upper}/send") }))
+    );
+}
+
+/// The shared fixture of the TS contract test
+/// (`src/platform/desktop/localRefusal.test.ts`): both local refusals of
+/// `POST /sales-quotes/{id}/send` as the shell sends them. The webview reads
+/// the same file, so a change of the envelope here breaks that test too.
+const REFUSAL_FIXTURE: &str = include_str!("../../../../src/platform/desktop/localRefusal.json");
+const FIXTURE_QUOTE: &str = "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20";
+
+#[test]
+fn the_webview_fixture_is_what_the_shell_sends() {
+    let path = format!("/api/v1/sales-quotes/{FIXTURE_QUOTE}/send");
+    let sent: Vec<Value> = [Refusal::OnlineOnlyWrite, Refusal::ManifestMismatch]
+        .into_iter()
+        .map(|refusal| {
+            let answer = name_refused(refuse(refusal, Vec::new()), ProxyMethod::Post, &path);
+            json!({ "status": answer.status, "body": answer.json().unwrap() })
+        })
+        .collect();
+    let fixture: Value = serde_json::from_str(REFUSAL_FIXTURE).unwrap();
+    assert_eq!(
+        fixture,
+        Value::Array(sent.clone()),
+        "update the fixture to:
+{}",
+        serde_json::to_string_pretty(&sent).unwrap()
+    );
+}
+
+#[test]
 fn other_answers_are_not_given_request_details() {
     let path = "/api/v1/parties";
     for answer in [
@@ -542,6 +581,36 @@ fn other_answers_are_not_given_request_details() {
     }
     let data = envelope::local(202, json!({ "data": { "id": ID } }));
     assert_eq!(name_refused(data.clone(), ProxyMethod::Post, path), data);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_online_first_fallback_refusal_names_the_request() {
+    let fx = fixture_with_engine(&dead_url().await);
+    let local = Arc::new(FakeLocal {
+        copy: LocalCopy::Complete,
+        answer: Some(envelope::local(
+            503,
+            envelope::error("OFFLINE_UNAVAILABLE", "not on this device", None),
+        )),
+        plans: Mutex::default(),
+    });
+    let answer = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "get", "path": "/api/v1/sales-deliveries",
+                "query": [["access_token", "tok-1"]] }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert!(matches!(
+        local.plans().as_slice(),
+        [LocalPlan::Read { stale: true, .. }]
+    ));
+    assert_eq!(
+        details(&answer),
+        Some(&json!({ "method": "GET", "path": "/sales-deliveries" }))
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

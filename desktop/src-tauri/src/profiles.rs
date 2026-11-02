@@ -414,6 +414,107 @@ mod tests {
         assert_eq!(error.path, None);
     }
 
+    /// A file error as the log line prints it (`Display`) and as the
+    /// webview gets it: no path in the text, nothing of the content.
+    fn clean(error: &CommandError, dir: &Path, content: &[&str]) {
+        let line = error.to_string();
+        let dir = dir.display().to_string();
+        assert!(!line.contains(&dir), "path in the log line: {line}");
+        assert!(!error.message.contains(&dir), "{}", error.message);
+        let json = serde_json::to_string(error).unwrap();
+        for value in content {
+            assert!(!json.contains(value), "{value} in {json}");
+            assert!(!line.contains(value), "{value} in {line}");
+        }
+    }
+
+    #[test]
+    fn a_broken_file_names_itself_but_not_in_the_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        let file = registry.path().display().to_string();
+        // serde quotes the values it trips on; none may reach the error.
+        for content in [
+            r#"{"version": "secret-version", "profiles": []}"#,
+            r#"{"version": 1, "profiles": [{"id": "a", "name": 7, "base_url": "secret-url"}]}"#,
+            r#"{"version": 1, "profiles": "secret-list"}"#,
+            r#"{"version": 9, "profiles": []}"#,
+        ] {
+            std::fs::write(registry.path(), content).unwrap();
+            let error = registry.load().unwrap_err();
+            assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+            assert_eq!(error.path.as_deref(), Some(file.as_str()));
+            clean(
+                &error,
+                dir.path(),
+                &["secret-version", "secret-url", "secret-list"],
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_names_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        std::fs::create_dir(registry.path()).unwrap();
+        let error = registry.load().unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert_eq!(
+            error.path.as_deref(),
+            Some(registry.path().display().to_string().as_str())
+        );
+        clean(&error, dir.path(), &[]);
+    }
+
+    /// A file holds the name of the data directory: reading (Unix) or making
+    /// the directory (Windows) fails, and either one names profiles.json.
+    #[test]
+    fn a_data_directory_that_cannot_be_made_names_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocked = dir.path().join("data");
+        std::fs::write(&blocked, b"a file").unwrap();
+        let registry = ProfileRegistry::new(&blocked);
+        let error = registry.add(profile("a")).unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert_eq!(
+            error.path.as_deref(),
+            Some(registry.path().display().to_string().as_str())
+        );
+        clean(&error, dir.path(), &[]);
+    }
+
+    #[test]
+    fn a_failed_write_keeps_paths_out_of_the_log_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        std::fs::create_dir(registry.path().with_extension("json.tmp")).unwrap();
+        let error = registry.add(profile("a")).unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        clean(&error, dir.path(), &["json.tmp"]);
+    }
+
+    /// Windows only: a read-only target stops the rename there, not on Unix.
+    #[cfg(windows)]
+    #[test]
+    fn a_failed_replace_names_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        registry.add(profile("a")).unwrap();
+        let mut perms = std::fs::metadata(registry.path()).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(registry.path(), perms.clone()).unwrap();
+        let error = registry.add(profile("b")).unwrap_err();
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(registry.path(), perms).unwrap();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert!(error.message.contains("replace"), "{}", error.message);
+        assert_eq!(
+            error.path.as_deref(),
+            Some(registry.path().display().to_string().as_str())
+        );
+    }
+
     #[test]
     fn unknown_ids_are_not_found() {
         let dir = tempfile::tempdir().unwrap();

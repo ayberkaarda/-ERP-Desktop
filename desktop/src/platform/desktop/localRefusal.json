@@ -1,0 +1,22 @@
+[
+  {
+    "status": 503,
+    "body": {
+      "errors": {
+        "message": "this action is available only online",
+        "code": "OFFLINE_UNAVAILABLE",
+        "details": { "method": "POST", "path": "/sales-quotes/0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20/send" }
+      }
+    }
+  },
+  {
+    "status": 422,
+    "body": {
+      "errors": {
+        "message": "the offline manifest differs from the server; offline writes are closed",
+        "code": "SYNC_OFFLINE_WRITE_NOT_ALLOWED",
+        "details": { "method": "POST", "path": "/sales-quotes/0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20/send" }
+      }
+    }
+  }
+]

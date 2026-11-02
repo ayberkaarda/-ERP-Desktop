@@ -237,4 +237,26 @@ mod tests {
         };
         assert_eq!(StatusDto::from(&auth).state, "auth_required");
     }
+
+    #[test]
+    fn a_duplicate_sends_server_data_null() {
+        let dto = ConflictDto {
+            idempotency_key: Uuid::nil(),
+            resource: "parties".into(),
+            id: Uuid::nil(),
+            code: "DUPLICATE_RECORD".into(),
+            message: None,
+            base_version: None,
+            server_version: None,
+            conflicting_fields: vec![],
+            server_data: Value::Null,
+            candidates: Some(vec![Uuid::nil()]),
+            choices: vec![],
+            local_op: "create".into(),
+            local_payload: Map::new(),
+            detected_at: "2026-11-02T10:00:00+03:00".into(),
+        };
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json.get("server_data"), Some(&Value::Null), "{json}");
+    }
 }

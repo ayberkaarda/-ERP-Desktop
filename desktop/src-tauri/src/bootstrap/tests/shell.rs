@@ -280,6 +280,9 @@ async fn a_switch_that_cannot_store_its_choice_fails_and_a_busy_removal_says_so(
             Some(codes::PROFILES_FILE_INVALID)
         )]
     );
+    // The told state names the file too: the UI reads it from there.
+    let state = fx.events.states().pop().and_then(|s| s.error).unwrap();
+    assert_eq!(state.path.as_deref(), Some(file.as_str()));
     std::fs::remove_dir(&blocker).unwrap();
 
     // The failed profile cannot go while its request runs: the state says why.
