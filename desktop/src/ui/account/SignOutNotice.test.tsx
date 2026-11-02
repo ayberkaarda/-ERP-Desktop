@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fail, type CommandHandler } from '../../test/fakeBridge'
 import { harness, renderApp, renderGate, useTurkish } from './testing'
@@ -44,6 +44,53 @@ describe('SignOutNotice', () => {
     const notice = await screen.findByTestId('sign-out-notice')
     await userEvent.click(within(notice).getByRole('button', { name: 'Güvenlik sayfasını aç' }))
     expect(await within(notice).findByText('Tarayıcı açılamadı.')).toBeInTheDocument()
+  })
+
+  it('a new failed sign-out clears the old browser error', async () => {
+    const h = harness({ auth_sign_out: signOut(false), open_external: () => fail('EXTERNAL_OPEN_FAILED') })
+    renderGate(h)
+    await act(() => h.platform.session.logout())
+    const notice = await screen.findByTestId('sign-out-notice')
+    await userEvent.click(within(notice).getByRole('button', { name: 'Güvenlik sayfasını aç' }))
+    expect(await within(notice).findByText('Tarayıcı açılamadı.')).toBeInTheDocument()
+    await act(() => h.platform.session.logout())
+    expect(await screen.findByTestId('sign-out-notice')).toBeInTheDocument()
+    expect(screen.queryByText('Tarayıcı açılamadı.')).not.toBeInTheDocument()
+  })
+
+  it('opening again clears the old browser error', async () => {
+    let opens = 0
+    const h = harness({
+      auth_sign_out: signOut(false),
+      open_external: () => (++opens === 1 ? fail('EXTERNAL_OPEN_FAILED') : null),
+    })
+    renderGate(h)
+    await act(() => h.platform.session.logout())
+    const notice = await screen.findByTestId('sign-out-notice')
+    await userEvent.click(within(notice).getByRole('button', { name: 'Güvenlik sayfasını aç' }))
+    expect(await within(notice).findByText('Tarayıcı açılamadı.')).toBeInTheDocument()
+    await userEvent.click(within(notice).getByRole('button', { name: 'Güvenlik sayfasını aç' }))
+    await waitFor(() => {
+      expect(within(notice).queryByText('Tarayıcı açılamadı.')).not.toBeInTheDocument()
+    })
+    expect(opens).toBe(2)
+  })
+
+  it('stops listening when the gate goes away', async () => {
+    const h = harness({ auth_sign_out: signOut(false) })
+    const subscribe = h.platform.session.onSignedOut.bind(h.platform.session)
+    const left = vi.fn()
+    h.platform.session.onSignedOut = (listener) => {
+      const leave = subscribe(listener)
+      return () => {
+        left()
+        leave()
+      }
+    }
+    const view = renderGate(h)
+    await screen.findByText('web app')
+    view.unmount()
+    expect(left).toHaveBeenCalled()
   })
 
   it('can be dismissed', async () => {

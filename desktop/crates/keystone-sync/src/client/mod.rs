@@ -40,8 +40,10 @@ pub(crate) mod sealed {
         /// meanwhile). Best effort: never an error. `true` when the server
         /// ended the sign-in or answered that it was already gone; `false`
         /// for anything else (no connection, timeout, any other status).
-        /// A 401 refreshes once and sends once more. Answer bodies are not
-        /// read.
+        /// A 401 refreshes once and sends once more. A 403
+        /// `USER_DEACTIVATED` counts as ended. Answer bodies are read off
+        /// the wire but only an error envelope's code is looked at; they
+        /// are never kept, logged or returned.
         fn end_session(&self, tokens: &StoredTokens) -> impl Future<Output = bool> + Send;
     }
 }

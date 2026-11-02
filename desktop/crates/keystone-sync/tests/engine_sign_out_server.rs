@@ -4,7 +4,7 @@
 
 mod engine_support;
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -353,8 +353,153 @@ async fn a_second_sign_out_has_nothing_to_tell() {
     mount_logout(&env, ResponseTemplate::new(204)).await;
 
     assert_eq!(env.engine.sign_out(false).await.unwrap(), done(true));
-    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(true));
+    // No token left to ask with: not confirmed by this call.
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(false));
     assert_eq!(requests(&env, LOGOUT).await.len(), 1);
+}
+
+#[tokio::test]
+async fn a_deactivated_account_counts_as_ended() {
+    let env = synced_env().await;
+    mount_logout(
+        &env,
+        ResponseTemplate::new(403).set_body_json(error_body("USER_DEACTIVATED", "off")),
+    )
+    .await;
+
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(true));
+    signed_out_locally(&env);
+    assert!(requests(&env, REFRESH).await.is_empty());
+}
+
+#[tokio::test]
+async fn an_unfinished_sign_out_at_its_revoke_tells_the_server() {
+    let env = synced_env().await;
+    mount_logout(&env, ResponseTemplate::new(204)).await;
+    leave_sign_out_unfinished(&env.store, 1, "revoke");
+
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(true));
+    let calls = requests(&env, LOGOUT).await;
+    assert_eq!(
+        calls.len(),
+        1,
+        "the unfinished sign-out never told the server"
+    );
+    assert_eq!(
+        bearer_of(&calls[0]).as_deref(),
+        Some("Bearer access-1-0123456789abcdef")
+    );
+    signed_out_locally(&env);
+}
+
+#[tokio::test]
+async fn a_run_finishing_a_sign_out_at_its_revoke_tells_the_server() {
+    let env = synced_env().await;
+    mount_logout(&env, ResponseTemplate::new(204)).await;
+    leave_sign_out_unfinished(&env.store, 1, "revoke");
+
+    let _ = env.engine.run_once(Trigger::Manual).await;
+    let calls = requests(&env, LOGOUT).await;
+    assert_eq!(
+        calls.len(),
+        1,
+        "the run removed the tokens without telling the server"
+    );
+    assert_eq!(
+        bearer_of(&calls[0]).as_deref(),
+        Some("Bearer access-1-0123456789abcdef")
+    );
+    signed_out_locally(&env);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_cannot_land_while_the_server_is_asked() {
+    let env = synced_env().await;
+    let landed = Arc::new(AtomicBool::new(false));
+    let worker = Arc::new(Mutex::new(None));
+    let (flag, slot, store) = (landed.clone(), worker.clone(), env.tokens.clone());
+    Mock::given(method("POST"))
+        .and(path(LOGOUT))
+        .respond_with(move |_: &Request| {
+            let store = store.clone();
+            let sign_in = std::thread::spawn(move || sign_in_blocking(store, 2));
+            std::thread::sleep(Duration::from_millis(400));
+            flag.store(sign_in.is_finished(), Ordering::SeqCst);
+            *slot.lock().unwrap() = Some(sign_in);
+            ResponseTemplate::new(204)
+        })
+        .mount(&env.server)
+        .await;
+
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(true));
+    worker.lock().unwrap().take().unwrap().join().unwrap();
+    assert!(
+        !landed.load(Ordering::SeqCst),
+        "a sign-in landed in the middle of the sign-out"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_timeout_also_bounds_the_refresh() {
+    let env = synced_env().await;
+    mount_logout(&env, unauthenticated()).await;
+    mount_refresh(&env, new_pair().set_delay(Duration::from_secs(8))).await;
+
+    let started = std::time::Instant::now();
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(false));
+    let waited = started.elapsed();
+    assert!(
+        waited < SERVER_SIGN_OUT_TIMEOUT + Duration::from_millis(500),
+        "waited {waited:?}"
+    );
+    signed_out_locally(&env);
+}
+
+#[tokio::test]
+async fn a_failed_retry_after_the_refresh_is_not_confirmed() {
+    let env = synced_env().await;
+    let calls = AtomicUsize::new(0);
+    Mock::given(method("POST"))
+        .and(path(LOGOUT))
+        .respond_with(
+            move |_: &Request| match calls.fetch_add(1, Ordering::SeqCst) {
+                0 => unauthenticated(),
+                _ => ResponseTemplate::new(500),
+            },
+        )
+        .mount(&env.server)
+        .await;
+    mount_refresh(&env, new_pair()).await;
+
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(false));
+    signed_out_locally(&env);
+}
+
+#[tokio::test]
+async fn a_refresh_refused_for_a_deactivated_account_is_not_confirmed() {
+    let env = synced_env().await;
+    mount_logout(&env, unauthenticated()).await;
+    mount_refresh(
+        &env,
+        ResponseTemplate::new(403).set_body_json(error_body("USER_DEACTIVATED", "off")),
+    )
+    .await;
+
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(false));
+    signed_out_locally(&env);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_lost_refresh_answer_is_not_confirmed() {
+    let env = env_with(Duration::from_millis(700)).await;
+    mount_manifest(&env.server, simple_manifest(&["parties"])).await;
+    mount_empty_pull(&env.server).await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    mount_logout(&env, unauthenticated()).await;
+    mount_refresh(&env, new_pair().set_delay(Duration::from_secs(2))).await;
+
+    assert_eq!(env.engine.sign_out(false).await.unwrap(), done(false));
+    assert_eq!(env.tokens.load(PROFILE).unwrap(), None);
 }
 
 #[tokio::test]

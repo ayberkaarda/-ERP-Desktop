@@ -198,6 +198,29 @@ describe('desktop session', () => {
     expect(seen).not.toHaveBeenCalled()
   })
 
+  it('a failing listener does not fail the completed sign-out nor silence the others', async () => {
+    const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: false }) }, 'discard')
+    const later = vi.fn()
+    s.session.onSignedOut(() => {
+      throw new Error('listener broke')
+    })
+    s.session.onSignedOut(later)
+    await expect(s.session.logout()).resolves.toBeUndefined()
+    expect(later).toHaveBeenCalledExactlyOnceWith({ serverRevoked: false })
+    expect(s.steps).toEqual(['changed'])
+  })
+
+  it('leaving one listener keeps the others', async () => {
+    const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: false }) }, 'discard')
+    const kept = vi.fn()
+    const gone = vi.fn()
+    s.session.onSignedOut(kept)
+    s.session.onSignedOut(gone)()
+    await s.session.logout()
+    expect(kept).toHaveBeenCalledExactlyOnceWith({ serverRevoked: false })
+    expect(gone).not.toHaveBeenCalled()
+  })
+
   it('a forced sign-out that still reports pending work is not a sign-out', async () => {
     const s = setup({ auth_sign_out: () => ({ status: 'pending_work', outbox: 1, conflicts: 0 }) }, 'discard')
     await expect(s.session.logout()).rejects.toBeInstanceOf(PendingWorkError)

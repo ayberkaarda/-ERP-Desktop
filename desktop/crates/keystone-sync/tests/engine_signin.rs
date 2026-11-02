@@ -226,10 +226,11 @@ async fn a_sign_out_finished_after_a_new_sign_in_keeps_the_new_tokens() {
     leave_sign_out_unfinished(&env.store, 1, "wipe");
     sign_in_as(&env.tokens, 2).await;
 
+    // A's revoke was recorded without a server answer: not confirmed.
     assert_eq!(
         env.engine.sign_out(false).await.unwrap(),
         SignOut::Done {
-            server_revoked: true
+            server_revoked: false
         }
     );
     assert_eq!(

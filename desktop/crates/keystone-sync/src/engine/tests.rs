@@ -42,6 +42,8 @@ struct FakeApi {
     busy_retry_after: Mutex<Duration>,
     /// Access token of every server sign-out, in order.
     ended: Mutex<Vec<String>>,
+    /// What a server sign-out answers.
+    server_ends: AtomicBool,
 }
 
 impl FakeApi {
@@ -53,6 +55,7 @@ impl FakeApi {
             pushes: Mutex::default(),
             busy_retry_after: Mutex::new(BUSY_RETRY_AFTER),
             ended: Mutex::default(),
+            server_ends: AtomicBool::new(true),
         }
     }
 
@@ -95,7 +98,7 @@ impl crate::client::sealed::Sealed for FakeApi {
             .lock()
             .unwrap()
             .push(tokens.access_token.expose().to_owned());
-        true
+        self.server_ends.load(Ordering::SeqCst)
     }
 }
 
@@ -404,10 +407,11 @@ async fn sign_out_keeps_a_sign_in_made_while_it_runs() {
         }
     });
 
+    // A's tokens are gone without the server having been told.
     assert_eq!(
         f.engine.sign_out(false).await.unwrap(),
         SignOut::Done {
-            server_revoked: true
+            server_revoked: false
         }
     );
     assert_eq!(
@@ -448,23 +452,116 @@ async fn the_server_is_told_with_the_signing_out_tokens_after_the_count() {
 }
 
 #[tokio::test]
-async fn an_unfinished_sign_out_past_its_revoke_tells_the_server_nothing() {
+async fn an_unfinished_sign_out_past_its_revoke_reports_what_the_server_said() {
+    for said in [true, false] {
+        let f = fixture();
+        f.engine.run_once(Trigger::Startup).await.unwrap();
+        super::local::set_pending_sign_out(
+            &f.engine.store,
+            Some(super::local::PendingSignOut {
+                generation: 1,
+                stage: super::local::SignOutStage::Wipe,
+                server_ended: said,
+            }),
+        )
+        .unwrap();
+
+        let outcome = f.engine.sign_out(false).await.unwrap();
+        assert_eq!(
+            outcome,
+            SignOut::Done {
+                server_revoked: said
+            },
+            "recorded {said}"
+        );
+        assert!(f.engine.api.ended.lock().unwrap().is_empty());
+    }
+}
+
+/// The server could not be told, the tokens went, and the sign-out was cut
+/// short before the wipe. Finishing it later still says the server session
+/// may be open.
+#[tokio::test]
+async fn a_sign_out_cut_short_after_an_unanswered_server_keeps_saying_so() {
     let f = fixture();
     f.engine.run_once(Trigger::Startup).await.unwrap();
-    super::local::set_pending_sign_out(
-        &f.engine.store,
-        Some(super::local::PendingSignOut {
-            generation: 1,
-            stage: super::local::SignOutStage::Wipe,
-        }),
-    )
-    .unwrap();
+    f.engine.api.server_ends.store(false, Ordering::SeqCst);
+    f.engine.set_hook(|point| {
+        if point == Hook::SignOutRevoked {
+            panic!("cut short before the wipe");
+        }
+    });
+    let engine = f.engine.clone();
+    let cut = tokio::spawn(async move { engine.sign_out(false).await }).await;
+    assert!(cut.is_err(), "the sign-out was not cut short");
+    assert_eq!(f.tokens.load(PROFILE).unwrap(), None);
+    f.engine.set_hook(|_| {});
 
-    let outcome = f.engine.sign_out(false).await.unwrap();
+    f.engine.api.server_ends.store(true, Ordering::SeqCst);
     assert_eq!(
-        outcome,
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
+        }
+    );
+    assert_eq!(
+        f.engine.api.ended.lock().unwrap().len(),
+        1,
+        "asked again without a token of that sign-in"
+    );
+}
+
+#[tokio::test]
+async fn a_sign_out_cut_short_after_the_server_ended_it_says_so_later() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.set_hook(|point| {
+        if point == Hook::SignOutRevoked {
+            panic!("cut short before the wipe");
+        }
+    });
+    let engine = f.engine.clone();
+    assert!(
+        tokio::spawn(async move { engine.sign_out(false).await })
+            .await
+            .is_err()
+    );
+    f.engine.set_hook(|_| {});
+
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
         SignOut::Done {
             server_revoked: true
+        }
+    );
+    assert_eq!(f.engine.api.ended.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn sign_out_of_a_deactivated_account_needs_no_server_call() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.tokens.deactivate(&TokenWrite::new(), PROFILE, 1).unwrap();
+
+    assert_eq!(
+        f.engine.sign_out(true).await.unwrap(),
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
+    assert!(f.engine.api.ended.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn tokens_dropped_without_the_server_are_not_reported_as_ended() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.tokens.take(&TokenWrite::new(), PROFILE).unwrap();
+
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
         }
     );
     assert!(f.engine.api.ended.lock().unwrap().is_empty());

@@ -108,7 +108,15 @@ export function createDesktopSession(options: {
       }
       onChanged?.('logout')
       const outcome: SignedOut = { serverRevoked: answer.server_revoked }
-      for (const listener of [...signedOut]) listener(outcome)
+      // The sign-out is complete: a failing listener must not turn it into
+      // a failure, nor keep the others from hearing about it.
+      for (const listener of [...signedOut]) {
+        try {
+          listener(outcome)
+        } catch {
+          // ignored: listeners only show the outcome
+        }
+      }
     },
     onSignedOut: (listener) => {
       signedOut.add(listener)
