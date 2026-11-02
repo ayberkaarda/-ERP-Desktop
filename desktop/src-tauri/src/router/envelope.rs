@@ -12,6 +12,7 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use keystone_sync::client::ProxyResponse;
+use keystone_sync::store::OnlineOnly;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
@@ -78,6 +79,14 @@ pub struct OfflineMeta {
     /// Filters of the request the local copy cannot apply.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unsupported_filters: Vec<String>,
+    /// Of `unsupported_filters`, those the offline manifest keeps for the
+    /// server, each with its `reason` (`{param, reason}`).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub online_only: Vec<OnlineOnly>,
+    /// Sort, filter and search names of the request this answer applied
+    /// (`sort`, `filter[x]`, `q`), in request order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub applied_filters: Vec<String>,
 }
 
 /// Adds `meta.offline` to an envelope (success or error), keeping any

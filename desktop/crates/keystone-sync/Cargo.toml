@@ -8,7 +8,8 @@ publish.workspace = true
 
 [dependencies]
 reqwest.workspace = true
-rusqlite.workspace = true
+# `functions`: typed list keys and conditions (`store::listing`).
+rusqlite = { workspace = true, features = ["functions"] }
 rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true

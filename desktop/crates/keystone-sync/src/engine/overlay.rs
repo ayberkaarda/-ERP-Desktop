@@ -26,7 +26,7 @@ use super::local;
 use crate::error::Result;
 use crate::store::{
     Filter, FilterOp, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, ListQuery, ResourceSpec, SortKey, Store,
-    fold,
+    fold, listing, row_matches,
 };
 use crate::wire::{MutationOp, ResourceName, ResourceRow};
 
@@ -178,6 +178,11 @@ fn list_in(
     } else {
         query.sort.clone()
     };
+    // Typed order (manifest `query`): the store's own keys, then `id`.
+    let order = |a: &ResourceRow, b: &ResourceRow| match &query.order {
+        Some(typed) => listing::compare_rows(a, b, typed),
+        None => compare_rows(a, b, &keys),
+    };
     let search_fields: &[String] = spec.map_or(&[], |s| s.search.as_slice());
     let mut rows: Vec<ResourceRow> = drafts
         .into_iter()
@@ -192,8 +197,9 @@ fn list_in(
                 .as_deref()
                 .is_none_or(|text| matches_search(row, search_fields, text))
         })
+        .filter(|row| row_matches(row, &query.conditions, query.text.as_ref()))
         .collect();
-    rows.sort_by(|a, b| compare_rows(a, b, &keys));
+    rows.sort_by(order);
 
     let limit = usize::try_from(
         query
@@ -205,7 +211,7 @@ fn list_in(
     let offset = usize::try_from(query.offset).unwrap_or(usize::MAX);
     let drafted = rows.len();
 
-    let (page_rows, mirror_total) = if keys.is_empty() {
+    let (page_rows, mirror_total) = if keys.is_empty() && query.order.is_none() {
         // No order to merge on: drafts come first.
         let from = offset.min(drafted);
         let to = offset.saturating_add(limit).min(drafted);
@@ -216,12 +222,15 @@ fn list_in(
         out.extend(page.rows);
         (out, page.total)
     } else {
+        if query.order.is_none() {
+            mirror_query.sort = keys.clone();
+        }
         merge_sorted(
             conn,
             resource,
             &mut mirror_query,
             rows.clone(),
-            &keys,
+            &order,
             offset,
             limit,
         )?
@@ -239,14 +248,15 @@ fn list_in(
     })
 }
 
-/// Walks the mirror in sort order and merges the sorted drafts in (a draft
-/// goes before a mirror row it ties with) until the page is filled.
+/// Walks the mirror in its order (the one `order` gives the drafts) and
+/// merges the sorted drafts in (a draft goes before a mirror row it ties
+/// with) until the page is filled.
 fn merge_sorted(
     conn: &Connection,
     resource: &ResourceName,
     mirror_query: &mut ListQuery,
     drafts: Vec<ResourceRow>,
-    keys: &[SortKey],
+    order: &dyn Fn(&ResourceRow, &ResourceRow) -> Ordering,
     offset: usize,
     limit: usize,
 ) -> Result<(Vec<ResourceRow>, u64)> {
@@ -255,7 +265,6 @@ fn merge_sorted(
     let mut drafts = drafts.into_iter().peekable();
     let mut mirror_offset: u64 = 0;
     let mut total: u64;
-    mirror_query.sort = keys.to_vec();
     mirror_query.limit = Some(LIST_LIMIT_MAX);
     'outer: loop {
         mirror_query.offset = mirror_offset;
@@ -263,9 +272,7 @@ fn merge_sorted(
         total = page.total;
         let fetched = page.rows.len();
         for row in page.rows {
-            while let Some(draft) =
-                drafts.next_if(|d| compare_rows(d, &row, keys) != Ordering::Greater)
-            {
+            while let Some(draft) = drafts.next_if(|d| order(d, &row) != Ordering::Greater) {
                 merged.push(draft);
             }
             merged.push(row);

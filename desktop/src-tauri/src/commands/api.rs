@@ -35,7 +35,7 @@ use keystone_sync::client::{
     REQUEST_HEADERS,
 };
 use keystone_sync::engine::SyncState;
-use keystone_sync::store::{LocalCopy, Store};
+use keystone_sync::store::{LocalCopy, OnlineOnly, Store};
 use keystone_sync::wire::{ResourceName, Source};
 use serde_json::{Map, Value};
 
@@ -44,7 +44,7 @@ use crate::dto::api::{ApiBody, ApiRequestDto, ApiResponseDto, ResponseSource};
 use crate::router::envelope::{self, OfflineMeta};
 use crate::router::{
     ApiCall, Connectivity, Decision, Facts, LocalOutcome, LocalPlan, LocalResolver, OfflineWrites,
-    Refusal, Router, Target, TargetKind, local_read, local_resolver,
+    Refusal, Router, Target, TargetKind, local_read, local_resolver, query_map,
 };
 use crate::state::{AppState, Engine};
 
@@ -221,7 +221,18 @@ async fn respond(
             LocalOutcome::Unsupported { .. } if else_online => run.online(&call, None, None).await,
             LocalOutcome::Unsupported {
                 unsupported_filters,
-            } => Ok(refuse(Refusal::Offline, unsupported_filters)),
+            } => {
+                let online_only = target
+                    .as_ref()
+                    .and_then(|t| query_map::spec_of(&t.resource))
+                    .map(|spec| query_map::online_only(spec, &call.query))
+                    .unwrap_or_default();
+                Ok(refuse_with(
+                    Refusal::Offline,
+                    unsupported_filters,
+                    online_only,
+                ))
+            }
         },
         Decision::Online { deadline, fallback } => match run
             .online(&call, deadline, snapshot.map(|t| &t.resource))
@@ -403,6 +414,16 @@ fn proxy_request(call: &ApiCall) -> ProxyRequest {
 }
 
 fn refuse(refusal: Refusal, unsupported_filters: Vec<String>) -> ApiResponseDto {
+    refuse_with(refusal, unsupported_filters, Vec::new())
+}
+
+/// [`refuse`] naming the filters it could not apply; those the offline
+/// manifest keeps for the server also come with their reason.
+fn refuse_with(
+    refusal: Refusal,
+    unsupported_filters: Vec<String>,
+    online_only: Vec<OnlineOnly>,
+) -> ApiResponseDto {
     let (code, status) = refusal.code_and_status();
     let body = envelope::error(code, refusal.message(), None);
     let body = if unsupported_filters.is_empty() {
@@ -412,6 +433,7 @@ fn refuse(refusal: Refusal, unsupported_filters: Vec<String>) -> ApiResponseDto 
             body,
             &OfflineMeta {
                 unsupported_filters,
+                online_only,
                 ..OfflineMeta::default()
             },
         )

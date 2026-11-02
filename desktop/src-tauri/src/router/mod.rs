@@ -12,7 +12,7 @@ pub mod local_read;
 #[cfg(test)]
 mod local_support;
 mod local_write;
-mod query_map;
+pub(crate) mod query_map;
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};

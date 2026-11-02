@@ -58,7 +58,9 @@ Reverb soketi Rust tarafında açılır, webview CSP'sine girmez. Olay etkileri:
 | `online-first` | Sunucu (5 sn), düşerse yerel `stale` | Yerel, `stale` |
 | `offline-fallback` (snapshot) | Sunucu | Saklı snapshot, `as_of` etiketli |
 
-Yerel kopya bir isteği karşılayamıyorsa (indekslenmemiş filtre, inmemiş snapshot) çevrimiçiyken istek sunucuya gider, çevrimdışıyken `meta.offline.unsupported_filters` ile reddedilir. Yerel yanıtlar Laravel zarfını birebir taşır, `meta.offline` altında `as_of`, `partial`, `stale` bulunur.
+Yerel kopya bir isteği karşılayamıyorsa (manifestte bildirilmeyen filtre ya da sıralama, inmemiş snapshot) çevrimiçiyken istek sunucuya gider, çevrimdışıyken `meta.offline.unsupported_filters` ile reddedilir. Manifestin `online_only` girdileri de reddedilir, ayrıca `meta.offline.online_only` içinde `{param, reason}` ile gelir. Yerel yanıtlar Laravel zarfını birebir taşır, `meta.offline` altında `as_of`, `partial`, `stale` bulunur; uygulanan sıralama, filtre ve arama adları `applied_filters` içindedir.
+
+Liste sorguları (offline manifest v3 `query`): yönlendirici (`router/query_map.rs`) yalnız bildirilen `sort`, `filter[...]` ve `search.fields` adlarını eşler. Depo (`store/listing.rs`, `store/collate.rs`) bunları satırın JSON alanı üzerinde uygular: SQLite tarafında her bağlantıya kayıtlı `ks_key` ve `ks_test` fonksiyonları, taslak katmanında aynı Rust kuralları. Alan yolu SQL metnine girmez; desen kontrolünden sonra tırnaklı JSON yolu olarak bağlanır. Sıralama sunucuyla aynıdır: metin `en_US.utf8` harmanlamasıyla (harf, aksan, büyük/küçük, noktalama düzeyleri; Türkçe harfler kök harflerinin yanında, `ı` ayrı harf), ondalık metinler tam sayısal (kayan nokta yok), `datetime` UTC anına çevrilerek, `NULL` artan sırada sonda ve azalan sırada başta, en son `id` artan. Sıra `default_sort` yoksa yalnız `id`. Arama, `search.fields` üzerinde büyük/küçük ve aksan duyarsız alt metin eşleşmesidir. Migration yoktur: dizin eklenmedi, ledger değişmedi.
 
 ### Yazma
 
@@ -206,7 +208,7 @@ Log formatı `src-tauri/src/logging.rs` içinde maskelenir: token, parola, kanal
 - `Retry-After` sınırı bellektedir: yeniden başlatınca unutulur.
 - SSE yok: `streamPost` ve asistan akışı D3 dışıdır, komutlar yanıtı tek parça döner. D4/D5'te Tauri `Channel` ile gelir.
 - Kaynak değişikliği yayını yok: realtime yalnız üç kullanıcı olayı taşır, tazelik 60 sn döngüsüyle sağlanır. Web'e `sync.changed` backlog'da.
-- Çevrimdışı filtre ve sıralama yalnız `search`, sayfalama ve manifest `window_field` ile sınırlıdır.
+- Çevrimdışı filtre ve sıralama offline manifest `query` bölümünde bildirilen adlarla sınırlıdır; `query` bölümü olmayan kaynakta yalnız `search`, sayfalama ve `window_field`. Sıralamada indeks kullanılmaz (satır başına anahtar hesaplanır); ayna boyutlarında yeterli.
 - Presence kanalı yok.
 
 ### Takip listesi

@@ -53,6 +53,165 @@ pub struct ResourceSpec {
     /// allows nothing offline.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub write: Option<WritePolicy>,
+    /// List parameters the local copy may apply (offline manifest `query`,
+    /// version 3). `None`: only the window field sorts and filters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query: Option<QuerySpec>,
+}
+
+/// Highest offline manifest version whose `query` sections this build
+/// understands. A manifest of another version keeps its resources, but its
+/// `query` sections are not read (lists fall back to the window field).
+pub const QUERY_MANIFEST_VERSION: u32 = 3;
+
+/// `query` of a list stream: the server's list parameter names the local
+/// copy can apply, each on a top-level row field.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct QuerySpec {
+    /// Order without a `sort` parameter (`-name` descending); without it,
+    /// `id` ascending. Applied up to its first name that is not a declared
+    /// sort (no type to compare by), then `id`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub default_sort: Vec<String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub sort: BTreeMap<String, SortField>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub filters: BTreeMap<String, FilterField>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub search: Option<SearchSpec>,
+    /// Parameters only the server can answer; refused offline.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub online_only: Vec<OnlineOnly>,
+}
+
+/// One `sort` name.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SortField {
+    /// Row field; the name itself when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    #[serde(rename = "type")]
+    pub kind: SortType,
+}
+
+/// How values of a sort field compare.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SortType {
+    /// Server collation (`en_US.utf8`): letters before case, see
+    /// [`super::collate::collation_key`].
+    Text,
+    /// `YYYY-MM-DD`, compared as text.
+    Date,
+    /// ISO 8601 with an offset, compared as instants.
+    Datetime,
+    /// Decimal string (`"9.50"`), compared exactly as a number.
+    Decimal,
+    Integer,
+    /// `false` before `true`.
+    Bool,
+    /// A type this build does not know: the sort is refused.
+    #[serde(other)]
+    Unknown,
+}
+
+/// One `filter[<name>]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FilterField {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    #[serde(rename = "match")]
+    pub matching: FilterMatch,
+    #[serde(rename = "type")]
+    pub kind: ValueType,
+    /// `any_of` over an array of objects: the field of each element.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub element_field: Option<String>,
+    /// Most comma separated values the server takes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_values: Option<u32>,
+}
+
+/// How a filter value meets the row value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FilterMatch {
+    /// `a` or `a,b` (any of them).
+    Eq,
+    /// The row field is an array; any element equals any value.
+    AnyOf,
+    /// Inclusive bounds.
+    Gte,
+    Lte,
+    /// Case-insensitive substring.
+    Contains,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Type of filter values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ValueType {
+    String,
+    Uuid,
+    Bool,
+    Integer,
+    Date,
+    #[serde(other)]
+    Unknown,
+}
+
+/// `q`: case-insensitive substring over `fields` (any of them).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchSpec {
+    pub fields: Vec<String>,
+    /// What the server also searches that the rows do not carry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_also: Option<String>,
+}
+
+/// A parameter only the server answers (`filter[x]` or `sort=x`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OnlineOnly {
+    pub param: String,
+    pub reason: String,
+}
+
+impl SortField {
+    /// Row field of the sort `name`.
+    pub fn field_of<'a>(&'a self, name: &'a str) -> &'a str {
+        self.field.as_deref().unwrap_or(name)
+    }
+}
+
+impl FilterField {
+    /// Row field of the filter `name`.
+    pub fn field_of<'a>(&'a self, name: &'a str) -> &'a str {
+        self.field.as_deref().unwrap_or(name)
+    }
+}
+
+impl QuerySpec {
+    /// Names and fields are inlined nowhere, but they become JSON paths:
+    /// only the manifest's name pattern is accepted.
+    fn validate(&self) -> Result<()> {
+        for (name, sort) in &self.sort {
+            validate_name(name)?;
+            validate_field(sort.field_of(name))?;
+        }
+        for (name, filter) in &self.filters {
+            validate_name(name)?;
+            validate_field(filter.field_of(name))?;
+            if let Some(element) = &filter.element_field {
+                validate_field(element)?;
+            }
+        }
+        for field in self.search.iter().flat_map(|s| &s.fields) {
+            validate_field(field)?;
+        }
+        Ok(())
+    }
 }
 
 /// One offline write operation (`write.ops[]`).
@@ -195,6 +354,7 @@ impl ResourceSpec {
             search: Vec::new(),
             window: None,
             write: None,
+            query: None,
         }
     }
 
@@ -248,6 +408,9 @@ impl ResourceSpec {
         {
             validate_field(field)?;
         }
+        if let Some(query) = &self.query {
+            query.validate()?;
+        }
         Ok(())
     }
 }
@@ -274,7 +437,19 @@ pub fn offline_manifest(json: &str) -> Result<OfflineManifest> {
     })
 }
 
+/// The `query` section of a manifest entry, when this manifest's version
+/// defines it (3 up to [`QUERY_MANIFEST_VERSION`]; a manifest without a
+/// version is read as the current one).
+fn query_of(entry: &Value, version: Option<u64>) -> Result<Option<QuerySpec>> {
+    let known = version.is_none_or(|v| (3..=u64::from(QUERY_MANIFEST_VERSION)).contains(&v));
+    match entry.get("query") {
+        Some(query) if known => Ok(Some(serde_json::from_value(query.clone())?)),
+        _ => Ok(None),
+    }
+}
+
 fn specs_of(root: &Value) -> Result<Vec<ResourceSpec>> {
+    let version = root.get("manifest_version").and_then(Value::as_u64);
     let default_days = root
         .pointer("/defaults/recent_window_days")
         .and_then(Value::as_u64)
@@ -317,6 +492,7 @@ fn specs_of(root: &Value) -> Result<Vec<ResourceSpec>> {
                 .or(default_days);
             spec = spec.window(field, days);
         }
+        spec.query = query_of(entry, version)?;
         spec.validate()?;
         let children = entry.get("children").and_then(Value::as_array);
         specs.push(spec.clone());
@@ -324,6 +500,7 @@ fn specs_of(root: &Value) -> Result<Vec<ResourceSpec>> {
             let mut child_spec = ResourceSpec::new(name_of(child)?).read(spec.read);
             child_spec.search = spec.search.clone();
             child_spec.write = Some(WritePolicy::default());
+            child_spec.query = query_of(child, version)?;
             child_spec.validate()?;
             specs.push(child_spec);
         }
@@ -354,6 +531,19 @@ pub(crate) fn validate_resource(resource: &ResourceName) -> Result<()> {
             "invalid resource name {:?}",
             resource.as_str()
         )))
+    }
+}
+
+/// `^[a-z][a-z0-9_]*$`: a `query` parameter name (`queryName` of the
+/// manifest schema).
+pub(crate) fn validate_name(name: &str) -> Result<()> {
+    let mut bytes = name.bytes();
+    let ok = bytes.next().is_some_and(|b| b.is_ascii_lowercase())
+        && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_');
+    if ok {
+        Ok(())
+    } else {
+        Err(invalid(format!("invalid query name {name:?}")))
     }
 }
 
@@ -403,6 +593,20 @@ pub(crate) fn index_name(table: &str, column: &str) -> String {
 /// `$.a.b` for a validated field path.
 pub(crate) fn json_path(field: &str) -> String {
     format!("$.{field}")
+}
+
+/// `$."a"."b"`: the JSON path of a field path, each label quoted. The path
+/// is checked first ([`validate_field`]: no quote, backslash or bracket can
+/// reach it) and is bound as a parameter, never written into SQL.
+pub(crate) fn quoted_path(field: &str) -> Result<String> {
+    validate_field(field)?;
+    let mut path = String::from("$");
+    for segment in field.split('.') {
+        path.push_str(".\"");
+        path.push_str(segment);
+        path.push('"');
+    }
+    Ok(path)
 }
 
 fn ident_part(name: &str) -> String {

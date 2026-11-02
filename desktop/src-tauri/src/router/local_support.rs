@@ -56,7 +56,7 @@ pub fn row(id: Uuid, version: u64, fields: Value) -> Value {
 }
 
 /// The sync manifest of the compiled offline manifest.
-fn sync_manifest(version: u32) -> Value {
+pub fn sync_manifest(version: u32) -> Value {
     let specs = offline_manifest(OFFLINE_MANIFEST).unwrap().specs;
     let resources: Vec<Value> = specs
         .iter()
@@ -161,9 +161,15 @@ fn pull(seed: Seed, paging: &'static [&'static str]) -> impl Fn(&Request) -> Res
     }
 }
 
+/// `manifest_version` of the compiled offline manifest: the server's
+/// `offline_manifest_version` when the two agree.
+pub fn compiled_version() -> u32 {
+    offline_manifest(OFFLINE_MANIFEST).unwrap().manifest_version
+}
+
 /// Local data verified by one pass that brought `seed`.
 pub async fn fixture(seed: Seed) -> Fixture {
-    fixture_with(seed, &[], 2).await
+    fixture_with(seed, &[], compiled_version()).await
 }
 
 /// [`fixture`] with resources still `paging` and the server's
@@ -357,7 +363,7 @@ impl Fixture {
 
     /// From now on the sync manifest leaves `resource` out.
     pub async fn drop_from_manifest(&self, resource: &str) {
-        let mut manifest = sync_manifest(2);
+        let mut manifest = sync_manifest(compiled_version());
         let kept: Vec<Value> = manifest["data"]["resources"]
             .as_array()
             .unwrap()
@@ -388,6 +394,16 @@ impl Fixture {
             })
             .collect()
     }
+}
+
+/// From now on the first download of a resource brings `seed`.
+pub async fn mount_pull(fx: &Fixture, seed: Seed) {
+    Mock::given(method("POST"))
+        .and(path("/api/v1/sync/pull"))
+        .respond_with(pull(seed, &[]))
+        .with_priority(1)
+        .mount(&fx.server)
+        .await;
 }
 
 pub fn name(resource: &str) -> ResourceName {

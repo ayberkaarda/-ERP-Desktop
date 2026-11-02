@@ -227,7 +227,12 @@ async fn writes_outside_the_manifest_stay_online_only() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_manifest_mismatch_closes_writes_but_not_reads() {
     let (a, row_a) = doc("draft", json!({}));
-    let fx = fixture_with(vec![("sales-quotes", vec![row_a])], &[], 3).await;
+    let fx = fixture_with(
+        vec![("sales-quotes", vec![row_a])],
+        &[],
+        compiled_version() + 1,
+    )
+    .await;
     fx.go_offline();
 
     let create = fx
@@ -257,7 +262,7 @@ async fn a_manifest_mismatch_closes_writes_but_not_reads() {
 /// engine alone only sees writes that got as far as a draft.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_manifest_mismatch_comes_before_the_checks_of_a_draft() {
-    let fx = fixture_with(vec![], &[], 3).await;
+    let fx = fixture_with(vec![], &[], compiled_version() + 1).await;
     fx.go_offline();
     let unknown = format!("{QUOTES}/{}", Uuid::now_v7());
 

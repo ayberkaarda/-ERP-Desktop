@@ -119,6 +119,10 @@ fn valid_fixtures_match_schema_and_round_trip() {
         "expected the D0 fixture set, got {names:?}"
     );
     for name in names {
+        // offline-manifest.* belong to contracts/offline-manifest.schema.json.
+        if name.starts_with("offline-manifest.") {
+            continue;
+        }
         let schema = schema_for(&name);
         let value = read_json(&dir.join(&name));
         let errors: Vec<String> = validator(&schema)
@@ -149,6 +153,75 @@ fn invalid_sync_fixtures_are_rejected_by_their_schema() {
         checked += 1;
     }
     assert!(checked > 0);
+}
+
+/// The offline manifest fixtures: valid ones match
+/// `contracts/offline-manifest.schema.json` and are read with their `query`
+/// sections; invalid ones are refused by that schema.
+#[test]
+fn offline_manifest_fixtures_match_their_schema_and_are_read() {
+    const URI: &str = "https://keystone-erp.invalid/contracts/offline-manifest.schema.json";
+    let mut registry = Registry::new();
+    for name in schema_names() {
+        registry = registry
+            .add(
+                format!("{BASE_URI}{name}"),
+                read_json(&sync_dir().join(&name)),
+            )
+            .expect("register schema");
+    }
+    let registry = registry
+        .add(
+            URI,
+            read_json(&sync_dir().join("../offline-manifest.schema.json")),
+        )
+        .expect("register offline manifest schema")
+        .prepare()
+        .expect("prepare registry");
+    let validator = jsonschema::options()
+        .with_registry(&registry)
+        .build(&serde_json::json!({ "$ref": URI }))
+        .expect("offline manifest schema");
+    let dir = sync_dir().join("fixtures");
+    let valid: Vec<String> = fixtures(&dir)
+        .into_iter()
+        .filter(|n| n.starts_with("offline-manifest."))
+        .collect();
+    assert!(!valid.is_empty());
+    for name in valid {
+        let value = read_json(&dir.join(&name));
+        let errors: Vec<String> = validator
+            .iter_errors(&value)
+            .map(|e| e.to_string())
+            .collect();
+        assert!(errors.is_empty(), "{name}: {errors:#?}");
+        let manifest = keystone_sync::store::offline_manifest(&value.to_string())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let declared = value["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(|r| std::iter::once(r).chain(r["children"].as_array().into_iter().flatten()))
+            .filter(|r| r.get("query").is_some())
+            .count();
+        let read = manifest.specs.iter().filter(|s| s.query.is_some()).count();
+        assert_eq!(read, declared, "{name}");
+    }
+    let shipped = read_json(&sync_dir().join("../offline-manifest.json"));
+    assert!(validator.is_valid(&shipped));
+    let invalid = sync_dir().join("fixtures/invalid");
+    let mut checked = 0;
+    for name in fixtures(&invalid)
+        .into_iter()
+        .filter(|n| n.starts_with("offline-manifest.query"))
+    {
+        assert!(
+            !validator.is_valid(&read_json(&invalid.join(&name))),
+            "{name} passed"
+        );
+        checked += 1;
+    }
+    assert!(checked >= 5, "{checked}");
 }
 
 #[test]
