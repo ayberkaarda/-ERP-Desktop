@@ -114,8 +114,10 @@ it('issues one desktop token per fingerprint and lists and revokes devices', fun
         ->assertOk()->assertJsonCount(1, 'data')->json('data');
     expect(json_encode($devices))->not->toContain('fingerprint');
 
+    // A device cannot revoke itself; another device of the same user can.
+    $laptop = deviceLogin(['device_name' => 'Laptop', 'fingerprint' => 'fp-fedcba9876543210'])->assertOk();
     Identity::fresh();
-    $this->withToken((string) $second->json('data.token'))->deleteJson("/api/v1/me/devices/{$devices[0]['id']}")->assertNoContent();
+    $this->withToken((string) $laptop->json('data.token'))->deleteJson("/api/v1/me/devices/{$devices[0]['id']}")->assertNoContent();
 
     Identity::fresh();
     $this->withToken((string) $second->json('data.token'))->getJson('/api/v1/auth/me')->assertStatus(401);

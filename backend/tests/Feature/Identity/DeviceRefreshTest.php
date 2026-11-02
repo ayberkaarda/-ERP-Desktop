@@ -293,17 +293,20 @@ it('lets a refreshed token pair stop at company access once membership is lost',
 it('removes refresh tokens when the device is revoked or logs out', function (): void {
     $login = refreshLogin();
     $device = UserDevice::query()->sole();
+    // Revoked from another device: a device cannot revoke itself.
+    $laptop = refreshLogin('fp-llllllllllllllll');
+    $laptopDevice = UserDevice::query()->whereKeyNot($device->id)->sole();
 
     Identity::fresh();
-    $this->withToken((string) $login->json('data.token'))->deleteJson("/api/v1/me/devices/{$device->id}")->assertNoContent();
+    $this->withToken((string) $laptop->json('data.token'))->deleteJson("/api/v1/me/devices/{$device->id}")->assertNoContent();
 
-    expect(DeviceRefreshToken::query()->count())->toBe(0);
+    expect(DeviceRefreshToken::query()->where('device_id', $device->id)->count())->toBe(0);
     refreshWith((string) $login->json('data.refresh_token'))->assertStatus(401);
 
     $again = refreshLogin();
     Identity::fresh();
     $this->withToken((string) $again->json('data.token'))->postJson('/api/v1/auth/logout')->assertNoContent();
-    expect(DeviceRefreshToken::query()->count())->toBe(0);
+    expect(DeviceRefreshToken::query()->pluck('device_id')->all())->toBe([$laptopDevice->id]);
 });
 
 it('replaces the refresh token of a device that logs in again', function (): void {

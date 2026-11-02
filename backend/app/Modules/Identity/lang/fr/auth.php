@@ -11,4 +11,5 @@ return [
     'password_policy' => 'Le mot de passe ne respecte pas la politique de mots de passe.',
     'password_too_short' => 'Le mot de passe doit contenir au moins :min caractères.',
     'password_matches_identity' => 'Le mot de passe ne doit pas être votre adresse e-mail ou votre nom.',
+    'current_device' => 'Cet appareil ne peut pas se révoquer lui-même. Déconnectez-vous plutôt sur cet appareil.',
 ];

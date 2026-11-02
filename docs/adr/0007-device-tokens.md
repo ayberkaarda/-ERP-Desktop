@@ -14,7 +14,7 @@ Masaüstü istemci tarayıcı oturum çerezi kullanamaz ve uzun süre çevrimdı
 - `POST /api/v1/auth/device/refresh` gövdesi `{refresh_token}`'dır; başarılı yanıt girişle aynı şekildedir. Her yenileme kullanılan token'ı `used_at` ile işaretler ve aynı ailede yenisini verir. Refresh token'lar yalnızca özetleriyle `device_refresh_tokens(id, device_id, token_hash, family_id, expires_at, used_at)` tablosunda tutulur.
 - Kullanılmış bir refresh token'ın tekrar gelmesi ailenin tamamını, cihazın tüm token'larını ve cihaz kaydını iptal eder; yanıt 401 `UNAUTHENTICATED`'dır. Bilinmeyen, süresi dolmuş veya iptal edilmiş token da 401 `UNAUTHENTICATED` döner.
 - Eşzamanlı yenileme desteklenmez; istemci yenilemeyi sıralar.
-- `GET /api/v1/me/devices` ve `DELETE /api/v1/me/devices/{id}` cihazları listeler ve iptal eder. Kullanıcı pasifleştirme, parola değişimi ve yönetici sıfırlaması cihazın erişim ve refresh token'larını iptal eder.
+- `GET /api/v1/me/devices` ve `DELETE /api/v1/me/devices/{id}` cihazları listeler ve iptal eder. Bir cihaz kendi kaydını `DELETE /api/v1/me/devices/{id}` ile iptal edemez: yanıt 403 `FORBIDDEN`'dır; çıkış için `POST /api/v1/auth/logout` kullanılır. Kullanıcı pasifleştirme, parola değişimi ve yönetici sıfırlaması cihazın erişim ve refresh token'larını iptal eder.
 - Senkron uçları yalnızca `desktop` yetenekli token'ı ve `X-Company-Id` başlığını kabul eder.
 - İstek ve yanıt şemaları `contracts/sync/device-login.request.schema.json`, `device-refresh.request.schema.json` ve `device-token.response.schema.json` dosyalarındadır; D1'de uygulanınca OpenAPI'ye taşınır.
 
