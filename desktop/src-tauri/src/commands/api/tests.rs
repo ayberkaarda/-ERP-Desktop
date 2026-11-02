@@ -176,13 +176,11 @@ async fn received(server: &MockServer) -> usize {
     server.received_requests().await.unwrap_or_default().len()
 }
 
-/// A loopback base URL nothing listens on (a port bound and let go;
-/// wiremock keeps its own servers alive in a pool).
+/// A loopback base URL nothing can listen on: port 0 is never a listening
+/// port, so the connection fails at once. A port bound and let go could be
+/// taken by a wiremock server of a test running at the same time.
 async fn dead_url() -> String {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    drop(listener);
-    format!("http://127.0.0.1:{port}")
+    "http://127.0.0.1:0".to_owned()
 }
 
 // ------------------------------------------------------------ online path
@@ -437,21 +435,214 @@ async fn offline_requests_are_refused_locally_without_sending() {
     let server = MockServer::start().await;
     let fx = fixture(&server.uri());
     fx.go_offline();
-    for request in [
-        json!({ "method": "GET", "path": "/api/v1/parties" }),
-        json!({ "method": "GET", "path": "/api/v1/reports/trial-balance" }),
-        json!({ "method": "POST", "path": "/api/v1/parties",
-            "body": { "kind": "json", "value": { "name": "Acme" } } }),
+    for (request, method, path) in [
+        (
+            json!({ "method": "GET", "path": "/api/v1/parties" }),
+            "GET",
+            "/parties",
+        ),
+        (
+            json!({ "method": "get", "path": "/api/v1/reports/trial-balance",
+                "query": [["access_token", "tok-1"], ["from", "2026-01-01"]] }),
+            "GET",
+            "/reports/trial-balance",
+        ),
+        (
+            json!({ "method": "post", "path": "/api/v1/parties",
+                "body": { "kind": "json", "value": { "name": "Acme" } } }),
+            "POST",
+            "/parties",
+        ),
     ] {
         let answer = fx.call(request.clone()).await.unwrap();
         assert_eq!(answer.status, 503, "{request}");
         assert_eq!(answer.source, ResponseSource::Local);
         assert_eq!(
             answer.json().unwrap(),
-            &envelope::error("OFFLINE_UNAVAILABLE", Refusal::Offline.message(), None)
+            &json!({ "errors": {
+                "message": Refusal::Offline.message(),
+                "code": "OFFLINE_UNAVAILABLE",
+                "details": { "method": method, "path": path },
+            } }),
+            "{request}"
         );
     }
     assert_eq!(received(&server).await, 0);
+}
+
+fn refused(status: u16, code: &str, source: ResponseSource) -> ApiResponseDto {
+    ApiResponseDto {
+        source,
+        ..envelope::local(status, envelope::error(code, "refused", None))
+    }
+}
+
+fn details(answer: &ApiResponseDto) -> Option<&Value> {
+    answer.json().unwrap()["errors"].get("details")
+}
+
+#[test]
+fn both_local_refusals_name_the_refused_request() {
+    let path = format!("/api/v1/sales-quotes/{ID}/send");
+    for (status, code) in [
+        (503, "OFFLINE_UNAVAILABLE"),
+        (422, "SYNC_OFFLINE_WRITE_NOT_ALLOWED"),
+    ] {
+        let answer = name_refused(
+            refused(status, code, ResponseSource::Local),
+            ProxyMethod::Post,
+            &path,
+        );
+        assert_eq!(
+            details(&answer),
+            Some(&json!({ "method": "POST", "path": format!("/sales-quotes/{ID}/send") })),
+            "{code}"
+        );
+        assert_eq!(answer.json().unwrap()["errors"]["code"], code);
+        assert_eq!(answer.json().unwrap()["errors"]["message"], "refused");
+    }
+    for (method, name) in [
+        (ProxyMethod::Get, "GET"),
+        (ProxyMethod::Put, "PUT"),
+        (ProxyMethod::Patch, "PATCH"),
+        (ProxyMethod::Delete, "DELETE"),
+    ] {
+        let answer = name_refused(
+            refused(503, "OFFLINE_UNAVAILABLE", ResponseSource::Local),
+            method,
+            "/api/v1/parties",
+        );
+        assert_eq!(details(&answer).unwrap()["method"], name);
+    }
+}
+
+#[test]
+fn the_path_is_named_as_it_was_sent() {
+    let upper = ID.to_ascii_uppercase();
+    let answer = name_refused(
+        refused(503, "OFFLINE_UNAVAILABLE", ResponseSource::Local),
+        ProxyMethod::Post,
+        &format!("/api/v1/Sales-Quotes/{upper}/send"),
+    );
+    assert_eq!(
+        details(&answer),
+        Some(&json!({ "method": "POST", "path": format!("/Sales-Quotes/{upper}/send") }))
+    );
+}
+
+/// The shared fixture of the TS contract test
+/// (`src/platform/desktop/localRefusal.test.ts`): both local refusals of
+/// `POST /sales-quotes/{id}/send` as the shell sends them. The webview reads
+/// the same file, so a change of the envelope here breaks that test too.
+const REFUSAL_FIXTURE: &str = include_str!("../../../../src/platform/desktop/localRefusal.json");
+const FIXTURE_QUOTE: &str = "0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20";
+
+#[test]
+fn the_webview_fixture_is_what_the_shell_sends() {
+    let path = format!("/api/v1/sales-quotes/{FIXTURE_QUOTE}/send");
+    let sent: Vec<Value> = [Refusal::OnlineOnlyWrite, Refusal::ManifestMismatch]
+        .into_iter()
+        .map(|refusal| {
+            let answer = name_refused(refuse(refusal, Vec::new()), ProxyMethod::Post, &path);
+            json!({ "status": answer.status, "body": answer.json().unwrap() })
+        })
+        .collect();
+    let fixture: Value = serde_json::from_str(REFUSAL_FIXTURE).unwrap();
+    assert_eq!(
+        fixture,
+        Value::Array(sent.clone()),
+        "update the fixture to:
+{}",
+        serde_json::to_string_pretty(&sent).unwrap()
+    );
+}
+
+#[test]
+fn other_answers_are_not_given_request_details() {
+    let path = "/api/v1/parties";
+    for answer in [
+        // The server's answer is passed on as it came.
+        refused(503, "OFFLINE_UNAVAILABLE", ResponseSource::Network),
+        refused(
+            422,
+            "SYNC_OFFLINE_WRITE_NOT_ALLOWED",
+            ResponseSource::Network,
+        ),
+        // A code with another status is not one of the two refusals.
+        refused(422, "OFFLINE_UNAVAILABLE", ResponseSource::Local),
+        refused(503, "SYNC_OFFLINE_WRITE_NOT_ALLOWED", ResponseSource::Local),
+        // Other local errors.
+        refused(403, "FORBIDDEN", ResponseSource::Local),
+        refused(422, "VALIDATION_ERROR", ResponseSource::Local),
+        refused(404, "NOT_FOUND", ResponseSource::Local),
+    ] {
+        let before = answer.clone();
+        assert_eq!(name_refused(answer, ProxyMethod::Get, path), before);
+    }
+    let data = envelope::local(202, json!({ "data": { "id": ID } }));
+    assert_eq!(name_refused(data.clone(), ProxyMethod::Post, path), data);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_online_first_fallback_refusal_names_the_request() {
+    let fx = fixture_with_engine(&dead_url().await);
+    let local = Arc::new(FakeLocal {
+        copy: LocalCopy::Complete,
+        answer: Some(envelope::local(
+            503,
+            envelope::error("OFFLINE_UNAVAILABLE", "not on this device", None),
+        )),
+        plans: Mutex::default(),
+    });
+    let answer = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "get", "path": "/api/v1/sales-deliveries",
+                "query": [["access_token", "tok-1"]] }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert!(matches!(
+        local.plans().as_slice(),
+        [LocalPlan::Read { stale: true, .. }]
+    ));
+    assert_eq!(
+        details(&answer),
+        Some(&json!({ "method": "GET", "path": "/sales-deliveries" }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_local_answer_from_the_resolver_names_the_refused_request() {
+    let server = MockServer::start().await;
+    let fx = fixture_with_engine(&server.uri());
+    fx.go_offline();
+    let local = Arc::new(FakeLocal {
+        copy: LocalCopy::Complete,
+        answer: Some(envelope::local(
+            422,
+            envelope::error(
+                "SYNC_OFFLINE_WRITE_NOT_ALLOWED",
+                "offline writes are closed",
+                None,
+            ),
+        )),
+        plans: Mutex::default(),
+    });
+    let answer = fx
+        .call_with(
+            local,
+            json!({ "method": "post", "path": "/api/v1/parties",
+                "body": { "kind": "json", "value": { "name": "Acme" } } }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.status, 422);
+    assert_eq!(
+        details(&answer),
+        Some(&json!({ "method": "POST", "path": "/parties" }))
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -525,6 +716,10 @@ async fn offline_drafts_go_to_the_local_resolver() {
         .await
         .unwrap();
     assert_eq!(refused.status, 503);
+    assert_eq!(
+        details(&refused),
+        Some(&json!({ "method": "POST", "path": format!("/sales-quotes/{ID}/send") }))
+    );
     assert_eq!(local.plans().len(), 1);
     assert_eq!(received(&server).await, 0);
 }
@@ -546,6 +741,10 @@ async fn offline_unsupported_local_query_lists_the_filters() {
     assert_eq!(answer.status, 503);
     let body = answer.json().unwrap();
     assert_eq!(body["errors"]["code"], "OFFLINE_UNAVAILABLE");
+    assert_eq!(
+        body["errors"]["details"],
+        json!({ "method": "GET", "path": "/parties" })
+    );
     assert_eq!(
         body["meta"]["offline"]["unsupported_filters"],
         json!(["filter[city]"])

@@ -13,7 +13,11 @@ idempotency_key: string, resource: string, id: string,
  */
 code: string, message?: string | null, base_version: number | null, server_version: number | null, conflicting_fields: Array<string>, 
 /**
- * The server row (`null` for a duplicate or a row deleted there).
+ * The server row: an object for `VERSION_CONFLICT` and
+ * `DOCUMENT_LOCKED`, `null` only for `DUPLICATE_RECORD`
+ * (`contracts/sync/push.response.schema.json`). One type serves all
+ * three codes, so it is any JSON value here; the code says which shape
+ * it has.
  */
 server_data: unknown, candidates?: Array<string> | null, 
 /**

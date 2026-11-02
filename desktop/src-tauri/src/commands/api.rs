@@ -37,9 +37,10 @@ use keystone_sync::client::{
 use keystone_sync::engine::SyncState;
 use keystone_sync::store::{LocalCopy, Store};
 use keystone_sync::wire::{ResourceName, Source};
+use serde_json::{Map, Value};
 
 use crate::commands::{CommandError, CommandResult, codes};
-use crate::dto::api::{ApiBody, ApiRequestDto, ApiResponseDto};
+use crate::dto::api::{ApiBody, ApiRequestDto, ApiResponseDto, ResponseSource};
 use crate::router::envelope::{self, OfflineMeta};
 use crate::router::{
     ApiCall, Connectivity, Decision, Facts, LocalOutcome, LocalPlan, LocalResolver, OfflineWrites,
@@ -73,7 +74,8 @@ pub async fn api_request<R: tauri::Runtime>(
     handle(&state, &connectivity, local_resolver(), req).await
 }
 
-/// The command without Tauri: checks, decides and answers `request`.
+/// The command without Tauri: checks, decides and answers `request`. A
+/// local offline refusal names the refused request ([`name_refused`]).
 pub async fn handle(
     state: &AppState,
     connectivity: &Connectivity,
@@ -81,6 +83,69 @@ pub async fn handle(
     request: ApiRequestDto,
 ) -> CommandResult<ApiResponseDto> {
     let call = validate(request)?;
+    let (method, path) = (call.method, call.path.clone());
+    let answer = respond(state, connectivity, resolver, call).await?;
+    Ok(name_refused(answer, method, &path))
+}
+
+/// Local error codes that refuse a request because it needs the server
+/// (`OFFLINE_UNAVAILABLE`) or offline writes are closed
+/// (`SYNC_OFFLINE_WRITE_NOT_ALLOWED`), with their HTTP status.
+const OFFLINE_REFUSALS: [(&str, u16); 2] = [
+    ("OFFLINE_UNAVAILABLE", 503),
+    ("SYNC_OFFLINE_WRITE_NOT_ALLOWED", 422),
+];
+
+/// Adds `errors.details = {method, path}` to a local offline refusal, so the
+/// UI can name the action it refused. `method` is upper case; `path` is the
+/// API-relative path (`/parties/{id}`): the request path was checked to be
+/// plain segments, so it holds no query, fragment or credential. Server
+/// answers and every other local answer are left as they are.
+pub fn name_refused(mut answer: ApiResponseDto, method: ProxyMethod, path: &str) -> ApiResponseDto {
+    if answer.source != ResponseSource::Local {
+        return answer;
+    }
+    let status = answer.status;
+    let Some(ApiBody::Json { value }) = answer.body.as_mut() else {
+        return answer;
+    };
+    let Some(errors) = value.get_mut("errors").and_then(Value::as_object_mut) else {
+        return answer;
+    };
+    let refusal = errors
+        .get("code")
+        .and_then(Value::as_str)
+        .is_some_and(|code| OFFLINE_REFUSALS.contains(&(code, status)));
+    if !refusal {
+        return answer;
+    }
+    let relative = path.strip_prefix(PREFIX).unwrap_or(path);
+    let details = errors
+        .entry("details")
+        .or_insert_with(|| Value::Object(Map::new()));
+    if let Value::Object(details) = details {
+        details.insert("method".into(), Value::String(method_name(method).into()));
+        details.insert("path".into(), Value::String(format!("/{relative}")));
+    }
+    answer
+}
+
+fn method_name(method: ProxyMethod) -> &'static str {
+    match method {
+        ProxyMethod::Get => "GET",
+        ProxyMethod::Post => "POST",
+        ProxyMethod::Put => "PUT",
+        ProxyMethod::Patch => "PATCH",
+        ProxyMethod::Delete => "DELETE",
+    }
+}
+
+async fn respond(
+    state: &AppState,
+    connectivity: &Connectivity,
+    resolver: Arc<dyn LocalResolver>,
+    call: ApiCall,
+) -> CommandResult<ApiResponseDto> {
     let profile = state.active_profile_id().ok_or_else(no_profile)?;
     let client = state.client()?;
     let engine = state.engine().ok();

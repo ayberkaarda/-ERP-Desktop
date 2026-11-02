@@ -8,4 +8,10 @@ export type CommandError = { code: string, message: string,
  * Whole seconds to wait before retrying (from the server `Retry-After`),
  * rounded up. Absent when the server sent none.
  */
-retry_after?: number, };
+retry_after?: number, 
+/**
+ * `PROFILES_FILE_INVALID` only: the absolute path of the profiles file,
+ * so the UI can name the file to fix. Nothing of its content. Left out
+ * of the `Display` text, so a logged error never carries it.
+ */
+path?: string, };

@@ -177,6 +177,13 @@ async fn an_unreadable_profile_file_fails_the_restore() {
             Some(codes::PROFILES_FILE_INVALID)
         )]
     );
+    // The state names the file to fix, by its absolute path only.
+    let file = fx.desktop.registry().path().display().to_string();
+    assert!(fx.desktop.registry().path().is_absolute());
+    assert_eq!(error.path.as_deref(), Some(file.as_str()));
+    let told = fx.events.states().pop().and_then(|s| s.error).unwrap();
+    assert_eq!(told.path.as_deref(), Some(file.as_str()));
+    assert!(!told.message.contains("not json"), "{}", told.message);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -262,6 +269,8 @@ async fn a_switch_that_cannot_store_its_choice_fails_and_a_busy_removal_says_so(
     fx.events.clear_states();
     let error = fx.desktop.select(&fx.state, &profile.id).await.unwrap_err();
     assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+    let file = fx.desktop.registry().path().display().to_string();
+    assert_eq!(error.path.as_deref(), Some(file.as_str()));
     assert_eq!(fx.state.active_profile_id(), None);
     assert_eq!(
         phases(&fx),
@@ -271,6 +280,9 @@ async fn a_switch_that_cannot_store_its_choice_fails_and_a_busy_removal_says_so(
             Some(codes::PROFILES_FILE_INVALID)
         )]
     );
+    // The told state names the file too: the UI reads it from there.
+    let state = fx.events.states().pop().and_then(|s| s.error).unwrap();
+    assert_eq!(state.path.as_deref(), Some(file.as_str()));
     std::fs::remove_dir(&blocker).unwrap();
 
     // The failed profile cannot go while its request runs: the state says why.

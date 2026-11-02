@@ -128,7 +128,11 @@ pub struct ConflictDto {
     #[ts(type = "number | null")]
     pub server_version: Option<u64>,
     pub conflicting_fields: Vec<String>,
-    /// The server row (`null` for a duplicate or a row deleted there).
+    /// The server row: an object for `VERSION_CONFLICT` and
+    /// `DOCUMENT_LOCKED`, `null` only for `DUPLICATE_RECORD`
+    /// (`contracts/sync/push.response.schema.json`). One type serves all
+    /// three codes, so it is any JSON value here; the code says which shape
+    /// it has.
     #[ts(type = "unknown")]
     pub server_data: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -232,5 +236,27 @@ mod tests {
             ..SyncStatus::default()
         };
         assert_eq!(StatusDto::from(&auth).state, "auth_required");
+    }
+
+    #[test]
+    fn a_duplicate_sends_server_data_null() {
+        let dto = ConflictDto {
+            idempotency_key: Uuid::nil(),
+            resource: "parties".into(),
+            id: Uuid::nil(),
+            code: "DUPLICATE_RECORD".into(),
+            message: None,
+            base_version: None,
+            server_version: None,
+            conflicting_fields: vec![],
+            server_data: Value::Null,
+            candidates: Some(vec![Uuid::nil()]),
+            choices: vec![],
+            local_op: "create".into(),
+            local_payload: Map::new(),
+            detected_at: "2026-11-02T10:00:00+03:00".into(),
+        };
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json.get("server_data"), Some(&Value::Null), "{json}");
     }
 }

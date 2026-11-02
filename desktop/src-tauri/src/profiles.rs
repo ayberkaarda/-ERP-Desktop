@@ -9,7 +9,8 @@
 //! Every change is a read-modify-write under one lock, written to a
 //! temporary file and renamed over the old one, so a crash leaves either
 //! the old or the new file. A file that cannot be read is never written
-//! over: the commands fail with `PROFILES_FILE_INVALID` instead.
+//! over: the commands fail with `PROFILES_FILE_INVALID` instead, naming the
+//! file's path (never its content).
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
@@ -228,25 +229,35 @@ impl ProfileRegistry {
                     ..ProfilesFile::default()
                 });
             }
-            Err(e) => return Err(io_error("read", &e)),
+            Err(e) => return Err(self.io_error("read", &e)),
         };
         let file: ProfilesFile = serde_json::from_slice(&bytes)
-            .map_err(|_| invalid_file("the profile file is not valid JSON of this version"))?;
+            .map_err(|_| self.invalid_file("the profile file is not valid JSON of this version"))?;
         if file.version != VERSION {
-            return Err(invalid_file("the profile file has an unknown version"));
+            return Err(self.invalid_file("the profile file has an unknown version"));
         }
         Ok(file)
     }
 
     fn write(&self, file: &ProfilesFile) -> CommandResult<()> {
         if let Some(dir) = self.path.parent() {
-            std::fs::create_dir_all(dir).map_err(|e| io_error("create the directory of", &e))?;
+            std::fs::create_dir_all(dir)
+                .map_err(|e| self.io_error("create the directory of", &e))?;
         }
-        let text = serde_json::to_vec_pretty(file)
-            .map_err(|_| CommandError::new(codes::PROFILES_FILE_INVALID, "cannot encode"))?;
+        let text =
+            serde_json::to_vec_pretty(file).map_err(|_| self.invalid_file("cannot encode"))?;
         let tmp = self.path.with_extension("json.tmp");
-        std::fs::write(&tmp, text).map_err(|e| io_error("write", &e))?;
-        std::fs::rename(&tmp, &self.path).map_err(|e| io_error("replace", &e))
+        std::fs::write(&tmp, text).map_err(|e| self.io_error("write", &e))?;
+        std::fs::rename(&tmp, &self.path).map_err(|e| self.io_error("replace", &e))
+    }
+
+    /// `PROFILES_FILE_INVALID` with the absolute path of the file.
+    fn invalid_file(&self, message: &str) -> CommandError {
+        CommandError::new(codes::PROFILES_FILE_INVALID, message).with_path(&self.path)
+    }
+
+    fn io_error(&self, what: &str, error: &std::io::Error) -> CommandError {
+        self.invalid_file(&format!("cannot {what} the profile file: {}", error.kind()))
     }
 }
 
@@ -254,17 +265,6 @@ fn not_found(id: &str) -> CommandError {
     CommandError::new(
         codes::PROFILE_NOT_FOUND,
         format!("no server profile with id {id}"),
-    )
-}
-
-fn invalid_file(message: &str) -> CommandError {
-    CommandError::new(codes::PROFILES_FILE_INVALID, message)
-}
-
-fn io_error(what: &str, error: &std::io::Error) -> CommandError {
-    CommandError::new(
-        codes::PROFILES_FILE_INVALID,
-        format!("cannot {what} the profile file: {}", error.kind()),
     )
 }
 
@@ -377,6 +377,141 @@ mod tests {
         assert_eq!(
             registry.load().unwrap_err().code,
             codes::PROFILES_FILE_INVALID
+        );
+    }
+
+    #[test]
+    fn a_file_error_names_the_file_and_nothing_of_its_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        let file = registry.path().display().to_string();
+        assert!(registry.path().is_absolute());
+
+        let content = r#"{"version": 1, "profiles": [{"secret-name": "#;
+        std::fs::write(registry.path(), content).unwrap();
+        let error = registry.load().unwrap_err();
+        assert_eq!(error.path.as_deref(), Some(file.as_str()));
+        let json = serde_json::to_string(&error).unwrap();
+        assert!(!json.contains("secret-name"), "{json}");
+
+        std::fs::write(registry.path(), br#"{"version": 9, "profiles": []}"#).unwrap();
+        assert_eq!(
+            registry.load().unwrap_err().path.as_deref(),
+            Some(file.as_str())
+        );
+
+        // A write that fails (the temporary file is a directory) names it too.
+        std::fs::remove_file(registry.path()).unwrap();
+        std::fs::create_dir(registry.path().with_extension("json.tmp")).unwrap();
+        let error = registry.add(profile("a")).unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert_eq!(error.path.as_deref(), Some(file.as_str()));
+
+        // A file error that is not about the file carries no path.
+        std::fs::remove_dir(registry.path().with_extension("json.tmp")).unwrap();
+        let error = registry.remove("x").unwrap_err();
+        assert_eq!(error.code, codes::PROFILE_NOT_FOUND);
+        assert_eq!(error.path, None);
+    }
+
+    /// A file error as the log line prints it (`Display`) and as the
+    /// webview gets it: no path in the text, nothing of the content.
+    fn clean(error: &CommandError, dir: &Path, content: &[&str]) {
+        let line = error.to_string();
+        let dir = dir.display().to_string();
+        assert!(!line.contains(&dir), "path in the log line: {line}");
+        assert!(!error.message.contains(&dir), "{}", error.message);
+        let json = serde_json::to_string(error).unwrap();
+        for value in content {
+            assert!(!json.contains(value), "{value} in {json}");
+            assert!(!line.contains(value), "{value} in {line}");
+        }
+    }
+
+    #[test]
+    fn a_broken_file_names_itself_but_not_in_the_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        let file = registry.path().display().to_string();
+        // serde quotes the values it trips on; none may reach the error.
+        for content in [
+            r#"{"version": "secret-version", "profiles": []}"#,
+            r#"{"version": 1, "profiles": [{"id": "a", "name": 7, "base_url": "secret-url"}]}"#,
+            r#"{"version": 1, "profiles": "secret-list"}"#,
+            r#"{"version": 9, "profiles": []}"#,
+        ] {
+            std::fs::write(registry.path(), content).unwrap();
+            let error = registry.load().unwrap_err();
+            assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+            assert_eq!(error.path.as_deref(), Some(file.as_str()));
+            clean(
+                &error,
+                dir.path(),
+                &["secret-version", "secret-url", "secret-list"],
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_that_cannot_be_read_names_itself() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        std::fs::create_dir(registry.path()).unwrap();
+        let error = registry.load().unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert_eq!(
+            error.path.as_deref(),
+            Some(registry.path().display().to_string().as_str())
+        );
+        clean(&error, dir.path(), &[]);
+    }
+
+    /// A file holds the name of the data directory: reading (Unix) or making
+    /// the directory (Windows) fails, and either one names profiles.json.
+    #[test]
+    fn a_data_directory_that_cannot_be_made_names_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocked = dir.path().join("data");
+        std::fs::write(&blocked, b"a file").unwrap();
+        let registry = ProfileRegistry::new(&blocked);
+        let error = registry.add(profile("a")).unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert_eq!(
+            error.path.as_deref(),
+            Some(registry.path().display().to_string().as_str())
+        );
+        clean(&error, dir.path(), &[]);
+    }
+
+    #[test]
+    fn a_failed_write_keeps_paths_out_of_the_log_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        std::fs::create_dir(registry.path().with_extension("json.tmp")).unwrap();
+        let error = registry.add(profile("a")).unwrap_err();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        clean(&error, dir.path(), &["json.tmp"]);
+    }
+
+    /// Windows only: a read-only target stops the rename there, not on Unix.
+    #[cfg(windows)]
+    #[test]
+    fn a_failed_replace_names_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let registry = ProfileRegistry::new(dir.path());
+        registry.add(profile("a")).unwrap();
+        let mut perms = std::fs::metadata(registry.path()).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(registry.path(), perms.clone()).unwrap();
+        let error = registry.add(profile("b")).unwrap_err();
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        std::fs::set_permissions(registry.path(), perms).unwrap();
+        assert_eq!(error.code, codes::PROFILES_FILE_INVALID);
+        assert!(error.message.contains("replace"), "{}", error.message);
+        assert_eq!(
+            error.path.as_deref(),
+            Some(registry.path().display().to_string().as_str())
         );
     }
 

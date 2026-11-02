@@ -234,11 +234,20 @@ async fn a_manifest_mismatch_closes_writes_but_not_reads() {
         .call(send("POST", QUOTES, None, Some(json!({"notes": "n"}))))
         .await;
     refused(&create, 422, "SYNC_OFFLINE_WRITE_NOT_ALLOWED");
+    // The refusal names the request, so the UI can say which action waits.
+    assert_eq!(
+        create.json().unwrap()["errors"]["details"],
+        json!({ "method": "POST", "path": "/sales-quotes" })
+    );
     let path = format!("{QUOTES}/{a}");
     let update = fx
         .call(send("PATCH", &path, None, Some(json!({"notes": "n"}))))
         .await;
     refused(&update, 422, "SYNC_OFFLINE_WRITE_NOT_ALLOWED");
+    assert_eq!(
+        update.json().unwrap()["errors"]["details"],
+        json!({ "method": "PATCH", "path": format!("/sales-quotes/{a}") })
+    );
 
     assert!(fx.outbox().is_empty());
     assert_eq!(ids(&fx.call(get(QUOTES, json!([]))).await), [a]);
