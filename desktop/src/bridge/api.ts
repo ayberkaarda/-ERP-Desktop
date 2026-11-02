@@ -4,7 +4,7 @@
 import type { ApiBody } from './generated/ApiBody'
 import type { ApiRequestDto } from './generated/ApiRequestDto'
 import type { ApiResponseDto } from './generated/ApiResponseDto'
-import type { Invoke } from './invoke'
+import { call, type Invoke } from './invoke'
 
 export type { ApiBody, Invoke }
 
@@ -23,12 +23,11 @@ export interface ApiErrorBody {
   fields?: Record<string, string[]>
 }
 
-
 export const API_REQUEST = 'api_request'
 
-/** Sends `request` through the shell; rejects with `{code, message, retry_after?}`. */
+/** Sends `request` through the shell; rejects with a `CommandError` when no answer came. */
 export function apiRequest(invoke: Invoke, request: ApiRequest): Promise<ApiResponse> {
-  return invoke<ApiResponse>(API_REQUEST, { req: request })
+  return call<ApiResponse>(invoke, API_REQUEST, { req: request })
 }
 
 /** A request with a JSON body (when `json` is given). */

@@ -11,6 +11,7 @@ import {
   type ApiResponse,
   type Invoke,
 } from './api'
+import { CommandError } from './invoke'
 
 function recorder(answer: unknown) {
   const calls: { command: string; args?: Record<string, unknown> }[] = []
@@ -46,6 +47,15 @@ describe('apiRequest', () => {
       code: 'NETWORK_ERROR',
       message: 'down',
     })
+  })
+
+  it('rejects with a CommandError, as call() does', async () => {
+    // The shell rejects with a plain object, not an Error.
+    // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+    const invoke = (() => Promise.reject({ code: 'PAYLOAD_TOO_LARGE', message: 'big', retry_after: 5 })) as Invoke
+    const error = await apiRequest(invoke, jsonRequest('POST', '/api/v1/x')).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(CommandError)
+    expect(error).toMatchObject({ code: 'PAYLOAD_TOO_LARGE', message: 'big', retryAfter: 5 })
   })
 })
 

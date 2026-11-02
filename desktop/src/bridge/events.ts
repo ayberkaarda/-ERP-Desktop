@@ -39,6 +39,10 @@ export function parseEngineEvent(payload: unknown): EngineEvent | undefined {
     if (!isStringArray(payload.resources) || typeof payload.all !== 'boolean') return undefined
     return payload as unknown as EngineEvent
   }
+  if (payload.type === 'connectivity') {
+    if (typeof payload.online !== 'boolean') return undefined
+    return payload as unknown as EngineEvent
+  }
   return undefined
 }
 
