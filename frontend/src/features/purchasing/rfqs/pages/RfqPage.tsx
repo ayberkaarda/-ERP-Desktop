@@ -3,11 +3,11 @@ import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useParams } from 'react-router'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useWarehouses } from '@/features/reference'
 import { formatDate, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { usePermission } from '@/lib/permissions'
 import { LoadError, VersionConflictAlert } from '../../shared/components/common'
 import { DocumentView, type ViewTab } from '../../shared/components/DocumentView'
@@ -102,10 +102,16 @@ function Suppliers({ rfq, onEnter }: { rfq: PurchaseRfq; onEnter?: (s: RfqSuppli
               {s.responded_at && ` · ${formatDate(s.responded_at.slice(0, 10), locale)}`}
             </span>
             {onEnter && (
-              <Button type="button" size="sm" variant="secondary" onClick={() => onEnter(s)}>
+              <OnlineOnlyButton
+                action="processPurchaseRfq"
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => onEnter(s)}
+              >
                 <PencilLine aria-hidden="true" />
                 {t('rfqs.quotes.enter', { supplier: s.party_name })}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </li>
         )

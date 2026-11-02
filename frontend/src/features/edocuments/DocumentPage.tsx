@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { usePermission } from '@/lib/permissions'
 import { edocumentsApi } from './api'
@@ -118,13 +119,14 @@ export function DocumentPage() {
               {t('downloadXml')}
             </Button>
             {outgoing && canValidate && editable && (
-              <Button
+              <OnlineOnlyButton
+                action="sendEDocument"
                 variant="secondary"
                 disabled={operation.busy}
                 onClick={() => void act('validate')}
               >
                 {t('validate')}
-              </Button>
+              </OnlineOnlyButton>
             )}
             {outgoing && canSend && record.status === 'ready' && (
               <ConfirmDialog
@@ -133,7 +135,8 @@ export function DocumentPage() {
                 confirmLabel={t('send')}
                 tone="primary"
                 trigger={
-                  <Button
+                  <OnlineOnlyButton
+                    action="sendEDocument"
                     disabled={
                       operation.busy ||
                       !provider.data?.available ||
@@ -143,24 +146,29 @@ export function DocumentPage() {
                     }
                   >
                     {t('send')}
-                  </Button>
+                  </OnlineOnlyButton>
                 }
                 onConfirm={() => act('send')}
               />
             )}
             {outgoing && canSend && ['sending', 'failed'].includes(record.status) && (
-              <Button disabled={operation.busy} onClick={() => void act('retry')}>
+              <OnlineOnlyButton
+                action="sendEDocument"
+                disabled={operation.busy}
+                onClick={() => void act('retry')}
+              >
                 {t('retrySend')}
-              </Button>
+              </OnlineOnlyButton>
             )}
             {canSend && outgoing && ['sent', 'delivered'].includes(record.status) && (
-              <Button
+              <OnlineOnlyButton
+                action="sendEDocument"
                 disabled={operation.busy}
                 variant="secondary"
                 onClick={() => void act('poll')}
               >
                 {t('pollStatus')}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </>
         }
@@ -278,12 +286,13 @@ export function DocumentPage() {
                 confirmLabel={t(decision)}
                 tone={decision === 'reject' ? 'danger' : 'primary'}
                 trigger={
-                  <Button
+                  <OnlineOnlyButton
+                    action="sendEDocument"
                     disabled={operation.busy || (decision === 'reject' && !reason.trim())}
                     variant={decision === 'reject' ? 'secondary' : 'primary'}
                   >
                     {t(decision)}
-                  </Button>
+                  </OnlineOnlyButton>
                 }
                 onConfirm={() =>
                   act('respond', { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) })
@@ -418,9 +427,13 @@ export function DocumentPage() {
             description={t('cancelConfirm')}
             confirmLabel={t('cancelLocal')}
             trigger={
-              <Button variant="secondary" disabled={operation.busy || !reason.trim()}>
+              <OnlineOnlyButton
+                action="sendEDocument"
+                variant="secondary"
+                disabled={operation.busy || !reason.trim()}
+              >
                 {t('cancelLocal')}
-              </Button>
+              </OnlineOnlyButton>
             }
             onConfirm={() => act('cancel', { reason: reason.trim() })}
           />

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FieldShell } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { Can, usePermission } from '@/lib/permissions'
@@ -166,24 +167,26 @@ export function FiscalYearsPage() {
                         </Button>
                       )}
                       {canClose && y.status === 'open' && (
-                        <Button
+                        <OnlineOnlyButton
+                          action="closePeriod"
                           variant="secondary"
                           size="sm"
                           onClick={() => setDialog({ kind: 'close', year: y })}
                         >
                           <Lock aria-hidden="true" />
                           {t('fiscal.close.action')}
-                        </Button>
+                        </OnlineOnlyButton>
                       )}
                       {canClose && y.status === 'closed' && (
-                        <Button
+                        <OnlineOnlyButton
+                          action="closePeriod"
                           variant="secondary"
                           size="sm"
                           onClick={() => setDialog({ kind: 'reopen', year: y })}
                         >
                           <LockOpen aria-hidden="true" />
                           {t('fiscal.reopen.action')}
-                        </Button>
+                        </OnlineOnlyButton>
                       )}
                     </div>
                   </td>

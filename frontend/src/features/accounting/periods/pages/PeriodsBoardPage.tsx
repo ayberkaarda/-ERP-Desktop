@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { FieldShell } from '@/components/shared/form'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatDate, toIsoDate, useIntlLocale } from '@/lib/datetime'
 import { usePermission } from '@/lib/permissions'
@@ -221,7 +222,8 @@ export function PeriodsBoardPage() {
                     {actions.map((action) => {
                       const Icon = ICON[action]
                       return (
-                        <Button
+                        <OnlineOnlyButton
+                          action="closePeriod"
                           key={action}
                           size="sm"
                           variant={action === 'reopen' ? 'ghost' : 'secondary'}
@@ -232,7 +234,7 @@ export function PeriodsBoardPage() {
                         >
                           <Icon aria-hidden="true" />
                           {t(`periods.actions.${ACTION_KEY[action]}`)}
-                        </Button>
+                        </OnlineOnlyButton>
                       )
                     })}
                   </div>
