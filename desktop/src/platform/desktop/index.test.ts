@@ -60,7 +60,7 @@ describe('createDesktopPlatform', () => {
     const offline = { partial: false, stale: true }
     bridge.handle({
       api_request: () => ({ status: 200, headers: [], body: { kind: 'json', value: { data: [], meta: { offline } } }, source: 'local' }),
-      auth_sign_out: () => ({ status: 'done' }),
+      auth_sign_out: () => ({ status: 'done', server_revoked: true }),
     })
     await platform.http.get('/parties')
     expect(platform.desktop.offlineMeta.get('/parties')).toEqual(offline)
@@ -122,7 +122,7 @@ describe('createDesktopPlatform', () => {
     platform.desktop.setPendingWorkHandler(() => Promise.resolve('keep'))
     await expect(platform.session.logout()).rejects.toBeInstanceOf(PlatformCancelledError)
     expect(platform.connectivity.isOnline()).toBe(false)
-    bridge.handle({ auth_sign_out: () => ({ status: 'done' }) })
+    bridge.handle({ auth_sign_out: () => ({ status: 'done', server_revoked: true }) })
     await platform.session.logout()
     expect(platform.connectivity.isOnline()).toBe(true)
   })

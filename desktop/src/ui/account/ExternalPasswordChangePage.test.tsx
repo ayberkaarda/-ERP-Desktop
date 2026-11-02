@@ -31,7 +31,7 @@ describe('ExternalPasswordChangePage', () => {
   })
 
   it('"changed it" signs out without force and goes to the sign-in', async () => {
-    const h = harness({ auth_sign_out: () => ({ status: 'done' }) })
+    const h = harness({ auth_sign_out: () => ({ status: 'done', server_revoked: true }) })
     const { router } = renderApp(h, '/password/change')
     await userEvent.click(await screen.findByRole('button', { name: 'Değiştirdim, yeniden gir' }))
     await waitFor(() => {
@@ -42,7 +42,7 @@ describe('ExternalPasswordChangePage', () => {
 
   it('unsent work: the dialog shows the counts and discard repeats with force', async () => {
     const h = harness({
-      auth_sign_out: (args) => (args?.force ? { status: 'done' } : { status: 'pending_work', outbox: 5, conflicts: 2 }),
+      auth_sign_out: (args) => (args?.force ? { status: 'done', server_revoked: true } : { status: 'pending_work', outbox: 5, conflicts: 2 }),
     })
     const { router } = renderApp(h, '/password/change')
     await userEvent.click(await screen.findByRole('button', { name: 'Değiştirdim, yeniden gir' }))

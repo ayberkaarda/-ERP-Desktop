@@ -13,6 +13,8 @@ pub mod local_read;
 mod local_support;
 mod local_write;
 pub(crate) mod query_map;
+#[cfg(test)]
+mod session_tests;
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -112,6 +114,12 @@ pub trait LocalResolver: Send + Sync + 'static {
     /// already. Asked before any routing: online too, a repeat of a pushed
     /// draft must not reach the server as a new request.
     fn replay(&self, _engine: &Engine, _call: &ApiCall) -> CommandResult<Option<ApiResponseDto>> {
+        Ok(None)
+    }
+
+    /// The kept answer of `GET /auth/me` for the current sign-in, when the
+    /// server cannot be reached. `None`: nothing this device may show.
+    fn session(&self, _engine: &Engine) -> CommandResult<Option<ApiResponseDto>> {
         Ok(None)
     }
 }

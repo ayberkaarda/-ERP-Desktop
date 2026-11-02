@@ -600,7 +600,7 @@ async fn rows_of_another_company_are_never_listed() {
         2,
         json!({"name": "Beta", "roles": ["customer"], "is_active": true}),
     );
-    let mut manifest = sync_manifest(3);
+    let mut manifest = sync_manifest(compiled_version());
     manifest["data"]["company_id"] = json!(other);
     Mock::given(method("GET"))
         .and(path("/api/v1/sync/manifest"))

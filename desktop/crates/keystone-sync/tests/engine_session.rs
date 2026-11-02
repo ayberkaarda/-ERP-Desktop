@@ -312,7 +312,12 @@ async fn a_draft_queued_after_sign_out_never_reaches_the_next_user() {
         .mount(&env.server)
         .await;
     env.engine.run_once(Trigger::Startup).await.unwrap();
-    assert_eq!(env.engine.sign_out(false).await.unwrap(), SignOut::Done);
+    assert_eq!(
+        env.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
+        }
+    );
 
     // A's window still open: a late write after the wipe.
     let late = env.engine.enqueue(draft(

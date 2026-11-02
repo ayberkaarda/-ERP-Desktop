@@ -22,6 +22,8 @@ use crate::wire::{
 };
 
 const PROFILE: &str = "engine-unit";
+const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
+const USER: &str = "0192f5a0-0000-7000-8000-00000000000a";
 
 /// What [`FakeApi::push`] answers.
 const PUSH_LOST: u8 = 0;
@@ -40,6 +42,10 @@ struct FakeApi {
     pushes: Mutex<Vec<Vec<Uuid>>>,
     /// `Retry-After` of a busy push.
     busy_retry_after: Mutex<Duration>,
+    /// Access token of every server sign-out, in order.
+    ended: Mutex<Vec<String>>,
+    /// What a server sign-out answers.
+    server_ends: AtomicBool,
 }
 
 impl FakeApi {
@@ -50,6 +56,8 @@ impl FakeApi {
             push_mode: AtomicU8::new(PUSH_LOST),
             pushes: Mutex::default(),
             busy_retry_after: Mutex::new(BUSY_RETRY_AFTER),
+            ended: Mutex::default(),
+            server_ends: AtomicBool::new(true),
         }
     }
 
@@ -65,7 +73,7 @@ fn manifest() -> ManifestResponse {
             "min_schema_version": 1,
             "offline_manifest_version": 1,
             "server_time": "2026-10-26T09:15:00+03:00",
-            "company_id": "0192f5a0-0000-7000-8000-000000000001",
+            "company_id": COMPANY,
             "user_id": "0192f5a0-0000-7000-8000-00000000000a",
             "device_id": null,
             "permissions": [],
@@ -86,11 +94,23 @@ fn manifest() -> ManifestResponse {
     .expect("manifest")
 }
 
-impl crate::client::sealed::Sealed for FakeApi {}
+impl crate::client::sealed::Sealed for FakeApi {
+    async fn end_session(&self, tokens: &StoredTokens) -> bool {
+        self.ended
+            .lock()
+            .unwrap()
+            .push(tokens.access_token.expose().to_owned());
+        self.server_ends.load(Ordering::SeqCst)
+    }
+}
 
 impl SyncApi for FakeApi {
     fn session(&self) -> &Arc<Session> {
         &self.session
+    }
+
+    fn company_id(&self) -> Option<Uuid> {
+        Uuid::parse_str(COMPANY).ok()
     }
 
     async fn manifest(&self) -> Result<ManifestResponse> {
@@ -267,7 +287,12 @@ async fn a_write_during_sign_out_is_either_counted_or_refused() {
         }
     });
 
-    assert_eq!(f.engine.sign_out(false).await.unwrap(), SignOut::Done);
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
     let result = match early.lock().unwrap().take() {
         Some(result) => result,
         None => late_rx
@@ -388,12 +413,164 @@ async fn sign_out_keeps_a_sign_in_made_while_it_runs() {
         }
     });
 
-    assert_eq!(f.engine.sign_out(false).await.unwrap(), SignOut::Done);
+    // A's tokens are gone without the server having been told.
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
+        }
+    );
     assert_eq!(
         f.tokens.load(PROFILE).unwrap(),
         Some(tokens(2)),
         "sign-out of A removed B's tokens"
     );
+    assert!(
+        f.engine.api.ended.lock().unwrap().is_empty(),
+        "B's token was sent to end A's sign-in on the server"
+    );
+}
+
+#[tokio::test]
+async fn the_server_is_told_with_the_signing_out_tokens_after_the_count() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    let ended = Arc::new(Mutex::new(None));
+    let (seen, weak) = (ended.clone(), Arc::downgrade(&f.engine));
+    f.engine.set_hook(move |point| {
+        if point == Hook::SignOutCounted
+            && let Some(engine) = weak.upgrade()
+        {
+            *seen.lock().unwrap() = Some(engine.api.ended.lock().unwrap().len());
+        }
+    });
+
+    let outcome = f.engine.sign_out(false).await.unwrap();
+    assert_eq!(
+        outcome,
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
+    assert_eq!(*ended.lock().unwrap(), Some(0), "told before the count");
+    assert_eq!(*f.engine.api.ended.lock().unwrap(), vec!["access-1"]);
+    assert_eq!(f.tokens.load(PROFILE).unwrap(), None);
+}
+
+#[tokio::test]
+async fn an_unfinished_sign_out_past_its_revoke_reports_what_the_server_said() {
+    for said in [true, false] {
+        let f = fixture();
+        f.engine.run_once(Trigger::Startup).await.unwrap();
+        super::local::set_pending_sign_out(
+            &f.engine.store,
+            Some(super::local::PendingSignOut {
+                generation: 1,
+                stage: super::local::SignOutStage::Wipe,
+                server_ended: said,
+            }),
+        )
+        .unwrap();
+
+        let outcome = f.engine.sign_out(false).await.unwrap();
+        assert_eq!(
+            outcome,
+            SignOut::Done {
+                server_revoked: said
+            },
+            "recorded {said}"
+        );
+        assert!(f.engine.api.ended.lock().unwrap().is_empty());
+    }
+}
+
+/// The server could not be told, the tokens went, and the sign-out was cut
+/// short before the wipe. Finishing it later still says the server session
+/// may be open.
+#[tokio::test]
+async fn a_sign_out_cut_short_after_an_unanswered_server_keeps_saying_so() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.api.server_ends.store(false, Ordering::SeqCst);
+    f.engine.set_hook(|point| {
+        if point == Hook::SignOutRevoked {
+            panic!("cut short before the wipe");
+        }
+    });
+    let engine = f.engine.clone();
+    let cut = tokio::spawn(async move { engine.sign_out(false).await }).await;
+    assert!(cut.is_err(), "the sign-out was not cut short");
+    assert_eq!(f.tokens.load(PROFILE).unwrap(), None);
+    f.engine.set_hook(|_| {});
+
+    f.engine.api.server_ends.store(true, Ordering::SeqCst);
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
+        }
+    );
+    assert_eq!(
+        f.engine.api.ended.lock().unwrap().len(),
+        1,
+        "asked again without a token of that sign-in"
+    );
+}
+
+#[tokio::test]
+async fn a_sign_out_cut_short_after_the_server_ended_it_says_so_later() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.engine.set_hook(|point| {
+        if point == Hook::SignOutRevoked {
+            panic!("cut short before the wipe");
+        }
+    });
+    let engine = f.engine.clone();
+    assert!(
+        tokio::spawn(async move { engine.sign_out(false).await })
+            .await
+            .is_err()
+    );
+    f.engine.set_hook(|_| {});
+
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
+    assert_eq!(f.engine.api.ended.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn sign_out_of_a_deactivated_account_needs_no_server_call() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.tokens.deactivate(&TokenWrite::new(), PROFILE, 1).unwrap();
+
+    assert_eq!(
+        f.engine.sign_out(true).await.unwrap(),
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
+    assert!(f.engine.api.ended.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn tokens_dropped_without_the_server_are_not_reported_as_ended() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    f.tokens.take(&TokenWrite::new(), PROFILE).unwrap();
+
+    assert_eq!(
+        f.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: false
+        }
+    );
+    assert!(f.engine.api.ended.lock().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -511,7 +688,12 @@ async fn sign_out_and_a_new_sign_in_are_not_held_by_the_old_retry_after() {
     tokio::time::advance(Duration::from_secs(1)).await;
     assert_eq!(f.engine.api.manifests.load(Ordering::SeqCst), before);
 
-    assert_eq!(f.engine.sign_out(true).await.unwrap(), SignOut::Done);
+    assert_eq!(
+        f.engine.sign_out(true).await.unwrap(),
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
     f.engine.session.sign_in(&tokens(2)).await.unwrap();
     f.engine.run_once(Trigger::Manual).await.unwrap();
     waiting.await.unwrap().unwrap();
@@ -629,4 +811,76 @@ async fn a_retry_after_answered_to_an_old_sign_in_does_not_hold_the_new_one() {
         started.elapsed()
     );
     assert!(api.manifests.load(Ordering::SeqCst) > before);
+}
+
+fn session_answer() -> Value {
+    json!({ "data": {
+        "user": { "id": USER, "name": "A", "must_change_password": false },
+        "companies": [{ "id": COMPANY, "name": "ACME", "role_names": [] }],
+        "permissions": { COMPANY: ["parties.view"] },
+    }})
+}
+
+fn session_rows(f: &Fixture) -> i64 {
+    f.engine
+        .store
+        .read(|c| {
+            Ok(c.query_row(
+                "SELECT count(*) FROM engine_meta WHERE key = 'session_copy'",
+                [],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap()
+}
+
+/// A sign-out started between a session answer's checks and its write
+/// waits for that write and then removes it; it never finishes first and
+/// leaves the answer behind.
+#[tokio::test]
+async fn a_sign_out_cannot_land_between_the_session_answer_check_and_its_write() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    let weak = Arc::downgrade(&f.engine);
+    let finished_first: Arc<Mutex<Option<bool>>> = Arc::default();
+    let worker: Arc<Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::default();
+    let (slot, handle) = (finished_first.clone(), worker.clone());
+    let fired = AtomicBool::new(false);
+    f.engine.set_hook(move |point| {
+        if point != Hook::SessionCopyChecked || fired.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let Some(engine) = weak.upgrade() else { return };
+        let (tx, rx) = mpsc::channel();
+        *handle.lock().unwrap() = Some(std::thread::spawn(move || {
+            let done = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(engine.sign_out(true));
+            let _ = tx.send(done.map(|_| ()));
+        }));
+        *slot.lock().unwrap() = Some(rx.recv_timeout(Duration::from_millis(400)).is_ok());
+    });
+
+    let kept = f.engine.put_session_copy(
+        &session_answer(),
+        &Timestamp("2026-11-02T21:40:00.000Z".into()),
+        1,
+    );
+    let worker = worker.lock().unwrap().take().expect("hook ran");
+    worker.join().unwrap();
+
+    assert_eq!(kept.ok(), Some(true));
+    assert_eq!(
+        finished_first.lock().unwrap().take(),
+        Some(false),
+        "the sign-out finished while a checked session answer was not written yet"
+    );
+    assert_eq!(
+        session_rows(&f),
+        0,
+        "the session answer outlived the sign-out"
+    );
+    assert!(f.tokens.load(PROFILE).unwrap().is_none());
 }
