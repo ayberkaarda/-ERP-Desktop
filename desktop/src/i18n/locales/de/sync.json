@@ -1,1 +1,117 @@
-{}
+{
+  "state": {
+    "idle": "Synchronisiert",
+    "syncing": "Synchronisiert gerade",
+    "offline": "Offline",
+    "auth_required": "Anmeldung erforderlich",
+    "failed": "Synchronisierungsfehler",
+    "unknown": "Synchronisierungsstatus unbekannt"
+  },
+  "realtime": {
+    "disabled": "Live-Verbindung aus",
+    "idle": "Live-Verbindung wartet",
+    "connecting": "Live-Verbindung wird aufgebaut",
+    "connected": "Live-Verbindung aktiv",
+    "unavailable": "Live-Verbindung nicht verfügbar"
+  },
+  "badge": {
+    "status": "Synchronisierungsstatus: {{state}}",
+    "lastError": "Letzter Fehler: {{error}}",
+    "retryIn": "Neuer Versuch in {{seconds}} s",
+    "syncNow": "Jetzt synchronisieren",
+    "syncNowFailed": "Synchronisierung konnte nicht starten: {{error}}",
+    "pending": "Ausstehend: {{count}}",
+    "pendingHint": "Nicht gesendete Änderungen anzeigen",
+    "conflicts": "Konflikte: {{count}}",
+    "conflictsHint": "Konflikteingang öffnen",
+    "problems": "Abgelehnt: {{rejected}}, in Quarantäne: {{quarantined}}",
+    "manifestMismatch": "Offline-Schreiben ist aus: Diese Version passt nicht zur Offline-Definition des Servers, bitte die App aktualisieren."
+  },
+  "outbox": {
+    "title": "Nicht gesendete Änderungen",
+    "description": "Auf diesem Gerät gespeicherte Änderungen, die den Server noch nicht erreicht haben.",
+    "numberNote": "Offline erstellte Belege haben noch keine Nummer; sie kommt, nachdem sie den Server erreicht haben.",
+    "empty": "Keine ausstehenden Änderungen.",
+    "loadFailed": "Die Liste konnte nicht gelesen werden: {{error}}",
+    "resource": "Ressource",
+    "operation": "Vorgang",
+    "status": "Status",
+    "attempts": "Versuche",
+    "lastError": "Letzter Fehler",
+    "occurredAt": "Zeit",
+    "actions": "Aktionen",
+    "retry": "Erneut versuchen",
+    "discard": "Verwerfen",
+    "discardTitle": "Diese Änderung verwerfen?",
+    "discardDescription": "Die Änderung wird von diesem Gerät entfernt und nie gesendet. Davon abhängige Änderungen können ebenfalls nicht gesendet werden.",
+    "retried": "Die Änderung wird erneut gesendet.",
+    "discarded": "Die Änderung wurde verworfen.",
+    "failed": "Das ging nicht: {{error}}",
+    "openConflicts": "Konflikt lösen",
+    "op": {
+      "create": "Anlegen",
+      "update": "Ändern",
+      "delete": "Löschen",
+      "action": "Aktion"
+    },
+    "state": {
+      "pending": "Ausstehend",
+      "in_flight": "Wird gesendet",
+      "conflict": "Konflikt",
+      "rejected": "Abgelehnt",
+      "quarantined": "In Quarantäne"
+    }
+  },
+  "conflict": {
+    "title": "Konflikteingang",
+    "description": "Offline vorgenommene Änderungen, die mit dem Datensatz auf dem Server kollidieren.",
+    "empty": "Keine offenen Konflikte.",
+    "loadFailed": "Die Liste konnte nicht gelesen werden: {{error}}",
+    "record": "{{resource}} · {{id}}",
+    "detectedAt": "Gefunden am: {{time}}",
+    "field": "Feld",
+    "mine": "Mein Wert",
+    "server": "Wert auf dem Server",
+    "useMine": "Meiner",
+    "useServer": "Vom Server",
+    "deletedOnServer": "Der Datensatz fehlt auf dem Server oder wurde gelöscht.",
+    "noFields": "Es wurde kein kollidierendes Feld gemeldet.",
+    "candidates": "Möglicherweise gleiche Datensätze",
+    "candidateLoading": "Name wird gelesen…",
+    "mergeEmpty": "Beim Zusammenführen bleibt kein Feld zu senden; übernehmen Sie den Serverdatensatz.",
+    "failed": "Konnte nicht gelöst werden: {{error}}",
+    "code": {
+      "VERSION_CONFLICT": "Der Datensatz wurde auf dem Server geändert, während Sie offline waren.",
+      "DOCUMENT_LOCKED": "Der Beleg ist auf dem Server kein Entwurf mehr und kann nicht geändert werden.",
+      "DUPLICATE_RECORD": "Auf dem Server gibt es bereits einen Datensatz mit denselben Angaben."
+    },
+    "choice": {
+      "keep_mine": "Meinen behalten",
+      "take_server": "Vom Server übernehmen",
+      "merge": "Mit gewählten Feldern zusammenführen",
+      "save_as_new_draft": "Als neuen Entwurf speichern",
+      "discard": "Meine Änderung verwerfen",
+      "use_existing": "Diesen Datensatz verwenden"
+    },
+    "resolved": {
+      "queued": "Entscheidung gespeichert; die Änderung wird an den Server gesendet.",
+      "take_server": "Der Serverdatensatz wurde übernommen.",
+      "use_existing": "Der vorhandene Datensatz wird verwendet.",
+      "discard": "Die Änderung wurde verworfen."
+    }
+  },
+  "freshness": {
+    "label": "Die Kopie auf diesem Gerät wird angezeigt.",
+    "stale": "Die Daten sind möglicherweise veraltet.",
+    "asOf": "Stand: {{time}}.",
+    "partial": "Die lokale Kopie ist unvollständig.",
+    "unsupportedFilters": "Diese Filter gibt es offline nicht: {{filters}}"
+  },
+  "onlineOnly": {
+    "fallback": "Diese Aktion ist nur online verfügbar."
+  },
+  "refusal": {
+    "offline": "Das geht offline nicht; versuchen Sie es erneut, sobald die Verbindung wieder da ist.",
+    "manifest": "Offline-Schreiben ist aus: bitte die App aktualisieren."
+  }
+}

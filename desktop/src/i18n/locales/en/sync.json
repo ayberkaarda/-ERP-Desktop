@@ -1,1 +1,117 @@
-{}
+{
+  "state": {
+    "idle": "Synced",
+    "syncing": "Syncing",
+    "offline": "Offline",
+    "auth_required": "Sign-in required",
+    "failed": "Sync error",
+    "unknown": "Sync state unknown"
+  },
+  "realtime": {
+    "disabled": "Live connection off",
+    "idle": "Live connection waiting",
+    "connecting": "Live connection starting",
+    "connected": "Live connection on",
+    "unavailable": "Live connection unavailable"
+  },
+  "badge": {
+    "status": "Sync state: {{state}}",
+    "lastError": "Last error: {{error}}",
+    "retryIn": "Retrying in {{seconds}} s",
+    "syncNow": "Sync now",
+    "syncNowFailed": "Sync could not start: {{error}}",
+    "pending": "Pending: {{count}}",
+    "pendingHint": "Show unsent changes",
+    "conflicts": "Conflicts: {{count}}",
+    "conflictsHint": "Open the conflict inbox",
+    "problems": "Rejected: {{rejected}}, quarantined: {{quarantined}}",
+    "manifestMismatch": "Offline writing is off: this version does not match the server's offline definition, update the app."
+  },
+  "outbox": {
+    "title": "Unsent changes",
+    "description": "Changes saved on this device that have not reached the server yet.",
+    "numberNote": "Documents created offline have no number yet; the number arrives after they reach the server.",
+    "empty": "No pending changes.",
+    "loadFailed": "The list could not be read: {{error}}",
+    "resource": "Resource",
+    "operation": "Operation",
+    "status": "Status",
+    "attempts": "Attempts",
+    "lastError": "Last error",
+    "occurredAt": "Time",
+    "actions": "Actions",
+    "retry": "Retry",
+    "discard": "Discard",
+    "discardTitle": "Discard this change?",
+    "discardDescription": "The change is removed from this device and never sent. Changes that depend on it cannot be sent either.",
+    "retried": "The change will be sent again.",
+    "discarded": "The change was discarded.",
+    "failed": "Could not do that: {{error}}",
+    "openConflicts": "Resolve the conflict",
+    "op": {
+      "create": "Create",
+      "update": "Update",
+      "delete": "Delete",
+      "action": "Action"
+    },
+    "state": {
+      "pending": "Pending",
+      "in_flight": "Sending",
+      "conflict": "Conflict",
+      "rejected": "Rejected",
+      "quarantined": "Quarantined"
+    }
+  },
+  "conflict": {
+    "title": "Conflict inbox",
+    "description": "Changes made offline that clash with the record on the server.",
+    "empty": "No open conflicts.",
+    "loadFailed": "The list could not be read: {{error}}",
+    "record": "{{resource}} · {{id}}",
+    "detectedAt": "Found at: {{time}}",
+    "field": "Field",
+    "mine": "My value",
+    "server": "Server value",
+    "useMine": "Mine",
+    "useServer": "Server's",
+    "deletedOnServer": "The record is missing or deleted on the server.",
+    "noFields": "No conflicting field was reported.",
+    "candidates": "Records that may be the same",
+    "candidateLoading": "Reading the name…",
+    "mergeEmpty": "No field is left to send in a merge; take the server record.",
+    "failed": "Could not resolve: {{error}}",
+    "code": {
+      "VERSION_CONFLICT": "The record changed on the server while you were offline.",
+      "DOCUMENT_LOCKED": "The document is no longer a draft on the server; it cannot be changed.",
+      "DUPLICATE_RECORD": "A record with the same details already exists on the server."
+    },
+    "choice": {
+      "keep_mine": "Keep mine",
+      "take_server": "Take the server's",
+      "merge": "Merge the fields I chose",
+      "save_as_new_draft": "Save as a new draft",
+      "discard": "Discard my change",
+      "use_existing": "Use this record"
+    },
+    "resolved": {
+      "queued": "Decision saved; the change will be sent to the server.",
+      "take_server": "The server record was taken.",
+      "use_existing": "The existing record is used.",
+      "discard": "The change was discarded."
+    }
+  },
+  "freshness": {
+    "label": "Showing the copy on this device.",
+    "stale": "The data may be out of date.",
+    "asOf": "As of {{time}}.",
+    "partial": "The local copy is incomplete.",
+    "unsupportedFilters": "These filters are not available offline: {{filters}}"
+  },
+  "onlineOnly": {
+    "fallback": "This action is available only online."
+  },
+  "refusal": {
+    "offline": "This cannot be done offline; try again once the connection is back.",
+    "manifest": "Offline writing is off: update the app."
+  }
+}

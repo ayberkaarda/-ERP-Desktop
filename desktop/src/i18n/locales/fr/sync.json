@@ -1,1 +1,117 @@
-{}
+{
+  "state": {
+    "idle": "Synchronisé",
+    "syncing": "Synchronisation en cours",
+    "offline": "Hors ligne",
+    "auth_required": "Connexion requise",
+    "failed": "Erreur de synchronisation",
+    "unknown": "État de synchronisation inconnu"
+  },
+  "realtime": {
+    "disabled": "Connexion en direct désactivée",
+    "idle": "Connexion en direct en attente",
+    "connecting": "Connexion en direct en cours",
+    "connected": "Connexion en direct active",
+    "unavailable": "Connexion en direct indisponible"
+  },
+  "badge": {
+    "status": "État de synchronisation : {{state}}",
+    "lastError": "Dernière erreur : {{error}}",
+    "retryIn": "Nouvel essai dans {{seconds}} s",
+    "syncNow": "Synchroniser maintenant",
+    "syncNowFailed": "La synchronisation n'a pas pu démarrer : {{error}}",
+    "pending": "En attente : {{count}}",
+    "pendingHint": "Afficher les modifications non envoyées",
+    "conflicts": "Conflits : {{count}}",
+    "conflictsHint": "Ouvrir la boîte des conflits",
+    "problems": "Rejetées : {{rejected}}, en quarantaine : {{quarantined}}",
+    "manifestMismatch": "Écriture hors ligne désactivée : cette version ne correspond pas à la définition hors ligne du serveur, mettez l'application à jour."
+  },
+  "outbox": {
+    "title": "Modifications non envoyées",
+    "description": "Modifications enregistrées sur cet appareil qui n'ont pas encore atteint le serveur.",
+    "numberNote": "Les documents créés hors ligne n'ont pas encore de numéro ; il arrive après leur envoi au serveur.",
+    "empty": "Aucune modification en attente.",
+    "loadFailed": "La liste n'a pas pu être lue : {{error}}",
+    "resource": "Ressource",
+    "operation": "Opération",
+    "status": "Statut",
+    "attempts": "Essais",
+    "lastError": "Dernière erreur",
+    "occurredAt": "Heure",
+    "actions": "Actions",
+    "retry": "Réessayer",
+    "discard": "Abandonner",
+    "discardTitle": "Abandonner cette modification ?",
+    "discardDescription": "La modification est retirée de cet appareil et ne sera jamais envoyée. Les modifications qui en dépendent ne pourront pas non plus être envoyées.",
+    "retried": "La modification sera renvoyée.",
+    "discarded": "La modification a été abandonnée.",
+    "failed": "Impossible : {{error}}",
+    "openConflicts": "Résoudre le conflit",
+    "op": {
+      "create": "Création",
+      "update": "Modification",
+      "delete": "Suppression",
+      "action": "Action"
+    },
+    "state": {
+      "pending": "En attente",
+      "in_flight": "Envoi en cours",
+      "conflict": "Conflit",
+      "rejected": "Rejetée",
+      "quarantined": "En quarantaine"
+    }
+  },
+  "conflict": {
+    "title": "Boîte des conflits",
+    "description": "Modifications faites hors ligne qui entrent en conflit avec l'enregistrement du serveur.",
+    "empty": "Aucun conflit ouvert.",
+    "loadFailed": "La liste n'a pas pu être lue : {{error}}",
+    "record": "{{resource}} · {{id}}",
+    "detectedAt": "Détecté le : {{time}}",
+    "field": "Champ",
+    "mine": "Ma valeur",
+    "server": "Valeur du serveur",
+    "useMine": "La mienne",
+    "useServer": "Celle du serveur",
+    "deletedOnServer": "L'enregistrement est absent ou supprimé sur le serveur.",
+    "noFields": "Aucun champ en conflit n'a été signalé.",
+    "candidates": "Enregistrements peut-être identiques",
+    "candidateLoading": "Lecture du nom…",
+    "mergeEmpty": "Aucun champ ne reste à envoyer dans une fusion ; prenez l'enregistrement du serveur.",
+    "failed": "Résolution impossible : {{error}}",
+    "code": {
+      "VERSION_CONFLICT": "L'enregistrement a changé sur le serveur pendant que vous étiez hors ligne.",
+      "DOCUMENT_LOCKED": "Le document n'est plus un brouillon sur le serveur ; il ne peut pas être modifié.",
+      "DUPLICATE_RECORD": "Un enregistrement avec les mêmes informations existe déjà sur le serveur."
+    },
+    "choice": {
+      "keep_mine": "Garder la mienne",
+      "take_server": "Prendre celle du serveur",
+      "merge": "Fusionner les champs choisis",
+      "save_as_new_draft": "Enregistrer comme nouveau brouillon",
+      "discard": "Abandonner ma modification",
+      "use_existing": "Utiliser cet enregistrement"
+    },
+    "resolved": {
+      "queued": "Décision enregistrée ; la modification sera envoyée au serveur.",
+      "take_server": "L'enregistrement du serveur a été repris.",
+      "use_existing": "L'enregistrement existant est utilisé.",
+      "discard": "La modification a été abandonnée."
+    }
+  },
+  "freshness": {
+    "label": "Copie de cet appareil affichée.",
+    "stale": "Les données peuvent être périmées.",
+    "asOf": "Au {{time}}.",
+    "partial": "La copie locale est incomplète.",
+    "unsupportedFilters": "Ces filtres ne sont pas disponibles hors ligne : {{filters}}"
+  },
+  "onlineOnly": {
+    "fallback": "Cette action n'est disponible qu'en ligne."
+  },
+  "refusal": {
+    "offline": "Impossible hors ligne ; réessayez quand la connexion sera revenue.",
+    "manifest": "Écriture hors ligne désactivée : mettez l'application à jour."
+  }
+}

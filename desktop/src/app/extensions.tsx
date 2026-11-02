@@ -13,8 +13,11 @@
 
 import type { AppExtensions } from '@/app/extensions'
 
+import { syncExtensions } from '../ui/sync'
 import { composeExtensions, type ExtensionPart } from './compose'
 
-export const PARTS: readonly (readonly [name: string, part: ExtensionPart])[] = []
+export const PARTS: readonly (readonly [name: string, part: ExtensionPart])[] = [
+  ['ui/sync', syncExtensions],
+]
 
 export const appExtensions: AppExtensions = composeExtensions(PARTS)
