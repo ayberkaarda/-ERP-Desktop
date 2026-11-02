@@ -67,6 +67,8 @@
     "revokeTitle": "Déconnecter cet appareil ?",
     "revokeBody": "La connexion sur {{name}} prend fin.",
     "revoked": "L'appareil a été déconnecté.",
+    "thisDevice": "Cet appareil",
+    "signOutFirst": "Pour mettre fin à la connexion de cet appareil, déconnectez-vous d'abord.",
     "webTitle": "Vérification en deux étapes et sessions",
     "webBody": "Le mot de passe, la vérification en deux étapes et les sessions du navigateur se gèrent dans l'application web.",
     "openWeb": "Gérer sur le web",
@@ -100,6 +102,7 @@
     "file": {
       "title": "Le fichier des profils est illisible",
       "body": "Le fichier profiles.json du dossier de données de l'application n'a pas pu être lu.",
+      "bodyAt": "Ce fichier de profils n'a pas pu être lu :",
       "notOverwritten": "Le fichier a été laissé tel quel, sans être écrasé. Corrigez ou déplacez le fichier, puis redémarrez l'application.",
       "detail": "Détails : {{message}}"
     },

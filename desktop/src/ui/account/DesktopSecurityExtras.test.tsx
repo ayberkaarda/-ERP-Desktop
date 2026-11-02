@@ -17,6 +17,7 @@ const DEVICES: DeviceDto[] = [
     last_used_at: '2026-11-01T09:00:00Z',
     expires_at: '2026-12-01T09:00:00Z',
     created_at: '2026-10-01T09:00:00Z',
+    is_current: false,
   },
   {
     id: 'd2',
@@ -26,6 +27,7 @@ const DEVICES: DeviceDto[] = [
     last_used_at: null,
     expires_at: '2026-12-01T09:00:00Z',
     created_at: null,
+    is_current: false,
   },
 ]
 

@@ -87,4 +87,8 @@ pub struct DeviceDto {
     pub expires_at: String,
     #[serde(default)]
     pub created_at: Option<String>,
+    /// The sign-in of this desktop (the token the request was made with).
+    /// False when the server does not send it.
+    #[serde(default)]
+    pub is_current: bool,
 }

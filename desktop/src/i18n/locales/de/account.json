@@ -67,6 +67,8 @@
     "revokeTitle": "Dieses Gerät abmelden?",
     "revokeBody": "Die Anmeldung auf {{name}} endet.",
     "revoked": "Das Gerät wurde abgemeldet.",
+    "thisDevice": "Dieses Gerät",
+    "signOutFirst": "Um die Anmeldung dieses Geräts zu beenden, melden Sie sich zuerst ab.",
     "webTitle": "Zweistufige Bestätigung und Sitzungen",
     "webBody": "Passwort, zweistufige Bestätigung und Browsersitzungen werden in der Web-App verwaltet.",
     "openWeb": "Im Web verwalten",
@@ -100,6 +102,7 @@
     "file": {
       "title": "Profildatei nicht lesbar",
       "body": "Die Datei profiles.json im App-Datenordner konnte nicht gelesen werden.",
+      "bodyAt": "Diese Profildatei konnte nicht gelesen werden:",
       "notOverwritten": "Die Datei wurde unverändert gelassen und nicht überschrieben. Korrigieren oder verschieben Sie die Datei und starten Sie die App neu.",
       "detail": "Details: {{message}}"
     },

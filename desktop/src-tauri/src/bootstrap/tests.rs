@@ -892,7 +892,11 @@ async fn devices_are_listed_and_revoked_through_the_proxy() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": [{
             "id": device, "name": "OFFICE-PC", "ip_address": "10.0.0.1",
             "user_agent": "Keystone-Desktop/0.1.0", "last_used_at": null,
-            "expires_at": "2026-11-26T09:15:00+03:00", "created_at": "2026-10-27T09:15:00+03:00"
+            "expires_at": "2026-11-26T09:15:00+03:00", "created_at": "2026-10-27T09:15:00+03:00",
+            "is_current": true
+        }, {
+            "id": "0192f5a0-0000-7000-8000-0000000000d3", "name": "LAPTOP",
+            "expires_at": "2026-11-26T09:15:00+03:00"
         }]})))
         .mount(&server)
         .await;
@@ -918,8 +922,12 @@ async fn devices_are_listed_and_revoked_through_the_proxy() {
     let devices = crate::commands::auth::devices_list(&fx.state)
         .await
         .unwrap();
-    assert_eq!(devices.len(), 1);
+    assert_eq!(devices.len(), 2);
     assert_eq!(devices[0].name, "OFFICE-PC");
+    assert!(devices[0].is_current);
+    // An older server sends no is_current: not this device.
+    assert_eq!(devices[1].name, "LAPTOP");
+    assert!(!devices[1].is_current);
     crate::commands::auth::devices_revoke(&fx.state, device.parse().unwrap())
         .await
         .unwrap();

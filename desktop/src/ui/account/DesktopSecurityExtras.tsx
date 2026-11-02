@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -113,15 +114,29 @@ function SecurityExtras({ account }: { account: AccountContextValue }) {
                 data-testid={`device-${device.id}`}
               >
                 <div className="min-w-0 text-sm">
-                  <p className="font-medium">{device.name}</p>
+                  <p className="flex items-center gap-2 font-medium">
+                    {device.name}
+                    {device.is_current ? <Badge tone="primary">{td('account.security.thisDevice')}</Badge> : null}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {device.last_used_at
                       ? td('account.security.lastUsed', { date: formatDate(device.last_used_at, i18n.language) })
                       : td('account.security.never')}
                     {device.ip_address ? ` · ${device.ip_address}` : ''}
                   </p>
+                  {device.is_current ? (
+                    <p className="text-xs text-muted-foreground">{td('account.security.signOutFirst')}</p>
+                  ) : null}
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => setRevoking(device)}>
+                {/* Revoking this device's own sign-in would skip the sign-out's pending-work check. */}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={device.is_current}
+                  onClick={() => {
+                    if (!device.is_current) setRevoking(device)
+                  }}
+                >
                   {td('account.security.revoke')}
                 </Button>
               </li>
