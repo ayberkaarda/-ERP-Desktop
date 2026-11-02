@@ -1,4 +1,4 @@
-import { QueryClient, type QueryKey } from '@tanstack/react-query'
+import { QueryClient, QueryObserver, type QueryKey } from '@tanstack/react-query'
 import manifestJson from '../../../../contracts/offline-manifest.json?raw'
 import type { ListQueryState } from '@/components/shared/data-table'
 import { catalogKeys } from '@/features/catalog/api/keys'
@@ -168,6 +168,13 @@ describe('resource -> query key roots', () => {
     expect(resourceKeyRoots('treasury-reports', C)).toBeNull()
   })
 
+  it.each(['constructor', 'toString', '__proto__', 'hasOwnProperty', 'constructor.child'])(
+    'does not read the prototype name %s as a resource',
+    (name) => {
+      expect(resourceKeyRoots(name, C)).toBeNull()
+    },
+  )
+
   it('puts the company into company-scoped roots', () => {
     expect(resourceKeyRoots('parties', 'other')).toContainEqual(['parties', 'other'])
     expect(resourceKeyRoots('sales-quotes', 'other')).toEqual([['sales', 'other', 'quotes']])
@@ -228,5 +235,46 @@ describe('invalidateResources', () => {
     const { client, stale } = seeded()
     await invalidateResources(client, [], C)
     expect(stale()).toEqual([])
+  })
+
+  it('treats a repeated resource like a single one', async () => {
+    const { client, stale } = seeded()
+    await invalidateResources(client, ['sales-quotes', 'sales-quotes'], C)
+    expect(stale()).toEqual([`sales/${C}/quotes/detail/d1`])
+  })
+
+  it('invalidates everything for a prototype name', async () => {
+    const { client, stale } = seeded()
+    await invalidateResources(client, ['constructor'], C)
+    expect(stale()).toHaveLength(6)
+  })
+
+  it('refetches an observed query and resolves only after the refetch', async () => {
+    const client = new QueryClient()
+    const key = ['sales', C, 'quotes', 'list']
+    let release: (() => void) | undefined
+    let calls = 0
+    const queryFn = vi.fn(() =>
+      ++calls === 1
+        ? Promise.resolve(1)
+        : new Promise<number>((resolve) => {
+            release = () => resolve(2)
+          }),
+    )
+    const observer = new QueryObserver(client, { queryKey: key, queryFn, staleTime: Infinity })
+    const unsubscribe = observer.subscribe(vi.fn())
+    await vi.waitFor(() => expect(client.getQueryData(key)).toBe(1))
+
+    let done = false
+    const pending = invalidateResources(client, ['sales-quotes'], C).then(() => {
+      done = true
+    })
+    await vi.waitFor(() => expect(queryFn).toHaveBeenCalledTimes(2))
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(done).toBe(false)
+    release?.()
+    await pending
+    expect(client.getQueryData(key)).toBe(2)
+    unsubscribe()
   })
 })
