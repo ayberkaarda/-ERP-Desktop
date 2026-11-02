@@ -12,7 +12,7 @@
   "processPurchaseReturn": "Einkaufsretouren buchen Bestand und Salden und gehen nur online.",
   "postStockDocument": "Lagerbelege buchen und Reservierungen gehen nur online.",
   "decideApproval": "Genehmigungsentscheidungen gehen nur online.",
-  "treasuryPayment": "Zahlungen, Eingänge und Umbuchungen gehen nur online.",
+  "treasuryPayment": "Zahlungen, Zahlungseingänge und Umbuchungen gehen nur online.",
   "sendEDocument": "E-Beleg-Aktionen gehen nur online.",
   "postJournalEntry": "Journalbuchungen gehen nur online.",
   "closePeriod": "Perioden- und Jahresabschluss gehen nur online.",

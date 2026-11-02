@@ -142,6 +142,46 @@ describe('conflictModel rules', () => {
     }
   })
 
+  it('lists the choices in table order, whatever order the server sends', () => {
+    expect(conflictModel(base({ choices: ['merge', 'take_server', 'keep_mine'] }))).toMatchObject({
+      ok: true,
+      model: { choices: ['keep_mine', 'take_server', 'merge'] },
+    })
+    expect(
+      conflictModel(
+        base({ code: 'DUPLICATE_RECORD', choices: ['discard', 'use_existing'], server_data: null, candidates: ['c1'] }),
+      ),
+    ).toMatchObject({ ok: true, model: { choices: ['use_existing', 'discard'] } })
+    expect(
+      conflictModel(base({ code: 'DOCUMENT_LOCKED', choices: ['discard', 'save_as_new_draft'] })),
+    ).toMatchObject({ ok: true, model: { choices: ['save_as_new_draft', 'discard'] } })
+  })
+
+  it('hands the conflicting fields and the server row to a version conflict', () => {
+    const outcome = conflictModel(base({ conflicting_fields: ['notes', 'lines'] }))
+    expect(outcome).toEqual({
+      ok: true,
+      model: {
+        code: 'VERSION_CONFLICT',
+        choices: ['keep_mine', 'take_server', 'merge'],
+        fields: ['notes', 'lines'],
+        server: { id: 'x', version: 3, notes: 'server' },
+      },
+    })
+  })
+
+  it.each([
+    [{ code: 'DOCUMENT_LOCKED', choices: ['discard', 'keep_mine'] }, 'DOCUMENT_LOCKED: keep_mine'],
+    [{ code: 'DOCUMENT_LOCKED', choices: ['save_as_new_draft', 'discard', 'take_server'] }, 'DOCUMENT_LOCKED: take_server'],
+    [{ code: 'VERSION_CONFLICT', choices: ['keep_mine', 'take_server', 'discard'] }, 'VERSION_CONFLICT: discard'],
+    [
+      { code: 'DUPLICATE_RECORD', choices: ['use_existing', 'keep_mine', 'merge'], server_data: null, candidates: ['c1'] },
+      'DUPLICATE_RECORD: merge',
+    ],
+  ] as const)('refuses %j: a disallowed choice after allowed ones', (overrides, detail) => {
+    expect(conflictModel(base(overrides))).toEqual({ ok: false, reason: 'choice_not_allowed', detail })
+  })
+
   it('never shows a choice the server did not offer', () => {
     expect(conflictModel(base({ choices: ['take_server'] }))).toMatchObject({
       ok: true,
@@ -168,7 +208,43 @@ describe('conflictModel rules', () => {
 })
 
 describe('wire conflict -> ConflictDto', () => {
-  it('maps every wire conflict field to the ConflictDto field of the same name', () => {
+  it.each(conflictFixtures().map((c) => [c.result.conflict.code, c] as const))(
+    'maps every wire conflict field of the %s fixture to the ConflictDto field of the same name',
+    (_code, { result }) => {
+      const dto = conflictDtoFromWire(result, { op: 'update', payload: {}, detected_at: 'now' })
+      for (const field of Object.keys(result.conflict)) {
+        expect(dto[field as keyof ConflictDto], field).toEqual(result.conflict[field as keyof Conflict])
+      }
+    },
+  )
+
+  it('keeps base_version and server_version apart', () => {
+    const locked = conflictFixtures().find((c) => c.result.conflict.code === 'DOCUMENT_LOCKED')
+    const version = conflictFixtures().find((c) => c.result.conflict.code === 'VERSION_CONFLICT')
+    if (locked === undefined || version === undefined) throw new Error('missing fixture')
+    expect(locked.result.conflict).toMatchObject({ base_version: 4, server_version: 6 })
+    expect(conflictDtoFromWire(locked.result, { op: 'update', payload: {}, detected_at: 'now' })).toMatchObject({
+      base_version: 4,
+      server_version: 6,
+    })
+    const v = version.result.conflict
+    expect(v.base_version).not.toBe(v.server_version)
+    expect(conflictDtoFromWire(version.result, { op: 'delete', payload: {}, detected_at: 'now' })).toMatchObject({
+      base_version: v.base_version,
+      server_version: v.server_version,
+    })
+    // A synthetic one, so the check does not depend on the fixture values.
+    const synthetic: ConflictResult = {
+      ...version.result,
+      conflict: { ...v, base_version: 11, server_version: 17 },
+    }
+    expect(conflictDtoFromWire(synthetic, { op: 'update', payload: {}, detected_at: 'now' })).toMatchObject({
+      base_version: 11,
+      server_version: 17,
+    })
+  })
+
+  it('maps the wire conflict of the duplicate fixture with the draft side', () => {
     const [{ result } = { result: undefined }] = conflictFixtures().filter(
       (c) => c.result.conflict.code === 'DUPLICATE_RECORD',
     )

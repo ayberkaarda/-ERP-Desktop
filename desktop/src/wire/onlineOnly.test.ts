@@ -85,7 +85,21 @@ describe('onlineOnlyAction: same template rule as the shell router', () => {
     expect(onlineOnlyAction(method, `${path}/extra`)).toBeNull()
     expect(onlineOnlyAction(method, path.split('/').slice(0, -1).join('/'))).toBeNull()
     expect(onlineOnlyAction(method, `${path}/`)).toBeNull()
-    expect(onlineOnlyAction(method, path.toUpperCase().replace(V7.toUpperCase(), V7))).toBeNull()
+  })
+
+  it.each(ROUTES)('%s %s compares literal segments with their case', (method, template) => {
+    // Only the segments after /api/v1 change case; the UUID stays a UUID.
+    const rest = fill(template, V7).slice(API_PREFIX.length)
+    const upper = rest.toUpperCase().replace(V7.toUpperCase(), V7)
+    expect(onlineOnlyAction(method, `${API_PREFIX}${upper}`)).toBeNull()
+    expect(onlineOnlyAction(method, upper)).toBeNull()
+    expect(onlineOnlyAction(method, `${API_PREFIX}${rest}`)?.route).toBe(`${method} ${template}`)
+  })
+
+  it('does not match a literal in another case', () => {
+    expect(onlineOnlyAction('POST', `/api/v1/Sales-Quotes/${V7}/send`)).toBeNull()
+    expect(onlineOnlyAction('POST', `/SALES-QUOTES/${V7}/send`)).toBeNull()
+    expect(onlineOnlyAction('POST', `/api/v1/sales-quotes/${V7}/Send`)).toBeNull()
   })
 
   it('ignores the query string and fragment, and the method case', () => {

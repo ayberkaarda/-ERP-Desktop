@@ -114,3 +114,42 @@ describe('the generated fixture set (src/wire/generated/fixtures.ts)', () => {
     expect(() => wireFixture('push.response.unknown.json')).toThrow(/no fixture/)
   })
 })
+
+describe('type binding of the valid fixtures', () => {
+  // Root type of each schema module, as the Rust wire types are named.
+  const ROOT_TYPES: Record<string, string> = {
+    'common.schema.json': 'CommonSamples',
+    'device-login.request.schema.json': 'DeviceLoginRequest',
+    'device-refresh.request.schema.json': 'DeviceRefreshRequest',
+    'device-token.response.schema.json': 'DeviceTokenResponse',
+    'error-codes.schema.json': 'ErrorCode',
+    'error.response.schema.json': 'ErrorResponse',
+    'manifest.response.schema.json': 'ManifestResponse',
+    'pull.request.schema.json': 'PullRequest',
+    'pull.response.schema.json': 'PullResponse',
+    'push.request.schema.json': 'PushRequest',
+    'push.response.schema.json': 'PushResponse',
+    'tombstone.schema.json': 'Tombstone',
+  }
+  const text = readFileSync(fileURLToPath(new URL('./generated/fixtures.ts', import.meta.url)), 'utf8').replace(
+    /\r\n/g,
+    '\n',
+  )
+  const block = text.slice(text.indexOf('export const VALID_FIXTURES = {'), text.indexOf('\n}\n'))
+  // One entry per valid fixture: from "  'name': " to the next entry.
+  const entries = [...block.matchAll(/^ {2}'([^']+)': ([\s\S]*?)(?=^ {2}'|$(?![\s\S]))/gm)].map(
+    ([, name, body]) => [name ?? '', (body ?? '').trimEnd()] as const,
+  )
+
+  it('has one entry per valid fixture', () => {
+    expect(entries.map(([name]) => name)).toEqual(Object.keys(VALID_FIXTURES))
+    expect(entries.length).toBe(jsonFiles(fixturesDir).length)
+  })
+
+  it.each(jsonFiles(fixturesDir))('%s ends in `satisfies` with its schema type and is never cast', (name) => {
+    const body = entries.find(([entry]) => entry === name)?.[1] ?? ''
+    expect(body.endsWith(` satisfies ${ROOT_TYPES[schemaFor(name)] ?? '?'},`)).toBe(true)
+    expect(body).not.toMatch(/\bas\s+(unknown|any|const|[A-Z]\w*)\b/)
+    expect(text).toContain(`import type { ${ROOT_TYPES[schemaFor(name)] ?? '?'} } from`)
+  })
+})

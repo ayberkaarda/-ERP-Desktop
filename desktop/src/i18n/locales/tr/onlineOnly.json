@@ -10,7 +10,7 @@
   "postPurchaseReceipt": "Mal kabul stok hareketi oluşturduğu için çevrimiçi yapılır.",
   "bookPurchaseInvoice": "Alış faturası deftere işlendiği için çevrimiçi yapılır.",
   "processPurchaseReturn": "Satın alma iadesi stok ve cari hareketi oluşturduğu için çevrimiçi yapılır.",
-  "postStockDocument": "Stok belgesini işlemek ve rezervasyonlar çevrimiçi yapılır.",
+  "postStockDocument": "Stok belgesi işleme ve rezervasyon çevrimiçi yapılır.",
   "decideApproval": "Onay kararları çevrimiçi verilir.",
   "treasuryPayment": "Ödeme, tahsilat ve virman işlemleri çevrimiçi yapılır.",
   "sendEDocument": "e-Belge işlemleri çevrimiçi yapılır.",

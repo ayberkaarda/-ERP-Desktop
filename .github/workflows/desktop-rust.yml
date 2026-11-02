@@ -7,6 +7,10 @@ on:
       - 'frontend/**'
       - 'contracts/sync/**'
       - 'contracts/offline-manifest.json'
+      # Read by the wire tests (schema of the manifest, Node fixture table, resolution table).
+      - 'contracts/offline-manifest.schema.json'
+      - 'contracts/scripts/validate.mjs'
+      - 'docs/SYNC-PROTOCOL.md'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/desktop-rust.yml'
@@ -17,6 +21,10 @@ on:
       - 'frontend/**'
       - 'contracts/sync/**'
       - 'contracts/offline-manifest.json'
+      # Read by the wire tests (schema of the manifest, Node fixture table, resolution table).
+      - 'contracts/offline-manifest.schema.json'
+      - 'contracts/scripts/validate.mjs'
+      - 'docs/SYNC-PROTOCOL.md'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/desktop-rust.yml'
