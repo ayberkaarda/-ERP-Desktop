@@ -128,7 +128,11 @@ pub struct ConflictDto {
     #[ts(type = "number | null")]
     pub server_version: Option<u64>,
     pub conflicting_fields: Vec<String>,
-    /// The server row (`null` for a duplicate or a row deleted there).
+    /// The server row: an object for `VERSION_CONFLICT` and
+    /// `DOCUMENT_LOCKED`, `null` only for `DUPLICATE_RECORD`
+    /// (`contracts/sync/push.response.schema.json`). One type serves all
+    /// three codes, so it is any JSON value here; the code says which shape
+    /// it has.
     #[ts(type = "unknown")]
     pub server_data: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -437,21 +437,143 @@ async fn offline_requests_are_refused_locally_without_sending() {
     let server = MockServer::start().await;
     let fx = fixture(&server.uri());
     fx.go_offline();
-    for request in [
-        json!({ "method": "GET", "path": "/api/v1/parties" }),
-        json!({ "method": "GET", "path": "/api/v1/reports/trial-balance" }),
-        json!({ "method": "POST", "path": "/api/v1/parties",
-            "body": { "kind": "json", "value": { "name": "Acme" } } }),
+    for (request, method, path) in [
+        (
+            json!({ "method": "GET", "path": "/api/v1/parties" }),
+            "GET",
+            "/parties",
+        ),
+        (
+            json!({ "method": "get", "path": "/api/v1/reports/trial-balance",
+                "query": [["access_token", "tok-1"], ["from", "2026-01-01"]] }),
+            "GET",
+            "/reports/trial-balance",
+        ),
+        (
+            json!({ "method": "post", "path": "/api/v1/parties",
+                "body": { "kind": "json", "value": { "name": "Acme" } } }),
+            "POST",
+            "/parties",
+        ),
     ] {
         let answer = fx.call(request.clone()).await.unwrap();
         assert_eq!(answer.status, 503, "{request}");
         assert_eq!(answer.source, ResponseSource::Local);
         assert_eq!(
             answer.json().unwrap(),
-            &envelope::error("OFFLINE_UNAVAILABLE", Refusal::Offline.message(), None)
+            &json!({ "errors": {
+                "message": Refusal::Offline.message(),
+                "code": "OFFLINE_UNAVAILABLE",
+                "details": { "method": method, "path": path },
+            } }),
+            "{request}"
         );
     }
     assert_eq!(received(&server).await, 0);
+}
+
+fn refused(status: u16, code: &str, source: ResponseSource) -> ApiResponseDto {
+    ApiResponseDto {
+        source,
+        ..envelope::local(status, envelope::error(code, "refused", None))
+    }
+}
+
+fn details(answer: &ApiResponseDto) -> Option<&Value> {
+    answer.json().unwrap()["errors"].get("details")
+}
+
+#[test]
+fn both_local_refusals_name_the_refused_request() {
+    let path = format!("/api/v1/sales-quotes/{ID}/send");
+    for (status, code) in [
+        (503, "OFFLINE_UNAVAILABLE"),
+        (422, "SYNC_OFFLINE_WRITE_NOT_ALLOWED"),
+    ] {
+        let answer = name_refused(
+            refused(status, code, ResponseSource::Local),
+            ProxyMethod::Post,
+            &path,
+        );
+        assert_eq!(
+            details(&answer),
+            Some(&json!({ "method": "POST", "path": format!("/sales-quotes/{ID}/send") })),
+            "{code}"
+        );
+        assert_eq!(answer.json().unwrap()["errors"]["code"], code);
+        assert_eq!(answer.json().unwrap()["errors"]["message"], "refused");
+    }
+    for (method, name) in [
+        (ProxyMethod::Get, "GET"),
+        (ProxyMethod::Put, "PUT"),
+        (ProxyMethod::Patch, "PATCH"),
+        (ProxyMethod::Delete, "DELETE"),
+    ] {
+        let answer = name_refused(
+            refused(503, "OFFLINE_UNAVAILABLE", ResponseSource::Local),
+            method,
+            "/api/v1/parties",
+        );
+        assert_eq!(details(&answer).unwrap()["method"], name);
+    }
+}
+
+#[test]
+fn other_answers_are_not_given_request_details() {
+    let path = "/api/v1/parties";
+    for answer in [
+        // The server's answer is passed on as it came.
+        refused(503, "OFFLINE_UNAVAILABLE", ResponseSource::Network),
+        refused(
+            422,
+            "SYNC_OFFLINE_WRITE_NOT_ALLOWED",
+            ResponseSource::Network,
+        ),
+        // A code with another status is not one of the two refusals.
+        refused(422, "OFFLINE_UNAVAILABLE", ResponseSource::Local),
+        refused(503, "SYNC_OFFLINE_WRITE_NOT_ALLOWED", ResponseSource::Local),
+        // Other local errors.
+        refused(403, "FORBIDDEN", ResponseSource::Local),
+        refused(422, "VALIDATION_ERROR", ResponseSource::Local),
+        refused(404, "NOT_FOUND", ResponseSource::Local),
+    ] {
+        let before = answer.clone();
+        assert_eq!(name_refused(answer, ProxyMethod::Get, path), before);
+    }
+    let data = envelope::local(202, json!({ "data": { "id": ID } }));
+    assert_eq!(name_refused(data.clone(), ProxyMethod::Post, path), data);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_local_answer_from_the_resolver_names_the_refused_request() {
+    let server = MockServer::start().await;
+    let fx = fixture_with_engine(&server.uri());
+    fx.go_offline();
+    let local = Arc::new(FakeLocal {
+        copy: LocalCopy::Complete,
+        answer: Some(envelope::local(
+            422,
+            envelope::error(
+                "SYNC_OFFLINE_WRITE_NOT_ALLOWED",
+                "offline writes are closed",
+                None,
+            ),
+        )),
+        plans: Mutex::default(),
+    });
+    let answer = fx
+        .call_with(
+            local,
+            json!({ "method": "post", "path": "/api/v1/parties",
+                "body": { "kind": "json", "value": { "name": "Acme" } } }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.status, 422);
+    assert_eq!(
+        details(&answer),
+        Some(&json!({ "method": "POST", "path": "/parties" }))
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -525,6 +647,10 @@ async fn offline_drafts_go_to_the_local_resolver() {
         .await
         .unwrap();
     assert_eq!(refused.status, 503);
+    assert_eq!(
+        details(&refused),
+        Some(&json!({ "method": "POST", "path": format!("/sales-quotes/{ID}/send") }))
+    );
     assert_eq!(local.plans().len(), 1);
     assert_eq!(received(&server).await, 0);
 }
@@ -546,6 +672,10 @@ async fn offline_unsupported_local_query_lists_the_filters() {
     assert_eq!(answer.status, 503);
     let body = answer.json().unwrap();
     assert_eq!(body["errors"]["code"], "OFFLINE_UNAVAILABLE");
+    assert_eq!(
+        body["errors"]["details"],
+        json!({ "method": "GET", "path": "/parties" })
+    );
     assert_eq!(
         body["meta"]["offline"]["unsupported_filters"],
         json!(["filter[city]"])

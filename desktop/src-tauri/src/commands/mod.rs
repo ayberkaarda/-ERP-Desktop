@@ -1,7 +1,7 @@
 //! Tauri commands of the shell and the error shape every one of them returns.
 //!
 //! A command returns `Result<T, CommandError>`; Tauri serializes the error as
-//! `{code, message, retry_after?}`. `code` is the stable key the UI looks up
+//! `{code, message, retry_after?, path?}`. `code` is the stable key the UI looks up
 //! as `desktop.errors.<code>`: for an engine error it is
 //! [`SyncError::code`] verbatim (the server `ErrorCode` wire value, or the
 //! crate `LocalCode`), for a shell error one of [`codes`].
@@ -39,6 +39,12 @@ pub struct CommandError {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(type = "number", optional)]
     pub retry_after: Option<u64>,
+    /// `PROFILES_FILE_INVALID` only: the absolute path of the profiles file,
+    /// so the UI can name the file to fix. Nothing of its content. Left out
+    /// of the `Display` text, so a logged error never carries it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub path: Option<String>,
 }
 
 pub type CommandResult<T> = Result<T, CommandError>;
@@ -49,7 +55,13 @@ impl CommandError {
             code: code.into(),
             message: message.into(),
             retry_after: None,
+            path: None,
         }
+    }
+
+    pub fn with_path(mut self, path: &std::path::Path) -> Self {
+        self.path = Some(path.display().to_string());
+        self
     }
 
     pub fn with_retry_after(mut self, wait: Duration) -> Self {
@@ -84,6 +96,7 @@ impl From<SyncError> for CommandError {
             code: error.code().to_owned(),
             message: error.to_string(),
             retry_after,
+            path: None,
         }
     }
 }
@@ -148,6 +161,24 @@ mod tests {
             serde_json::to_value(&throttled).unwrap(),
             json!({ "code": "NO_ACTIVE_PROFILE", "message": "no profile", "retry_after": 30 })
         );
+
+        let file = std::env::temp_dir().join("profiles.json");
+        let invalid = CommandError::new("PROFILES_FILE_INVALID", "bad").with_path(&file);
+        assert_eq!(
+            serde_json::to_value(&invalid).unwrap(),
+            json!({
+                "code": "PROFILES_FILE_INVALID",
+                "message": "bad",
+                "path": file.display().to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn the_path_stays_out_of_the_log_line() {
+        let file = std::env::temp_dir().join("profiles.json");
+        let error = CommandError::new("PROFILES_FILE_INVALID", "bad").with_path(&file);
+        assert_eq!(error.to_string(), "PROFILES_FILE_INVALID: bad");
     }
 
     #[test]
