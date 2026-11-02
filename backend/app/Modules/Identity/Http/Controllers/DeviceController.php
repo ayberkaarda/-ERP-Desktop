@@ -17,6 +17,7 @@ use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Identity\Services\LoginThrottle;
 use App\Modules\Identity\Services\SessionLogger;
 use App\Modules\Identity\Services\TwoFactorService;
+use App\Modules\Identity\Support\CurrentToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -102,6 +103,13 @@ final class DeviceController
         $user = $this->currentUser($request);
         $device = UserDevice::query()->where('user_id', $user->id)->findOrFail($id);
         Gate::authorize('delete', $device);
+
+        // A device cannot revoke itself: that would end its session without its own sign-out,
+        // which settles unsent local work first. Browser sessions belong to no device.
+        $token = CurrentToken::of($user);
+        if ($token !== null && $device->token_id === (string) $token->getKey()) {
+            throw new ApiException(ErrorCode::Forbidden, __('identity::auth.current_device'));
+        }
 
         $this->tokens->revoke($user, $device);
 

@@ -62,7 +62,7 @@ sequenceDiagram
 - Parola değişimi cihaz belirteciyle yapılırsa değişikliği yapan cihaz için eski aile iptal edilir ve yanıt `200 {data:{token,expires_at,refresh_token,refresh_expires_at}}` ile yeni bir aile verir; tarayıcı oturumundan yapılan değişiklik `204` kalır.
 - Hız sınırı: başarılı yenilemeler cihaz başına dakikada 10 (`429 TOO_MANY_ATTEMPTS`); başarısız yenilemeler IP başına dakikada 30. Belirteç önce doğrulanır; IP kotası yalnızca başarısız denemeleri sayar ve engeller, bu yüzden aynı NAT arkasındaki geçerli cihazlar birbirini engellemez. Belirteç 64 karakterlik kriptografik rastgele bir değerdir, tahmin riski ihmal edilebilir.
 - Kullanıcının devre dışı bırakılması, parola değişimi (diğer cihazlar), yönetici parola sıfırlaması, hesap silme ve cihaz iptali (`DELETE /me/devices/{id}`, çıkış) yenileme belirteçlerini de siler. Şirket üyeliği kaybedilirse yenileme çalışır ancak şirket kapsamlı uçlar `403` döner.
-- `GET /me/devices` kayıtlı cihazları listeler; `DELETE /me/devices/{id}` cihaz belirtecini iptal eder.
+- `GET /me/devices` kayıtlı cihazları listeler; `DELETE /me/devices/{id}` cihaz belirtecini iptal eder. İsteği yapan cihaz kendini iptal edemez (`403 FORBIDDEN`); o cihaz `POST /auth/logout` ile çıkış yapar. Tarayıcı oturumu hiçbir cihaza ait olmadığından her cihazı iptal edebilir.
 
 ```mermaid
 sequenceDiagram
