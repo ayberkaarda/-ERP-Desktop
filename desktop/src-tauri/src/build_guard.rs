@@ -5,8 +5,8 @@
 //! `tauri.conf.json` carries the locked Content-Security-Policy. A release
 //! build stops when the effective policy is not locked: no policy, the
 //! deny-all placeholder, a `connect-src` that reaches anything but the IPC,
-//! a remote source in any other directive, an unsafe script source or a
-//! report endpoint. The webview talks to the outside world through commands
+//! a remote source in any other directive, an unsafe script or style source
+//! or a report endpoint. The webview talks to the outside world through commands
 //! only. A release build with the development HTTP switch set stops as well.
 //!
 //! The effective configuration is what `tauri-build` compiles in:
@@ -226,21 +226,26 @@ fn window_problem(config: &Value) -> Option<String> {
     None
 }
 
-/// Directives scripts can come from: no inline, eval, `data:` or `blob:`
-/// there. `default-src` is the fallback of the others.
-const SCRIPT_DIRECTIVES: [&str; 5] = [
+/// Directives scripts can come from: no inline, eval, fixed nonce, `data:` or
+/// `blob:` there. `default-src` is the fallback of the others. Style elements and
+/// sheets are held to the same rule; `style-src-attr` (inline style
+/// attributes) is the one style directive left open to keywords.
+const STRICT_DIRECTIVES: [&str; 7] = [
     "default-src",
     "script-src",
     "script-src-elem",
     "script-src-attr",
     "worker-src",
+    "style-src",
+    "style-src-elem",
 ];
 
 /// Directives whose values are tokens, not sources.
 const TOKEN_DIRECTIVES: [&str; 2] = ["sandbox", "trusted-types"];
 
 /// Outside `connect-src` (see [`connect_problem`]) a source is `'self'`,
-/// `'none'`, a hash, a nonce, `data:`, `blob:` or another keyword: nothing
+/// `'none'`, a hash, `data:`, `blob:` or another keyword (a nonce counts as
+/// one, so the strict directives refuse it): nothing
 /// that names a scheme or a host, so no directive loads from the network.
 /// Report endpoints would send violation reports off the device.
 fn source_problem(csp: &str) -> Option<String> {
@@ -256,24 +261,26 @@ fn source_problem(csp: &str) -> Option<String> {
         if name == "report-uri" || name == "report-to" {
             return Some(format!("{name} sends violation reports off the device"));
         }
-        let script = SCRIPT_DIRECTIVES.contains(&name.as_str());
+        let strict = STRICT_DIRECTIVES.contains(&name.as_str());
         for source in words.map(str::to_ascii_lowercase) {
             let local = match source.as_str() {
                 "'self'" | "'none'" => true,
-                "data:" | "blob:" => !script,
-                hash if ["'sha256-", "'sha384-", "'sha512-", "'nonce-"]
+                "data:" | "blob:" => !strict,
+                hash if ["'sha256-", "'sha384-", "'sha512-"]
                     .iter()
                     .any(|prefix| hash.starts_with(prefix)) =>
                 {
                     true
                 }
-                keyword if keyword.starts_with('\'') => !script,
+                // A nonce in the config is fixed and public: the same as
+                // 'unsafe-inline' there (the dev nonce lives in devCsp only).
+                keyword if keyword.starts_with('\'') => !strict,
                 _ => false,
             };
             if !local {
                 return Some(format!(
                     "{name} allows {source}; the webview loads nothing from the network and \
-                     runs no inline or generated script"
+                     runs no inline or generated script or style sheet"
                 ));
             }
         }
@@ -465,6 +472,23 @@ mod tests {
         }
     }
 
+    /// Style elements and sheets stay as strict as scripts: the bundle ships
+    /// its CSS as files (measured in D4: the web app needs no inline style
+    /// element or attribute). Only `style-src-attr` may ever open up.
+    #[test]
+    fn release_with_unsafe_style_sources_is_refused() {
+        for (directive, source) in [
+            ("style-src 'self' 'unsafe-inline'", "'unsafe-inline'"),
+            ("style-src 'self' 'unsafe-hashes'", "'unsafe-hashes'"),
+            ("style-src 'self' data:", "data:"),
+            ("style-src-elem 'unsafe-inline'", "'unsafe-inline'"),
+            ("Style-Src-Elem 'self' blob:", "blob:"),
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains(source), "{directive}: {error}");
+        }
+    }
+
     #[test]
     fn release_with_a_report_endpoint_is_refused() {
         for directive in [
@@ -476,6 +500,34 @@ mod tests {
         }
     }
 
+    /// A nonce written in the config is the same on every start and known to
+    /// anyone who reads it: as good as `'unsafe-inline'`. Tauri adds its own
+    /// hashes to the policy at build time; the dev server's nonce stays in
+    /// devCsp. Overlay and platform file are held to the same rule.
+    #[test]
+    fn release_with_a_fixed_nonce_is_refused() {
+        for directive in [
+            "script-src 'self' 'nonce-keystone-dev'",
+            "script-src-elem 'nonce-abc123'",
+            "style-src 'self' 'nonce-keystone-dev'",
+            "style-src-elem 'self' 'NONCE-abc123'",
+            "default-src 'self' 'nonce-abc123'",
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains("'nonce-"), "{directive}: {error}");
+        }
+        let platform = serde_json::json!({ "app": { "security": { "csp":
+            "default-src 'self'; connect-src ipc: http://ipc.localhost; \
+             script-src 'self' 'nonce-keystone-dev'" } } })
+        .to_string();
+        let error = check(&Inputs {
+            platform: Some(&platform),
+            ..inputs(true, None)
+        })
+        .unwrap_err();
+        assert!(error.contains("'nonce-keystone-dev'"), "{error}");
+    }
+
     #[test]
     fn local_sources_stay_allowed() {
         for directive in [
@@ -485,7 +537,6 @@ mod tests {
             "style-src 'self'",
             "style-src-attr 'unsafe-inline'",
             "script-src 'self' 'sha256-tA8NLZ7sfk4Jr/izBVduKXeZBybtCT1klC9bh3Zu2Fo='",
-            "script-src 'self' 'nonce-abc123'",
             "base-uri 'self'",
             "object-src 'none'",
             "frame-ancestors 'none'",

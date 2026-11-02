@@ -14,6 +14,10 @@ const NET_MODULES = [
   'node-fetch',
   'cross-fetch',
   'socket.io-client',
+  // The web realtime transport (Echo over pusher); the desktop listens to
+  // Tauri events instead.
+  'pusher-js',
+  'laravel-echo',
   // Tauri plugins that would open a network path around the shell commands.
   '@tauri-apps/plugin-http',
   '@tauri-apps/plugin-websocket',
@@ -91,7 +95,7 @@ export default defineConfig([
     rules: networkBan,
   },
   {
-    files: ['*.config.ts'],
+    files: ['*.config.ts', 'tooling/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
   {

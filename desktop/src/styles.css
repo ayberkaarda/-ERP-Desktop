@@ -1,0 +1,6 @@
+/* The web design system as it is, plus the class names of desktop screens. */
+@import '../../frontend/src/styles/index.css';
+
+/* Tailwind scans the Vite root (desktop/) on its own; the web sources sit outside it. */
+@source '../../frontend/src';
+@source './';

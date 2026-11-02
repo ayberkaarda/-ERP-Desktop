@@ -23,6 +23,7 @@
   },
   "include": [
     "src",
+    "tooling",
     "vite.desktop.config.ts",
     "vitest.config.ts",
     "../frontend/src/lib/i18n/i18next.d.ts"
