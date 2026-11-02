@@ -91,7 +91,7 @@ export default defineConfig([
     rules: networkBan,
   },
   {
-    files: ['*.config.ts'],
+    files: ['*.config.ts', 'tooling/**/*.ts'],
     languageOptions: { globals: globals.node },
   },
   {

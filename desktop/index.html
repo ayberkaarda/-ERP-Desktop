@@ -4,14 +4,23 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Keystone</title>
-    <link rel="stylesheet" href="/src/smoke.css" />
-    <script type="module" src="/src/main.ts"></script>
+    <script>
+      // Apply the stored theme before first paint to avoid a light/dark flash.
+      // Same as frontend/index.html; Tauri adds this script's hash to script-src.
+      try {
+        var s = JSON.parse(localStorage.getItem('keystone.theme') || '{}').state || {}
+        var t = s.theme || 'system'
+        var dark =
+          t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches)
+        if (dark) document.documentElement.classList.add('dark')
+        document.documentElement.dataset.effects = s.effects || 'auto'
+        var l = localStorage.getItem('keystone.lang')
+        if (l) document.documentElement.lang = l
+      } catch (e) {}
+    </script>
   </head>
   <body>
-    <main>
-      <h1>Keystone</h1>
-      <p id="status">app_info...</p>
-      <pre id="output"></pre>
-    </main>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
