@@ -13,8 +13,11 @@
 
 import type { AppExtensions } from '@/app/extensions'
 
+import { accountExtensions } from '../ui/account'
 import { composeExtensions, type ExtensionPart } from './compose'
 
-export const PARTS: readonly (readonly [name: string, part: ExtensionPart])[] = []
+export const PARTS: readonly (readonly [name: string, part: ExtensionPart])[] = [
+  ['account', accountExtensions],
+]
 
 export const appExtensions: AppExtensions = composeExtensions(PARTS)

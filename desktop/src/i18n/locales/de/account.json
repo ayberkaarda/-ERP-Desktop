@@ -1,1 +1,142 @@
-{}
+{
+  "gate": {
+    "starting": "Profil wird geöffnet…",
+    "loadFailed": "Der Profilstatus konnte nicht gelesen werden.",
+    "retry": "Erneut versuchen"
+  },
+  "setup": {
+    "title": "Serverprofile",
+    "subtitle": "Die Desktop-App verbindet sich mit einem Keystone-Server. Jeder Server ist ein eigenes Profil.",
+    "firstRun": "Fügen Sie zum Start eine Serveradresse hinzu.",
+    "listTitle": "Profile",
+    "empty": "Noch keine Profile.",
+    "active": "Aktiv",
+    "select": "Zu diesem Profil wechseln",
+    "refreshMeta": "Serverangaben aktualisieren",
+    "metaRefreshed": "Serverangaben aktualisiert.",
+    "remove": "Entfernen",
+    "removeTitle": "Profil entfernen?",
+    "removeBody": "Das Profil {{name}} wird mit seiner Anmeldung und den lokalen Daten auf diesem Gerät entfernt.",
+    "server": "{{name}} {{version}}",
+    "realtimeOn": "Live-Updates verfügbar",
+    "realtimeOff": "Keine Live-Updates",
+    "addTitle": "Server hinzufügen",
+    "url": "Serveradresse",
+    "name": "Profilname (optional)",
+    "add": "Hinzufügen",
+    "httpDebugNote": "Entwicklungsbuild: Lokale Adressen wie http://localhost:8000 werden nur mit KEYSTONE_DEV_ALLOW_HTTP=1 akzeptiert.",
+    "httpsNote": "Die Adresse muss mit https:// beginnen.",
+    "tryAgain": "Erneut versuchen",
+    "back": "Zurück zur App"
+  },
+  "login": {
+    "title": "Anmelden",
+    "profile": "Server: {{name}}",
+    "change": "Ändern",
+    "email": "E-Mail",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "twoFactorTitle": "Zweistufige Bestätigung",
+    "twoFactorBody": "Geben Sie den Code aus Ihrer Authentifizierungs-App ein.",
+    "code": "Bestätigungscode",
+    "verify": "Bestätigen",
+    "back": "Zurück",
+    "companyTitle": "Unternehmen wählen",
+    "companyBody": "Wählen Sie das Unternehmen, mit dem Sie auf diesem Gerät arbeiten.",
+    "sessionFailed": "Die Sitzung konnte nicht geladen werden. Bitte erneut versuchen.",
+    "noProfile": "Wählen Sie zuerst ein Serverprofil."
+  },
+  "password": {
+    "title": "Passwort ändern",
+    "body": "Für Ihr Konto ist eine Passwortänderung nötig. In der Desktop-App kann das Passwort nicht geändert werden; ändern Sie es in der Web-App und melden Sie sich erneut an.",
+    "openWeb": "Im Web ändern",
+    "changedIt": "Geändert, erneut anmelden",
+    "opened": "Im Browser geöffnet."
+  },
+  "security": {
+    "devicesTitle": "Geräte",
+    "devicesBody": "Desktop-Geräte, die mit Ihrem Konto angemeldet sind.",
+    "empty": "Keine Geräte.",
+    "lastUsed": "Zuletzt verwendet: {{date}}",
+    "never": "Noch nicht verwendet",
+    "revoke": "Gerät abmelden",
+    "revokeTitle": "Dieses Gerät abmelden?",
+    "revokeBody": "Die Anmeldung auf {{name}} endet.",
+    "revoked": "Das Gerät wurde abgemeldet.",
+    "webTitle": "Zweistufige Bestätigung und Sitzungen",
+    "webBody": "Passwort, zweistufige Bestätigung und Browsersitzungen werden in der Web-App verwaltet.",
+    "openWeb": "Im Web verwalten",
+    "profiles": "Serverprofile",
+    "aboutTitle": "Über",
+    "version": "Version",
+    "schema": "Sync-Schema",
+    "os": "Betriebssystem",
+    "build": "Build",
+    "debug": "Entwicklung",
+    "release": "Release-Build"
+  },
+  "recovery": {
+    "storeKey": {
+      "title": "Lokale Daten können nicht geöffnet werden",
+      "body": "Der Schlüssel der lokalen Datenbank des Profils {{name}} fehlt auf diesem Gerät oder hat sich geändert. Es wird nichts automatisch gelöscht.",
+      "pendingNote": "Da die lokalen Daten nicht lesbar sind, können nicht gesendete Änderungen nicht gezählt werden; ein Zurücksetzen löscht sie. Die Serverdaten werden neu geladen.",
+      "confirmLabel": "Zur Bestätigung den Profilnamen eingeben: {{name}}",
+      "reset": "Lokale Daten dieses Profils zurücksetzen"
+    },
+    "malformed": {
+      "title": "Profileintrag beschädigt",
+      "body": "Der Anmeldeeintrag des Profils {{name}} auf diesem Gerät konnte nicht gelesen werden.",
+      "reset": "Profil zurücksetzen",
+      "remove": "Profil entfernen",
+      "resetTitle": "Profil zurücksetzen?",
+      "resetBody": "Anmeldung und lokale Daten werden gelöscht, das Profil bleibt. Danach melden Sie sich erneut an.",
+      "removeTitle": "Profil entfernen?",
+      "removeBody": "Das Profil wird mit seiner Anmeldung und den lokalen Daten entfernt."
+    },
+    "file": {
+      "title": "Profildatei nicht lesbar",
+      "body": "Die Datei profiles.json im App-Datenordner konnte nicht gelesen werden.",
+      "notOverwritten": "Die Datei wurde unverändert gelassen und nicht überschrieben. Korrigieren oder verschieben Sie die Datei und starten Sie die App neu.",
+      "detail": "Details: {{message}}"
+    },
+    "failed": {
+      "title": "Das Profil konnte nicht geöffnet werden",
+      "profiles": "Serverprofile"
+    }
+  },
+  "pending": {
+    "title": "Nicht gesendete Arbeit",
+    "body": "{{outbox}} nicht gesendete Änderungen, {{conflicts}} offene Konflikte. Wenn Sie fortfahren, werden sie gelöscht.",
+    "unknown": "Es gibt nicht gesendete Änderungen oder offene Konflikte. Wenn Sie fortfahren, werden sie gelöscht.",
+    "discard": "Trotzdem fortfahren (wird gelöscht)",
+    "keep": "Abbrechen",
+    "show": "Ausstehende Arbeit anzeigen",
+    "action": {
+      "logout": "Abmeldung.",
+      "switchCompany": "Unternehmenswechsel.",
+      "removeProfile": "Profil wird entfernt.",
+      "resetProfile": "Profil wird zurückgesetzt."
+    }
+  },
+  "errors": {
+    "INVALID_SERVER_URL": "Die Serveradresse ist ungültig.",
+    "DESKTOP_UPDATE_REQUIRED": "Dieser Server benötigt eine neuere Version der App.",
+    "SYNC_SCHEMA_MISMATCH": "Das Sync-Schema des Servers passt nicht zu dieser App.",
+    "NETWORK_ERROR": "Der Server ist nicht erreichbar.",
+    "PROFILES_FILE_INVALID": "Die Profildatei konnte nicht gelesen oder geschrieben werden; sie blieb unverändert.",
+    "PROFILE_BUSY": "Eine Anfrage des Profils läuft noch. Bitte gleich erneut versuchen.",
+    "PROFILE_NOT_FOUND": "Profil nicht gefunden.",
+    "NO_ACTIVE_PROFILE": "Kein Serverprofil aktiv.",
+    "EXTERNAL_OPEN_FAILED": "Der Browser konnte nicht geöffnet werden.",
+    "COMPANY_NOT_AVAILABLE": "Dieses Unternehmen gehört nicht zu Ihrem Konto.",
+    "INVALID_TWO_FACTOR_CODE": "Der Bestätigungscode ist falsch.",
+    "TOO_MANY_ATTEMPTS": "Zu viele Versuche. Bitte gleich erneut versuchen.",
+    "USER_DEACTIVATED": "Ihr Konto ist deaktiviert.",
+    "UNAUTHENTICATED": "E-Mail oder Passwort ist falsch.",
+    "VALIDATION_ERROR": "E-Mail oder Passwort ist falsch.",
+    "PROFILE_HAS_PENDING_WORK": "Es gibt nicht gesendete Arbeit.",
+    "STORE_KEY_INVALID": "Der Schlüssel der lokalen Datenbank ist ungültig.",
+    "PROFILE_RECORD_MALFORMED": "Der Profileintrag ist beschädigt.",
+    "unknown": "Die Aktion konnte nicht abgeschlossen werden ({{code}})."
+  }
+}
