@@ -183,6 +183,7 @@ impl Store {
         migrations: &[&Migration],
     ) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
+        sqlcipher_ready()?;
         let mut conn = Connection::open(&path)?;
         unlock(&conn, key)?;
         conn.execute_batch(
@@ -458,6 +459,23 @@ impl Drop for Lease<'_> {
 fn is_memory(path: &Path) -> bool {
     let text = path.to_string_lossy();
     text.is_empty() || text == ":memory:" || text.starts_with("file::memory:")
+}
+
+/// SQLCipher finishes its process-wide setup only after SQLite already
+/// reports itself initialized, and outside SQLite's own init lock; a
+/// connection keyed in that gap fails with a generic `PRAGMA key` error.
+/// The first store open of the process therefore opens a throwaway
+/// in-memory connection alone, which runs the whole setup on this thread;
+/// other openers wait here until it is done. A failed warm-up is returned
+/// as a store error and is tried again by the next open.
+fn sqlcipher_ready() -> Result<()> {
+    static READY: Mutex<bool> = Mutex::new(false);
+    let mut ready = READY.lock().unwrap_or_else(PoisonError::into_inner);
+    if !*ready {
+        drop(Connection::open_in_memory()?);
+        *ready = true;
+    }
+    Ok(())
 }
 
 fn unlock(conn: &Connection, key: &DbKey) -> Result<()> {
