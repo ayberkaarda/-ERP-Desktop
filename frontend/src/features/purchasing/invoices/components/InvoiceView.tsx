@@ -7,6 +7,7 @@ import { AuditTrail } from '@/components/shared/AuditTrail'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { dec, money, percent, qty } from '@/features/sales/invoices/kit/money'
 import { useCompanyCurrency } from '@/features/sales/invoices/kit/viewKey'
 import { usePayloadKeys } from '@/features/sales/shared/lib/idempotency'
@@ -136,16 +137,26 @@ export function InvoiceView({ invoice: inv, onReload }: InvoiceViewProps) {
               </Button>
             )}
             {inv.status === 'pending_approval' && canCancel && (
-              <Button type="button" variant="ghost" onClick={() => setCancelling(true)}>
+              <OnlineOnlyButton
+                action="bookPurchaseInvoice"
+                type="button"
+                variant="ghost"
+                onClick={() => setCancelling(true)}
+              >
                 <Ban aria-hidden="true" />
                 {t('invoice.cancel')}
-              </Button>
+              </OnlineOnlyButton>
             )}
             {reversible && canReverse && (
-              <Button type="button" variant="danger" onClick={() => setReversing(true)}>
+              <OnlineOnlyButton
+                action="bookPurchaseInvoice"
+                type="button"
+                variant="danger"
+                onClick={() => setReversing(true)}
+              >
                 <Undo2 aria-hidden="true" />
                 {t('invoice.reverse')}
-              </Button>
+              </OnlineOnlyButton>
             )}
           </>
         }

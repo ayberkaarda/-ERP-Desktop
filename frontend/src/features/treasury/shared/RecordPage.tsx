@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { partiesApi } from '@/features/parties'
 import { hasPermission, usePermissionContext } from '@/lib/permissions'
 import { AccountEditor } from '../accounts/AccountEditor'
@@ -29,6 +30,9 @@ import {
 } from './types'
 import { Amount, BackLink, ErrorNotice, Loading, Panel, Status, TreasuryHeader } from './ui'
 import { useRecord, useAccounts, useTreasuryCompany, useTreasuryT } from './hooks'
+function isPaymentAction(area: Area, action: string): boolean {
+  return area === 'payments' || area === 'transfers' || (area === 'plans' && action === 'fulfil')
+}
 export function RecordPage({ area }: { area: Area }) {
   const { id = 'new' } = useParams()
   const company = useTreasuryCompany()
@@ -197,19 +201,21 @@ function RecordContent({ area, id }: { area: Area; id: string | undefined }) {
           )}
           {lifecycleActions(area, record)
             .filter((a) => hasPermission(ctx, a.permission))
-            .map((a) => (
-              <Button
-                key={a.action}
-                variant={
-                  ['reverse', 'cancel', 'return', 'dishonour'].includes(a.action)
-                    ? 'secondary'
-                    : 'primary'
-                }
-                onClick={() => setAction(a.action)}
-              >
-                {t(a.action)}
-              </Button>
-            ))}
+            .map((a) => {
+              const props = {
+                variant: ['reverse', 'cancel', 'return', 'dishonour'].includes(a.action)
+                  ? ('secondary' as const)
+                  : ('primary' as const),
+                onClick: () => setAction(a.action),
+                children: t(a.action),
+              }
+              // Payments, transfers and plan fulfilment post money movements on the server.
+              return isPaymentAction(area, a.action) ? (
+                <OnlineOnlyButton action="treasuryPayment" key={a.action} {...props} />
+              ) : (
+                <Button key={a.action} {...props} />
+              )
+            })}
           {area === 'accounts' &&
             (record as Account).has_movements === false &&
             hasPermission(ctx, 'treasury.accounts.manage') && (

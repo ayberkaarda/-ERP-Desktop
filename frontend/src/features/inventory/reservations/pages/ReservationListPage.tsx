@@ -16,6 +16,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatDateTime, useIntlLocale } from '@/lib/datetime'
 import { formatDecimalDisplay } from '@/lib/money'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { usePermission } from '@/lib/permissions'
 import { ItemCombobox } from '@/features/catalog'
 import { lookupsApi } from '../../documents/api/client'
@@ -193,7 +194,8 @@ export function ReservationListPage() {
         enableHiding: false,
         cell: (c) =>
           canManage && c.row.original.status === 'active' ? (
-            <Button
+            <OnlineOnlyButton
+              action="postStockDocument"
               type="button"
               variant="ghost"
               size="sm"
@@ -202,7 +204,7 @@ export function ReservationListPage() {
             >
               <Unlock aria-hidden="true" />
               {t('reservation.release')}
-            </Button>
+            </OnlineOnlyButton>
           ) : null,
       }),
     ]
@@ -220,10 +222,14 @@ export function ReservationListPage() {
         breadcrumbs={[{ label: t('nav.inventory') }, { label: t('reservation.title') }]}
         actions={
           canManage ? (
-            <Button type="button" onClick={() => setCreating(true)}>
+            <OnlineOnlyButton
+              action="postStockDocument"
+              type="button"
+              onClick={() => setCreating(true)}
+            >
               <Plus aria-hidden="true" />
               {t('reservation.new')}
-            </Button>
+            </OnlineOnlyButton>
           ) : undefined
         }
       />

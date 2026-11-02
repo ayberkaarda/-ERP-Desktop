@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { Button } from '@/components/ui/button'
+import { OnlineOnlyButton } from '@/lib/online-only'
 import { usePermission } from '@/lib/permissions'
 import { platform } from '@/platform'
 import { useCompanyStore } from '@/stores/company'
@@ -135,7 +135,8 @@ export function QuoteActions({
   const button = (step: Exclude<Step, 'reject'>, icon: typeof Send, primary = false) => {
     const Icon = icon
     return (
-      <Button
+      <OnlineOnlyButton
+        action="finalizeSalesQuote"
         key={step}
         type="button"
         variant={primary ? 'primary' : 'secondary'}
@@ -148,7 +149,7 @@ export function QuoteActions({
           <Icon aria-hidden="true" />
         )}
         {t(`actions.${step}`)}
-      </Button>
+      </OnlineOnlyButton>
     )
   }
 
@@ -156,7 +157,8 @@ export function QuoteActions({
     <>
       {canState && allowed.includes('send') && button('send', Send, true)}
       {canState && allowed.includes('reject') && (
-        <Button
+        <OnlineOnlyButton
+          action="finalizeSalesQuote"
           type="button"
           variant="secondary"
           disabled={pending}
@@ -164,7 +166,7 @@ export function QuoteActions({
         >
           <X aria-hidden="true" />
           {t('actions.reject')}
-        </Button>
+        </OnlineOnlyButton>
       )}
       {canState && allowed.includes('accept') && button('accept', Check)}
       {canRevise && allowed.includes('revise') && button('revise', CopyPlus)}
