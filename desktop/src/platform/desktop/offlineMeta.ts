@@ -16,30 +16,36 @@ export interface OfflineMetaStore {
   /** `undefined` forgets the path (a network answer came). */
   record(path: string, meta: OfflineMeta | undefined): void
   clear(): void
-  /** Called after every change. */
-  subscribe(listener: () => void): () => void
+  /**
+   * Called after every change with the changed path; `clear` calls it once per
+   * forgotten path, after the whole store is empty.
+   */
+  subscribe(listener: (path: string) => void): () => void
 }
 
 export function createOfflineMetaStore(): OfflineMetaStore {
   const entries = new Map<string, OfflineMeta>()
-  const listeners = new Set<() => void>()
-  const changed = () => {
-    for (const listener of [...listeners]) listener()
+  const listeners = new Set<(path: string) => void>()
+  const changed = (paths: string[]) => {
+    for (const path of paths) {
+      for (const listener of [...listeners]) listener(path)
+    }
   }
   return {
     get: (path) => entries.get(path),
     record: (path, meta) => {
       if (meta === undefined) {
-        if (entries.delete(path)) changed()
+        if (entries.delete(path)) changed([path])
         return
       }
       entries.set(path, meta)
-      changed()
+      changed([path])
     },
     clear: () => {
       if (entries.size === 0) return
+      const paths = [...entries.keys()]
       entries.clear()
-      changed()
+      changed(paths)
     },
     subscribe: (listener) => {
       listeners.add(listener)

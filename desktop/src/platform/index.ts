@@ -4,12 +4,15 @@
 // through here.
 export {
   createDesktopPlatform,
+  desktopBridgeOf,
+  DESKTOP_BRIDGE_EVENTS,
   isDesktopPlatform,
   isPlatformCancelled,
   PlatformCancelledError,
   PendingWorkError,
   PENDING_WORK,
   REALTIME_EVENT_NAMES,
+  type DesktopBridge,
   type DesktopPlatform,
   type DesktopSession,
   type OfflineMeta,
