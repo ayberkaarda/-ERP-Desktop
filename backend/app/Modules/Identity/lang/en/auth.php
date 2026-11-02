@@ -11,4 +11,5 @@ return [
     'password_policy' => 'The password does not meet the password policy.',
     'password_too_short' => 'The password must be at least :min characters.',
     'password_matches_identity' => 'The password must not be your email address or name.',
+    'current_device' => 'This device cannot revoke itself. Sign out on this device instead.',
 ];
