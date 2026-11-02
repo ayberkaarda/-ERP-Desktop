@@ -3,7 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConflictDto } from '../../bridge/generated/ConflictDto'
-import { fixtureConflict, fixtureConflicts, updateConflict } from '../../test/conflictFixtures'
+import { updateConflict } from '../../test/conflictFixtures'
+import { conflictDtoFixtures } from '../../wire'
 import { createFakeBridge, fail, flush } from '../../test/fakeBridge'
 import { ConflictInboxPage } from './ConflictInboxPage'
 import { renderSync } from './testing'
@@ -19,6 +20,7 @@ async function inbox(conflicts: ConflictDto[], resolution = 'queued') {
       sync_status: () => ({}),
       conflicts_list: () => conflicts,
       conflicts_resolve: () => ({ action: resolution }),
+      sync_now: () => undefined,
     },
   })
   const get = vi.fn((url: string) =>
@@ -44,26 +46,29 @@ function decision(bridge: Awaited<ReturnType<typeof inbox>>['bridge']) {
   return bridge.callsOf('conflicts_resolve').map((c) => c.args?.decision)
 }
 
-describe('conflict inbox from the contract fixtures', () => {
-  const fixtures = fixtureConflicts()
+function fixtureConflict(code: string): ConflictDto {
+  const found = conflictDtoFixtures().find((dto) => dto.code === code)
+  if (!found) throw new Error(`no ${code} conflict in the fixtures`)
+  return found
+}
 
-  it.each(fixtures.map((f) => [`${f.file} ${f.dto.code}`, f.dto] as const))(
-    '%s shows only choices the server offered',
-    async (_name, dto) => {
+describe('conflict inbox from the contract fixtures', () => {
+  it.each(conflictDtoFixtures().map((dto) => [dto.code, dto] as const))(
+    '%s shows the choices the server offered, in table order',
+    async (_code, dto) => {
       await inbox([dto])
       const shown = shownChoices(dto)
       expect(shown.length).toBeGreaterThan(0)
-      for (const choice of shown) expect(dto.choices).toContain(choice)
+      expect([...shown].sort()).toEqual([...dto.choices].sort())
     },
   )
 
-  it('a locked document offers a new draft or discarding, never keep_mine', async () => {
+  it('a locked document offers a new draft or discarding', async () => {
     const locked = fixtureConflict('DOCUMENT_LOCKED')
-    const offered = { ...locked, choices: ['keep_mine', ...locked.choices] }
-    await inbox([offered])
-    expect(shownChoices(offered)).toEqual(['save_as_new_draft', 'discard'])
-    expect(card(offered)).toHaveTextContent('Belge sunucuda artık taslak değil')
-    expect(card(offered)).toHaveTextContent('Sipariş onaylandığı için değiştirilemez.')
+    await inbox([locked])
+    expect(shownChoices(locked)).toEqual(['save_as_new_draft', 'discard'])
+    expect(card(locked)).toHaveTextContent('Belge sunucuda artık taslak değil')
+    expect(card(locked)).toHaveTextContent('Sipariş onaylandığı için değiştirilemez.')
   })
 
   it('save_as_new_draft resolves with the choice alone', async () => {
@@ -87,11 +92,51 @@ describe('conflict inbox from the contract fixtures', () => {
     expect(notify.success).toHaveBeenCalledWith('Mevcut kayıt kullanılıyor.')
   })
 
-  it('a deleted record shows no merge and no field choice', async () => {
-    const deleted = fixtureConflict('VERSION_CONFLICT')
-    await inbox([{ ...deleted, choices: [...deleted.choices, 'merge'] }])
+  it('a deleted record shows no field choice', async () => {
+    const deleted = { ...fixtureConflict('VERSION_CONFLICT'), local_op: 'delete', local_payload: {} }
+    await inbox([deleted])
     expect(shownChoices(deleted)).toEqual(['keep_mine', 'take_server'])
     expect(within(card(deleted)).queryByRole('radio')).toBeNull()
+  })
+})
+
+describe('a conflict the model refuses', () => {
+  it('is listed with an explanation and offers discard when the engine can do it', async () => {
+    const locked = fixtureConflict('DOCUMENT_LOCKED')
+    const odd = { ...locked, choices: ['keep_mine', ...locked.choices] }
+    const { bridge } = await inbox([odd], 'discard')
+    const shown = card(odd)
+    expect(within(shown).getByTestId('conflict-refused')).toHaveTextContent('Bu çakışma bu sürümde çözülemiyor')
+    expect(within(shown).getByTestId('conflict-refused')).toHaveTextContent('DOCUMENT_LOCKED: keep_mine')
+    expect(shownChoices(odd)).toEqual(['discard'])
+    await userEvent.click(within(shown).getByTestId('conflict-choice-discard'))
+    expect(decision(bridge)).toEqual([{ idempotency_key: odd.idempotency_key, choice: 'discard' }])
+  })
+
+  it('without a discard the engine takes, it only explains and offers a new sync', async () => {
+    const lost = updateConflict({ server_data: null, choices: ['keep_mine', 'take_server'] })
+    const { bridge } = await inbox([lost])
+    const shown = card(lost)
+    expect(within(shown).getByTestId('conflict-refused')).toHaveTextContent('server_data_missing')
+    expect(shown).toHaveTextContent('Yeniden eşitleyin')
+    expect(shownChoices(lost)).toEqual([])
+    await userEvent.click(within(shown).getByRole('button', { name: 'Yeniden eşitle' }))
+    expect(bridge.callsOf('sync_now')).toHaveLength(1)
+  })
+
+  it('a discard the server offers outside the code table is not shown', async () => {
+    const odd = updateConflict({ choices: ['keep_mine', 'discard'] })
+    await inbox([odd])
+    expect(shownChoices(odd)).toEqual([])
+    expect(card(odd)).toHaveTextContent('Yeniden eşitleyin')
+  })
+
+  it('an unknown code does not break the rest of the inbox', async () => {
+    const unknown = updateConflict({ idempotency_key: 'k-unknown', code: 'SOMETHING_NEW' })
+    const fine = updateConflict()
+    await inbox([unknown, fine])
+    expect(within(card(unknown)).getByTestId('conflict-refused')).toHaveTextContent('SOMETHING_NEW')
+    expect(shownChoices(fine)).toEqual(['keep_mine', 'take_server', 'merge'])
   })
 })
 
@@ -150,7 +195,7 @@ describe('version conflict of an update', () => {
     const { bridge, notify } = await inbox([conflict])
     bridge.handle({ conflicts_resolve: () => fail('INVALID_REQUEST') })
     await userEvent.click(within(card(conflict)).getByTestId('conflict-choice-keep_mine'))
-    expect(notify.error).toHaveBeenCalledWith('Çözülemedi: INVALID_REQUEST')
+    expect(notify.error).toHaveBeenCalledWith('Çözülemedi: Bu istek masaüstü uygulamasından gönderilemez.')
     expect(notify.success).not.toHaveBeenCalled()
   })
 })

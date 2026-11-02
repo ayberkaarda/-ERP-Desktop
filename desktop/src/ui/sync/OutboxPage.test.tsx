@@ -45,7 +45,6 @@ async function page(entries: OutboxEntryDto[] = ENTRIES) {
   const harness = await renderSync(<OutboxPage />, {
     bridge,
     path: '/sync/outbox',
-    text: { errors: { VALIDATION_ERROR: 'Gönderilen veri geçersiz' } },
   })
   if (entries.length > 0) await screen.findByTestId('outbox-table')
   else await screen.findByText('Bekleyen değişiklik yok.')
@@ -61,10 +60,10 @@ describe('outbox panel', () => {
     expect(within(row('k-flight')).getByText('Gönderiliyor')).toBeInTheDocument()
     expect(within(row('k-conflict')).getByText('Çakışma')).toBeInTheDocument()
     expect(within(row('k-rejected')).getByText('Reddedildi')).toBeInTheDocument()
-    expect(within(row('k-rejected')).getByText('Gönderilen veri geçersiz')).toBeInTheDocument()
+    expect(within(row('k-rejected')).getByText('Girilen bilgiler geçerli değil.')).toBeInTheDocument()
     expect(within(row('k-quarantined')).getByText('Karantinada')).toBeInTheDocument()
     expect(within(row('k-quarantined')).getByText('Eylem · count')).toBeInTheDocument()
-    expect(within(row('k-quarantined')).getByText('SYNC_DEPENDENCY_FAILED')).toBeInTheDocument()
+    expect(within(row('k-quarantined')).getByText('Bağlı olduğu önceki değişiklik gönderilemediği için bu değişiklik denenmedi.')).toBeInTheDocument()
   })
 
   it('says drafts get their number after the push', async () => {
@@ -118,7 +117,7 @@ describe('outbox panel', () => {
     const { bridge, notify } = await page()
     bridge.handle({ outbox_retry: () => fail('INVALID_REQUEST') })
     await userEvent.click(within(row('k-rejected')).getByRole('button', { name: 'Yeniden dene' }))
-    expect(notify.error).toHaveBeenCalledWith('İşlem yapılamadı: INVALID_REQUEST')
+    expect(notify.error).toHaveBeenCalledWith('İşlem yapılamadı: Bu istek masaüstü uygulamasından gönderilemez.')
     expect(notify.success).not.toHaveBeenCalled()
   })
 
@@ -142,6 +141,6 @@ describe('outbox panel', () => {
       },
     })
     await renderSync(<OutboxPage />, { bridge })
-    expect(await screen.findByRole('alert')).toHaveTextContent('Liste okunamadı: ENGINE_UNAVAILABLE')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Liste okunamadı: Eşitleme şu anda çalışmıyor.')
   })
 })

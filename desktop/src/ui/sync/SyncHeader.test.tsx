@@ -85,12 +85,10 @@ describe('sync status badge', () => {
   })
 
   it('tells the last error by its translated code, the realtime state, and syncs now', async () => {
-    const { bridge } = await header(status({ state: 'failed', error_code: 'NETWORK_ERROR' }), {
-      text: { errors: { NETWORK_ERROR: 'Sunucuya ulaşılamadı' } },
-    })
+    const { bridge } = await header(status({ state: 'failed', error_code: 'NETWORK_ERROR' }))
     await userEvent.click(screen.getByTestId('sync-status'))
     const details = await screen.findByTestId('sync-status-details')
-    expect(within(details).getByTestId('sync-last-error')).toHaveTextContent('Son hata: Sunucuya ulaşılamadı')
+    expect(within(details).getByTestId('sync-last-error')).toHaveTextContent('Son hata: Sunucuya ulaşılamıyor.')
     expect(details).toHaveTextContent('Canlı bağlantı açık')
     await userEvent.click(within(details).getByRole('button', { name: 'Şimdi eşitle' }))
     expect(bridge.callsOf('sync_now')).toHaveLength(1)
@@ -107,7 +105,7 @@ describe('sync status badge', () => {
     bridge.handle({ sync_now: () => fail('ENGINE_UNAVAILABLE') })
     await userEvent.click(screen.getByTestId('sync-status'))
     await userEvent.click(await screen.findByTestId('sync-now'))
-    expect(notify.error).toHaveBeenCalledWith('Eşitleme başlatılamadı: ENGINE_UNAVAILABLE')
+    expect(notify.error).toHaveBeenCalledWith('Eşitleme başlatılamadı: Eşitleme şu anda çalışmıyor.')
   })
 
   it('counts the Retry-After seconds down', async () => {
@@ -201,7 +199,23 @@ describe('resource changes', () => {
 })
 
 describe('offline refusal toast', () => {
-  it('a refused server-only action gets the translated reason', async () => {
+  it('a refused route gets the text of its online-only action', async () => {
+    const { client, notify } = await header(status())
+    const refused = new ApiError(503, 'OFFLINE_UNAVAILABLE', 'only online', {}, {
+      method: 'POST',
+      path: '/fiscal-years/0193b1e5-0c11-7a22-9b33-4c5d6e7f8a20/close',
+    })
+    await act(() =>
+      client
+        .getMutationCache()
+        .build(client, { mutationFn: () => Promise.reject(refused) })
+        .execute(undefined)
+        .catch(() => undefined),
+    )
+    expect(notify.warning).toHaveBeenCalledWith('Dönem ve mali yıl kapanışı çevrimiçi yapılır.')
+  })
+
+  it('a refusal without a route gets the general reason', async () => {
     const { client, notify } = await header(status())
     await act(() =>
       client

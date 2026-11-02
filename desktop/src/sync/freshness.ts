@@ -7,8 +7,8 @@ import type { OfflineMeta } from '../platform'
 /** The part of the platform's offline meta store the tracker reads. */
 export interface OfflineMetaSource {
   get(path: string): OfflineMeta | undefined
-  /** The listener gets the changed path (a change without one is skipped). */
-  subscribe(listener: (path?: string) => void): () => void
+  /** The listener gets the changed path. */
+  subscribe(listener: (path: string) => void): () => void
 }
 
 export interface Freshness {
@@ -66,7 +66,6 @@ export function createFreshnessTracker(source: OfflineMetaSource): FreshnessTrac
     },
     start: () =>
       source.subscribe((path) => {
-        if (typeof path !== 'string') return
         paths.add(path)
         changed()
       }),

@@ -17,19 +17,21 @@ describe('desktop text', () => {
     expect(text.td('sync.state.offline')).toBe('Çevrimdışı')
   })
 
-  it('a code with a translation reads it, one without falls back to the code', async () => {
-    const i18n = await instance()
-    i18n.addResourceBundle('tr', DESKTOP_NS, { errors: { NETWORK_ERROR: 'Sunucuya ulaşılamadı' } }, true, true)
-    const text = createDesktopText(i18n)
-    expect(text.error('NETWORK_ERROR')).toBe('Sunucuya ulaşılamadı')
+  it('a code with a text reads errors.<code>, one without falls back to the code', async () => {
+    const text = createDesktopText(await instance())
+    expect(text.error('NETWORK_ERROR')).toBe('Sunucuya ulaşılamıyor.')
     expect(text.error('SOMETHING_NEW')).toBe('SOMETHING_NEW')
   })
 
-  it('an online-only action reads its text, or the general one', async () => {
+  it('only codes of the error table are looked up', async () => {
     const i18n = await instance()
-    i18n.addResourceBundle('tr', DESKTOP_NS, { onlineOnly: { closePeriod: 'Dönem kapanışı çevrimiçi yapılır' } }, true, true)
-    const text = createDesktopText(i18n)
-    expect(text.onlineOnly('closePeriod')).toBe('Dönem kapanışı çevrimiçi yapılır')
-    expect(text.onlineOnly('finalizeSalesQuote')).toBe('Bu işlem yalnız çevrimiçiyken yapılabilir.')
+    i18n.addResourceBundle('tr', DESKTOP_NS, { errors: { NOT_A_CODE: 'bir metin' } }, true, true)
+    expect(createDesktopText(i18n).error('NOT_A_CODE')).toBe('NOT_A_CODE')
+  })
+
+  it('a manifest online-only action reads its text, any other name the general one', async () => {
+    const text = createDesktopText(await instance())
+    expect(text.onlineOnly('closePeriod')).toBe('Dönem ve mali yıl kapanışı çevrimiçi yapılır.')
+    expect(text.onlineOnly('notAnAction')).toBe('Bu işlem yalnız çevrimiçiyken yapılabilir.')
   })
 })

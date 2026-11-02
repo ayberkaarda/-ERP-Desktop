@@ -3,11 +3,10 @@ import { describe, expect, it } from 'vitest'
 import { createFreshnessTracker, type OfflineMetaSource } from './freshness'
 import type { OfflineMeta } from '../platform'
 
-// The P1 store notifies listeners without the path today; this source names it,
-// which the tracker needs (see the report: request to P1).
+// A source like the P1 store: listeners get the changed path.
 function source() {
   const entries = new Map<string, OfflineMeta>()
-  const listeners = new Set<(path?: string) => void>()
+  const listeners = new Set<(path: string) => void>()
   const value: OfflineMetaSource = {
     get: (path) => entries.get(path),
     subscribe: (listener) => {

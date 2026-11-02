@@ -117,11 +117,14 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
     })
   }
 
+  // A refused listen (no shell) leaves the store on its first reads.
+  const kept = (unlisten: Promise<Unlisten>): Promise<Unlisten> => unlisten.catch((): Unlisten => () => undefined)
+
   const start = () => {
     if (started) return
     started = true
     unlisteners.push(
-      listenEngine(listen, (event) => {
+      kept(listenEngine(listen, (event) => {
         if (event.type === 'status') {
           accept(event.profile_id, () => {
             version += 1
@@ -133,13 +136,13 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
             for (const listener of [...changeListeners]) listener(change)
           })
         }
-      }),
-      listenRealtime(listen, (event) => {
+      })),
+      kept(listenRealtime(listen, (event) => {
         if (event.type !== 'state') return
         accept(event.profile_id, () => {
           state.setState({ realtime: event.state })
         })
-      }),
+      })),
     )
     void checkProfile()
     void readStatus()

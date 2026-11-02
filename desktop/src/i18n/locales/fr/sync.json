@@ -98,7 +98,11 @@
       "take_server": "L'enregistrement du serveur a été repris.",
       "use_existing": "L'enregistrement existant est utilisé.",
       "discard": "La modification a été abandonnée."
-    }
+    },
+    "refused": "Ce conflit ne peut pas être résolu dans cette version ({{detail}}).",
+    "refusedDiscard": "Vous pouvez abandonner votre modification.",
+    "refusedHint": "Synchronisez à nouveau ; si cela persiste, mettez l’application à jour.",
+    "resync": "Synchroniser à nouveau"
   },
   "freshness": {
     "label": "Copie de cet appareil affichée.",

@@ -1,13 +1,7 @@
 // Sync state store, engine event binding, query invalidation and the
 // online-only hook. This file is the package's only public surface.
-export {
-  conflictChoices,
-  mergedPayload,
-  serverValue,
-  type ConflictChoice,
-  type FieldPick,
-} from './conflicts'
-export { platformSyncDeps, syncDepsOf, type SyncDeps } from './deps'
+export { mergedPayload, type FieldPick } from './conflicts'
+export { syncDepsOf, type SyncDeps } from './deps'
 export {
   createFreshnessTracker,
   type Freshness,
@@ -16,7 +10,13 @@ export {
 } from './freshness'
 export { invalidateChanged } from './invalidation'
 export { useOnlineOnlyState } from './onlineOnly'
-export { offlineRefusalOf, watchOfflineRefusals, type OfflineRefusal } from './refusals'
+export {
+  offlineRefusalOf,
+  refusalMessage,
+  watchOfflineRefusals,
+  type OfflineRefusal,
+  type OfflineRefusalEvent,
+} from './refusals'
 export {
   createSyncStore,
   syncStoreFor,

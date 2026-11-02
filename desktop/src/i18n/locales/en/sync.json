@@ -98,7 +98,11 @@
       "take_server": "The server record was taken.",
       "use_existing": "The existing record is used.",
       "discard": "The change was discarded."
-    }
+    },
+    "refused": "This conflict cannot be resolved in this version ({{detail}}).",
+    "refusedDiscard": "You can discard your change.",
+    "refusedHint": "Sync again; if it stays, update the app.",
+    "resync": "Sync again"
   },
   "freshness": {
     "label": "Showing the copy on this device.",

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { describe, expect, it } from 'vitest'
 
-import { addDesktopResources, DESKTOP_NS } from '../i18n'
+import { addDesktopResources } from '../i18n'
 import { useOnlineOnlyState } from './onlineOnly'
 import type { Connectivity } from '@/platform/types'
 
@@ -34,7 +34,6 @@ async function wrapper() {
   const i18n = i18next.createInstance()
   await i18n.init({ lng: 'tr', fallbackLng: 'tr', resources: {} })
   addDesktopResources(i18n)
-  i18n.addResourceBundle('tr', DESKTOP_NS, { onlineOnly: { closePeriod: 'Dönem kapanışı yalnız çevrimiçi' } }, true, true)
   return function Wrapper({ children }: { children: ReactNode }) {
     return <I18nextProvider i18n={i18n}>{children}</I18nextProvider>
   }
@@ -50,12 +49,12 @@ describe('useDesktopOnlineOnly', () => {
   it('is disabled offline with the action text as reason', async () => {
     const net = connectivity(false)
     const { result } = renderHook(() => useOnlineOnlyState(net.value, 'closePeriod'), { wrapper: await wrapper() })
-    expect(result.current).toEqual({ disabled: true, reason: 'Dönem kapanışı yalnız çevrimiçi' })
+    expect(result.current).toEqual({ disabled: true, reason: 'Dönem ve mali yıl kapanışı çevrimiçi yapılır.' })
   })
 
   it('an action without its own text gets the general reason', async () => {
     const net = connectivity(false)
-    const { result } = renderHook(() => useOnlineOnlyState(net.value, 'liveReports'), { wrapper: await wrapper() })
+    const { result } = renderHook(() => useOnlineOnlyState(net.value, 'notAnAction'), { wrapper: await wrapper() })
     expect(result.current).toEqual({ disabled: true, reason: 'Bu işlem yalnız çevrimiçiyken yapılabilir.' })
   })
 

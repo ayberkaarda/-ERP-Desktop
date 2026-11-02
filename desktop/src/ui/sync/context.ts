@@ -1,9 +1,11 @@
-// Where the sync screens get their platform pieces: a provider (tests, or a
-// future composition root) or else the running platform, loaded on first use.
+// Where the sync screens get their platform pieces: a provider (tests) or the
+// running platform. The deps of the running platform are built once, so the
+// objects screens subscribe to keep their identity across renders.
 
-import { createContext, createElement, useContext, useSyncExternalStore, type ReactNode } from 'react'
+import { createContext, createElement, useContext, type ReactNode } from 'react'
 
-import { platformSyncDeps, type SyncDeps } from '../../sync'
+import { syncDepsOf, type SyncDeps } from '../../sync'
+import { platform } from '@/platform'
 
 const SyncDepsContext = createContext<SyncDeps | null>(null)
 
@@ -11,15 +13,13 @@ export function SyncDepsProvider({ deps, children }: { deps: SyncDeps; children:
   return createElement(SyncDepsContext.Provider, { value: deps }, children)
 }
 
-const noSubscription = () => () => undefined
-const nothing = () => null
+let running: SyncDeps | null = null
 
-/** `null` until the platform is known. */
-export function useSyncDeps(): SyncDeps | null {
-  const provided = useContext(SyncDepsContext)
-  const loaded = useSyncExternalStore(
-    provided ? noSubscription : platformSyncDeps.subscribe,
-    provided ? nothing : platformSyncDeps.get,
-  )
-  return provided ?? loaded
+function runningDeps(): SyncDeps {
+  running ??= syncDepsOf(platform)
+  return running
+}
+
+export function useSyncDeps(): SyncDeps {
+  return useContext(SyncDepsContext) ?? runningDeps()
 }

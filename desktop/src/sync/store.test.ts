@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { StatusDto } from '../bridge/generated/StatusDto'
 import { createFakeBridge, deferred, fail, flush } from '../test/fakeBridge'
@@ -154,6 +154,24 @@ describe('sync store', () => {
     bridge.handle({ sync_status: () => status({ pending: 1 }) })
     await store.refreshStatus()
     expect(store.getState().status?.pending).toBe(1)
+  })
+
+  it('a refused listen does not escape as an unhandled rejection', async () => {
+    const refused = createFakeBridge({ commands: { realtime_status: () => ({ profile_id: P1, state: 'idle' }), sync_status: () => status() } })
+    const listen = () => Promise.reject(new Error('no shell'))
+    const lonely = createSyncStore({ invoke: refused.invoke, listen }, { now: () => 1 })
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      lonely.start()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(lonely.getState().status?.state).toBe('idle')
+      lonely.dispose()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
   })
 
   it('stops listening when disposed', async () => {

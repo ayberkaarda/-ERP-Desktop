@@ -39,7 +39,7 @@ export function fakeConnectivity(online = true) {
 
 export function fakeOfflineMeta() {
   const entries = new Map<string, OfflineMeta>()
-  const listeners = new Set<(path?: string) => void>()
+  const listeners = new Set<(path: string) => void>()
   const value: OfflineMetaSource = {
     get: (path) => entries.get(path),
     subscribe: (listener) => {

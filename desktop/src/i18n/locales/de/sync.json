@@ -98,7 +98,11 @@
       "take_server": "Der Serverdatensatz wurde übernommen.",
       "use_existing": "Der vorhandene Datensatz wird verwendet.",
       "discard": "Die Änderung wurde verworfen."
-    }
+    },
+    "refused": "Dieser Konflikt kann in dieser Version nicht gelöst werden ({{detail}}).",
+    "refusedDiscard": "Sie können Ihre Änderung verwerfen.",
+    "refusedHint": "Erneut synchronisieren; bleibt es so, die App aktualisieren.",
+    "resync": "Erneut synchronisieren"
   },
   "freshness": {
     "label": "Die Kopie auf diesem Gerät wird angezeigt.",

@@ -1,32 +1,8 @@
-// Conflict Inbox model: which choices a record may show and the merged payload.
-// Choices come only from the record's own `choices` (what the server offered),
-// narrowed by the protocol's resolution table, so a choice the server or the
-// protocol does not allow is never shown (docs/SYNC-PROTOCOL.md, conflicts).
+// Merge payload of the Conflict Inbox. Which choices a record shows comes from
+// the wire package's `conflictModel` (protocol table, server choices, merge
+// only for an update).
 
 import type { ConflictDto } from '../bridge/generated/ConflictDto'
-
-export type ConflictChoice =
-  | 'keep_mine'
-  | 'take_server'
-  | 'merge'
-  | 'save_as_new_draft'
-  | 'discard'
-  | 'use_existing'
-
-/** Protocol resolution table, in display order. */
-const ALLOWED: Readonly<Record<string, readonly ConflictChoice[]>> = {
-  VERSION_CONFLICT: ['keep_mine', 'take_server', 'merge'],
-  DOCUMENT_LOCKED: ['save_as_new_draft', 'discard'],
-  DUPLICATE_RECORD: ['use_existing', 'keep_mine', 'discard'],
-}
-
-export function conflictChoices(conflict: ConflictDto): ConflictChoice[] {
-  const offered = new Set(conflict.choices)
-  return (ALLOWED[conflict.code] ?? []).filter(
-    // A merge rewrites an update's fields; a delete or an action has none.
-    (choice) => offered.has(choice) && (choice !== 'merge' || conflict.local_op === 'update'),
-  )
-}
 
 export type FieldPick = 'mine' | 'server'
 
@@ -47,10 +23,4 @@ export function mergedPayload(
     merged[field] = value
   }
   return merged
-}
-
-/** The server row's value of `field`, `undefined` when the row is missing. */
-export function serverValue(conflict: ConflictDto, field: string): unknown {
-  const row = conflict.server_data
-  return typeof row === 'object' && row !== null ? (row as Record<string, unknown>)[field] : undefined
 }

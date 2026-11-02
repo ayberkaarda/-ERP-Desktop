@@ -98,7 +98,11 @@
       "take_server": "Sunucudaki kayıt alındı.",
       "use_existing": "Mevcut kayıt kullanılıyor.",
       "discard": "Değişiklikten vazgeçildi."
-    }
+    },
+    "refused": "Bu çakışma bu sürümde çözülemiyor ({{detail}}).",
+    "refusedDiscard": "Değişikliğinizden vazgeçebilirsiniz.",
+    "refusedHint": "Yeniden eşitleyin; sorun sürerse uygulamayı güncelleyin.",
+    "resync": "Yeniden eşitle"
   },
   "freshness": {
     "label": "Bu cihazdaki kopya gösteriliyor.",

@@ -58,6 +58,6 @@ describe('sync extension part', () => {
     act(() => {
       net.set(false)
     })
-    expect(screen.getByRole('status')).toHaveTextContent('off: Bu işlem yalnız çevrimiçiyken yapılabilir.')
+    expect(screen.getByRole('status')).toHaveTextContent('off: Dönem ve mali yıl kapanışı çevrimiçi yapılır.')
   })
 })

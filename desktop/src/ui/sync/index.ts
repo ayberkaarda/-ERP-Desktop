@@ -19,7 +19,7 @@ export { SyncHeader } from './SyncHeader'
 
 /** Online-only answer of the running platform (available until it is known). */
 export function useDesktopOnlineOnly(action: string) {
-  return useOnlineOnlyState(useSyncDeps()?.connectivity ?? null, action)
+  return useOnlineOnlyState(useSyncDeps().connectivity, action)
 }
 
 /** What the sync package adds to the web app (see app/extensions.tsx). */

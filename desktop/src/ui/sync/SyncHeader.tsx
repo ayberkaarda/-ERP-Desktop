@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router'
 import {
   createDesktopText,
   invalidateChanged,
+  refusalMessage,
   syncStoreFor,
   useDesktopText,
   watchOfflineRefusals,
@@ -185,7 +186,7 @@ function RefusalToasts({ notify }: { notify: Notify }) {
   useEffect(
     () =>
       watchOfflineRefusals(client, (refusal) => {
-        notify.warning(createDesktopText(i18n).td(`sync.refusal.${refusal}`))
+        notify.warning(refusalMessage(createDesktopText(i18n), refusal))
       }),
     [client, i18n, notify],
   )
@@ -194,7 +195,6 @@ function RefusalToasts({ notify }: { notify: Notify }) {
 
 export function SyncHeader() {
   const deps = useSyncDeps()
-  if (!deps) return null
   return (
     <>
       {deps.bridge ? <SyncBadges bridge={deps.bridge} notify={deps.notify} /> : null}

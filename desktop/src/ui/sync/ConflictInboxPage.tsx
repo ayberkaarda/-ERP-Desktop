@@ -1,8 +1,9 @@
-// /sync/conflicts: offline drafts the server did not take. Each record shows
-// only the choices its own `choices` list offers (narrowed by the protocol
-// table): a version conflict compares the conflicting fields and can merge
-// them field by field, a locked document can become a new draft, a duplicate
-// can be linked to an existing record.
+// /sync/conflicts: offline drafts the server did not take. The wire choice
+// model (`conflictModel`) decides what a record shows: a version conflict
+// compares the conflicting fields and can merge them field by field, a locked
+// document can become a new draft, a duplicate can be linked to an existing
+// record. A record the model refuses is listed with the reason, and offers a
+// discard when the engine takes one, else a new sync.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
@@ -12,17 +13,15 @@ import type { ConflictResolveDto } from '../../bridge/generated/ConflictResolveD
 import type { ResolutionDto } from '../../bridge/generated/ResolutionDto'
 import { call, toCommandError } from '../../bridge/invoke'
 import {
-  conflictChoices,
   invalidateChanged,
   mergedPayload,
-  serverValue,
   syncStoreFor,
   useDesktopText,
-  type ConflictChoice,
   type FieldPick,
   type SyncBridge,
   type SyncStore,
 } from '../../sync'
+import { conflictModel, RESOLUTION_TABLE, type ConflictChoice, type ConflictModel } from '../../wire'
 import { useSyncDeps } from './context'
 import { CONFLICTS_KEY, OUTBOX_KEY } from './paths'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -79,18 +78,21 @@ function useResolver(bridge: SyncBridge, store: SyncStore, notify: Notify): Reso
 
 function FieldCompare({
   conflict,
+  fields,
+  server,
   picks,
   onPick,
   canMerge,
 }: {
   conflict: ConflictDto
+  fields: readonly string[]
+  server: Record<string, unknown>
   picks: Record<string, FieldPick>
   onPick: (field: string, pick: FieldPick) => void
   canMerge: boolean
 }) {
   const text = useDesktopText()
-  if (conflict.server_data === null) return <p>{text.td('sync.conflict.deletedOnServer')}</p>
-  if (conflict.conflicting_fields.length === 0) return <p>{text.td('sync.conflict.noFields')}</p>
+  if (fields.length === 0) return <p>{text.td('sync.conflict.noFields')}</p>
   return (
     <table className="w-full text-sm" data-testid="conflict-fields">
       <thead className="text-left text-muted-foreground">
@@ -102,11 +104,11 @@ function FieldCompare({
         </tr>
       </thead>
       <tbody>
-        {conflict.conflicting_fields.map((field) => (
+        {fields.map((field) => (
           <tr key={field} data-testid={`conflict-field-${field}`}>
             <td className="font-mono text-xs">{field}</td>
             <td>{show(conflict.local_payload[field])}</td>
-            <td>{show(serverValue(conflict, field))}</td>
+            <td>{show(server[field])}</td>
             {canMerge ? (
               <td className="space-x-2 whitespace-nowrap">
                 {(['mine', 'server'] as const).map((pick) => (
@@ -144,21 +146,68 @@ function CandidateName({ http, resource, id }: { http: HttpClient; resource: str
   return <span>{typeof name === 'string' ? name : id}</span>
 }
 
-function ConflictCard({
+function CardHeader({ conflict }: { conflict: ConflictDto }) {
+  const text = useDesktopText()
+  const locale = useIntlLocale()
+  return (
+    <header className="space-y-0.5">
+      <h2 className="font-medium">{text.td('sync.conflict.record', { resource: conflict.resource, id: conflict.id })}</h2>
+      <p className="text-sm">
+        {isOneOf(CODES, conflict.code) ? text.td(`sync.conflict.code.${conflict.code}`) : conflict.code}
+      </p>
+      {conflict.message ? <p className="text-sm text-muted-foreground">{conflict.message}</p> : null}
+      <p className="text-xs text-muted-foreground">
+        {text.td('sync.conflict.detectedAt', { time: formatDateTime(conflict.detected_at, locale) })}
+      </p>
+    </header>
+  )
+}
+
+function ChoiceButtons({
+  choices,
+  disabled,
+  onChoose,
+}: {
+  choices: readonly ConflictChoice[]
+  disabled: (choice: ConflictChoice) => boolean
+  onChoose: (choice: ConflictChoice) => void
+}) {
+  const text = useDesktopText()
+  return (
+    <div className="flex flex-wrap gap-2">
+      {choices.map((choice) => (
+        <Button
+          key={choice}
+          size="sm"
+          variant={choice === 'discard' ? 'ghost' : 'secondary'}
+          data-testid={`conflict-choice-${choice}`}
+          disabled={disabled(choice)}
+          onClick={() => {
+            onChoose(choice)
+          }}
+        >
+          {text.td(`sync.conflict.choice.${choice}`)}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+function ModelBody({
   conflict,
+  model,
   resolver,
   http,
 }: {
   conflict: ConflictDto
+  model: ConflictModel
   resolver: Resolver
   http: HttpClient
 }) {
   const text = useDesktopText()
-  const locale = useIntlLocale()
-  const choices = conflictChoices(conflict)
-  const canMerge = choices.includes('merge')
+  const canMerge = model.choices.includes('merge')
   const [picks, setPicks] = useState<Record<string, FieldPick>>({})
-  const candidates = conflict.candidates ?? []
+  const candidates = model.code === 'DUPLICATE_RECORD' ? model.candidates : []
   const [candidate, setCandidate] = useState<string | undefined>(candidates[0])
   const [busy, setBusy] = useState(false)
   const merged = mergedPayload(conflict, picks)
@@ -174,31 +223,13 @@ function ConflictCard({
     }
   }
 
-  const disabled = (choice: ConflictChoice) =>
-    busy ||
-    (choice === 'merge' && Object.keys(merged).length === 0) ||
-    (choice === 'use_existing' && candidate === undefined)
-
   return (
-    <article
-      className="space-y-3 rounded-md border border-border p-4"
-      data-testid={`conflict-${conflict.idempotency_key}`}
-      aria-label={text.td('sync.conflict.record', { resource: conflict.resource, id: conflict.id })}
-    >
-      <header className="space-y-0.5">
-        <h2 className="font-medium">{text.td('sync.conflict.record', { resource: conflict.resource, id: conflict.id })}</h2>
-        <p className="text-sm">
-          {isOneOf(CODES, conflict.code) ? text.td(`sync.conflict.code.${conflict.code}`) : conflict.code}
-        </p>
-        {conflict.message ? <p className="text-sm text-muted-foreground">{conflict.message}</p> : null}
-        <p className="text-xs text-muted-foreground">
-          {text.td('sync.conflict.detectedAt', { time: formatDateTime(conflict.detected_at, locale) })}
-        </p>
-      </header>
-
-      {conflict.code === 'VERSION_CONFLICT' ? (
+    <>
+      {model.code === 'VERSION_CONFLICT' ? (
         <FieldCompare
           conflict={conflict}
+          fields={model.fields}
+          server={model.server}
           picks={picks}
           canMerge={canMerge}
           onPick={(field, pick) => {
@@ -210,7 +241,7 @@ function ConflictCard({
         <p className="text-sm text-muted-foreground">{text.td('sync.conflict.mergeEmpty')}</p>
       ) : null}
 
-      {choices.includes('use_existing') && candidates.length > 0 ? (
+      {model.choices.includes('use_existing') ? (
         <fieldset className="space-y-1" data-testid="conflict-candidates">
           <legend className="text-sm font-medium">{text.td('sync.conflict.candidates')}</legend>
           {candidates.map((id) => (
@@ -230,20 +261,99 @@ function ConflictCard({
         </fieldset>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
-        {choices.map((choice) => (
-          <Button
-            key={choice}
-            size="sm"
-            variant={choice === 'discard' ? 'ghost' : 'secondary'}
-            data-testid={`conflict-choice-${choice}`}
-            disabled={disabled(choice)}
-            onClick={() => void decide(choice)}
-          >
-            {text.td(`sync.conflict.choice.${choice}`)}
-          </Button>
-        ))}
-      </div>
+      <ChoiceButtons
+        choices={model.choices}
+        disabled={(choice) =>
+          busy ||
+          (choice === 'merge' && Object.keys(merged).length === 0) ||
+          (choice === 'use_existing' && candidate === undefined)
+        }
+        onChoose={(choice) => void decide(choice)}
+      />
+    </>
+  )
+}
+
+// The engine resolves a discard only when the record offers it and the code's
+// table has it (keystone-sync `decide`).
+function engineDiscards(conflict: ConflictDto): boolean {
+  if (!conflict.choices.includes('discard')) return false
+  const table: Readonly<Record<string, readonly string[]>> = RESOLUTION_TABLE
+  return Object.hasOwn(table, conflict.code) && (table[conflict.code] ?? []).includes('discard')
+}
+
+// A record the choice model refuses (server and client disagree on the
+// protocol, or the server row is missing): explained, never hidden.
+function RefusedBody({
+  conflict,
+  detail,
+  resolver,
+  onResync,
+}: {
+  conflict: ConflictDto
+  detail: string
+  resolver: Resolver
+  onResync: () => void
+}) {
+  const text = useDesktopText()
+  const [busy, setBusy] = useState(false)
+  const discard = engineDiscards(conflict)
+  return (
+    <>
+      <p role="note" data-testid="conflict-refused" className="text-sm">
+        {text.td('sync.conflict.refused', { detail })}{' '}
+        {discard ? text.td('sync.conflict.refusedDiscard') : text.td('sync.conflict.refusedHint')}
+      </p>
+      {discard ? (
+        <ChoiceButtons
+          choices={['discard']}
+          disabled={() => busy}
+          onChoose={(choice) => {
+            setBusy(true)
+            void resolver.resolve(conflict, { choice }).finally(() => {
+              setBusy(false)
+            })
+          }}
+        />
+      ) : (
+        <Button size="sm" variant="secondary" onClick={onResync}>
+          {text.td('sync.conflict.resync')}
+        </Button>
+      )}
+    </>
+  )
+}
+
+function ConflictCard({
+  conflict,
+  resolver,
+  http,
+  onResync,
+}: {
+  conflict: ConflictDto
+  resolver: Resolver
+  http: HttpClient
+  onResync: () => void
+}) {
+  const text = useDesktopText()
+  const result = conflictModel(conflict)
+  return (
+    <article
+      className="space-y-3 rounded-md border border-border p-4"
+      data-testid={`conflict-${conflict.idempotency_key}`}
+      aria-label={text.td('sync.conflict.record', { resource: conflict.resource, id: conflict.id })}
+    >
+      <CardHeader conflict={conflict} />
+      {result.ok ? (
+        <ModelBody conflict={conflict} model={result.model} resolver={resolver} http={http} />
+      ) : (
+        <RefusedBody
+          conflict={conflict}
+          detail={`${result.reason}: ${result.detail}`}
+          resolver={resolver}
+          onResync={onResync}
+        />
+      )}
     </article>
   )
 }
@@ -267,6 +377,12 @@ function Inbox({ bridge, http, notify }: { bridge: SyncBridge; http: HttpClient;
     [store, client],
   )
 
+  const resync = () => {
+    store.syncNow().catch((reason: unknown) => {
+      notify.error(text.td('sync.badge.syncNowFailed', { error: text.error(toCommandError(reason).code) }))
+    })
+  }
+
   if (list.isError) {
     return <p role="alert">{text.td('sync.conflict.loadFailed', { error: text.error(toCommandError(list.error).code) })}</p>
   }
@@ -275,7 +391,13 @@ function Inbox({ bridge, http, notify }: { bridge: SyncBridge; http: HttpClient;
   return (
     <div className="space-y-4">
       {list.data.map((conflict) => (
-        <ConflictCard key={conflict.idempotency_key} conflict={conflict} resolver={resolver} http={http} />
+        <ConflictCard
+          key={conflict.idempotency_key}
+          conflict={conflict}
+          resolver={resolver}
+          http={http}
+          onResync={resync}
+        />
       ))}
     </div>
   )
@@ -287,7 +409,7 @@ export function ConflictInboxPage() {
   return (
     <div className="space-y-4 p-6" data-testid="sync-conflicts-page">
       <PageHeader title={text.td('sync.conflict.title')} description={text.td('sync.conflict.description')} />
-      {deps?.bridge ? <Inbox bridge={deps.bridge} http={deps.http} notify={deps.notify} /> : null}
+      {deps.bridge ? <Inbox bridge={deps.bridge} http={deps.http} notify={deps.notify} /> : null}
     </div>
   )
 }

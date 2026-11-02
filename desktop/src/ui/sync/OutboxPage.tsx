@@ -145,7 +145,7 @@ export function OutboxPage() {
     <div className="space-y-4 p-6" data-testid="sync-outbox-page">
       <PageHeader title={text.td('sync.outbox.title')} description={text.td('sync.outbox.description')} />
       <p className="text-sm text-muted-foreground">{text.td('sync.outbox.numberNote')}</p>
-      {deps?.bridge ? <Outbox bridge={deps.bridge} notify={deps.notify} /> : null}
+      {deps.bridge ? <Outbox bridge={deps.bridge} notify={deps.notify} /> : null}
     </div>
   )
 }
