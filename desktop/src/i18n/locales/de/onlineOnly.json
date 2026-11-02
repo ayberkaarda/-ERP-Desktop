@@ -1,1 +1,21 @@
-{}
+{
+  "finalizeSalesQuote": "Angebote senden, annehmen, ablehnen, stornieren, überarbeiten und umwandeln geht nur online.",
+  "confirmSalesOrder": "Auftragsbestätigung und Folgeschritte gehen nur online.",
+  "postSalesDelivery": "Lieferungen buchen Bestand und gehen daher nur online.",
+  "issueSalesInvoice": "Rechnungsnummern vergibt der Server; Rechnungen gehen nur online.",
+  "processSalesReturn": "Verkaufsretouren buchen Bestand und Salden und gehen nur online.",
+  "submitPurchaseRequest": "Bestellanforderungen einreichen geht nur online.",
+  "processPurchaseRfq": "Angebotsanfragen gehen nur online.",
+  "approvePurchaseOrder": "Bestellaktionen gehen nur online.",
+  "postPurchaseReceipt": "Wareneingänge buchen Bestand und gehen nur online.",
+  "bookPurchaseInvoice": "Eingangsrechnungen werden gebucht und gehen nur online.",
+  "processPurchaseReturn": "Einkaufsretouren buchen Bestand und Salden und gehen nur online.",
+  "postStockDocument": "Lagerbelege buchen und Reservierungen gehen nur online.",
+  "decideApproval": "Genehmigungsentscheidungen gehen nur online.",
+  "treasuryPayment": "Zahlungen, Zahlungseingänge und Umbuchungen gehen nur online.",
+  "sendEDocument": "E-Beleg-Aktionen gehen nur online.",
+  "postJournalEntry": "Journalbuchungen gehen nur online.",
+  "closePeriod": "Perioden- und Jahresabschluss gehen nur online.",
+  "serverCalculation": "Summen, Preise und Risiko berechnet der Server; gehen Sie online.",
+  "liveReports": "Live-Berichte gibt es nur online."
+}
