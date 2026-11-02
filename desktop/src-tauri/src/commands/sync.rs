@@ -1,8 +1,10 @@
 //! `sync_*`, `outbox_*` and `conflicts_*` commands over the active
 //! profile's engine. Engine store work runs on a blocking thread.
 
+use std::time::Duration;
+
 use keystone_sync::conflicts::ResolutionAction;
-use keystone_sync::engine::Trigger;
+use keystone_sync::engine::{SyncState, Trigger};
 use keystone_sync::wire::ConflictChoice;
 use tauri::State;
 use uuid::Uuid;
@@ -12,11 +14,100 @@ use crate::commands::{CommandError, CommandResult};
 use crate::dto::status::{
     ConflictDto, ConflictResolveDto, OutboxEntryDto, ResolutionDto, StatusDto,
 };
+use crate::router::{Connectivity, PROBE_WAIT};
 use crate::state::{AppState, Engine};
 
+/// Asks for a run now and waits up to [`PROBE_WAIT`] for its verdict, so
+/// that "sync now" after the server came back finds it in this call. A run
+/// that takes longer goes on in the background.
 #[tauri::command]
-pub fn sync_now(state: State<'_, AppState>) -> CommandResult<()> {
-    now(&state)
+pub async fn sync_now<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: State<'_, AppState>,
+) -> CommandResult<()> {
+    use tauri::Manager;
+    match app.try_state::<Connectivity>() {
+        Some(connectivity) => now_and_wait(&state, &connectivity, PROBE_WAIT).await,
+        None => now(&state),
+    }
+}
+
+/// [`now`], then waits up to `wait` for the verdict ([`probe`]).
+pub async fn now_and_wait(
+    state: &AppState,
+    connectivity: &Connectivity,
+    wait: Duration,
+) -> CommandResult<()> {
+    let id = state.active_profile_id().ok_or_else(|| {
+        CommandError::new(
+            crate::commands::codes::NO_ACTIVE_PROFILE,
+            "no server profile is selected",
+        )
+    })?;
+    match probe(state, connectivity, &id, Trigger::Manual, wait).await? {
+        Some(_) => Ok(()),
+        None => Err(no_loop()),
+    }
+}
+
+/// Sends `trigger` to the loop of `profile` and waits up to `wait` for the
+/// verdict of the run: `Some(true)` when the server answered, `Some(false)`
+/// when it did not or no verdict came in time (a slow run, a run that was
+/// cut short; it goes on). `None`: the profile has no running loop. A
+/// verdict is recorded in `connectivity` at once, so the next request is
+/// routed by it.
+///
+/// The verdict: from `Offline`, the first sign that the server answered
+/// (the engine leaves `Offline` only then), else the state the run ended in.
+pub async fn probe(
+    state: &AppState,
+    connectivity: &Connectivity,
+    profile: &str,
+    trigger: Trigger,
+    wait: Duration,
+) -> CommandResult<Option<bool>> {
+    let Ok(engine) = state.engine() else {
+        return Ok(None);
+    };
+    let mut status = engine.subscribe();
+    let mut passes = engine.subscribe_passes();
+    let was_offline = status.borrow_and_update().state == SyncState::Offline;
+    passes.borrow_and_update();
+    if !state.trigger(profile, trigger)? {
+        return Ok(None);
+    }
+    let verdict = tokio::time::timeout(wait, async {
+        loop {
+            tokio::select! {
+                changed = status.changed() => {
+                    changed.ok()?;
+                    let state = status.borrow_and_update().state.clone();
+                    if was_offline && state != SyncState::Offline {
+                        return Some(true);
+                    }
+                }
+                changed = passes.changed() => {
+                    changed.ok()?;
+                    passes.borrow_and_update();
+                    return Some(engine.status().state != SyncState::Offline);
+                }
+            }
+        }
+    })
+    .await
+    .ok()
+    .flatten();
+    if let Some(reached) = verdict {
+        connectivity.observe(profile, reached, tokio::time::Instant::now().into_std());
+    }
+    Ok(Some(verdict == Some(true)))
+}
+
+fn no_loop() -> CommandError {
+    CommandError::new(
+        crate::commands::codes::ENGINE_UNAVAILABLE,
+        "the active profile does not sync (no company chosen or no local store)",
+    )
 }
 
 #[tauri::command]
@@ -74,10 +165,7 @@ pub fn now(state: &AppState) -> CommandResult<()> {
     if crate::bootstrap::trigger(state, Trigger::Manual)? {
         Ok(())
     } else {
-        Err(CommandError::new(
-            crate::commands::codes::ENGINE_UNAVAILABLE,
-            "the active profile does not sync (no company chosen or no local store)",
-        ))
+        Err(no_loop())
     }
 }
 

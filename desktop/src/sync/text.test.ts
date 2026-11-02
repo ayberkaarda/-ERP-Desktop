@@ -20,6 +20,8 @@ describe('desktop text', () => {
   it('a code with a text reads errors.<code>, one without falls back to the code', async () => {
     const text = createDesktopText(await instance())
     expect(text.error('NETWORK_ERROR')).toBe('Sunucuya ulaşılamıyor.')
+    // A refused certificate says why, not just that the server is away.
+    expect(text.error('TLS_CERTIFICATE_INVALID')).toBe('Sunucunun sertifikasına güvenilmiyor; bağlantı kurulmadı.')
     expect(text.error('SOMETHING_NEW')).toBe('SOMETHING_NEW')
   })
 

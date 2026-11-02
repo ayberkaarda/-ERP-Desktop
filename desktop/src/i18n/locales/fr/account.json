@@ -135,6 +135,7 @@
     "DESKTOP_UPDATE_REQUIRED": "Ce serveur exige une version plus récente de l'application.",
     "SYNC_SCHEMA_MISMATCH": "Le schéma de synchronisation du serveur ne correspond pas à cette application.",
     "NETWORK_ERROR": "Le serveur est injoignable.",
+    "TLS_CERTIFICATE_INVALID": "Le certificat du serveur n'est pas reconnu comme fiable, aucune connexion n'a donc été établie. Vérifiez l'adresse ou demandez à votre administrateur d'installer le certificat sur cet ordinateur.",
     "PROFILES_FILE_INVALID": "Le fichier des profils n'a pas pu être lu ou écrit ; il n'a pas été modifié.",
     "PROFILE_BUSY": "Une requête du profil est encore en cours. Réessayez dans un instant.",
     "PROFILE_NOT_FOUND": "Profil introuvable.",

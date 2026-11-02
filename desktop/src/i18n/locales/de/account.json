@@ -135,6 +135,7 @@
     "DESKTOP_UPDATE_REQUIRED": "Dieser Server benötigt eine neuere Version der App.",
     "SYNC_SCHEMA_MISMATCH": "Das Sync-Schema des Servers passt nicht zu dieser App.",
     "NETWORK_ERROR": "Der Server ist nicht erreichbar.",
+    "TLS_CERTIFICATE_INVALID": "Dem Zertifikat des Servers wird nicht vertraut, daher wurde keine Verbindung hergestellt. Prüfen Sie die Adresse oder bitten Sie Ihre Administration, das Zertifikat auf diesem Computer zu installieren.",
     "PROFILES_FILE_INVALID": "Die Profildatei konnte nicht gelesen oder geschrieben werden; sie blieb unverändert.",
     "PROFILE_BUSY": "Eine Anfrage des Profils läuft noch. Bitte gleich erneut versuchen.",
     "PROFILE_NOT_FOUND": "Profil nicht gefunden.",

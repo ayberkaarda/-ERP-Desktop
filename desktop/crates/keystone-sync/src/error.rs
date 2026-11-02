@@ -37,6 +37,9 @@ pub enum LocalCode {
     InvalidRequest,
     /// A request or response body exceeds the client's size limit.
     PayloadTooLarge,
+    /// The TLS handshake failed because the server's certificate is not
+    /// trusted (unknown issuer, expired, wrong name): nothing was sent.
+    TlsCertificateInvalid,
 }
 
 impl LocalCode {
@@ -53,6 +56,7 @@ impl LocalCode {
             Self::NotImplemented => "NOT_IMPLEMENTED",
             Self::InvalidRequest => "INVALID_REQUEST",
             Self::PayloadTooLarge => "PAYLOAD_TOO_LARGE",
+            Self::TlsCertificateInvalid => "TLS_CERTIFICATE_INVALID",
         }
     }
 }
@@ -91,6 +95,11 @@ pub enum SyncError {
     /// request was certainly not sent. Same `NETWORK_ERROR` code.
     #[error("network (not sent): {0}")]
     NotSent(String),
+    /// The TLS handshake refused the server's certificate. Like `NotSent`
+    /// the request was certainly not sent, but something answered on the
+    /// network: the server is not trusted rather than away.
+    #[error("certificate (not sent): {0}")]
+    CertificateInvalid(String),
     #[error("database key rejected")]
     StoreKeyInvalid,
     #[error("store: {0}")]
@@ -168,6 +177,7 @@ impl SyncError {
             Self::Api { code, .. } => return Code::Server(code.clone()),
             Self::OfflineUnavailable(_) => LocalCode::OfflineUnavailable,
             Self::Network(_) | Self::NotSent(_) => LocalCode::NetworkError,
+            Self::CertificateInvalid(_) => LocalCode::TlsCertificateInvalid,
             Self::StoreKeyInvalid => LocalCode::StoreKeyInvalid,
             Self::Store(_) => LocalCode::StoreError,
             Self::Migration(_) => LocalCode::StoreMigrationInvalid,
@@ -188,6 +198,13 @@ impl SyncError {
             Code::Server(code) => code.ui_code(),
             Code::Local(code) => code.as_str(),
         }
+    }
+
+    /// The request certainly did not reach the server: no connection was
+    /// made (`NotSent`) or the certificate was refused (`CertificateInvalid`).
+    /// A lost answer (`Network`) is not: the request may have been applied.
+    pub fn not_sent(&self) -> bool {
+        matches!(self, Self::NotSent(_) | Self::CertificateInvalid(_))
     }
 
     pub fn retry_after(&self) -> Option<Duration> {
@@ -243,6 +260,7 @@ mod tests {
             LocalCode::NotImplemented,
             LocalCode::InvalidRequest,
             LocalCode::PayloadTooLarge,
+            LocalCode::TlsCertificateInvalid,
         ];
         for local in locals {
             assert!(

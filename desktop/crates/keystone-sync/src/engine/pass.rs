@@ -48,6 +48,7 @@ impl<A: SyncApi> SyncEngine<A> {
             self.finish_sign_out(pending, false)?;
         }
         let manifest = self.api.manifest_in(generation).await?.data;
+        self.reached();
         self.apply_session(&manifest, generation, report)?;
         // A push answer with invalid rows stops pushing for this run but
         // not the pull; the run still reports it.

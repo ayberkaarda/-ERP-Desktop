@@ -16,7 +16,7 @@ mod query_map;
 #[cfg(test)]
 mod session_tests;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -161,6 +161,14 @@ pub fn local_resolver() -> Arc<dyn LocalResolver> {
 /// status takes over again.
 pub const OBSERVATION_TTL: Duration = Duration::from_secs(30);
 
+/// At most one probe per profile in this time is asked for by requests
+/// answered offline ([`Connectivity::probe_due`]).
+pub const PROBE_INTERVAL: Duration = Duration::from_secs(2);
+
+/// How long a request that would be refused offline, and `sync_now`, wait
+/// for the verdict of the probe they asked for.
+pub const PROBE_WAIT: Duration = Duration::from_secs(3);
+
 /// Online or offline, per profile: the last proxy result while it is
 /// fresh (an answer: online; a connection that could not be made: offline;
 /// a slow or cut-off answer is not recorded) ([`OBSERVATION_TTL`]), else the engine (`SyncState::Offline`),
@@ -187,6 +195,8 @@ struct Seen {
     /// Profiles last announced unreachable. Any other profile was last
     /// announced reachable, or never, and counts as reachable.
     told_offline: HashSet<String>,
+    /// When a probe was last granted, per profile.
+    probed: HashMap<String, Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -252,7 +262,24 @@ impl Connectivity {
 
     /// Drops what was announced for `profile` (removed or signed out).
     pub fn forget(&self, profile: &str) {
-        self.seen().told_offline.remove(profile);
+        let mut seen = self.seen();
+        seen.told_offline.remove(profile);
+        seen.probed.remove(profile);
+    }
+
+    /// Whether a request answered offline for `profile` may ask the engine
+    /// for a probe now: at most once per [`PROBE_INTERVAL`]. A grant counts
+    /// from `now`.
+    pub fn probe_due(&self, profile: &str, now: Instant) -> bool {
+        let mut seen = self.seen();
+        let due = seen
+            .probed
+            .get(profile)
+            .is_none_or(|at| now.saturating_duration_since(*at) >= PROBE_INTERVAL);
+        if due {
+            seen.probed.insert(profile.to_owned(), now);
+        }
+        due
     }
 
     /// Changes from now on.
@@ -436,6 +463,24 @@ mod tests {
         c.forget("p1");
         c.forget("never-seen");
         assert!(c.seen().told_offline.is_empty());
+    }
+
+    #[test]
+    fn probes_are_granted_at_most_once_per_interval_and_profile() {
+        let c = Connectivity::default();
+        let now = Instant::now();
+        assert!(c.probe_due("p1", now));
+        assert!(!c.probe_due("p1", now));
+        assert!(!c.probe_due("p1", now + PROBE_INTERVAL - Duration::from_millis(1)));
+        // Another profile has its own interval.
+        assert!(c.probe_due("p2", now));
+        assert!(c.probe_due("p1", now + PROBE_INTERVAL));
+        // A refused ask does not move the interval.
+        assert!(!c.probe_due("p1", now + PROBE_INTERVAL + Duration::from_secs(1)));
+        assert!(c.probe_due("p1", now + PROBE_INTERVAL * 2));
+        // A forgotten profile starts again.
+        c.forget("p2");
+        assert!(c.probe_due("p2", now));
     }
 
     #[test]

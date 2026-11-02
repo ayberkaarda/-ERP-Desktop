@@ -135,6 +135,7 @@
     "DESKTOP_UPDATE_REQUIRED": "Bu sunucu uygulamanın daha yeni bir sürümünü istiyor.",
     "SYNC_SCHEMA_MISMATCH": "Sunucunun eşitleme şeması bu uygulamayla uyumlu değil.",
     "NETWORK_ERROR": "Sunucuya ulaşılamadı.",
+    "TLS_CERTIFICATE_INVALID": "Sunucunun sertifikasına güvenilmiyor; bağlantı kurulmadı. Adresi denetleyin ya da sistem yöneticinizden sertifikayı bu bilgisayara yüklemesini isteyin.",
     "PROFILES_FILE_INVALID": "Profil dosyası okunamadı ya da yazılamadı; dosyaya dokunulmadı.",
     "PROFILE_BUSY": "Profilin bir isteği sürüyor. Biraz sonra tekrar deneyin.",
     "PROFILE_NOT_FOUND": "Profil bulunamadı.",

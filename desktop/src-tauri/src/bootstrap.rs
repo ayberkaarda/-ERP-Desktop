@@ -47,7 +47,7 @@ use crate::commands::{CommandError, CommandResult};
 use crate::dto::auth::{AuthStateDto, CompanyDto, LoginDto, SignOutDto, UserDto};
 use crate::dto::profile::{ProfileDto, ProfilePhase, ProfileStateDto, ProfilesDto};
 use crate::dto::realtime::{RealtimeStateDto, RealtimeStatusDto};
-use crate::events::{EventSink, bridge, connectivity_bridge};
+use crate::events::{EngineView, EventSink, bridge, connectivity_bridge};
 use crate::profiles::{MetaSnapshot, Profile, ProfileRegistry, compare_versions};
 use crate::realtime::{Bridge, Link, RealtimeSink, TauriRealtimeSink, reverb_params};
 use crate::router::Connectivity;
@@ -787,6 +787,10 @@ impl Desktop {
         let connectivity = self.runtime.spawn(connectivity_bridge(
             profile.id.clone(),
             self.connectivity.subscribe(),
+            Some(EngineView {
+                status: opened.engine.subscribe(),
+                connectivity: self.connectivity.clone(),
+            }),
             sync.clone(),
             self.sink.clone(),
         ));
@@ -874,6 +878,7 @@ impl Desktop {
             engine: engine.clone(),
             connectivity: self.connectivity.clone(),
             resources: self.snapshot_resources.clone(),
+            refused: std::sync::Mutex::default(),
         };
         let task = self.runtime.spawn(snapshots::refresh_loop(
             live,
@@ -1297,8 +1302,8 @@ pub fn setup<R: tauri::Runtime>(app: &mut tauri::App<R>) -> Result<(), Box<dyn s
 /// Sends `trigger` to the active profile's sync loop; `Ok(false)` when it
 /// has none. The door for other parts of the shell. The realtime bridge
 /// and the connectivity bridge (`Trigger::NetworkChanged` when a proxy
-/// call finds the server again) hold the handle of their own profile's
-/// loop instead.
+/// call finds the server again, or gone while the engine still thinks it
+/// is there) hold the handle of their own profile's loop instead.
 pub fn trigger(state: &AppState, trigger: Trigger) -> CommandResult<bool> {
     let id = state.active_profile_id().ok_or_else(no_profile)?;
     state.trigger(&id, trigger)

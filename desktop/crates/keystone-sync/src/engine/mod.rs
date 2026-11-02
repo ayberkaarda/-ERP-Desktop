@@ -405,6 +405,8 @@ pub struct SyncEngine<A> {
     /// Wakes a run waiting on `retry_not_before` to re-evaluate it.
     retry_changed: tokio::sync::Notify,
     status: watch::Sender<SyncStatus>,
+    /// Passes finished so far; bumped after a pass published its outcome.
+    passes: watch::Sender<u64>,
     changes: broadcast::Sender<ResourcesChanged>,
     /// Signalled when a cancelled run leaves a promised follow-up behind.
     follow_up: tokio::sync::Notify,
@@ -449,6 +451,7 @@ impl<A: SyncApi> SyncEngine<A> {
             retry_not_before: Mutex::default(),
             retry_changed: tokio::sync::Notify::new(),
             status: watch::Sender::new(SyncStatus::default()),
+            passes: watch::Sender::new(0),
             changes: broadcast::channel(64).0,
             follow_up: tokio::sync::Notify::new(),
             session,
@@ -586,6 +589,13 @@ impl<A: SyncApi> SyncEngine<A> {
 
     pub fn subscribe_changes(&self) -> broadcast::Receiver<ResourcesChanged> {
         self.changes.subscribe()
+    }
+
+    /// The number of passes finished so far. It moves after a pass has
+    /// published its outcome in [`Self::status`], so a caller that asked for
+    /// a run can wait for its verdict; a pass cut short does not count.
+    pub fn subscribe_passes(&self) -> watch::Receiver<u64> {
+        self.passes.subscribe()
     }
 
     /// Recounts outbox and conflicts into the published status.
@@ -1064,13 +1074,35 @@ impl<A: SyncApi> SyncEngine<A> {
         f()
     }
 
+    /// One pass ([`Self::published_pass`]), counted once its outcome is out.
+    async fn pass(&self, trigger: Trigger) -> Result<SyncReport> {
+        let result = self.published_pass(trigger).await;
+        self.passes.send_modify(|n| *n = n.wrapping_add(1));
+        result
+    }
+
+    /// From `Offline`, the server answered: the pass shows as syncing now.
+    fn reached(&self) {
+        self.status.send_if_modified(|status| {
+            let offline = status.state == SyncState::Offline;
+            if offline {
+                status.state = SyncState::Syncing;
+            }
+            offline
+        });
+    }
+
     /// One pass under the work lock, with state publication and the
     /// identity-loss rules applied to its error.
-    async fn pass(&self, trigger: Trigger) -> Result<SyncReport> {
+    async fn published_pass(&self, trigger: Trigger) -> Result<SyncReport> {
         let _work = self.work.lock().await;
         let before = self.status.borrow().state.clone();
-        self.status
-            .send_modify(|status| status.state = SyncState::Syncing);
+        // Offline stays offline until the server answers ([`Self::reached`]):
+        // a probe that fails never shows as syncing.
+        if before != SyncState::Offline {
+            self.status
+                .send_modify(|status| status.state = SyncState::Syncing);
+        }
         let mut guard = PassGuard {
             engine: self,
             before,
