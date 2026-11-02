@@ -31,11 +31,11 @@ function currentDeviceLogin(string $name, string $fingerprint, string $email = '
 }
 
 /**
- * @return array<string, bool> device name => current
+ * @return array<string, bool> device name => is_current
  */
 function currentFlags(TestResponse $response): array
 {
-    return collect($response->assertOk()->json('data'))->mapWithKeys(fn (array $d): array => [$d['name'] => $d['current']])->sortKeys()->all();
+    return collect($response->assertOk()->json('data'))->mapWithKeys(fn (array $d): array => [$d['name'] => $d['is_current']])->sortKeys()->all();
 }
 
 function devicesWithToken(string $token): TestResponse
@@ -54,14 +54,14 @@ it('marks only the device whose access token made the request', function (): voi
         ->and(currentFlags(devicesWithToken($laptop)))->toBe(['Laptop' => true, 'Office PC' => false]);
 });
 
-it('returns current as a boolean and leaks no token data', function (): void {
+it('returns is_current as a boolean and leaks no token data', function (): void {
     $login = currentDeviceLogin('Office PC', 'fp-office-000000000');
     $token = (string) $login->json('data.token');
     $device = UserDevice::query()->sole();
 
     $response = devicesWithToken($token)
-        ->assertExactJsonStructure(['data' => [['id', 'name', 'ip_address', 'user_agent', 'last_used_at', 'expires_at', 'created_at', 'current']]])
-        ->assertJsonPath('data.0.current', true);
+        ->assertExactJsonStructure(['data' => [['id', 'name', 'ip_address', 'user_agent', 'last_used_at', 'expires_at', 'created_at', 'is_current']]])
+        ->assertJsonPath('data.0.is_current', true);
 
     $body = (string) $response->getContent();
     expect($body)->not->toContain((string) $device->token_id)
