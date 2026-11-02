@@ -5,8 +5,8 @@
 //! `tauri.conf.json` carries the locked Content-Security-Policy. A release
 //! build stops when the effective policy is not locked: no policy, the
 //! deny-all placeholder, a `connect-src` that reaches anything but the IPC,
-//! a remote source in any other directive, an unsafe script source or a
-//! report endpoint. The webview talks to the outside world through commands
+//! a remote source in any other directive, an unsafe script or style source
+//! or a report endpoint. The webview talks to the outside world through commands
 //! only. A release build with the development HTTP switch set stops as well.
 //!
 //! The effective configuration is what `tauri-build` compiles in:
@@ -227,13 +227,17 @@ fn window_problem(config: &Value) -> Option<String> {
 }
 
 /// Directives scripts can come from: no inline, eval, `data:` or `blob:`
-/// there. `default-src` is the fallback of the others.
-const SCRIPT_DIRECTIVES: [&str; 5] = [
+/// there. `default-src` is the fallback of the others. Style elements and
+/// sheets are held to the same rule; `style-src-attr` (inline style
+/// attributes) is the one style directive left open to keywords.
+const STRICT_DIRECTIVES: [&str; 7] = [
     "default-src",
     "script-src",
     "script-src-elem",
     "script-src-attr",
     "worker-src",
+    "style-src",
+    "style-src-elem",
 ];
 
 /// Directives whose values are tokens, not sources.
@@ -256,24 +260,24 @@ fn source_problem(csp: &str) -> Option<String> {
         if name == "report-uri" || name == "report-to" {
             return Some(format!("{name} sends violation reports off the device"));
         }
-        let script = SCRIPT_DIRECTIVES.contains(&name.as_str());
+        let strict = STRICT_DIRECTIVES.contains(&name.as_str());
         for source in words.map(str::to_ascii_lowercase) {
             let local = match source.as_str() {
                 "'self'" | "'none'" => true,
-                "data:" | "blob:" => !script,
+                "data:" | "blob:" => !strict,
                 hash if ["'sha256-", "'sha384-", "'sha512-", "'nonce-"]
                     .iter()
                     .any(|prefix| hash.starts_with(prefix)) =>
                 {
                     true
                 }
-                keyword if keyword.starts_with('\'') => !script,
+                keyword if keyword.starts_with('\'') => !strict,
                 _ => false,
             };
             if !local {
                 return Some(format!(
                     "{name} allows {source}; the webview loads nothing from the network and \
-                     runs no inline or generated script"
+                     runs no inline or generated script or style sheet"
                 ));
             }
         }
@@ -459,6 +463,23 @@ mod tests {
             ("script-src-attr 'unsafe-inline'", "'unsafe-inline'"),
             ("worker-src blob:", "blob:"),
             ("default-src 'unsafe-eval'", "'unsafe-eval'"),
+        ] {
+            let error = release_with(directive).expect_err(directive);
+            assert!(error.contains(source), "{directive}: {error}");
+        }
+    }
+
+    /// Style elements and sheets stay as strict as scripts: the bundle ships
+    /// its CSS as files (measured in D4: the web app needs no inline style
+    /// element or attribute). Only `style-src-attr` may ever open up.
+    #[test]
+    fn release_with_unsafe_style_sources_is_refused() {
+        for (directive, source) in [
+            ("style-src 'self' 'unsafe-inline'", "'unsafe-inline'"),
+            ("style-src 'self' 'unsafe-hashes'", "'unsafe-hashes'"),
+            ("style-src 'self' data:", "data:"),
+            ("style-src-elem 'unsafe-inline'", "'unsafe-inline'"),
+            ("Style-Src-Elem 'self' blob:", "blob:"),
         ] {
             let error = release_with(directive).expect_err(directive);
             assert!(error.contains(source), "{directive}: {error}");

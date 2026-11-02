@@ -6,7 +6,7 @@ Bu not D3 sonundaki Tauri kabuğunu anlatır: webview'ın ne yapabildiği, istek
 
 | Katman | Yer | Görev |
 |---|---|---|
-| Webview | `desktop/src` | Arayüz. D3'te yalnız smoke sayfası; React uygulaması D4'te gelir. Veriyi komutlarla alır: istekler CSP ile, gezinme ve yeni pencere navigasyon kilidiyle kapalı; tek istisna `shell:allow-open` (bkz. [Capability](#capability)). |
+| Webview | `desktop/src` | Arayüz: web uygulaması (`frontend/src`) masaüstü Vite yapılandırmasıyla paketlenir, iki modül değiştirilir (bkz. [Webview paketi](#webview-paketi)). Veriyi komutlarla alır: istekler CSP ile, gezinme ve yeni pencere navigasyon kilidiyle kapalı; webview'ın URL açma izni yoktur (bkz. [Capability](#capability)). |
 | Köprü | `desktop/src/bridge` | Tipli `invoke`/`listen` sarmalayıcıları. `generated/` Rust DTO'larından üretilir. |
 | Kabuk | `desktop/src-tauri` | Komutlar, yönlendirme, profiller, realtime köprüsü, loglama. |
 | `keystone-sync` | `desktop/crates/keystone-sync` | HTTP istemcisi, SQLCipher yerel kopya, outbox, conflict, sync döngüsü. |
@@ -94,6 +94,22 @@ Servis adı `com.keystone.desktop`. Sırlar yalnız OS keychain'inde durur.
 - `DbKey` bellekte `Zeroizing` ile taşınır. Keychain kaybında veri otomatik silinmez: `STORE_KEY_INVALID` döner, kullanıcı onayıyla profil verisi silinip yeniden indirilir.
 - `profiles.json` (app data) sunucu adresi, `meta` anlık görüntüsü ve seçili şirketi tutar; sır içermez.
 
+## Webview paketi
+
+`desktop/vite.desktop.config.ts` web uygulamasını (`frontend/src`, `@` takma adı) `desktop/` kökünden paketler; `frontend/` dosyası değişmez (drift guard). `tooling/moduleSwap.ts` eklentisi iki modülü mutlak dosya yoluna göre masaüstü karşılığıyla değiştirir (`tooling/swaps.ts`):
+
+| Web modülü | Masaüstü karşılığı | Ne verir |
+|---|---|---|
+| `frontend/src/platform/runtime.ts` | `desktop/src/platform/runtime.ts` | `createPlatform(deps)`: Tauri komut ve olaylarıyla platform; axios, Echo, pusher pakete girmez |
+| `frontend/src/app/extensions.tsx` | `desktop/src/app/extensions.tsx` | `appExtensions`: masaüstü sayfaları ve yuvaları |
+
+- Eşleşme belirteçle değil çözülmüş dosya yoluyla yapılır (`./runtime`, `@/app/extensions` ve göreli yolların hepsi). Değiştirilen ya da yerine konan dosya yoksa, ya da derlemede hiçbir modül değiştirilen dosyayı içe aktarmıyorsa (web içe aktarma grafiği değişti) derleme durur.
+- `tooling/bundle.test.ts` paketi bellekte derler: modül listesinde `axios`, `pusher-js`, `laravel-echo`, `frontend/src/platform/web/**` ve iki web modülü, kodda `/sanctum/csrf-cookie`, `X-XSRF-TOKEN`, `broadcasting/auth` olmamalı. CI ayrıca kurulan `dist`'te aynı metinleri arar.
+- `desktop/src/main.tsx` web `main.tsx`'in eşdeğeridir: `desktop` i18n paketi, `registerFeatureCommands`, `createRouter`, sonra `app/root.tsx` ağacı: `StrictMode > ErrorBoundary > Providers > AppGate > RouterProvider`. `AppGate` web'de yuva değildir; bugün içeriği olduğu gibi geçirir, P3 `ui/account` kapısını buraya takar.
+- `appExtensions` paket parçalarından `composeExtensions` ile kurulur: rota listeleri sırayla eklenir, tek yuvayı (`LoginPage`, `HeaderExtras` …) iki paket doldurursa açılışta hata. P2 (`ui/sync`) ve P3 (`ui/account`) `index.ts`'lerinden bir `ExtensionPart` verir, `PARTS` listesine eklenir.
+- Stiller: `desktop/src/styles.css` web `styles/index.css`'i içe aktarır, Tailwind'e `frontend/src` ve `desktop/src`'yi taratır. sonner CSS'i statik içe aktarılır (sonner aynı CSS'i çalışma anında `<style>` ile de ekler, o ekleme CSP ile engellenir).
+- `src/boundary.test.ts`: masaüstü kaynakları `@/platform/web`/`@/platform/runtime` içe aktarmaz, `@tauri-apps/api` yalnız `platform/runtime.ts`'te, web `@/app/extensions` yalnız tip olarak.
+
 ## Güvenlik sınırı: CSP ve izinler
 
 ### CSP
@@ -107,7 +123,7 @@ frame-ancestors 'none'; form-action 'none'; base-uri 'self'
 ```
 
 - `connect-src` yalnız IPC'dir: `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource` ve `sendBeacon` dış adrese, hatta uygulamanın kendi kökenine çıkamaz. İki adres de gerekir, çünkü IPC Windows'ta `http://ipc.localhost`, diğer sistemlerde `ipc:` üzerinden gider. Biri eksik olursa IPC kırılmaz ama sessizce yavaş `postMessage` yoluna düşer.
-- Tauri paketli varlıklardaki `script-src` ve `style-src` yönergelerine hash ve nonce ekler (`dangerousDisableAssetCspModification` kapalı kalır). Bu nedenle webview'ın gördüğü başlık yapılandırma metniyle aynı değildir. Windows'ta `tauri build --debug` ikilisinde ölçülen başlık (`http://tauri.localhost/`):
+- Tauri paketli varlıklardaki `script-src` ve `style-src` yönergelerine hash ve nonce ekler (`dangerousDisableAssetCspModification` kapalı kalır). Bu nedenle webview'ın gördüğü başlık yapılandırma metniyle aynı değildir. D4'te web uygulamasıyla Tauri `script-src`'a paketteki her betik için bir hash ekliyor (ölçüldü: yüzlerce hash, tema betiği dahil). D3'te `tauri build --debug` ikilisinde ölçülen başlık (`http://tauri.localhost/`):
 
   ```
   base-uri 'self'; script-src 'self' 'sha256-…'; img-src 'self' data: blob:; form-action 'none';
@@ -117,9 +133,9 @@ frame-ancestors 'none'; form-action 'none'; base-uri 'self'
 
   Aynı pencerede dış `fetch`/XHR/WebSocket/EventSource/beacon `connect-src`, dış görsel `img-src`, satır içi betik ve `eval` `script-src`, satır içi stil özniteliği `style-src-attr`, enjekte edilen `<base href="https://…">` `base-uri` ihlaliyle engellendi; `app_info` ve olay dinleme çalıştı.
 - `base-uri 'self'`: `default-src` bu yönergeyi kapsamaz; olmadan enjekte edilmiş bir `<base>` göreli adresleri başka köke saptırırdı.
-- `style-src-attr 'unsafe-inline'` yoktur: bugünkü sayfada satır içi stil ölçülmedi. Radix ve sonner gelince D4 ölçerek ekler; `style-src 'unsafe-inline'` olarak genişletilmez.
+- `style-src-attr 'unsafe-inline'` yoktur ve **gerekmez (D4'te ölçüldü)**: web uygulaması giriş sonrası (panel ve recharts grafikleri, üç Radix menüsü, komut paleti diyaloğu, tooltip, cari tablosu) `tauri build --debug` ve `tauri dev` pencerelerinde `style-src-attr` ihlali üretmedi. React, Radix ve recharts satır içi stili `element.style` (CSSOM) ile yazar, CSP bunu kapsamaz. Ölçülen ihlaller yalnız şunlar: sonner'ın çalışma anı `<style>`'ı (`style-src-elem`; CSS statik paketlendiği için görünüm etkilenmez), Radix'in kaydırma kilidi `<style>`'ı (`react-remove-scroll`, `style-src-elem`; modal açıkken gövde kaydırma çubuğu gizlenmez) ve zod'un `new Function` yoklaması (`script-src` eval; zod yakalar, yorumlayıcıya düşer). `style-src` ve `style-src-elem` genişletilmez; derleme kapısı bu iki yönergede de anahtar sözcük, `data:` ve `blob:` reddeder.
 - `keystone-asset:` D5'te eklenir.
-- `devCsp` yapılandırmada Vite'ın `ws://localhost:1420` soketi dışında aynıdır, ama **`tauri dev` penceresinde uygulanmıyor** (ölçüldü): sayfa Vite'tan (`http://localhost:1420`) gelir, Tauri CSP'yi yalnız kendi protokol yanıtına ekler. Dev penceresinde CSP başlığı yoktu, enjekte `<base>` ve dış istekte ihlal raporlanmadı. CSP ihlalleri bugün yalnız `tauri build --debug` ikilisinde görülür. Düzeltme `vite.desktop.config.ts` içinde `server.headers['Content-Security-Policy']` (P0 dosyası, D4).
+- `devCsp`: `tauri dev` sayfayı Vite'tan (`http://localhost:1420`) yükler ve Tauri CSP'yi yalnız kendi protokol yanıtına ekler; bu yüzden `vite.desktop.config.ts` `devCsp`'yi `server.headers['Content-Security-Policy']` olarak kendisi gönderir (D4; dev penceresinde başlık ölçüldü). `devCsp` gönderilen politikadan iki farkla ayrılır: Vite soketi `ws://localhost:1420` ve `script-src`/`style-src`'ta `'nonce-keystone-dev'`. Vite kendi satır içi etiketlerini (React yenileme önsözü, dev'de enjekte edilen stiller, tema betiği) `html.cspNonce` ile bu nonce'la işaretler; nonce olmadan dev penceresi boş kalıyordu (ölçüldü: önsöz ve stiller engellendi). Sabit nonce yalnız dev sunucusundadır; paket çıktısında nonce yoktur, derleme kapısı yalnız `csp`'yi denetler.
 
 ### Gezinme ve yeni pencere
 
@@ -156,18 +172,13 @@ Debug derlemesi aynı sorunlarda yalnız uyarır; `tauri build --debug` çıktı
 
 | İzin | Neden |
 |---|---|
-| `core:event:allow-listen`, `allow-unlisten` | `engine-event`, `realtime-event` dinleme |
-| `core:event:allow-emit` | Plan D4 için ayırdı; bugün kullanılmıyor |
-| `core:window:allow-show`, `allow-hide`, `allow-set-focus`, `allow-minimize`, `allow-close` | Pencere yönetimi; plan D4 için ayırdı, bugün kullanılmıyor |
-| `os:allow-platform` | Etkisiz: tauri-plugin-os 2'de `platform` komut değildir, değer başlangıç betiğiyle gelir (pencerede `Command platform not found`) |
-| `process:allow-restart` | Yeniden başlatma; plan D5 için ayırdı, bugün kullanılmıyor |
-| `shell:allow-open` | Dış `https` bağlantısını varsayılan tarayıcıda açma; bugün TS tarafında kullanılmıyor. Ağ etkili tek izin, bkz. aşağıdaki not |
+| `core:event:allow-listen`, `allow-unlisten` | `engine-event`, `realtime-event` dinleme (`@tauri-apps/api` `listen`; webview yalnız `invoke` ve `listen` kullanır) |
+
+D4'te kullanılmayan izinler çıkarıldı: `core:event:allow-emit`, `core:window:*`, `os:allow-platform` (zaten etkisizdi), `process:allow-restart`, `shell:allow-open`. `tauri-plugin-os` ve `tauri-plugin-process` Rust tarafında kayıtlı kalır; webview'a komutları açık değildir.
 
 `fs`, `http`, `dialog`, `core:path`, `core:app`, `core:webview` izinleri yoktur; pencerede bu komutlar `not allowed` ile reddedildi. Uygulama komutları capability ile kapılı değildir; kendi doğrulamalarını yapar.
 
-`shell:allow-open` için URL sınırı capability'de değil, `plugins.shell.open` deseninde durur: plugin `open` komutunda yalnız bu deseni uygular, capability kapsamına URL yazmak etkisizdir. Plugin deseni `^{desen}$` olarak derler; desen `https://\S+` olduğundan boşluk ya da satır sonu içermeyen `https://` adresleri kabul edilir, `http`, `file`, `mailto`, `tel` ve yol reddedilir. D3 öncesindeki `^https://` deseni `^^https://$` olarak derlendiği için hiçbir gerçek adresi kabul etmiyordu. Desen kaldırılırsa plugin varsayılanı `http`, `mailto`, `tel` açar; `shell_open_is_limited_by_the_config_pattern` testi deseni plugin gibi derleyip sabitler.
-
-**Bilinen sınır:** `shell:allow-open` webview'a ağa etkili tek kapıyı bırakır. Sayfada betik çalıştırabilen bir saldırgan (XSS, ele geçirilmiş bağımlılık) `https://saldirgan/?d=<veri>` adresini kullanıcının tarayıcısında açarak veri sızdırabilir. İzin plan gereği şimdilik duruyor (şef kararı). D4'te webview'dan açılacak bağlantıları doğrulayan bir Rust komutuyla değiştirilir ve izin kaldırılır.
+Webview hiçbir adresi kendisi açamaz: `tauri-plugin-shell`, `plugins.shell` yapılandırması ve `shell:allow-open` D4'te kaldırıldı (D3'te XSS sonrası sızıntı kanalıydı). Web sayfaları `open_external(target)` komutuyla açılır: hedef serbest URL değil sabit liste (`password_change`, `security`, `home`), adres Rust'ta aktif profilin kökünden kurulur ve `tauri-plugin-opener` Rust API'siyle açılır (JS izni yok). `no_plugin_opens_urls_for_the_webview` testi yapılandırmayı ve bağımlılığı sabitler.
 
 ### Tek örnek
 
@@ -209,10 +220,8 @@ Log formatı `src-tauri/src/logging.rs` içinde maskelenir: token, parola, kanal
 | Realtime test boşlukları | Soket sırası durum sırasından, log tavanı kaynak metninden sınanıyor | Mock uygulamalı test |
 | `mask` kaçışlı JSON ve `Value` Debug biçimlerini yakalamaz | Bugün bu biçimde log yazan kod yok | `SECRET_FIELD` genişletilir |
 | `a_sign_in_during_the_call_sends_it_once_more` | 150 ms bekleme nedeniyle yük altında kırılgan | Sabit bekleme yerine olay |
-| `allow-emit`, `core:window:*`, `os:allow-platform`, `process:allow-restart` | Bugünkü sayfa kullanmıyor, plan D4/D5 için ayırdı | D4 sonunda kullanılmayan çıkarılır |
-| `shell:allow-open` XSS sonrası sızıntı kanalı | Saldırgan `https://` adres açabilir | D4: doğrulayan Rust komutu, izin kaldırılır |
-| `tauri dev`'de CSP uygulanmıyor | Geliştirici ihlalleri yalnız debug ikilisinde görür | `vite.desktop.config.ts` `server.headers` |
-| `shell` plugin'inin `open` komutu kullanımdan kalkıyor | Davranış bugün doğru | `tauri-plugin-opener` (`opener:allow-open-url` URL kapsamını uygular) |
+| Radix kaydırma kilidi `<style>`'ı CSP ile engelleniyor | Modal/menü açıkken gövde kaydırma çubuğu gizlenmez, sayfa arkada kayabilir | Kapanış elle turunda görsel değerlendirme; gerekirse `react-style-singleton` nonce'u ya da yerel stil |
+| sonner ve zod CSP ihlal kaydı üretir | Konsolda her açılışta iki ihlal; davranış etkilenmez | Bilinen gürültü |
 | Webview'da token yokluğu yalnız giriş öncesi ölçüldü | Giriş sonrası depolama ve bellek araması elle yapılacak | Kapanış turu |
 
 ## Doğrulama

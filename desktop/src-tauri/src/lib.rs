@@ -149,7 +149,6 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_shell::init())
         .manage(state::AppState::default())
         // `router::Connectivity` is managed in `bootstrap::setup` (shared
         // with the profile tasks).
@@ -446,6 +445,45 @@ mod config_tests {
         assert!(job.contains("run: sh scripts/check-ts-types.sh"), "{job}");
     }
 
+    /// The webview half of the job: the web API types the bundled web app
+    /// needs (generated from the backend, gitignored), the TS gates, the
+    /// bundle build and its trace check on the built `dist`.
+    #[test]
+    fn ci_checks_the_webview_bundle() {
+        let job = shell_job();
+        for step in [
+            "run: npm run gen:api --workspace frontend",
+            "\n      - run: npm run lint\n",
+            "\n      - run: npm run typecheck\n",
+            "\n      - run: npm run test\n",
+            "\n      - run: npm run i18n:check\n",
+            "\n      - run: npm run build\n",
+        ] {
+            assert!(
+                job.contains(step),
+                "missing `{step}` in desktop-shell:\n{job}"
+            );
+        }
+        let trace = job
+            .split("\n      - ")
+            .find(|step| step.contains("grep -rlE"))
+            .expect("bundle trace step");
+        for needle in [
+            "sanctum/csrf-cookie",
+            "X-XSRF-TOKEN",
+            "broadcasting/auth",
+            " dist",
+        ] {
+            assert!(trace.contains(needle), "{needle}: {trace}");
+        }
+        assert!(trace.contains("exit 1"), "{trace}");
+        let build = job.find("\n      - run: npm run build\n").unwrap();
+        assert!(
+            job.find("grep -rlE").unwrap() > build,
+            "trace check before build"
+        );
+    }
+
     /// The negative step wants the build script's panic (cargo exit 101)
     /// and the guard's own message, not just any failure.
     #[test]
@@ -496,24 +534,15 @@ mod config_tests {
         );
     }
 
+    /// The webview calls the app's own commands and listens to its events
+    /// (`@tauri-apps/api` `invoke` and `listen`, whose unlisten function
+    /// calls `unlisten`); nothing else.
     #[test]
     fn capability_grants_only_the_listed_permissions() {
         let granted = capability()["permissions"].as_array().unwrap().clone();
         assert_eq!(
             granted,
-            [
-                "core:event:allow-listen",
-                "core:event:allow-unlisten",
-                "core:event:allow-emit",
-                "core:window:allow-show",
-                "core:window:allow-hide",
-                "core:window:allow-set-focus",
-                "core:window:allow-minimize",
-                "core:window:allow-close",
-                "os:allow-platform",
-                "process:allow-restart",
-                "shell:allow-open",
-            ]
+            ["core:event:allow-listen", "core:event:allow-unlisten"]
         );
     }
 
@@ -527,37 +556,29 @@ mod config_tests {
         assert_eq!(names, ["default.json"]);
     }
 
-    /// The plugin takes the URLs `open` accepts from `plugins.shell.open`
-    /// alone: its capability scope has no URL entry, so one here would only
-    /// look like a limit. It compiles the pattern as `^{pattern}$`.
+    /// The webview opens no URL itself: the shell plugin, its config and its
+    /// dependency are gone. Web pages open through `open_external(target)`,
+    /// which builds the URL in Rust from the active profile.
     #[test]
-    fn shell_open_is_limited_by_the_config_pattern() {
+    fn no_plugin_opens_urls_for_the_webview() {
         let conf = tauri_conf();
-        let pattern = conf["plugins"]["shell"]["open"].as_str().unwrap();
-        let open = regex::Regex::new(&format!("^{pattern}$")).unwrap();
-        assert!(open.is_match("https://example.com/report?id=1"));
-        for refused in [
-            "https://",
-            "https://example.com/a b",
-            "https://example.com\ncalc.exe",
-            "http://example.com",
-            "HTTP://example.com",
-            "file:///C:/Windows/System32/calc.exe",
-            "mailto:someone@example.com",
-            "tel:+905550000000",
-            "javascript:alert(1)",
-            "C:\\Windows\\System32\\calc.exe",
-            " https://example.com",
-            "keystone://open",
-        ] {
-            assert!(!open.is_match(refused), "{refused}");
-        }
+        assert_eq!(conf.get("plugins"), None, "{conf}");
+        let manifest = include_str!("../Cargo.toml");
+        assert!(
+            !manifest.contains("tauri-plugin-shell"),
+            "tauri-plugin-shell is still a dependency"
+        );
+        let description = capability()["description"].as_str().unwrap().to_owned();
+        assert!(!description.contains("shell"), "{description}");
     }
 
-    /// Everything but `connect-src` matches the shipped policy; what `tauri
-    /// dev` adds is the Vite hot-reload socket.
+    /// `tauri dev` loads the page from Vite, which sends devCsp itself
+    /// (`vite.desktop.config.ts`). It matches the shipped policy but for the
+    /// hot-reload socket and the nonce of Vite's own inline tags (React
+    /// refresh preamble, injected styles); without the nonce the dev window
+    /// stays blank (measured).
     #[test]
-    fn dev_policy_adds_only_the_vite_socket() {
+    fn dev_policy_adds_only_the_vite_socket_and_nonce() {
         let conf = tauri_conf();
         let security = &conf["app"]["security"];
         let csp = security["csp"].as_str().unwrap();
@@ -567,7 +588,13 @@ mod config_tests {
                 "connect-src ipc: http://ipc.localhost",
                 "connect-src ipc: http://ipc.localhost ws://localhost:1420"
             )
+            .replace("style-src 'self'", "style-src 'self' 'nonce-keystone-dev'")
+            .replace(
+                "script-src 'self'",
+                "script-src 'self' 'nonce-keystone-dev'"
+            )
         );
+        assert!(!csp.contains("nonce"), "{csp}");
     }
 
     #[test]
