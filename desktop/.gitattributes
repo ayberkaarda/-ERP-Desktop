@@ -1,0 +1,4 @@
+# Generated TypeScript (ts-rs, json-schema-to-typescript) is written with LF
+# and compared byte for byte by the check scripts; keep it LF on checkout.
+src/bridge/generated/** text eol=lf
+src/wire/generated/** text eol=lf

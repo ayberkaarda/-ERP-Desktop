@@ -92,8 +92,26 @@ export function createTd(instance: I18n): Td {
 
 export const td: Td = (key, options) => createTd(i18next)(key, options)
 
-// Re-renders on language change, like useTranslation.
+// One td per i18next instance and language, so every caller gets the same
+// function until the language changes.
+const tdCache = new WeakMap<I18n, { language: string; td: Td }>()
+
+function cachedTd(instance: I18n, language: string): Td {
+  const hit = tdCache.get(instance)
+  if (hit?.language === language) return hit.td
+  const td = createTd(instance)
+  tdCache.set(instance, { language, td })
+  return td
+}
+
+// Re-renders on language change, like useTranslation. The returned function
+// is stable: it changes only when the language does, so it is safe in effect
+// and callback dependency lists.
 export function useTd(): Td {
   const { i18n } = useTranslation()
-  return createTd(i18n)
+  // react-i18next hands each hook call its own copy of the instance (new on
+  // every language change) and keeps the shared one in __original; key the
+  // cache on the shared one so all callers get the same td.
+  const shared = (i18n as I18n & { __original?: I18n }).__original ?? i18n
+  return cachedTd(shared, i18n.language)
 }
