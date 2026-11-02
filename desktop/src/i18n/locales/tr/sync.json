@@ -74,7 +74,6 @@
     "server": "Sunucudaki değer",
     "useMine": "Benimki",
     "useServer": "Sunucununki",
-    "deletedOnServer": "Kayıt sunucuda yok ya da silinmiş.",
     "noFields": "Çakışan alan bildirilmedi.",
     "candidates": "Aynı olabilecek kayıtlar",
     "candidateLoading": "Ad okunuyor…",

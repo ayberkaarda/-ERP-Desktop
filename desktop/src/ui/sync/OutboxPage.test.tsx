@@ -144,3 +144,43 @@ describe('outbox panel', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Liste okunamadı: Eşitleme şu anda çalışmıyor.')
   })
 })
+
+describe('outbox panel edges', () => {
+  it('a status event reads the outbox again', async () => {
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: 'p', state: 'connected' }),
+        sync_status: () => ({}),
+        outbox_list: () => [],
+      },
+    })
+    await renderSync(<OutboxPage />, { bridge })
+    await screen.findByText('Bekleyen değişiklik yok.')
+    expect(bridge.callsOf('outbox_list')).toHaveLength(1)
+    await act(async () => {
+      bridge.emitEngine({
+        type: 'status',
+        profile_id: 'p',
+        status: {
+          state: 'idle',
+          error_code: null,
+          pending: 0,
+          conflicts: 0,
+          rejected: 0,
+          quarantined: 0,
+          failures: 0,
+          retry_after: null,
+          manifest_mismatch: false,
+        },
+      })
+      await flush()
+    })
+    expect(bridge.callsOf('outbox_list')).toHaveLength(2)
+  })
+
+  it('an unknown entry state is shown as it came', async () => {
+    await page([entry('k9', 'parked')])
+    expect(row('k9')).toHaveTextContent('parked')
+    expect(row('k9')).not.toHaveTextContent('Bekliyor')
+  })
+})

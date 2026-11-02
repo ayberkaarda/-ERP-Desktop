@@ -108,3 +108,24 @@ describe('freshness tracker', () => {
     expect(s.listeners()).toBe(0)
   })
 })
+
+describe('freshness of several answers', () => {
+  it('one stale or partial answer among fresh ones marks the page', () => {
+    const s = source()
+    const tracker = createFreshnessTracker(s.value)
+    tracker.start()
+    s.record('/parties', local({ stale: true }))
+    s.record('/items', local({ partial: true }))
+    s.record('/units', local())
+    expect(tracker.current()).toMatchObject({ stale: true, partial: true })
+  })
+
+  it('the oldest as_of is compared as time, not as text', () => {
+    const s = source()
+    const tracker = createFreshnessTracker(s.value)
+    tracker.start()
+    s.record('/a', local({ as_of: '2026-10-26T10:00:00Z' }))
+    s.record('/b', local({ as_of: '2026-10-26T12:00:00+03:00' }))
+    expect(tracker.current()?.asOf).toBe('2026-10-26T12:00:00+03:00')
+  })
+})

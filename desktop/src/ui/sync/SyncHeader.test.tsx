@@ -1,9 +1,11 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { StatusDto } from '../../bridge/generated/StatusDto'
-import { createFakeBridge, fail, flush } from '../../test/fakeBridge'
+import { createFakeBridge, deferred, fail, flush } from '../../test/fakeBridge'
+import { FreshnessStrip } from './FreshnessStrip'
 import { SyncHeader } from './SyncHeader'
 import { fakeOfflineMeta, renderSync } from './testing'
 import { ApiError } from '@/platform/types'
@@ -313,5 +315,104 @@ describe('freshness strip', () => {
     })
     expect(screen.getByTestId('sync-freshness-partial')).toBeInTheDocument()
     expect(screen.queryByTestId('sync-freshness-stale')).toBeNull()
+  })
+})
+
+describe('status badge edges', () => {
+  it('rounds the seconds left up between ticks', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    await header(status({ state: 'failed', retry_after: 3 }))
+    act(() => {
+      vi.setSystemTime(Date.now() + 500)
+      vi.advanceTimersByTime(1000)
+    })
+    // 1.5 s gone: 1.5 s left reads "2", not "1"
+    expect(screen.getByTestId('sync-retry')).toHaveTextContent('2 sn sonra')
+  })
+
+  it('the countdown timer is cleared on unmount', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    await header(status({ state: 'failed', retry_after: 30 }))
+    expect(vi.getTimerCount()).toBe(1)
+    cleanup()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('quarantined entries alone open the problems badge', async () => {
+    await header(status({ quarantined: 2 }))
+    expect(screen.getByTestId('sync-problems')).toHaveTextContent('Reddedilen: 0, karantina: 2')
+  })
+
+  it('a double click on sync now asks the shell once', async () => {
+    const { bridge } = await header(status())
+    const run = deferred<undefined>()
+    bridge.handle({ sync_now: () => run.promise })
+    await userEvent.click(screen.getByTestId('sync-status'))
+    const button = await screen.findByTestId('sync-now')
+    fireEvent.click(button)
+    fireEvent.click(button)
+    run.resolve(undefined)
+    await act(flush)
+    expect(bridge.callsOf('sync_now')).toHaveLength(1)
+  })
+
+  it('names the realtime state it was told', async () => {
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: P1, state: 'unavailable' }),
+        sync_status: () => status(),
+      },
+    })
+    await renderSync(<SyncHeader />, { bridge })
+    await act(flush)
+    await userEvent.click(screen.getByTestId('sync-status'))
+    expect(await screen.findByTestId('sync-status-details')).toHaveTextContent('Canlı bağlantı kurulamadı')
+  })
+
+  it('a switch to a profile without an engine drops the badges of the last one', async () => {
+    let active = P1
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: active, state: 'connected' }),
+        sync_status: () => (active === P1 ? status({ pending: 3 }) : fail('ENGINE_UNAVAILABLE')),
+      },
+    })
+    await renderSync(
+      <header>
+        <SyncHeader />
+      </header>,
+      { bridge },
+    )
+    await act(flush)
+    expect(screen.getByTestId('sync-pending')).toHaveTextContent('Bekleyen: 3')
+    active = 'profile-2'
+    await act(async () => {
+      bridge.emitRealtime({ type: 'state', profile_id: 'profile-2', state: 'connecting' })
+      await flush()
+    })
+    expect(screen.queryByTestId('sync-pending')).toBeNull()
+    expect(screen.queryByTestId('sync-status')).toBeNull()
+  })
+})
+
+describe('freshness strip box', () => {
+  it('goes away with the strip', async () => {
+    const meta = fakeOfflineMeta()
+    function Toggle() {
+      const [on, setOn] = useState(true)
+      return (
+        <>
+          <header>{on ? <FreshnessStrip source={meta.value} /> : null}</header>
+          <button type="button" onClick={() => setOn(false)}>
+            off
+          </button>
+        </>
+      )
+    }
+    await renderSync(<Toggle />)
+    const head = document.querySelector('header')
+    expect(head?.nextElementSibling?.tagName).toBe('DIV')
+    await userEvent.click(screen.getByText('off'))
+    expect(head?.nextElementSibling?.tagName).toBe('BUTTON')
   })
 })

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+import { toCommandError } from '../../bridge/invoke'
 import {
   createDesktopText,
   invalidateChanged,
@@ -102,8 +103,7 @@ function SyncBadges({ bridge, notify }: { bridge: SyncBridge; notify: Notify }) 
     try {
       await store.syncNow()
     } catch (error) {
-      const code = (error as { code?: unknown }).code
-      notify.error(text.td('sync.badge.syncNowFailed', { error: text.error(typeof code === 'string' ? code : 'UNKNOWN') }))
+      notify.error(text.td('sync.badge.syncNowFailed', { error: text.error(toCommandError(error).code) }))
     } finally {
       setBusy(false)
     }

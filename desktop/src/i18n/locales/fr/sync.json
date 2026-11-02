@@ -74,7 +74,6 @@
     "server": "Valeur du serveur",
     "useMine": "La mienne",
     "useServer": "Celle du serveur",
-    "deletedOnServer": "L'enregistrement est absent ou supprimé sur le serveur.",
     "noFields": "Aucun champ en conflit n'a été signalé.",
     "candidates": "Enregistrements peut-être identiques",
     "candidateLoading": "Lecture du nom…",
@@ -101,7 +100,7 @@
     },
     "refused": "Ce conflit ne peut pas être résolu dans cette version ({{detail}}).",
     "refusedDiscard": "Vous pouvez abandonner votre modification.",
-    "refusedHint": "Synchronisez à nouveau ; si cela persiste, mettez l’application à jour.",
+    "refusedHint": "Synchronisez à nouveau ; si cela persiste, mettez l'application à jour.",
     "resync": "Synchroniser à nouveau"
   },
   "freshness": {

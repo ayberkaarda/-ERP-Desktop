@@ -46,7 +46,7 @@
     "discardDescription": "Die Änderung wird von diesem Gerät entfernt und nie gesendet. Davon abhängige Änderungen können ebenfalls nicht gesendet werden.",
     "retried": "Die Änderung wird erneut gesendet.",
     "discarded": "Die Änderung wurde verworfen.",
-    "failed": "Das ging nicht: {{error}}",
+    "failed": "Die Aktion konnte nicht ausgeführt werden: {{error}}",
     "openConflicts": "Konflikt lösen",
     "op": {
       "create": "Anlegen",
@@ -74,7 +74,6 @@
     "server": "Wert auf dem Server",
     "useMine": "Meiner",
     "useServer": "Vom Server",
-    "deletedOnServer": "Der Datensatz fehlt auf dem Server oder wurde gelöscht.",
     "noFields": "Es wurde kein kollidierendes Feld gemeldet.",
     "candidates": "Möglicherweise gleiche Datensätze",
     "candidateLoading": "Name wird gelesen…",

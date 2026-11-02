@@ -46,7 +46,7 @@
     "discardDescription": "The change is removed from this device and never sent. Changes that depend on it cannot be sent either.",
     "retried": "The change will be sent again.",
     "discarded": "The change was discarded.",
-    "failed": "Could not do that: {{error}}",
+    "failed": "The action could not be completed: {{error}}",
     "openConflicts": "Resolve the conflict",
     "op": {
       "create": "Create",
@@ -74,7 +74,6 @@
     "server": "Server value",
     "useMine": "Mine",
     "useServer": "Server's",
-    "deletedOnServer": "The record is missing or deleted on the server.",
     "noFields": "No conflicting field was reported.",
     "candidates": "Records that may be the same",
     "candidateLoading": "Reading the name…",

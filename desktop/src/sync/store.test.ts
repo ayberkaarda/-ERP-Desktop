@@ -184,3 +184,67 @@ describe('sync store', () => {
     expect(bridge.listeners('realtime-event')).toBe(0)
   })
 })
+
+describe('sync store edges', () => {
+  it('a failed status read clears the status instead of keeping the old one', async () => {
+    const { bridge, store } = setup({ initial: status({ pending: 3 }) })
+    store.start()
+    await flush()
+    expect(store.getState().status).toMatchObject({ pending: 3 })
+    bridge.handle({ sync_status: () => fail('ENGINE_UNAVAILABLE') })
+    await store.refreshStatus()
+    expect(store.getState().status).toBeNull()
+  })
+
+  it('a realtime event other than state leaves the realtime state alone', async () => {
+    const { bridge, store } = setup()
+    store.start()
+    await flush()
+    bridge.emitRealtime({ type: 'session_revoked', profile_id: P1, reason: 'device_revoked' })
+    await flush()
+    expect(store.getState().realtime).toBe('connected')
+  })
+
+  it('after dispose no resource change reaches a listener', async () => {
+    const { bridge, store } = setup()
+    store.start()
+    await flush()
+    const seen = vi.fn()
+    store.onResourcesChanged(seen)
+    store.dispose()
+    bridge.emitEngine({ type: 'resources_changed', profile_id: P1, resources: ['parties'], all: false })
+    await flush()
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('an unsubscribed resource listener hears nothing', async () => {
+    const { bridge, store } = setup()
+    store.start()
+    await flush()
+    const seen = vi.fn()
+    const stop = store.onResourcesChanged(seen)
+    stop()
+    bridge.emitEngine({ type: 'resources_changed', profile_id: P1, resources: ['parties'], all: false })
+    await flush()
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('a switch to another profile reads its status again', async () => {
+    const { bridge, store, switchTo } = setup({ initial: status({ pending: 3 }) })
+    store.start()
+    await flush()
+    switchTo(P2)
+    bridge.handle({ sync_status: () => fail('ENGINE_UNAVAILABLE') })
+    bridge.emitRealtime({ type: 'state', profile_id: P2, state: 'connecting' })
+    await flush()
+    expect(store.getState()).toMatchObject({ profileId: P2, realtime: 'connecting', status: null })
+    expect(bridge.callsOf('sync_status')).toHaveLength(2)
+  })
+
+  it('the first read of the profile does not read the status twice', async () => {
+    const { bridge, store } = setup()
+    store.start()
+    await flush()
+    expect(bridge.callsOf('sync_status')).toHaveLength(1)
+  })
+})

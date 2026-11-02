@@ -94,7 +94,11 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
     checking ??= call<RealtimeStatusDto>(invoke, 'realtime_status')
       .then(
         (dto) => {
+          const before = state.getState().profileId
           state.setState({ profileId: dto.profile_id, realtime: dto.state })
+          // Another profile: its engine (or the lack of one) replaces the last
+          // profile's status. The first read is already paired with one.
+          if (before !== undefined && before !== dto.profile_id && !disposed) void readStatus()
           return dto.profile_id
         },
         () => null,

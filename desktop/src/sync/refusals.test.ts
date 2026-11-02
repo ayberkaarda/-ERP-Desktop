@@ -87,3 +87,21 @@ describe('refusal message', () => {
     )
   })
 })
+
+describe('refusal reporting with retries', () => {
+  it('a mutation that retries before it fails is reported once', async () => {
+    const qc = new QueryClient()
+    const seen: OfflineRefusalEvent[] = []
+    watchOfflineRefusals(qc, (event) => seen.push(event))
+    await qc
+      .getMutationCache()
+      .build(qc, {
+        mutationFn: () => Promise.reject(new ApiError(503, 'OFFLINE_UNAVAILABLE', 'x')),
+        retry: 2,
+        retryDelay: 0,
+      })
+      .execute(undefined)
+      .catch(() => undefined)
+    expect(seen).toHaveLength(1)
+  })
+})

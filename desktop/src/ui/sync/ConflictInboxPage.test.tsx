@@ -1,11 +1,11 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, fireEvent, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { ConflictDto } from '../../bridge/generated/ConflictDto'
 import { updateConflict } from '../../test/conflictFixtures'
 import { conflictDtoFixtures } from '../../wire'
-import { createFakeBridge, fail, flush } from '../../test/fakeBridge'
+import { createFakeBridge, deferred, fail, flush } from '../../test/fakeBridge'
 import { ConflictInboxPage } from './ConflictInboxPage'
 import { renderSync } from './testing'
 import type { HttpClient } from '@/platform/types'
@@ -204,5 +204,159 @@ describe('conflict inbox list', () => {
   it('an empty inbox says so', async () => {
     await inbox([])
     expect(screen.getByText('Açık çakışma yok.')).toBeInTheDocument()
+  })
+})
+
+const CANDIDATE_1 = '0193b1e5-0c11-7a22-9b33-000000000001'
+const CANDIDATE_2 = '0193b1e5-0c11-7a22-9b33-000000000002'
+
+function duplicate(overrides: Partial<ConflictDto> = {}): ConflictDto {
+  return updateConflict({
+    idempotency_key: '0193b1f0-1111-7aaa-8bbb-0000000000d1',
+    resource: 'parties',
+    code: 'DUPLICATE_RECORD',
+    conflicting_fields: [],
+    server_data: null,
+    candidates: [CANDIDATE_1, CANDIDATE_2],
+    choices: ['use_existing', 'keep_mine', 'discard'],
+    local_op: 'create',
+    local_payload: { name: 'Anadolu' },
+    ...overrides,
+  })
+}
+
+async function inboxWith(
+  conflicts: ConflictDto[],
+  options: { get?: (url: string) => unknown; resolve?: () => unknown } = {},
+) {
+  let list = conflicts
+  const bridge = createFakeBridge({
+    commands: {
+      realtime_status: () => ({ profile_id: 'p', state: 'idle' }),
+      sync_status: () => ({}),
+      conflicts_list: () => list,
+      conflicts_resolve:
+        options.resolve ??
+        (() => {
+          list = []
+          return { action: 'queued' }
+        }),
+      sync_now: () => undefined,
+    },
+  })
+  const get = vi.fn(
+    options.get ??
+      ((url: string) =>
+        Promise.resolve({ data: { id: url.split('/').pop(), name: `Ad ${url.split('/').pop()?.slice(-1) ?? ''}` } })),
+  )
+  const harness = await renderSync(<ConflictInboxPage />, {
+    bridge,
+    http: { get: get as unknown as HttpClient['get'] },
+    path: '/sync/conflicts',
+  })
+  const first = conflicts[0]
+  if (first) await screen.findByTestId(`conflict-${first.idempotency_key}`)
+  return { bridge, get, ...harness }
+}
+
+describe('conflict inbox edges', () => {
+  it('use_existing sends the candidate the user picked, not the first', async () => {
+    const dup = duplicate()
+    const { bridge } = await inboxWith([dup])
+    const second = within(card(dup)).getAllByRole('radio')[1]
+    if (!second) throw new Error('no second candidate')
+    await userEvent.click(second)
+    await userEvent.click(within(card(dup)).getByTestId('conflict-choice-use_existing'))
+    expect(decision(bridge)).toEqual([
+      { idempotency_key: dup.idempotency_key, choice: 'use_existing', candidate: CANDIDATE_2 },
+    ])
+  })
+
+  it('a candidate without a name is named by its number', async () => {
+    const dup = duplicate({ resource: 'sales-quotes', candidates: [CANDIDATE_1] })
+    await inboxWith([dup], { get: () => Promise.resolve({ data: { id: CANDIDATE_1, number: 'TKL-2026-0042' } }) })
+    expect(await within(card(dup)).findByText('TKL-2026-0042')).toBeInTheDocument()
+  })
+
+  it('a candidate is read from its own resource', async () => {
+    const dup = duplicate({ resource: 'items', candidates: [CANDIDATE_1] })
+    const { get } = await inboxWith([dup])
+    await act(flush)
+    expect(get).toHaveBeenCalledWith(`/items/${CANDIDATE_1}`, expect.anything())
+  })
+
+  it('after a resolution the inbox is read again and the record goes away', async () => {
+    const conflict = updateConflict()
+    const { bridge } = await inboxWith([conflict])
+    const before = bridge.callsOf('conflicts_list').length
+    await userEvent.click(within(card(conflict)).getByTestId('conflict-choice-take_server'))
+    await act(flush)
+    expect(bridge.callsOf('conflicts_list').length).toBeGreaterThan(before)
+    expect(await screen.findByText('Açık çakışma yok.')).toBeInTheDocument()
+  })
+
+  it('a double click resolves once', async () => {
+    const conflict = updateConflict()
+    const run = deferred<unknown>()
+    const { bridge } = await inboxWith([conflict], { resolve: () => run.promise })
+    const button = within(card(conflict)).getByTestId('conflict-choice-take_server')
+    fireEvent.click(button)
+    fireEvent.click(button)
+    run.resolve({ action: 'queued' })
+    await act(flush)
+    expect(bridge.callsOf('conflicts_resolve')).toHaveLength(1)
+  })
+
+  it('a refused record whose server offers no discard is not discarded', async () => {
+    const locked = updateConflict({
+      idempotency_key: '0193b1f0-1111-7aaa-8bbb-0000000000e1',
+      code: 'DOCUMENT_LOCKED',
+      choices: ['keep_mine', 'save_as_new_draft'],
+    })
+    await inboxWith([locked])
+    expect(within(card(locked)).getByTestId('conflict-refused')).toBeInTheDocument()
+    expect(within(card(locked)).queryByTestId('conflict-choice-discard')).toBeNull()
+    expect(within(card(locked)).getByRole('button', { name: 'Yeniden eşitle' })).toBeInTheDocument()
+  })
+
+  it('a status event reads the inbox again', async () => {
+    const conflict = updateConflict()
+    const { bridge } = await inboxWith([conflict])
+    await act(flush)
+    const before = bridge.callsOf('conflicts_list').length
+    await act(async () => {
+      bridge.emitEngine({
+        type: 'status',
+        profile_id: 'p',
+        status: {
+          state: 'idle',
+          error_code: null,
+          pending: 0,
+          conflicts: 0,
+          rejected: 0,
+          quarantined: 0,
+          failures: 0,
+          retry_after: null,
+          manifest_mismatch: false,
+        },
+      })
+      await flush()
+    })
+    expect(bridge.callsOf('conflicts_list').length).toBe(before + 1)
+  })
+
+  it('a refused resolution changes nothing: no success, no new reads', async () => {
+    const conflict = updateConflict()
+    const { bridge, notify } = await inboxWith([conflict], { resolve: () => fail('INVALID_REQUEST') })
+    await act(flush)
+    const lists = bridge.callsOf('conflicts_list').length
+    const statuses = bridge.callsOf('sync_status').length
+    await userEvent.click(within(card(conflict)).getByTestId('conflict-choice-keep_mine'))
+    await act(flush)
+    expect(notify.error).toHaveBeenCalledTimes(1)
+    expect(notify.success).not.toHaveBeenCalled()
+    expect(bridge.callsOf('conflicts_list')).toHaveLength(lists)
+    expect(bridge.callsOf('sync_status')).toHaveLength(statuses)
+    expect(card(conflict)).toBeInTheDocument()
   })
 })
