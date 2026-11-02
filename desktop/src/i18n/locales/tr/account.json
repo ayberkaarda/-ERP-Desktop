@@ -1,1 +1,146 @@
-{}
+{
+  "gate": {
+    "starting": "Profil açılıyor…",
+    "loadFailed": "Profil durumu okunamadı.",
+    "retry": "Tekrar dene"
+  },
+  "desktopOnly": {
+    "title": "Masaüstü uygulaması gerekli",
+    "body": "Bu ekran yalnız Keystone masaüstü uygulamasının penceresinde çalışır. Uygulamayı açıp oradan devam edin."
+  },
+  "setup": {
+    "title": "Sunucu profilleri",
+    "subtitle": "Masaüstü uygulaması bir Keystone sunucusuna bağlanır. Her sunucu ayrı bir profildir.",
+    "firstRun": "Başlamak için bir sunucu adresi ekleyin.",
+    "listTitle": "Profiller",
+    "empty": "Henüz profil yok.",
+    "active": "Etkin",
+    "select": "Bu profile geç",
+    "refreshMeta": "Sunucu bilgisini yenile",
+    "metaRefreshed": "Sunucu bilgisi yenilendi.",
+    "remove": "Sil",
+    "removeTitle": "Profil silinsin mi?",
+    "removeBody": "{{name}} profili, bu cihazdaki oturumu ve yerel verisiyle birlikte silinir.",
+    "server": "{{name}} {{version}}",
+    "realtimeOn": "Anlık bildirim var",
+    "realtimeOff": "Anlık bildirim yok",
+    "addTitle": "Sunucu ekle",
+    "url": "Sunucu adresi",
+    "name": "Profil adı (isteğe bağlı)",
+    "add": "Ekle",
+    "httpDebugNote": "Geliştirme derlemesi: http://localhost:8000 gibi yerel adresler yalnız KEYSTONE_DEV_ALLOW_HTTP=1 ile kabul edilir.",
+    "httpsNote": "Adres https:// ile başlamalıdır.",
+    "tryAgain": "Tekrar dene",
+    "back": "Uygulamaya dön"
+  },
+  "login": {
+    "title": "Giriş yap",
+    "profile": "Sunucu: {{name}}",
+    "change": "Değiştir",
+    "email": "E-posta",
+    "password": "Parola",
+    "submit": "Giriş yap",
+    "twoFactorTitle": "İki adımlı doğrulama",
+    "twoFactorBody": "Doğrulama uygulamanızdaki kodu girin.",
+    "code": "Doğrulama kodu",
+    "verify": "Doğrula",
+    "back": "Geri",
+    "companyTitle": "Şirket seçin",
+    "companyBody": "Bu cihazda hangi şirketle çalışacağınızı seçin.",
+    "sessionFailed": "Oturum bilgisi alınamadı. Tekrar deneyin.",
+    "noProfile": "Önce bir sunucu profili seçin."
+  },
+  "password": {
+    "title": "Parolanızı değiştirin",
+    "body": "Hesabınız için parola değişikliği gerekiyor. Parola masaüstünde değiştirilemez; web uygulamasında değiştirip yeniden giriş yapın.",
+    "openWeb": "Web'de değiştir",
+    "changedIt": "Değiştirdim, yeniden gir",
+    "opened": "Tarayıcıda açıldı."
+  },
+  "security": {
+    "devicesTitle": "Cihazlar",
+    "devicesBody": "Hesabınızla giriş yapılmış masaüstü cihazları.",
+    "empty": "Kayıtlı cihaz yok.",
+    "lastUsed": "Son kullanım: {{date}}",
+    "never": "Henüz kullanılmadı",
+    "revoke": "Oturumu kapat",
+    "revokeTitle": "Cihaz oturumu kapatılsın mı?",
+    "revokeBody": "{{name}} cihazındaki giriş sona erer.",
+    "revoked": "Cihaz oturumu kapatıldı.",
+    "webTitle": "İki adımlı doğrulama ve oturumlar",
+    "webBody": "Parola, iki adımlı doğrulama ve tarayıcı oturumları web uygulamasında yönetilir.",
+    "openWeb": "Web'de yönet",
+    "profiles": "Sunucu profilleri",
+    "aboutTitle": "Hakkında",
+    "version": "Sürüm",
+    "schema": "Eşitleme şeması",
+    "os": "İşletim sistemi",
+    "build": "Derleme",
+    "debug": "Geliştirme",
+    "release": "Sürüm derlemesi"
+  },
+  "recovery": {
+    "storeKey": {
+      "title": "Yerel veri açılamıyor",
+      "body": "{{name}} profilinin yerel veritabanı anahtarı bu cihazda bulunamadı ya da değişti. Veri otomatik olarak silinmez.",
+      "pendingNote": "Yerel veri okunamadığı için gönderilmemiş değişiklikler sayılamaz; sıfırlarsanız bunlar kaybolur. Sunucudaki veri yeniden indirilir.",
+      "confirmLabel": "Onaylamak için profil adını yazın: {{name}}",
+      "reset": "Bu profilin yerel verisini sıfırla"
+    },
+    "malformed": {
+      "title": "Profil kaydı bozuk",
+      "body": "{{name}} profilinin bu cihazdaki oturum kaydı okunamadı.",
+      "reset": "Profili sıfırla",
+      "remove": "Profili sil",
+      "resetTitle": "Profil sıfırlansın mı?",
+      "resetBody": "Oturum ve yerel veri silinir, profil kalır. Ardından yeniden giriş yaparsınız.",
+      "removeTitle": "Profil silinsin mi?",
+      "removeBody": "Profil, oturumu ve yerel verisiyle birlikte silinir."
+    },
+    "file": {
+      "title": "Profil dosyası okunamadı",
+      "body": "Uygulama veri klasöründeki profiles.json dosyası okunamadı.",
+      "notOverwritten": "Dosya olduğu gibi bırakıldı, üzerine yazılmadı. Dosyayı düzeltin ya da taşıyın, sonra uygulamayı yeniden başlatın.",
+      "detail": "Ayrıntı: {{message}}"
+    },
+    "failed": {
+      "title": "Profil açılamadı",
+      "profiles": "Sunucu profilleri"
+    }
+  },
+  "pending": {
+    "title": "Gönderilmemiş iş var",
+    "body": "{{outbox}} gönderilmemiş değişiklik, {{conflicts}} açık çakışma. Devam ederseniz bunlar silinir.",
+    "unknown": "Gönderilmemiş değişiklikler ya da açık çakışmalar var. Devam ederseniz bunlar silinir.",
+    "discard": "Yine de devam et (silinir)",
+    "keep": "Vazgeç",
+    "show": "Bekleyen işleri göster",
+    "action": {
+      "logout": "Çıkış yapılıyor.",
+      "switchCompany": "Şirket değiştiriliyor.",
+      "removeProfile": "Profil siliniyor.",
+      "resetProfile": "Profil sıfırlanıyor."
+    }
+  },
+  "errors": {
+    "INVALID_SERVER_URL": "Sunucu adresi geçersiz.",
+    "DESKTOP_UPDATE_REQUIRED": "Bu sunucu uygulamanın daha yeni bir sürümünü istiyor.",
+    "SYNC_SCHEMA_MISMATCH": "Sunucunun eşitleme şeması bu uygulamayla uyumlu değil.",
+    "NETWORK_ERROR": "Sunucuya ulaşılamadı.",
+    "PROFILES_FILE_INVALID": "Profil dosyası okunamadı ya da yazılamadı; dosyaya dokunulmadı.",
+    "PROFILE_BUSY": "Profilin bir isteği sürüyor. Biraz sonra tekrar deneyin.",
+    "PROFILE_NOT_FOUND": "Profil bulunamadı.",
+    "NO_ACTIVE_PROFILE": "Etkin sunucu profili yok.",
+    "EXTERNAL_OPEN_FAILED": "Tarayıcı açılamadı.",
+    "COMPANY_NOT_AVAILABLE": "Bu şirket hesabınızda yok.",
+    "INVALID_TWO_FACTOR_CODE": "Doğrulama kodu hatalı.",
+    "TOO_MANY_ATTEMPTS": "Çok fazla deneme. Biraz sonra tekrar deneyin.",
+    "USER_DEACTIVATED": "Hesabınız devre dışı.",
+    "UNAUTHENTICATED": "E-posta ya da parola hatalı.",
+    "VALIDATION_ERROR": "E-posta ya da parola hatalı.",
+    "PROFILE_HAS_PENDING_WORK": "Gönderilmemiş iş var.",
+    "STORE_KEY_INVALID": "Yerel veritabanı anahtarı geçersiz.",
+    "PROFILE_RECORD_MALFORMED": "Profil kaydı bozuk.",
+    "unknown": "İşlem tamamlanamadı ({{code}})."
+  }
+}

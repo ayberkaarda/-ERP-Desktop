@@ -1,1 +1,146 @@
-{}
+{
+  "gate": {
+    "starting": "Ouverture du profil…",
+    "loadFailed": "L'état du profil n'a pas pu être lu.",
+    "retry": "Réessayer"
+  },
+  "desktopOnly": {
+    "title": "Application de bureau requise",
+    "body": "Cet écran ne fonctionne que dans la fenêtre de l'application de bureau Keystone. Ouvrez l'application et continuez-y."
+  },
+  "setup": {
+    "title": "Profils de serveur",
+    "subtitle": "L'application de bureau se connecte à un serveur Keystone. Chaque serveur est un profil distinct.",
+    "firstRun": "Ajoutez l'adresse d'un serveur pour commencer.",
+    "listTitle": "Profils",
+    "empty": "Aucun profil pour l'instant.",
+    "active": "Actif",
+    "select": "Passer à ce profil",
+    "refreshMeta": "Actualiser les informations du serveur",
+    "metaRefreshed": "Informations du serveur actualisées.",
+    "remove": "Supprimer",
+    "removeTitle": "Supprimer le profil ?",
+    "removeBody": "Le profil {{name}} est supprimé avec sa connexion et ses données locales sur cet appareil.",
+    "server": "{{name}} {{version}}",
+    "realtimeOn": "Mises à jour en direct disponibles",
+    "realtimeOff": "Pas de mises à jour en direct",
+    "addTitle": "Ajouter un serveur",
+    "url": "Adresse du serveur",
+    "name": "Nom du profil (facultatif)",
+    "add": "Ajouter",
+    "httpDebugNote": "Version de développement : les adresses locales comme http://localhost:8000 ne sont acceptées qu'avec KEYSTONE_DEV_ALLOW_HTTP=1.",
+    "httpsNote": "L'adresse doit commencer par https://.",
+    "tryAgain": "Réessayer",
+    "back": "Retour à l'application"
+  },
+  "login": {
+    "title": "Se connecter",
+    "profile": "Serveur : {{name}}",
+    "change": "Changer",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "submit": "Se connecter",
+    "twoFactorTitle": "Vérification en deux étapes",
+    "twoFactorBody": "Saisissez le code de votre application d'authentification.",
+    "code": "Code de vérification",
+    "verify": "Vérifier",
+    "back": "Retour",
+    "companyTitle": "Choisir une société",
+    "companyBody": "Choisissez la société avec laquelle vous travaillez sur cet appareil.",
+    "sessionFailed": "La session n'a pas pu être chargée. Réessayez.",
+    "noProfile": "Choisissez d'abord un profil de serveur."
+  },
+  "password": {
+    "title": "Changez votre mot de passe",
+    "body": "Votre compte exige un changement de mot de passe. Il ne peut pas être changé dans l'application de bureau ; changez-le dans l'application web puis reconnectez-vous.",
+    "openWeb": "Changer sur le web",
+    "changedIt": "C'est fait, me reconnecter",
+    "opened": "Ouvert dans le navigateur."
+  },
+  "security": {
+    "devicesTitle": "Appareils",
+    "devicesBody": "Appareils de bureau connectés avec votre compte.",
+    "empty": "Aucun appareil.",
+    "lastUsed": "Dernière utilisation : {{date}}",
+    "never": "Pas encore utilisé",
+    "revoke": "Déconnecter l'appareil",
+    "revokeTitle": "Déconnecter cet appareil ?",
+    "revokeBody": "La connexion sur {{name}} prend fin.",
+    "revoked": "L'appareil a été déconnecté.",
+    "webTitle": "Vérification en deux étapes et sessions",
+    "webBody": "Le mot de passe, la vérification en deux étapes et les sessions du navigateur se gèrent dans l'application web.",
+    "openWeb": "Gérer sur le web",
+    "profiles": "Profils de serveur",
+    "aboutTitle": "À propos",
+    "version": "Version",
+    "schema": "Schéma de synchronisation",
+    "os": "Système d'exploitation",
+    "build": "Build",
+    "debug": "Développement",
+    "release": "Version de production"
+  },
+  "recovery": {
+    "storeKey": {
+      "title": "Les données locales ne peuvent pas être ouvertes",
+      "body": "La clé de la base locale du profil {{name}} est absente de cet appareil ou a changé. Rien n'est supprimé automatiquement.",
+      "pendingNote": "Les données locales étant illisibles, les modifications non envoyées ne peuvent pas être comptées ; une réinitialisation les perd. Les données du serveur sont téléchargées à nouveau.",
+      "confirmLabel": "Saisissez le nom du profil pour confirmer : {{name}}",
+      "reset": "Réinitialiser les données locales de ce profil"
+    },
+    "malformed": {
+      "title": "Enregistrement du profil endommagé",
+      "body": "L'enregistrement de connexion du profil {{name}} sur cet appareil n'a pas pu être lu.",
+      "reset": "Réinitialiser le profil",
+      "remove": "Supprimer le profil",
+      "resetTitle": "Réinitialiser le profil ?",
+      "resetBody": "La connexion et les données locales sont supprimées, le profil reste. Vous vous reconnectez ensuite.",
+      "removeTitle": "Supprimer le profil ?",
+      "removeBody": "Le profil est supprimé avec sa connexion et ses données locales."
+    },
+    "file": {
+      "title": "Le fichier des profils est illisible",
+      "body": "Le fichier profiles.json du dossier de données de l'application n'a pas pu être lu.",
+      "notOverwritten": "Le fichier a été laissé tel quel, sans être écrasé. Corrigez ou déplacez le fichier, puis redémarrez l'application.",
+      "detail": "Détails : {{message}}"
+    },
+    "failed": {
+      "title": "Le profil n'a pas pu être ouvert",
+      "profiles": "Profils de serveur"
+    }
+  },
+  "pending": {
+    "title": "Travail non envoyé",
+    "body": "{{outbox}} modifications non envoyées, {{conflicts}} conflits ouverts. Si vous continuez, ils sont supprimés.",
+    "unknown": "Il y a des modifications non envoyées ou des conflits ouverts. Si vous continuez, ils sont supprimés.",
+    "discard": "Continuer quand même (supprimé)",
+    "keep": "Annuler",
+    "show": "Afficher le travail en attente",
+    "action": {
+      "logout": "Déconnexion.",
+      "switchCompany": "Changement de société.",
+      "removeProfile": "Suppression du profil.",
+      "resetProfile": "Réinitialisation du profil."
+    }
+  },
+  "errors": {
+    "INVALID_SERVER_URL": "L'adresse du serveur n'est pas valide.",
+    "DESKTOP_UPDATE_REQUIRED": "Ce serveur exige une version plus récente de l'application.",
+    "SYNC_SCHEMA_MISMATCH": "Le schéma de synchronisation du serveur ne correspond pas à cette application.",
+    "NETWORK_ERROR": "Le serveur est injoignable.",
+    "PROFILES_FILE_INVALID": "Le fichier des profils n'a pas pu être lu ou écrit ; il n'a pas été modifié.",
+    "PROFILE_BUSY": "Une requête du profil est encore en cours. Réessayez dans un instant.",
+    "PROFILE_NOT_FOUND": "Profil introuvable.",
+    "NO_ACTIVE_PROFILE": "Aucun profil de serveur actif.",
+    "EXTERNAL_OPEN_FAILED": "Le navigateur n'a pas pu être ouvert.",
+    "COMPANY_NOT_AVAILABLE": "Cette société ne fait pas partie de votre compte.",
+    "INVALID_TWO_FACTOR_CODE": "Le code de vérification est incorrect.",
+    "TOO_MANY_ATTEMPTS": "Trop de tentatives. Réessayez dans un instant.",
+    "USER_DEACTIVATED": "Votre compte est désactivé.",
+    "UNAUTHENTICATED": "E-mail ou mot de passe incorrect.",
+    "VALIDATION_ERROR": "E-mail ou mot de passe incorrect.",
+    "PROFILE_HAS_PENDING_WORK": "Il y a du travail non envoyé.",
+    "STORE_KEY_INVALID": "La clé de la base locale n'est pas valide.",
+    "PROFILE_RECORD_MALFORMED": "L'enregistrement du profil est endommagé.",
+    "unknown": "L'action n'a pas pu aboutir ({{code}})."
+  }
+}

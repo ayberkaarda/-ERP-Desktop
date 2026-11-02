@@ -1,1 +1,146 @@
-{}
+{
+  "gate": {
+    "starting": "Opening the profile…",
+    "loadFailed": "The profile state could not be read.",
+    "retry": "Try again"
+  },
+  "desktopOnly": {
+    "title": "Desktop app required",
+    "body": "This screen works only in the Keystone desktop app window. Open the app and continue there."
+  },
+  "setup": {
+    "title": "Server profiles",
+    "subtitle": "The desktop app connects to a Keystone server. Each server is a separate profile.",
+    "firstRun": "Add a server address to get started.",
+    "listTitle": "Profiles",
+    "empty": "No profiles yet.",
+    "active": "Active",
+    "select": "Switch to this profile",
+    "refreshMeta": "Refresh server details",
+    "metaRefreshed": "Server details refreshed.",
+    "remove": "Remove",
+    "removeTitle": "Remove the profile?",
+    "removeBody": "The {{name}} profile is removed together with its sign-in and local data on this device.",
+    "server": "{{name}} {{version}}",
+    "realtimeOn": "Live updates available",
+    "realtimeOff": "No live updates",
+    "addTitle": "Add a server",
+    "url": "Server address",
+    "name": "Profile name (optional)",
+    "add": "Add",
+    "httpDebugNote": "Development build: local addresses such as http://localhost:8000 are accepted only with KEYSTONE_DEV_ALLOW_HTTP=1.",
+    "httpsNote": "The address must start with https://.",
+    "tryAgain": "Try again",
+    "back": "Back to the app"
+  },
+  "login": {
+    "title": "Sign in",
+    "profile": "Server: {{name}}",
+    "change": "Change",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "twoFactorTitle": "Two-step verification",
+    "twoFactorBody": "Enter the code from your authenticator app.",
+    "code": "Verification code",
+    "verify": "Verify",
+    "back": "Back",
+    "companyTitle": "Choose a company",
+    "companyBody": "Choose the company you work with on this device.",
+    "sessionFailed": "The session could not be loaded. Please try again.",
+    "noProfile": "Choose a server profile first."
+  },
+  "password": {
+    "title": "Change your password",
+    "body": "Your account needs a password change. Passwords cannot be changed in the desktop app; change it in the web app and sign in again.",
+    "openWeb": "Change on the web",
+    "changedIt": "I changed it, sign in again",
+    "opened": "Opened in the browser."
+  },
+  "security": {
+    "devicesTitle": "Devices",
+    "devicesBody": "Desktop devices signed in with your account.",
+    "empty": "No devices.",
+    "lastUsed": "Last used: {{date}}",
+    "never": "Not used yet",
+    "revoke": "Sign out device",
+    "revokeTitle": "Sign out this device?",
+    "revokeBody": "The sign-in on {{name}} ends.",
+    "revoked": "The device was signed out.",
+    "webTitle": "Two-step verification and sessions",
+    "webBody": "Password, two-step verification and browser sessions are managed in the web app.",
+    "openWeb": "Manage on the web",
+    "profiles": "Server profiles",
+    "aboutTitle": "About",
+    "version": "Version",
+    "schema": "Sync schema",
+    "os": "Operating system",
+    "build": "Build",
+    "debug": "Development",
+    "release": "Release build"
+  },
+  "recovery": {
+    "storeKey": {
+      "title": "Local data cannot be opened",
+      "body": "The local database key of the {{name}} profile is missing or has changed on this device. Nothing is deleted automatically.",
+      "pendingNote": "Because the local data cannot be read, unsent changes cannot be counted; a reset loses them. Server data is downloaded again.",
+      "confirmLabel": "Type the profile name to confirm: {{name}}",
+      "reset": "Reset this profile's local data"
+    },
+    "malformed": {
+      "title": "Profile record is damaged",
+      "body": "The sign-in record of the {{name}} profile on this device could not be read.",
+      "reset": "Reset profile",
+      "remove": "Remove profile",
+      "resetTitle": "Reset the profile?",
+      "resetBody": "The sign-in and local data are deleted; the profile stays. You then sign in again.",
+      "removeTitle": "Remove the profile?",
+      "removeBody": "The profile is removed together with its sign-in and local data."
+    },
+    "file": {
+      "title": "Profile file could not be read",
+      "body": "The profiles.json file in the app data folder could not be read.",
+      "notOverwritten": "The file was left as it is and not overwritten. Fix or move the file, then restart the app.",
+      "detail": "Details: {{message}}"
+    },
+    "failed": {
+      "title": "The profile could not be opened",
+      "profiles": "Server profiles"
+    }
+  },
+  "pending": {
+    "title": "Unsent work",
+    "body": "{{outbox}} unsent changes, {{conflicts}} open conflicts. If you continue, they are deleted.",
+    "unknown": "There are unsent changes or open conflicts. If you continue, they are deleted.",
+    "discard": "Continue anyway (deleted)",
+    "keep": "Cancel",
+    "show": "Show pending work",
+    "action": {
+      "logout": "Signing out.",
+      "switchCompany": "Switching company.",
+      "removeProfile": "Removing the profile.",
+      "resetProfile": "Resetting the profile."
+    }
+  },
+  "errors": {
+    "INVALID_SERVER_URL": "The server address is not valid.",
+    "DESKTOP_UPDATE_REQUIRED": "This server needs a newer version of the app.",
+    "SYNC_SCHEMA_MISMATCH": "The server's sync schema does not match this app.",
+    "NETWORK_ERROR": "The server cannot be reached.",
+    "PROFILES_FILE_INVALID": "The profile file could not be read or written; it was left untouched.",
+    "PROFILE_BUSY": "A request of the profile is still running. Try again shortly.",
+    "PROFILE_NOT_FOUND": "The profile was not found.",
+    "NO_ACTIVE_PROFILE": "No server profile is active.",
+    "EXTERNAL_OPEN_FAILED": "The browser could not be opened.",
+    "COMPANY_NOT_AVAILABLE": "This company is not in your account.",
+    "INVALID_TWO_FACTOR_CODE": "The verification code is wrong.",
+    "TOO_MANY_ATTEMPTS": "Too many attempts. Try again shortly.",
+    "USER_DEACTIVATED": "Your account is deactivated.",
+    "UNAUTHENTICATED": "Email or password is wrong.",
+    "VALIDATION_ERROR": "Email or password is wrong.",
+    "PROFILE_HAS_PENDING_WORK": "There is unsent work.",
+    "STORE_KEY_INVALID": "The local database key is not valid.",
+    "PROFILE_RECORD_MALFORMED": "The profile record is damaged.",
+    "unknown": "The action could not be completed ({{code}})."
+  }
+}
