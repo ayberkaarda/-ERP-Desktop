@@ -42,7 +42,7 @@ use keystone_sync::client::{
 };
 use keystone_sync::engine::SyncState;
 use keystone_sync::store::{LocalCopy, Store};
-use keystone_sync::wire::{ResourceName, Source};
+use keystone_sync::wire::{ResourceName, Source, Timestamp};
 use serde_json::{Map, Value};
 
 use crate::commands::{CommandError, CommandResult, codes};
@@ -331,6 +331,13 @@ impl Run<'_> {
         deadline: Option<Duration>,
         keep: Keep<'_>,
     ) -> CommandResult<ApiResponseDto> {
+        // Taken before sending: the kept session answer is as of its request,
+        // and an older request answered last does not replace a newer one.
+        let sent_at = if keep.session {
+            local_read::now().ok()
+        } else {
+            None
+        };
         let result = send(self.client.clone(), proxy_request(call), deadline).await?;
         let reachable = match &result {
             Ok(_) | Err(SyncError::Api { .. }) => Some(true),
@@ -348,8 +355,8 @@ impl Run<'_> {
         if let Some(resource) = keep.snapshot {
             self.keep_snapshot(resource, &answer, generation).await;
         }
-        if keep.session {
-            self.keep_session(&answer, generation).await;
+        if let Some(sent_at) = sent_at {
+            self.keep_session(&answer, generation, sent_at).await;
         }
         Ok(answer)
     }
@@ -378,11 +385,12 @@ impl Run<'_> {
     /// the engine refuses it for another sign-in, a signed-out or
     /// deactivated one, and a body carrying a credential (see
     /// [`local_read::save_session`]). Only the error code is logged.
-    async fn keep_session(&self, answer: &ApiResponseDto, generation: u64) {
+    async fn keep_session(&self, answer: &ApiResponseDto, generation: u64, sent_at: Timestamp) {
         let Some((engine, body)) = self.keepable(answer) else {
             return;
         };
-        let saved = blocking(move || local_read::save_session(&engine, &body, generation));
+        let saved =
+            blocking(move || local_read::save_session(&engine, &body, generation, &sent_at));
         if let Err(error) = saved.await {
             log::debug!("session answer not kept: {}", error.code);
         }

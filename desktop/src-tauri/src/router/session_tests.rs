@@ -285,3 +285,153 @@ async fn a_sign_out_during_the_call_leaves_no_copy() {
         .unwrap();
     refused(&offline_me(&fx).await);
 }
+
+/// The kept answer is fetched once; later calls get `status` and `body`.
+async fn kept_then(fx: &Fixture, status: u16, body: Value) {
+    Mock::given(method("GET"))
+        .and(path(ME))
+        .respond_with(ResponseTemplate::new(200).set_body_json(me("Ayşe")))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&fx.server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(ME))
+        .respond_with(ResponseTemplate::new(status).set_body_json(body))
+        .with_priority(2)
+        .mount(&fx.server)
+        .await;
+    let first = fx.call(me_call()).await;
+    assert_eq!((first.status, first.source), (200, ResponseSource::Network));
+    assert!(
+        fx.engine.session_copy().unwrap().is_some(),
+        "positive control"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_server_or_client_error_is_passed_on_not_replaced_by_the_copy() {
+    for (status, code) in [
+        (503, "SERVER_ERROR"),
+        (500, "SERVER_ERROR"),
+        (429, "RATE_LIMITED"),
+    ] {
+        let fx = fixture(vec![]).await;
+        kept_then(
+            &fx,
+            status,
+            json!({ "errors": { "code": code, "message": "x" } }),
+        )
+        .await;
+        let answer = fx.call(me_call()).await;
+        assert_eq!(
+            (answer.status, answer.source),
+            (status, ResponseSource::Network)
+        );
+        // Still kept for a later offline start.
+        assert!(fx.engine.session_copy().unwrap().is_some());
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn another_path_never_gets_the_session_copy() {
+    let fx = fixture(vec![]).await;
+    kept_then(&fx, 200, me("Ayşe")).await;
+    fx.lose_server();
+    for other in ["/api/v1/me/devices", "/api/v1/me/sessions", "/api/v1/meta"] {
+        // First the failed connection, then the offline refusal.
+        for _ in 0..2 {
+            match fx
+                .try_call(crate::router::local_resolver(), get(other, json!([])))
+                .await
+            {
+                Err(error) => assert_eq!(error.code, "NETWORK_ERROR", "{other}"),
+                Ok(answer) => refused(&answer),
+            }
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_offline_meta_of_the_copy_is_exactly_as_of_partial_and_stale() {
+    let fx = fixture(vec![]).await;
+    kept_then(&fx, 200, me("Ayşe")).await;
+    let answer = offline_me(&fx).await;
+    let body = answer.json().unwrap();
+    let meta = body["meta"].as_object().unwrap();
+    assert_eq!(meta.keys().collect::<Vec<_>>(), ["offline"]);
+    let offline = meta["offline"].as_object().unwrap();
+    let mut keys: Vec<_> = offline.keys().cloned().collect();
+    keys.sort();
+    assert_eq!(keys, ["as_of", "partial", "stale"]);
+    assert_eq!(
+        (offline["partial"].clone(), offline["stale"].clone()),
+        (json!(false), json!(true))
+    );
+    assert_eq!(body["data"], me("Ayşe")["data"]);
+    let mut top: Vec<_> = body.as_object().unwrap().keys().cloned().collect();
+    top.sort();
+    assert_eq!(top, ["data", "meta"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_copy_is_as_of_the_request_not_its_answer() {
+    let fx = Arc::new(fixture(vec![]).await);
+    mount_me(&fx, me("Ayşe"), 500).await;
+    let before = crate::router::local_read::now().unwrap().0;
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.call(me_call()).await })
+    };
+    fx.request_arrived(ME).await;
+    // Well before the answer comes (it is held back 500 ms).
+    let in_flight = crate::router::local_read::now().unwrap().0;
+    assert_eq!(call.await.unwrap().status, 200);
+
+    let answer = offline_me(&fx).await;
+
+    let as_of = answer.json().unwrap()["meta"]["offline"]["as_of"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(before <= as_of, "{before} > {as_of}");
+    assert!(
+        as_of <= in_flight,
+        "as_of {as_of} is later than the request in flight at {in_flight}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_older_request_answered_last_does_not_replace_the_newer_answer() {
+    let fx = Arc::new(fixture(vec![]).await);
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = calls.clone();
+    Mock::given(method("GET"))
+        .and(path(ME))
+        .respond_with(move |_: &wiremock::Request| {
+            if seen.fetch_add(1, std::sync::atomic::Ordering::SeqCst) == 0 {
+                ResponseTemplate::new(200)
+                    .set_body_json(me("Eski Ad"))
+                    .set_delay(Duration::from_millis(700))
+            } else {
+                ResponseTemplate::new(200).set_body_json(me("Yeni Ad"))
+            }
+        })
+        .mount(&fx.server)
+        .await;
+    let old = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.call(me_call()).await })
+    };
+    fx.request_arrived(ME).await;
+    // Sent a moment later: a clearly later request time.
+    tokio::time::sleep(Duration::from_millis(5)).await;
+    let new = fx.call(me_call()).await;
+    assert_eq!(new.json().unwrap()["data"]["user"]["name"], "Yeni Ad");
+    let old = old.await.unwrap();
+    assert_eq!(old.json().unwrap()["data"]["user"]["name"], "Eski Ad");
+
+    let answer = offline_me(&fx).await;
+
+    assert_eq!(answer.json().unwrap()["data"]["user"]["name"], "Yeni Ad");
+}

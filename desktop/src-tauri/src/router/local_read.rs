@@ -144,11 +144,22 @@ fn session_answer(engine: &Engine) -> CommandResult<Option<ApiResponseDto>> {
 }
 
 /// Keeps `body`, a `200` answer of `GET /auth/me` fetched in sign-in
-/// `generation`, as of now. The engine refuses it for any other sign-in,
-/// one without tokens or deactivated, and a body that carries a credential.
-pub fn save_session(engine: &Arc<Engine>, body: &Value, generation: u64) -> CommandResult<()> {
-    let fetched_at = Timestamp(timestamp()?);
-    Ok(engine.put_session_copy(body, &fetched_at, generation)?)
+/// `generation` by a request sent at `sent_at` ([`now`]). The engine refuses
+/// it for any other sign-in, one without tokens or deactivated, and a body
+/// that carries a credential, and keeps a later-sent answer already kept.
+pub fn save_session(
+    engine: &Arc<Engine>,
+    body: &Value,
+    generation: u64,
+    sent_at: &Timestamp,
+) -> CommandResult<()> {
+    engine.put_session_copy(body, sent_at, generation)?;
+    Ok(())
+}
+
+/// The current time as a wire timestamp.
+pub fn now() -> CommandResult<Timestamp> {
+    Ok(Timestamp(timestamp()?))
 }
 
 fn list(engine: &Engine, read: &Read<'_>, call: &ApiCall) -> CommandResult<LocalOutcome> {

@@ -361,18 +361,52 @@ pub(super) fn session_copy(store: &Store) -> Result<Option<StoredSessionCopy>> {
 
 /// Replaces the kept `GET /auth/me` answer.
 pub(super) fn set_session_copy(store: &Store, copy: &StoredSessionCopy) -> Result<()> {
+    store.write(|tx| write_session_copy(tx, copy))
+}
+
+/// Replaces the kept `GET /auth/me` answer unless the kept one belongs to
+/// the same sign-in and was fetched later than `copy` (an older answer
+/// that arrives last never overwrites a newer one). Check and write are
+/// one transaction. `false`: the kept one stays.
+pub(super) fn offer_session_copy(store: &Store, copy: &StoredSessionCopy) -> Result<bool> {
+    store.write(|tx| {
+        let kept: Option<String> = tx
+            .query_row(
+                "SELECT value FROM engine_meta WHERE key = ?1",
+                [SESSION_COPY],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let kept = kept
+            .and_then(|v| serde_json::from_str::<StoredSessionCopy>(&v).ok())
+            .filter(|kept| kept.format == SESSION_COPY_FORMAT);
+        if let Some(kept) = kept.filter(|kept| kept.generation == copy.generation) {
+            // An unreadable time compares as NULL: the new answer wins.
+            let newer: Option<bool> = tx.query_row(
+                "SELECT julianday(?1) > julianday(?2)",
+                params![kept.fetched_at, copy.fetched_at],
+                |r| r.get(0),
+            )?;
+            if newer == Some(true) {
+                return Ok(false);
+            }
+        }
+        write_session_copy(tx, copy)?;
+        Ok(true)
+    })
+}
+
+fn write_session_copy(tx: &Connection, copy: &StoredSessionCopy) -> Result<()> {
     let value = serde_json::to_string(&StoredSessionCopy {
         format: SESSION_COPY_FORMAT,
         ..copy.clone()
     })?;
-    store.write(|tx| {
-        tx.execute(
-            "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
-             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-            params![SESSION_COPY, value],
-        )?;
-        Ok(())
-    })
+    tx.execute(
+        "INSERT INTO engine_meta (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![SESSION_COPY, value],
+    )?;
+    Ok(())
 }
 
 /// Drops the kept `GET /auth/me` answer.

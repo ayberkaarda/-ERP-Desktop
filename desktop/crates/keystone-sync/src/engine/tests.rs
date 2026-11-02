@@ -22,6 +22,8 @@ use crate::wire::{
 };
 
 const PROFILE: &str = "engine-unit";
+const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
+const USER: &str = "0192f5a0-0000-7000-8000-00000000000a";
 
 /// What [`FakeApi::push`] answers.
 const PUSH_LOST: u8 = 0;
@@ -65,7 +67,7 @@ fn manifest() -> ManifestResponse {
             "min_schema_version": 1,
             "offline_manifest_version": 1,
             "server_time": "2026-10-26T09:15:00+03:00",
-            "company_id": "0192f5a0-0000-7000-8000-000000000001",
+            "company_id": COMPANY,
             "user_id": "0192f5a0-0000-7000-8000-00000000000a",
             "device_id": null,
             "permissions": [],
@@ -91,6 +93,10 @@ impl crate::client::sealed::Sealed for FakeApi {}
 impl SyncApi for FakeApi {
     fn session(&self) -> &Arc<Session> {
         &self.session
+    }
+
+    fn company_id(&self) -> Option<Uuid> {
+        Uuid::parse_str(COMPANY).ok()
     }
 
     async fn manifest(&self) -> Result<ManifestResponse> {
@@ -629,4 +635,75 @@ async fn a_retry_after_answered_to_an_old_sign_in_does_not_hold_the_new_one() {
         started.elapsed()
     );
     assert!(api.manifests.load(Ordering::SeqCst) > before);
+}
+
+fn session_answer() -> Value {
+    json!({ "data": {
+        "user": { "id": USER, "name": "A", "must_change_password": false },
+        "companies": [{ "id": COMPANY, "name": "ACME", "role_names": [] }],
+        "permissions": { COMPANY: ["parties.view"] },
+    }})
+}
+
+fn session_rows(f: &Fixture) -> i64 {
+    f.engine
+        .store
+        .read(|c| {
+            Ok(c.query_row(
+                "SELECT count(*) FROM engine_meta WHERE key = 'session_copy'",
+                [],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap()
+}
+
+/// A sign-out started between a session answer's checks and its write
+/// waits for that write and then removes it; it never finishes first and
+/// leaves the answer behind.
+#[tokio::test]
+async fn a_sign_out_cannot_land_between_the_session_answer_check_and_its_write() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    let weak = Arc::downgrade(&f.engine);
+    let finished_first: Arc<Mutex<Option<bool>>> = Arc::default();
+    let worker: Arc<Mutex<Option<std::thread::JoinHandle<()>>>> = Arc::default();
+    let (slot, handle) = (finished_first.clone(), worker.clone());
+    let fired = AtomicBool::new(false);
+    f.engine.set_hook(move |point| {
+        if point != Hook::SessionCopyChecked || fired.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let Some(engine) = weak.upgrade() else { return };
+        let (tx, rx) = mpsc::channel();
+        *handle.lock().unwrap() = Some(std::thread::spawn(move || {
+            let done = tokio::runtime::Builder::new_current_thread()
+                .build()
+                .unwrap()
+                .block_on(engine.sign_out(true));
+            let _ = tx.send(done.map(|_| ()));
+        }));
+        *slot.lock().unwrap() = Some(rx.recv_timeout(Duration::from_millis(400)).is_ok());
+    });
+
+    let kept = f.engine.put_session_copy(
+        &session_answer(),
+        &Timestamp("2026-11-02T21:40:00.000Z".into()),
+        1,
+    );
+    let worker = worker.lock().unwrap().take().expect("hook ran");
+    worker.join().unwrap();
+
+    assert_eq!(kept.ok(), Some(true));
+    assert_eq!(
+        finished_first.lock().unwrap().take(),
+        Some(false),
+        "the sign-out finished while a checked session answer was not written yet"
+    );
+    assert_eq!(
+        session_rows(&f),
+        0,
+        "the session answer outlived the sign-out"
+    );
+    assert!(f.tokens.load(PROFILE).unwrap().is_none());
 }

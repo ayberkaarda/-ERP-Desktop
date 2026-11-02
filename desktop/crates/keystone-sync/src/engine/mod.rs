@@ -293,6 +293,8 @@ enum Hook {
     CommitChecked,
     /// A failed pass found no other sign-in and has not published yet.
     FailureKept,
+    /// A session answer passed its checks and is not written yet.
+    SessionCopyChecked,
 }
 
 #[cfg(test)]
@@ -733,8 +735,11 @@ impl<A: SyncApi> SyncEngine<A> {
 
     /// Keeps `body`, a `200` answer of `GET /api/v1/auth/me` fetched by a
     /// call bound to sign-in `generation`, as of `fetched_at`, for an
-    /// offline start ([`SyncEngine::session_copy`]). It replaces the copy
-    /// kept before. Refused unwritten when another sign-in happened since
+    /// offline start ([`SyncEngine::session_copy`]). `fetched_at` is the time
+    /// the request was sent, so the copy is never shown fresher than it is.
+    /// It replaces the copy kept before, except one of the same sign-in
+    /// fetched later: an older answer arriving last leaves it (`Ok(false)`;
+    /// check and write are one transaction). Refused unwritten when another sign-in happened since
     /// (`UNAUTHENTICATED`), when the sign-in has no tokens, is deactivated or
     /// is being signed out (`OFFLINE_UNAVAILABLE`), and when the body is not
     /// a `{data: {user: {id}, companies, permissions}}` answer or carries a
@@ -748,7 +753,7 @@ impl<A: SyncApi> SyncEngine<A> {
         body: &Value,
         fetched_at: &Timestamp,
         generation: u64,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
         // No sign-in completes between the checks below and the write.
         let _sign_in = self.session.hold();
@@ -775,7 +780,8 @@ impl<A: SyncApi> SyncEngine<A> {
                 "the client has no company; the session answer is not kept".to_owned(),
             ));
         };
-        local::set_session_copy(
+        self.hook(Hook::SessionCopyChecked);
+        local::offer_session_copy(
             &self.store,
             &local::StoredSessionCopy {
                 format: 0,

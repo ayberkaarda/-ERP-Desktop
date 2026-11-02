@@ -311,27 +311,181 @@ async fn an_unfinished_sign_out_refuses_the_answer() {
     assert_eq!(kept_rows(&env), 0);
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+/// Writers and readers keep going until well after the sign-out returned;
+/// in no round does an answer outlive it or get served after it. (The
+/// exact interleaving is pinned by the engine's unit test
+/// `a_sign_out_cannot_land_between_the_session_answer_check_and_its_write`.)
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn answers_racing_a_sign_out_never_survive_it() {
-    for _ in 0..20 {
+    use std::sync::atomic::AtomicBool;
+    let mut survived = 0;
+    for _ in 0..25 {
         let env = verified_with_copy().await;
         let engine = env.engine.clone();
-        let writers: Vec<_> = (0..4)
+        let done = Arc::new(AtomicBool::new(false));
+        let signed_out = Arc::new(AtomicBool::new(false));
+        let served_after = Arc::new(AtomicUsize::new(0));
+        let mut workers: Vec<_> = (0..6)
             .map(|_| {
-                let engine = engine.clone();
+                let (engine, done) = (engine.clone(), done.clone());
                 tokio::task::spawn_blocking(move || {
-                    for _ in 0..10 {
+                    while !done.load(Ordering::SeqCst) {
                         let _ = engine.put_session_copy(&me(USER_A), &at(), 1);
                     }
                 })
             })
             .collect();
-        assert_eq!(engine.sign_out(true).await.unwrap(), SignOut::Done);
-        for writer in writers {
-            writer.await.unwrap();
+        for _ in 0..2 {
+            let (engine, done) = (engine.clone(), done.clone());
+            let (signed_out, served_after) = (signed_out.clone(), served_after.clone());
+            workers.push(tokio::task::spawn_blocking(move || {
+                while !done.load(Ordering::SeqCst) {
+                    let after = signed_out.load(Ordering::SeqCst);
+                    if after && matches!(engine.session_copy(), Ok(Some(_))) {
+                        served_after.fetch_add(1, Ordering::SeqCst);
+                    }
+                }
+            }));
         }
-        assert_eq!(kept_rows(&env), 0, "an answer outlived the sign-out");
+        assert_eq!(engine.sign_out(true).await.unwrap(), SignOut::Done);
+        signed_out.store(true, Ordering::SeqCst);
+        // Writes already past their checks would land now, if not excluded.
+        tokio::time::sleep(Duration::from_millis(15)).await;
+        done.store(true, Ordering::SeqCst);
+        for worker in workers {
+            worker.await.unwrap();
+        }
+        if kept_rows(&env) != 0 || served_after.load(Ordering::SeqCst) != 0 {
+            survived += 1;
+        }
     }
+    assert_eq!(
+        survived, 0,
+        "an answer outlived the sign-out in {survived}/25 rounds"
+    );
+}
+
+#[tokio::test]
+async fn an_older_answer_arriving_last_never_replaces_a_newer_one() {
+    let env = verified_with_copy().await;
+    let t = |s: &str| Timestamp(format!("2026-11-02T21:{s}Z"));
+    let named = |name: &str| {
+        let mut body = me(USER_A);
+        body["data"]["user"]["name"] = json!(name);
+        body
+    };
+    // The newer request (sent 21:45) answered first.
+    assert!(
+        env.engine
+            .put_session_copy(&named("Yeni"), &t("45:00.000"), 1)
+            .unwrap()
+    );
+    // The older one (sent 21:44) answered last: refused, the newer stays.
+    assert!(
+        !env.engine
+            .put_session_copy(&named("Eski"), &t("44:00.000"), 1)
+            .unwrap()
+    );
+    let copy = env.engine.session_copy().unwrap().unwrap();
+    assert_eq!(copy.data["data"]["user"]["name"], "Yeni");
+    assert_eq!(copy.fetched_at, t("45:00.000"));
+    // Down to the millisecond; the same time replaces it.
+    assert!(
+        !env.engine
+            .put_session_copy(&named("Eski"), &t("44:59.999"), 1)
+            .unwrap()
+    );
+    assert!(
+        env.engine
+            .put_session_copy(&named("Ayni"), &t("45:00.000"), 1)
+            .unwrap()
+    );
+    assert!(
+        env.engine
+            .put_session_copy(&named("Sonra"), &t("46:00.000"), 1)
+            .unwrap()
+    );
+    assert_eq!(served(&env).unwrap()["data"]["user"]["name"], "Sonra");
+}
+
+#[tokio::test]
+async fn a_new_sign_in_replaces_a_later_answer_of_the_old_one() {
+    let env = verified_with_copy().await;
+    env.engine
+        .put_session_copy(
+            &me(USER_A),
+            &Timestamp("2026-11-02T23:00:00.000Z".into()),
+            1,
+        )
+        .unwrap();
+    let second = sign_in_as(&env.tokens, 2).await;
+    // Sent earlier by the clock, but in the new sign-in: it wins.
+    assert!(
+        env.engine
+            .put_session_copy(&me(USER_A), &at(), second)
+            .unwrap()
+    );
+    env.engine.run_once(Trigger::Manual).await.unwrap();
+    assert_eq!(env.engine.session_copy().unwrap().unwrap().fetched_at, at());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn concurrent_answers_keep_the_latest_sent() {
+    let env = verified_with_copy().await;
+    let times: Vec<String> = (0..40)
+        .map(|i| {
+            format!(
+                "2026-11-02T22:{:02}:{:02}.000Z",
+                10 + i % 7 * 3,
+                (i * 13) % 60
+            )
+        })
+        .collect();
+    let latest = times.iter().max().unwrap().clone();
+    let handles: Vec<_> = times
+        .into_iter()
+        .map(|time| {
+            let engine = env.engine.clone();
+            tokio::task::spawn_blocking(move || {
+                let mut body = me(USER_A);
+                body["data"]["user"]["name"] = json!(time.clone());
+                engine.put_session_copy(&body, &Timestamp(time), 1).unwrap();
+            })
+        })
+        .collect();
+    for handle in handles {
+        handle.await.unwrap();
+    }
+    let copy = env.engine.session_copy().unwrap().unwrap();
+    assert_eq!(copy.fetched_at.0, latest);
+    assert_eq!(copy.data["data"]["user"]["name"], latest.as_str());
+}
+
+#[tokio::test]
+async fn an_unfinished_sign_out_closes_a_kept_answer() {
+    let env = verified_with_copy().await;
+    assert!(served(&env).is_some(), "positive control");
+    for stage in ["revoke", "wipe"] {
+        leave_sign_out_unfinished(&env.store, 1, stage);
+        assert!(
+            env.engine.session_copy().is_err(),
+            "served during an unfinished sign-out ({stage})"
+        );
+    }
+}
+
+#[tokio::test]
+async fn password_keys_other_than_the_change_flag_are_refused() {
+    let env = env().await;
+    mount_user(&env, USER_A).await;
+    env.engine.run_once(Trigger::Startup).await.unwrap();
+    for key in ["password", "new_password", "current_password", "Password"] {
+        let mut body = me(USER_A);
+        body["data"]["user"][key] = json!("hunter2");
+        let error = env.engine.put_session_copy(&body, &at(), 1).unwrap_err();
+        assert_eq!(error.code(), "INVALID_REQUEST", "{key}");
+    }
+    assert_eq!(kept_rows(&env), 0);
 }
 
 #[tokio::test]
