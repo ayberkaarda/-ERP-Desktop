@@ -400,28 +400,40 @@ impl TokenTask {
     /// caller holds the session lock, so no deactivation or sign-in can
     /// interleave. Errors are redacted.
     async fn rotate_locked(&self, taken: StoredTokens) -> Result<DeviceTokenResponse> {
+        self.rotate_answer(taken).await.map_err(|(_, error)| error)
+    }
+
+    /// [`TokenTask::rotate_locked`], with the HTTP status of a refused
+    /// refresh next to the error (`None`: no answer, or a local failure).
+    async fn rotate_answer(
+        &self,
+        taken: StoredTokens,
+    ) -> std::result::Result<DeviceTokenResponse, (Option<u16>, SyncError)> {
         let url = self.refresh_url.clone();
+        let local = |error: SyncError| (None, error);
         let body = {
             let request = DeviceRefreshRequest {
                 refresh_token: taken.refresh_token.expose().to_owned(),
             };
-            serde_json::to_vec(&request)?
+            serde_json::to_vec(&request).map_err(|e| local(e.into()))?
         };
 
         let raw = match send(&self.http, Method::POST, url, Some(body), None, None).await {
             Ok(raw) => raw,
             Err(Transport::NotSent(e)) => {
                 self.store()
-                    .save(&TokenWrite::new(), self.profile(), &taken)?;
-                return Err(SyncError::NotSent(e.to_string()));
+                    .save(&TokenWrite::new(), self.profile(), &taken)
+                    .map_err(local)?;
+                return Err(local(SyncError::NotSent(e.to_string())));
             }
             Err(Transport::Lost(_)) => {
-                return Err(sign_in_required(
+                return Err(local(sign_in_required(
                     "refresh outcome unknown (no answer); the refresh token is spent, sign in again",
-                ));
+                )));
             }
         };
         if !raw.is_success() {
+            let status = Some(raw.status);
             let error = decode::<()>(&raw)
                 .err()
                 .unwrap_or_else(|| sign_in_required("refresh failed"));
@@ -432,23 +444,58 @@ impl TokenTask {
                     ..
                 }
             ) {
-                return Err(error.redacted());
+                return Err((status, error.redacted()));
             }
-            return Err(sign_in_required(&format!(
-                "refresh answered HTTP {} ({}); the refresh token is spent, sign in again",
-                raw.status,
-                error.code()
-            )));
+            return Err((
+                status,
+                sign_in_required(&format!(
+                    "refresh answered HTTP {} ({}); the refresh token is spent, sign in again",
+                    raw.status,
+                    error.code()
+                )),
+            ));
         }
         let response = decode_token(&raw).map_err(|_| {
-            sign_in_required("refresh answer unreadable; the refresh token is spent, sign in again")
+            local(sign_in_required(
+                "refresh answer unreadable; the refresh token is spent, sign in again",
+            ))
         })?;
-        self.store().save(
-            &TokenWrite::new(),
-            self.profile(),
-            &StoredTokens::from(response.data.clone()),
-        )?;
+        self.store()
+            .save(
+                &TokenWrite::new(),
+                self.profile(),
+                &StoredTokens::from(response.data.clone()),
+            )
+            .map_err(local)?;
         Ok(response)
+    }
+
+    /// The logout of [`super::sealed::Sealed::end_session`]; the caller
+    /// holds the session lock. One refresh at most: a 401 can be an expired
+    /// access token as well as a sign-in that is already gone, and only the
+    /// refresh tells them apart (its own 401 means the device's tokens are
+    /// gone on the server).
+    async fn end_session(&self, tokens: &StoredTokens, url: Url, company: HeaderValue) -> bool {
+        let post = |access: Secret| {
+            let (http, url, company) = (&self.http, url.clone(), company.clone());
+            async move { send_bearer(http, Method::POST, url, None, &access, company).await }
+        };
+        match post(tokens.access_token.clone()).await {
+            Ok(raw) if raw.is_success() => return true,
+            Ok(raw) if raw.status == 401 => {}
+            _ => return false,
+        }
+        let taken = match self.store().take(&TokenWrite::new(), self.profile()) {
+            Ok(Some(taken)) => taken,
+            _ => return false,
+        };
+        match self.rotate_answer(taken).await {
+            Ok(response) => matches!(
+                post(Secret::new(response.data.token.clone())).await,
+                Ok(raw) if raw.is_success() || raw.status == 401
+            ),
+            Err((status, _)) => status == Some(401),
+        }
     }
 
     /// The password change of [`HttpClient::change_password`] with the
@@ -548,7 +595,14 @@ async fn send_bearer(
     Ok(send(http, method, url, body, Some(bearer), Some(company)).await?)
 }
 
-impl super::sealed::Sealed for HttpClient {}
+impl super::sealed::Sealed for HttpClient {
+    async fn end_session(&self, tokens: &StoredTokens) -> bool {
+        let (Ok(task), Ok(url)) = (self.token_task(), self.server.endpoint(paths::LOGOUT)) else {
+            return false;
+        };
+        task.end_session(tokens, url, self.company_id.clone()).await
+    }
+}
 
 impl SyncApi for HttpClient {
     fn company_id(&self) -> Option<uuid::Uuid> {

@@ -29,7 +29,21 @@ mod url;
 
 /// Seals [`SyncApi`]: the supertrait is reachable only inside the crate.
 pub(crate) mod sealed {
-    pub trait Sealed {}
+    use std::future::Future;
+
+    use crate::auth::StoredTokens;
+
+    pub trait Sealed {
+        /// `POST /api/v1/auth/logout` with `tokens`, the current sign-in's,
+        /// for [`crate::engine::SyncEngine::sign_out`], which holds the
+        /// session lock (so nothing else refreshes, signs in or signs out
+        /// meanwhile). Best effort: never an error. `true` when the server
+        /// ended the sign-in or answered that it was already gone; `false`
+        /// for anything else (no connection, timeout, any other status).
+        /// A 401 refreshes once and sends once more. Answer bodies are not
+        /// read.
+        fn end_session(&self, tokens: &StoredTokens) -> impl Future<Output = bool> + Send;
+    }
 }
 
 pub use http::{
@@ -50,6 +64,7 @@ pub mod paths {
     pub const DEVICE_LOGIN: &str = "/api/v1/auth/device";
     pub const DEVICE_REFRESH: &str = "/api/v1/auth/device/refresh";
     pub const PASSWORD_CHANGE: &str = "/api/v1/auth/password/change";
+    pub const LOGOUT: &str = "/api/v1/auth/logout";
     pub const BROADCASTING_AUTH: &str = "/api/v1/broadcasting/auth";
 }
 

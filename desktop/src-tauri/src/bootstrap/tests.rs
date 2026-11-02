@@ -284,6 +284,11 @@ async fn server_with(companies: &[(&str, &str)], reverb: Value) -> MockServer {
         .respond_with(pull)
         .mount(&server)
         .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/logout"))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&server)
+        .await;
     server
 }
 
@@ -669,7 +674,12 @@ async fn sign_out_refuses_pending_work_unless_forced() {
     assert_eq!(rows(&fx), 2);
 
     let done = fx.desktop.sign_out(&fx.state, true).await.unwrap();
-    assert_eq!(done, SignOutDto::Done);
+    assert_eq!(
+        done,
+        SignOutDto::Done {
+            server_revoked: true
+        }
+    );
     let record = fx.record();
     assert!(record.tokens.is_none());
     assert_eq!(record.generation, 1);
@@ -679,6 +689,32 @@ async fn sign_out_refuses_pending_work_unless_forced() {
     );
     let state = fx.desktop.auth_state(&fx.state).await.unwrap();
     assert!(!state.signed_in);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sign_out_reports_a_server_that_did_not_end_the_sign_in() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/logout"))
+        .respond_with(ResponseTemplate::new(503))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let fx = fx();
+    synced(&fx, &server).await;
+
+    let done = fx.desktop.sign_out(&fx.state, false).await.unwrap();
+    assert_eq!(
+        done,
+        SignOutDto::Done {
+            server_revoked: false
+        }
+    );
+    assert!(
+        fx.record().tokens.is_none(),
+        "the local sign-out was held up"
+    );
+    assert!(!fx.desktop.auth_state(&fx.state).await.unwrap().signed_in);
 }
 
 #[tokio::test(flavor = "multi_thread")]

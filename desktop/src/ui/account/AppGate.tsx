@@ -1,7 +1,8 @@
 // Start-up gate around the web router: splash while the profile opens, the
 // first-run server profile screen, recovery screens for a profile that could
 // not be opened, otherwise the web app (whose guards probe /auth/me).
-// Also hosts the pending-work dialog for the platform session.
+// Also hosts the pending-work dialog for the platform session and the notice
+// after a sign-out the server was not told about.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 
@@ -16,6 +17,7 @@ import { GateFrame, Splash } from './GateFrame'
 import { PendingWorkDialog } from './PendingWorkDialog'
 import { ProfilesPage } from './ProfilesPage'
 import { FailedProfile, MalformedRecovery, ProfilesFileRecovery, StoreKeyRecovery } from './Recovery'
+import { SignOutNotice } from './SignOutNotice'
 import {
   AccountContext,
   type AccountContextValue,
@@ -169,6 +171,7 @@ export function AccountGate({ services, children }: { services: AccountServices;
         {children}
       </GateBody>
       <PendingWorkDialog request={pending?.request ?? null} canShow={showsApp(view)} onAnswer={answerPending} />
+      <SignOutNotice services={services} />
     </AccountContext.Provider>
   )
 }

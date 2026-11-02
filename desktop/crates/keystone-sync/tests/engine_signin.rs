@@ -226,11 +226,21 @@ async fn a_sign_out_finished_after_a_new_sign_in_keeps_the_new_tokens() {
     leave_sign_out_unfinished(&env.store, 1, "wipe");
     sign_in_as(&env.tokens, 2).await;
 
-    assert_eq!(env.engine.sign_out(false).await.unwrap(), SignOut::Done);
+    assert_eq!(
+        env.engine.sign_out(false).await.unwrap(),
+        SignOut::Done {
+            server_revoked: true
+        }
+    );
     assert_eq!(
         env.tokens.load(PROFILE).unwrap(),
         Some(tokens(2)),
         "finishing A's sign-out revoked B's tokens"
+    );
+    assert_eq!(
+        hits(&env.server, "/api/v1/auth/logout").await,
+        0,
+        "B's sign-in was ended on the server"
     );
     assert_eq!(env.store.row_count(&name("parties")).unwrap(), 0);
 }

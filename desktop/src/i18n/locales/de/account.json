@@ -111,6 +111,11 @@
       "profiles": "Serverprofile"
     }
   },
+  "signOutNotice": {
+    "body": "Sie sind auf diesem Gerät abgemeldet, aber die Serversitzung konnte nicht beendet werden. Melden Sie dieses Gerät auf der Sicherheitsseite ab.",
+    "openSecurity": "Sicherheitsseite öffnen",
+    "dismiss": "Schließen"
+  },
   "pending": {
     "title": "Nicht gesendete Arbeit",
     "body": "{{outbox}} nicht gesendete Änderungen, {{conflicts}} offene Konflikte. Wenn Sie fortfahren, werden sie gelöscht.",

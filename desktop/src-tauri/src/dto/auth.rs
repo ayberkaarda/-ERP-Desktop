@@ -61,8 +61,11 @@ pub struct AuthStateDto {
 #[ts(export, export_to = "../../src/bridge/generated/")]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum SignOutDto {
-    /// Tokens and local data of the profile are gone.
-    Done,
+    /// Tokens and local data of the profile are gone. `server_revoked`
+    /// false: the server could not be told (offline, no answer in time, or
+    /// it refused), so the device's sign-in stays valid there until it
+    /// expires or is signed out from the security page.
+    Done { server_revoked: bool },
     /// Nothing changed: unsent work exists; call again with `force`.
     PendingWork {
         #[ts(type = "number")]
@@ -121,6 +124,17 @@ mod tests {
         let sent = serde_json::to_value(&device).unwrap();
         assert_eq!(sent["is_current"], json!(true));
         assert!(sent.get("isCurrent").is_none());
+    }
+
+    #[test]
+    fn the_webview_receives_server_revoked_with_done() {
+        for revoked in [true, false] {
+            let sent = serde_json::to_value(super::SignOutDto::Done {
+                server_revoked: revoked,
+            })
+            .unwrap();
+            assert_eq!(sent, json!({"status": "done", "server_revoked": revoked}));
+        }
     }
 
     #[test]

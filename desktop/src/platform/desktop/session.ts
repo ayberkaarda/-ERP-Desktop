@@ -39,8 +39,16 @@ export class PendingWorkError extends ApiError {
   }
 }
 
+/** How a completed sign-out went on the server. */
+export interface SignedOut {
+  /** False: the server was not told (offline, no answer in time, refused); the device stays signed in there. */
+  serverRevoked: boolean
+}
+
 export interface DesktopSession extends PlatformSession {
   passwordChange: 'external'
+  /** Called after every completed sign-out (local sign-out is always done by then). */
+  onSignedOut(listener: (outcome: SignedOut) => void): () => void
 }
 
 export function createDesktopSession(options: {
@@ -51,6 +59,7 @@ export function createDesktopSession(options: {
   onChanged?: (action: PendingWork['action']) => void
 }): DesktopSession {
   const { invoke, onChanged } = options
+  const signedOut = new Set<(outcome: SignedOut) => void>()
 
   async function counts(): Promise<{ outbox: number | undefined; conflicts: number | undefined }> {
     try {
@@ -98,6 +107,14 @@ export function createDesktopSession(options: {
         })
       }
       onChanged?.('logout')
+      const outcome: SignedOut = { serverRevoked: answer.server_revoked }
+      for (const listener of [...signedOut]) listener(outcome)
+    },
+    onSignedOut: (listener) => {
+      signedOut.add(listener)
+      return () => {
+        signedOut.delete(listener)
+      }
     },
     switchCompany: async (id) => {
       try {
