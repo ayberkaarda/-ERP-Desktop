@@ -1,6 +1,6 @@
 {
   "$schema": "./offline-manifest.schema.json",
-  "manifest_version": 2,
+  "manifest_version": 3,
   "sync_schema_version": 1,
   "api_prefix": "/api/v1",
   "defaults": {
@@ -20,6 +20,20 @@
       "read": "local-first",
       "source": "pull",
       "embeds": ["addresses", "contacts", "bank_accounts"],
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" },
+          "tax_number": { "type": "text" },
+          "country": { "type": "text" }
+        },
+        "filters": {
+          "role": { "field": "roles", "match": "any_of", "type": "string" },
+          "is_active": { "match": "eq", "type": "bool" },
+          "country": { "match": "eq", "type": "string" }
+        },
+        "search": { "fields": ["name", "legal_name", "code", "tax_number"] }
+      },
       "write": {
         "mode": "draft-outbox",
         "ops": [
@@ -46,6 +60,22 @@
       "read": "local-first",
       "source": "pull",
       "embeds": ["base_unit", "category", "units"],
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "id": { "match": "eq", "type": "uuid", "max_values": 100 },
+          "type": { "match": "eq", "type": "string" },
+          "tracking": { "match": "eq", "type": "string" },
+          "is_active": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name"], "server_also": "Barkodlar (items.barcodes) ve varyant SKU'ları (items.variants) da aranır; satırda yoklar." },
+        "online_only": [
+          { "param": "filter[category]", "reason": "Kategori filtresi seçilen kategorinin bütün alt ağacını kapsar; ağaç sunucuda CategoryTree::subtree ile hesaplanır." }
+        ]
+      },
       "children": [
         {
           "resource": "items.variants",
@@ -70,7 +100,17 @@
       "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\ItemCategoryResource",
       "requires": { "any_of": ["item_categories.manage", "items.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name"] }
+      }
     },
     {
       "resource": "units",
@@ -81,7 +121,17 @@
       "api_resource": "App\\Modules\\Catalog\\Http\\Resources\\UnitResource",
       "requires": { "any_of": ["units.manage", "items.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name", "symbol"] }
+      }
     },
     {
       "resource": "unit-conversions",
@@ -104,6 +154,19 @@
       "requires": { "all_of": ["price_lists.view"] },
       "read": "local-first",
       "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" },
+          "currency_code": { "type": "text" },
+          "valid_from": { "type": "date" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" },
+          "tax_inclusive": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name"] }
+      },
       "children": [
         {
           "resource": "price-lists.lines",
@@ -123,7 +186,14 @@
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
       "requires": { "all_of": ["currencies.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "search": { "fields": ["code", "name"] }
+      }
     },
     {
       "resource": "exchange-rates",
@@ -137,7 +207,19 @@
       "read": "local-first",
       "source": "pull",
       "window_days": 30,
-      "window_field": "rate_date"
+      "window_field": "rate_date",
+      "query": {
+        "sort": {
+          "rate_date": { "type": "date" },
+          "currency_code": { "type": "text" }
+        },
+        "filters": {
+          "source": { "match": "eq", "type": "string" },
+          "currency_code": { "match": "eq", "type": "string" },
+          "rate_date": { "match": "eq", "type": "date" }
+        },
+        "search": { "fields": ["currency_code"] }
+      }
     },
     {
       "resource": "tax-codes",
@@ -148,7 +230,18 @@
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
       "requires": { "all_of": ["tax_codes.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" },
+          "type": { "match": "eq", "type": "string" }
+        },
+        "search": { "fields": ["code", "name"] }
+      }
     },
     {
       "resource": "payment-terms",
@@ -159,7 +252,17 @@
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
       "requires": { "all_of": ["payment_terms.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name"] }
+      }
     },
     {
       "resource": "warehouses",
@@ -171,12 +274,32 @@
       "requires": { "all_of": ["warehouses.view"] },
       "read": "local-first",
       "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name"] }
+      },
       "children": [
         {
           "resource": "warehouses.locations",
           "path": "/api/v1/warehouses/{warehouse}/locations",
           "detail_path": "/api/v1/warehouses/{warehouse}/locations/{id}",
-          "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource"
+          "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
+          "query": {
+            "sort": {
+              "code": { "type": "text" },
+              "name": { "type": "text" }
+            },
+            "filters": {
+              "is_active": { "match": "eq", "type": "bool" }
+            },
+            "search": { "fields": ["code", "name", "barcode"] }
+          }
         }
       ]
     },
@@ -189,7 +312,17 @@
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
       "requires": { "all_of": ["cost_centers.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "is_active": { "match": "eq", "type": "bool" }
+        },
+        "search": { "fields": ["code", "name"] }
+      }
     },
     {
       "resource": "projects",
@@ -200,7 +333,17 @@
       "api_resource": "App\\Modules\\Reference\\Http\\Resources\\ReferenceResource",
       "requires": { "all_of": ["projects.view"] },
       "read": "local-first",
-      "source": "pull"
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": { "type": "text" },
+          "name": { "type": "text" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" }
+        },
+        "search": { "fields": ["code", "name"] }
+      }
     },
     {
       "resource": "sales-quotes",
@@ -216,6 +359,28 @@
       "window_days": 30,
       "window_field": "document_date",
       "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] }
+      },
       "write": {
         "mode": "draft-outbox",
         "ops": [
@@ -264,6 +429,28 @@
       "window_days": 30,
       "window_field": "document_date",
       "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] }
+      },
       "write": {
         "mode": "draft-outbox",
         "ops": [
@@ -310,7 +497,29 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] }
+      }
     },
     {
       "resource": "sales-invoices",
@@ -324,7 +533,33 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 },
+          "invoice_type": { "match": "eq", "type": "string" }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] },
+        "online_only": [
+          { "param": "filter[open]", "reason": "Açık fatura kuralı (durum issued / partially_paid ve balance_due > 0) sunucuda bileşik bir koşuldur; tek alan filtresi değildir." }
+        ]
+      }
     },
     {
       "resource": "sales-returns",
@@ -338,7 +573,29 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] }
+      }
     },
     {
       "resource": "purchase-requests",
@@ -354,6 +611,29 @@
       "window_days": 30,
       "window_field": "document_date",
       "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "needed_by": { "type": "date" },
+          "estimated_total": { "type": "decimal" },
+          "status": { "type": "text" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "warehouse_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "notes"] },
+        "online_only": [
+          { "param": "filter[supplier]", "reason": "Tedarikçi eşlemesi belge türüne göre sunucuda farklı tablolardan çözülür (önerilen tedarikçi, davetli tedarikçi, sipariş carisi)." }
+        ]
+      },
       "write": {
         "mode": "draft-outbox",
         "ops": [
@@ -396,7 +676,29 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "response_due": { "type": "date" },
+          "status": { "type": "text" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "currency_code": { "match": "eq", "type": "string" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "notes"] },
+        "online_only": [
+          { "param": "filter[supplier]", "reason": "Tedarikçi eşlemesi belge türüne göre sunucuda farklı tablolardan çözülür (önerilen tedarikçi, davetli tedarikçi, sipariş carisi)." }
+        ]
+      }
     },
     {
       "resource": "purchase-orders",
@@ -410,7 +712,33 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "warehouse_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] },
+        "online_only": [
+          { "param": "filter[supplier]", "reason": "Tedarikçi eşlemesi belge türüne göre sunucuda farklı tablolardan çözülür (önerilen tedarikçi, davetli tedarikçi, sipariş carisi)." }
+        ]
+      }
     },
     {
       "resource": "purchase-receipts",
@@ -424,7 +752,33 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "warehouse_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] },
+        "online_only": [
+          { "param": "filter[supplier]", "reason": "Tedarikçi eşlemesi belge türüne göre sunucuda farklı tablolardan çözülür (önerilen tedarikçi, davetli tedarikçi, sipariş carisi)." }
+        ]
+      }
     },
     {
       "resource": "purchase-invoices",
@@ -438,7 +792,36 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "warehouse_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 },
+          "invoice_type": { "match": "eq", "type": "string" },
+          "match_status": { "match": "eq", "type": "string" }
+        },
+        "search": { "fields": ["number", "party_name", "notes", "supplier_invoice_no"] },
+        "online_only": [
+          { "param": "filter[supplier]", "reason": "Tedarikçi eşlemesi belge türüne göre sunucuda farklı tablolardan çözülür (önerilen tedarikçi, davetli tedarikçi, sipariş carisi)." },
+          { "param": "filter[open]", "reason": "Açık fatura kuralı (durum booked / partially_paid ve balance_due > 0) sunucuda bileşik bir koşuldur; tek alan filtresi değildir." }
+        ]
+      }
     },
     {
       "resource": "purchase-returns",
@@ -452,7 +835,33 @@
       "source": "pull",
       "window_days": 30,
       "window_field": "document_date",
-      "embeds": ["lines"]
+      "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "party_name": { "type": "text" },
+          "total": { "type": "decimal" },
+          "total_local": { "type": "decimal" },
+          "status": { "type": "text" },
+          "due_date": { "type": "date" }
+        },
+        "filters": {
+          "status": { "match": "eq", "type": "string" },
+          "party_id": { "match": "eq", "type": "uuid" },
+          "warehouse_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "number": { "match": "contains", "type": "string" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "party_name", "notes"] },
+        "online_only": [
+          { "param": "filter[supplier]", "reason": "Tedarikçi eşlemesi belge türüne göre sunucuda farklı tablolardan çözülür (önerilen tedarikçi, davetli tedarikçi, sipariş carisi)." }
+        ]
+      }
     },
     {
       "resource": "stock-documents",
@@ -468,6 +877,27 @@
       "window_days": 30,
       "window_field": "document_date",
       "embeds": ["lines"],
+      "query": {
+        "default_sort": ["-document_date", "-created_at"],
+        "sort": {
+          "document_date": { "type": "date" },
+          "number": { "type": "text" },
+          "created_at": { "type": "datetime" },
+          "doc_type": { "type": "text" },
+          "status": { "type": "text" }
+        },
+        "filters": {
+          "doc_type": { "match": "eq", "type": "string" },
+          "type": { "field": "doc_type", "match": "eq", "type": "string" },
+          "status": { "match": "eq", "type": "string" },
+          "warehouse_id": { "match": "eq", "type": "uuid" },
+          "target_warehouse_id": { "match": "eq", "type": "uuid" },
+          "date_from": { "field": "document_date", "match": "gte", "type": "date" },
+          "date_to": { "field": "document_date", "match": "lte", "type": "date" },
+          "item_id": { "field": "lines", "element_field": "item_id", "match": "any_of", "type": "uuid", "max_values": 1 }
+        },
+        "search": { "fields": ["number", "reason", "notes"] }
+      },
       "write": {
         "mode": "draft-outbox",
         "ops": [

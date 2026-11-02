@@ -366,6 +366,31 @@ Numara verme sunucudadır. Çevrimdışı oluşturulan taslak numarasızdır; nu
 
 `write` tanımlı her kaynak `local-first` olmak zorundadır (şema bunu denetler).
 
+## Çevrimdışı liste sorguları
+
+Masaüstü bir liste isteğini (`GET <path>?page&per_page&sort&filter[...]&q`) yerel kopyadan yanıtlarken yalnız kaynağın `query` bölümünde bildirilen adları uygular (`offline-manifest.json`, `manifest_version` 3). Bölüm isteğe bağlıdır ve `pull` kaynaklarında ve alt akışlarda (`children`) bulunur; `snapshot` kaynaklarında yoktur (şema reddeder). Bölüm sunucunun pull/push davranışını değiştirmez; yine de manifest içeriği değiştiği için sürüm 3'e çıktı. Sürüm 2 manifesti derlenmiş bir masaüstü, sunucu 3'ü bildirdiğinde `manifest_mismatch` ile çevrimdışı yazmayı kapatır; masaüstü sözleşme dosyalarını aldığında kalkar. Eski manifestte `query` olmaması geçerlidir.
+
+| Alan | Anlamı |
+|---|---|
+| `sort.<ad>` | `sort=<ad>` / `sort=-<ad>` yerelde uygulanır. `field` satırdaki alan (yoksa ad), `type` karşılaştırma kuralı: `text`, `date`, `datetime`, `decimal`, `integer`, `bool`. Virgüllü çok anahtarlı sıralamanın her parçası bildirilmiş olmalıdır. |
+| `default_sort` | `sort` yokken sunucunun sırası (belgelerde `-document_date,-created_at`). Yoksa yalnız `id` artan. |
+| `filters.<ad>` | `filter[<ad>]` yerelde uygulanır. `match`: `eq` (tek değer veya virgüllü liste = herhangi biri), `any_of` (satırdaki dizi, değerlerden birini içerir; `element_field` ile nesne dizisinin bir alanı, ör. `lines[].item_id`), `gte` / `lte` (dahil uç; `filter[date_from]` / `filter[date_to]`), `contains` (harf duyarsız alt dize; `filter[number]`). `type`: `string`, `uuid`, `bool`, `integer`, `date`. `max_values`: sunucunun kabul ettiği en çok değer. |
+| `search.fields` | `q` (ve `search`) bu alanlarda harf duyarsız alt dize olarak aranır. `server_also`, sunucunun ayrıca aradığı ama satırda olmayan şeydir (ör. ürünlerde barkod ve varyant SKU'su); yerel arama onları bulamaz. |
+| `online_only[]` | Web'in gönderdiği ama yerelde doğru uygulanamayan parametre (`filter[x]` veya `sort=x`) ve nedeni. |
+
+Kurallar:
+
+- Bildirilmeyen her `sort` alanı ve `filter[...]` (ve `online_only` içindekiler) çevrimdışıyken eskisi gibi reddedilir: `503 OFFLINE_UNAVAILABLE`, `unsupported_filters` istekteki adları sırasıyla listeler. Masaüstü tahmin etmez; filtrelenmiş gibi görünen yanlış bir liste göstermemek (D2b kararı) korunur. `query` bölümü yoksa önceki davranış geçerlidir: yalnız `window_field` üzerinde `sort`, `filter[<window_field>]`, `filter[date_from]` / `filter[date_to]`.
+- `page`, `per_page` (1..100), `q` her kaynakta geçerlidir; boş filtre değeri filtre değildir (sunucudaki gibi).
+- Bildirilen her ad sunucunun o uçta kabul ettiği addır; aynı istek çevrimiçi 200 döner. Yerel uygulama, sunucunun aynı satırlara verdiği yanıtla aynı satırları aynı sırada verir. `OfflineManifestQueryTest` bunu gerçek uçlara ve satırlara karşı denetler.
+- Web'in gerçekte gönderdiği liste istekleri `backend/tests/Fixtures/Sync/web-list-queries.json` içinde kaynak dosyalarıyla durur. Her biri ya tümüyle bildirilmiştir (`local`), ya bir `online_only` parametresi taşır, ya da sunucu onu zaten reddeder (`server_rejects`). Web'e yeni bir liste sorgusu eklenince bu dosya ve manifest birlikte güncellenir; test, eşlenen bir liste yolunu okuyan dosyada adı geçen ama dosyada olmayan `filter[...]` adını bildirir.
+
+Yerel uygulama kuralları (sunucunun PostgreSQL davranışıyla aynı sonuç):
+
+- **Sıralama:** `null` artan sırada en sonda, azalan sırada en baştadır. Eşitlikte, ve her zaman son anahtar olarak, `id` artan (sunucu `ListQuery` aynısını ekler); sayfalar böylece kararlıdır. `decimal` değerler satırda dizedir (`"9.50"`); sayı olarak karşılaştırılır, dize olarak değil. `date` (`YYYY-MM-DD`) dize olarak karşılaştırılabilir; `datetime` ISO 8601 anına çevrilerek karşılaştırılır. `text` sunucu harmanlamasına (`en_US.utf8`) yakın bir Unicode harmanlamasıyla karşılaştırılır: önce harf duyarsız ve aksan duyarsız, Türkçe harfler temel harflerinin yanında (`ç` `c`'nin, `ş` `s`'nin yanında), eşitlikte büyük/küçük harf.
+- **Filtre:** `string` tam ve harf duyarlıdır. `uuid` küçük harfe çevrilerek karşılaştırılır. `bool` yalnız `1`/`0`/`true`/`false` alır; başka değer yerelde reddedilir. `date` aralığı `YYYY-MM-DD` dizesi olarak dahil uçlarla karşılaştırılır; geçersiz tarih (ör. `#invalid-date`) yerelde reddedilir (sunucu 422 döner). `max_values` aşılırsa reddedilir.
+- **Arama:** sunucu `ILIKE '%q%'` kullanır; yerelde aynı alanlarda harf duyarsız alt dize. Türkçe büyük/küçük harf eşlemesi (`İ`/`i`, `I`/`ı`) yerelde daha geniş olabilir; bu fazladan eşleşme verir, eksik vermez.
+
 ## Çevrimdışı yazma kapsamı
 
 | Kaynak | İşlemler (`version_check`) | Kısıt |
