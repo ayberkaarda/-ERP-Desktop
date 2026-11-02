@@ -111,6 +111,11 @@
       "profiles": "Sunucu profilleri"
     }
   },
+  "signOutNotice": {
+    "body": "Bu cihazda çıkış yapıldı, ancak sunucudaki oturum kapatılamadı. Güvenlik sayfasından bu cihazın oturumunu kapatın.",
+    "openSecurity": "Güvenlik sayfasını aç",
+    "dismiss": "Kapat"
+  },
   "pending": {
     "title": "Gönderilmemiş iş var",
     "body": "{{outbox}} gönderilmemiş değişiklik, {{conflicts}} açık çakışma. Devam ederseniz bunlar silinir.",

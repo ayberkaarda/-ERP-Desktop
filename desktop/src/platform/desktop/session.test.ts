@@ -24,7 +24,7 @@ const counts = { state: 'idle', pending: 2, conflicts: 1, rejected: 1, quarantin
 
 /** auth_sign_out answering pending_work without force and done with it. */
 const guardedSignOut: CommandHandler = (args) =>
-  (args as { force: boolean }).force ? { status: 'done' } : { status: 'pending_work', outbox: 3, conflicts: 2 }
+  (args as { force: boolean }).force ? { status: 'done', server_revoked: true } : { status: 'pending_work', outbox: 3, conflicts: 2 }
 
 describe('desktop session', () => {
   it('manages passwords outside the app', () => {
@@ -32,7 +32,7 @@ describe('desktop session', () => {
   })
 
   it('logout signs out without force and resolves on done', async () => {
-    const s = setup({ auth_sign_out: () => ({ status: 'done' }) }, 'discard')
+    const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: true }) }, 'discard')
     await expect(s.session.logout()).resolves.toBeUndefined()
     expect(s.bridge.calls).toEqual([{ command: 'auth_sign_out', args: { force: false } }])
     expect(s.handler).not.toHaveBeenCalled()
@@ -160,6 +160,65 @@ describe('desktop session', () => {
     }, 'keep')
     await expect(s.session.switchCompany('c2')).rejects.toBeInstanceOf(PlatformCancelledError)
     expect(s.handler).toHaveBeenCalledWith({ action: 'switchCompany', outbox: 10, conflicts: 7 })
+  })
+
+  it('tells listeners how the server sign-out went, after the change', async () => {
+    for (const revoked of [true, false]) {
+      const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: revoked }) }, 'discard')
+      s.session.onSignedOut((outcome) => s.steps.push(`signed out ${String(outcome.serverRevoked)}`))
+      await s.session.logout()
+      expect(s.steps).toEqual(['changed', `signed out ${String(revoked)}`])
+    }
+  })
+
+  it('tells listeners after a forced sign-out too', async () => {
+    const s = setup({
+      auth_sign_out: (args) =>
+        (args as { force: boolean }).force
+          ? { status: 'done', server_revoked: false }
+          : { status: 'pending_work', outbox: 1, conflicts: 0 },
+    }, 'discard')
+    const seen = vi.fn()
+    s.session.onSignedOut(seen)
+    await s.session.logout()
+    expect(seen).toHaveBeenCalledExactlyOnceWith({ serverRevoked: false })
+  })
+
+  it('tells no listener when nothing was signed out, nor one that left', async () => {
+    const kept = setup({ auth_sign_out: guardedSignOut }, 'keep')
+    const seen = vi.fn()
+    kept.session.onSignedOut(seen)
+    await kept.session.logout().catch(() => undefined)
+    const failed = setup({ auth_sign_out: () => fail('NO_ACTIVE_PROFILE', 'none') }, 'discard')
+    failed.session.onSignedOut(seen)
+    await failed.session.logout().catch(() => undefined)
+    const left = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: false }) }, 'discard')
+    left.session.onSignedOut(seen)()
+    await left.session.logout()
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('a failing listener does not fail the completed sign-out nor silence the others', async () => {
+    const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: false }) }, 'discard')
+    const later = vi.fn()
+    s.session.onSignedOut(() => {
+      throw new Error('listener broke')
+    })
+    s.session.onSignedOut(later)
+    await expect(s.session.logout()).resolves.toBeUndefined()
+    expect(later).toHaveBeenCalledExactlyOnceWith({ serverRevoked: false })
+    expect(s.steps).toEqual(['changed'])
+  })
+
+  it('leaving one listener keeps the others', async () => {
+    const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: false }) }, 'discard')
+    const kept = vi.fn()
+    const gone = vi.fn()
+    s.session.onSignedOut(kept)
+    s.session.onSignedOut(gone)()
+    await s.session.logout()
+    expect(kept).toHaveBeenCalledExactlyOnceWith({ serverRevoked: false })
+    expect(gone).not.toHaveBeenCalled()
   })
 
   it('a forced sign-out that still reports pending work is not a sign-out', async () => {

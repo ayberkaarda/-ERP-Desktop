@@ -435,3 +435,124 @@ async fn an_older_request_answered_last_does_not_replace_the_newer_answer() {
 
     assert_eq!(answer.json().unwrap()["data"]["user"]["name"], "Yeni Ad");
 }
+
+const LOGOUT: &str = "/api/v1/auth/logout";
+
+/// The server's logout answers after `delay_ms`.
+async fn mount_logout(fx: &Fixture, delay_ms: u64) {
+    Mock::given(method("POST"))
+        .and(path(LOGOUT))
+        .respond_with(ResponseTemplate::new(204).set_delay(Duration::from_millis(delay_ms)))
+        .mount(&fx.server)
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn after_a_sign_out_the_session_read_is_refused_and_nothing_is_kept() {
+    let fx = fixture(vec![]).await;
+    mount_me(&fx, me("Ayşe"), 0).await;
+    mount_logout(&fx, 0).await;
+    fx.call(me_call()).await;
+    assert!(
+        fx.engine.session_copy().unwrap().is_some(),
+        "positive control"
+    );
+
+    let done = fx.engine.sign_out(false).await.unwrap();
+
+    assert_eq!(
+        done,
+        keystone_sync::engine::SignOut::Done {
+            server_revoked: true
+        }
+    );
+    assert!(fx.engine.session_copy().is_err());
+    refused(&offline_me(&fx).await);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_copy_is_closed_while_the_server_is_asked_to_end_the_sign_in() {
+    let fx = Arc::new(fixture(vec![]).await);
+    mount_me(&fx, me("Ayşe"), 0).await;
+    mount_logout(&fx, 1500).await;
+    fx.call(me_call()).await;
+    assert!(
+        fx.engine.session_copy().unwrap().is_some(),
+        "positive control"
+    );
+    let sign_out = {
+        let fx = fx.clone();
+        tokio::spawn(async move { fx.engine.sign_out(false).await })
+    };
+    // The sign-out is in its revoke stage: tokens still here, server asked.
+    fx.request_arrived(LOGOUT).await;
+
+    assert!(fx.engine.session_copy().is_err());
+    refused(&offline_me(&fx).await);
+    let at = keystone_sync::wire::Timestamp("2026-11-03T10:00:00.000Z".into());
+    let kept = fx.engine.put_session_copy(&me("Ayşe"), &at, 1);
+    assert_eq!(kept.unwrap_err().code(), "OFFLINE_UNAVAILABLE");
+    // The server cannot be reached for it either: still refused.
+    fx.lose_server();
+    assert_ne!(
+        fx.try_call(crate::router::local_resolver(), me_call())
+            .await
+            .map(|a| a.status)
+            .ok(),
+        Some(200)
+    );
+
+    let done = sign_out.await.unwrap().unwrap();
+    assert_eq!(
+        done,
+        keystone_sync::engine::SignOut::Done {
+            server_revoked: true
+        }
+    );
+    assert!(fx.engine.session_copy().is_err());
+    refused(&offline_me(&fx).await);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn session_reads_racing_a_sign_out_leave_no_copy() {
+    for logout_ms in [0, 100, 300] {
+        let fx = Arc::new(fixture(vec![]).await);
+        mount_me(&fx, me("Ayşe"), 20).await;
+        mount_logout(&fx, logout_ms).await;
+        fx.call(me_call()).await;
+        let reads: Vec<_> = (0..8)
+            .map(|i| {
+                let fx = fx.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(i * 15)).await;
+                    for _ in 0..4 {
+                        let _ = fx
+                            .try_call(crate::router::local_resolver(), me_call())
+                            .await;
+                    }
+                })
+            })
+            .collect();
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        assert!(matches!(
+            fx.engine.sign_out(true).await.unwrap(),
+            keystone_sync::engine::SignOut::Done { .. }
+        ));
+        for read in reads {
+            read.await.unwrap();
+        }
+        assert!(fx.engine.session_copy().is_err(), "logout {logout_ms} ms");
+        refused(&offline_me(&fx).await);
+        // A new sign-in of the same user, verified: nothing of the old one.
+        fx.sign_in_again().await;
+        fx.go_online();
+        fx.engine
+            .run_once(keystone_sync::engine::Trigger::Manual)
+            .await
+            .unwrap();
+        assert!(
+            fx.engine.session_copy().unwrap().is_none(),
+            "logout {logout_ms} ms"
+        );
+    }
+}

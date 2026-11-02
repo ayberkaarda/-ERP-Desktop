@@ -286,7 +286,10 @@ async fn another_user_signing_in_drops_the_previous_answer_from_disk() {
 #[tokio::test]
 async fn sign_out_removes_the_answer_and_a_late_one_is_refused() {
     let env = verified_with_copy().await;
-    assert_eq!(env.engine.sign_out(false).await.unwrap(), SignOut::Done);
+    assert!(matches!(
+        env.engine.sign_out(false).await.unwrap(),
+        SignOut::Done { .. }
+    ));
     assert_eq!(kept_rows(&env), 0);
     // An answer fetched before the sign-out and arriving after it.
     let error = env
@@ -347,7 +350,10 @@ async fn answers_racing_a_sign_out_never_survive_it() {
                 }
             }));
         }
-        assert_eq!(engine.sign_out(true).await.unwrap(), SignOut::Done);
+        assert!(matches!(
+            engine.sign_out(true).await.unwrap(),
+            SignOut::Done { .. }
+        ));
         signed_out.store(true, Ordering::SeqCst);
         // Writes already past their checks would land now, if not excluded.
         tokio::time::sleep(Duration::from_millis(15)).await;
@@ -750,4 +756,35 @@ async fn the_answer_is_only_in_the_encrypted_store() {
     let tokens = env.tokens.load(PROFILE).unwrap().unwrap();
     assert!(!raw.contains(tokens.access_token.expose()));
     assert!(!raw.contains(tokens.refresh_token.expose()));
+}
+
+#[tokio::test]
+async fn finishing_an_unfinished_sign_out_leaves_no_copy() {
+    for (stage, finish_by_run) in [
+        ("revoke", false),
+        ("wipe", false),
+        ("revoke", true),
+        ("wipe", true),
+    ] {
+        let env = verified_with_copy().await;
+        leave_sign_out_unfinished(&env.store, 1, stage);
+        assert!(
+            env.engine.session_copy().is_err(),
+            "{stage}: served while open"
+        );
+        if finish_by_run {
+            // The next run finishes it before anything else; it then fails signed out.
+            let _ = env.engine.run_once(Trigger::Manual).await;
+        } else {
+            assert!(matches!(
+                env.engine.sign_out(false).await.unwrap(),
+                SignOut::Done { .. }
+            ));
+        }
+        assert_eq!(kept_rows(&env), 0, "{stage} run={finish_by_run}");
+        assert!(!matches!(env.engine.session_copy(), Ok(Some(_))));
+        if stage == "revoke" {
+            assert!(env.tokens.load(PROFILE).unwrap().is_none());
+        }
+    }
 }

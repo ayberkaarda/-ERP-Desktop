@@ -3,4 +3,4 @@
 /**
  * Answer of `auth_sign_out`.
  */
-export type SignOutDto = { "status": "done" } | { "status": "pending_work", outbox: number, conflicts: number, };
+export type SignOutDto = { "status": "done", server_revoked: boolean, } | { "status": "pending_work", outbox: number, conflicts: number, };
