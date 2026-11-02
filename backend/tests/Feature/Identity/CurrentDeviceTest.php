@@ -169,3 +169,47 @@ it('marks exactly one of many devices without a query per device', function (): 
         ->and(array_keys(array_filter($flags)))->toBe(['Device 0'])
         ->and($count($first))->toBe($one);
 });
+
+it('tells apart two devices with the same name by their access tokens', function (): void {
+    $first = (string) currentDeviceLogin('Office PC', 'fp-office-1-0000000')->json('data.token');
+    $this->travel(1)->minutes();
+    $second = (string) currentDeviceLogin('Office PC', 'fp-office-2-0000000')->json('data.token');
+
+    $currentIds = fn (string $token): array => collect(devicesWithToken($token)->assertOk()->json('data'))
+        ->where('is_current', true)->pluck('id')->values()->all();
+    $deviceOf = fn (string $token): string => UserDevice::query()->where('token_id', explode('|', $token)[0])->sole()->id;
+
+    expect($currentIds($first))->toBe([$deviceOf($first)])
+        ->and($currentIds($second))->toBe([$deviceOf($second)]);
+});
+
+it('marks no device for a browser session that also sends a device bearer header', function (): void {
+    $token = (string) currentDeviceLogin('Office PC', 'fp-office-000000000')->json('data.token');
+
+    Identity::fresh();
+    $cookie = Identity::sessionCookie(
+        $this->postJson('/api/v1/auth/login', ['email' => 'deniz@example.com', 'password' => Identity::PASSWORD], Identity::headers())->assertOk()
+    );
+
+    Identity::fresh();
+    $response = $this->withCredentials()->withCookie((string) config('session.cookie'), $cookie)->withToken($token)
+        ->getJson('/api/v1/me/devices', Identity::headers());
+
+    expect(currentFlags($response))->toBe(['Office PC' => false]);
+});
+
+it('lists devices newest first by creation, not by last use', function (): void {
+    $old = currentDeviceLogin('Old', 'fp-old-00000000000');
+    $this->travel(1)->minutes();
+    currentDeviceLogin('Mid', 'fp-mid-00000000000');
+    $this->travel(1)->minutes();
+    currentDeviceLogin('New', 'fp-new-00000000000');
+    $this->travel(1)->minutes();
+
+    Identity::fresh();
+    $refreshed = $this->postJson('/api/v1/auth/device/refresh', ['refresh_token' => (string) $old->json('data.refresh_token')])->assertOk();
+
+    $data = devicesWithToken((string) $refreshed->json('data.token'))->assertOk()->json('data');
+    expect(array_column($data, 'name'))->toBe(['New', 'Mid', 'Old'])
+        ->and(array_column($data, 'is_current'))->toBe([false, false, true]);
+});
