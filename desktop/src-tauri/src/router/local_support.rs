@@ -239,6 +239,16 @@ impl Fixture {
         });
     }
 
+    /// The same profile and engine on a client whose server cannot be
+    /// reached (port 0 never listens), before the engine notices.
+    pub fn lose_server(&self) {
+        self.state.activate(ActiveProfile {
+            id: PROFILE.into(),
+            client: Arc::new(client("http://127.0.0.1:0", &self.tokens)),
+            engine: Some(self.engine.clone()),
+        });
+    }
+
     /// The same profile, client and store under a new engine.
     pub fn replace_engine(&self) {
         let manifest = offline_manifest(OFFLINE_MANIFEST).unwrap();

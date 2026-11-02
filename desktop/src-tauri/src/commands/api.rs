@@ -25,6 +25,12 @@
 //! - A whole `200` answer of a `source: snapshot` resource is kept for the
 //!   offline read, for the sign-in it was fetched in and only while its
 //!   profile is still the active one. Keeping it never fails the answer.
+//! - The same holds for the `200` answer of `GET /auth/me` (the session
+//!   read, [`is_session_read`]): offline, or when the server cannot be
+//!   reached, it is answered from that copy while the local data is
+//!   verified for the sign-in that fetched it (`meta.offline`: as of its
+//!   fetch, stale); without one it stays `OFFLINE_UNAVAILABLE`. Every other
+//!   `/auth` path stays online only.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -36,7 +42,7 @@ use keystone_sync::client::{
 };
 use keystone_sync::engine::SyncState;
 use keystone_sync::store::{LocalCopy, Store};
-use keystone_sync::wire::{ResourceName, Source};
+use keystone_sync::wire::{ResourceName, Source, Timestamp};
 use serde_json::{Map, Value};
 
 use crate::commands::{CommandError, CommandResult, codes};
@@ -204,6 +210,7 @@ async fn respond(
     };
     let decision = Router::decide(target.as_ref(), &facts, policy.as_ref());
     let snapshot = target.as_ref().filter(|t| is_whole_snapshot(t, &call));
+    let session_read = is_session_read(&call);
 
     let run = Run {
         state,
@@ -214,29 +221,65 @@ async fn respond(
         resolver,
         connectivity,
     };
+    let keep = Keep {
+        snapshot: snapshot.map(|t| &t.resource),
+        session: session_read,
+    };
     match decision {
+        Decision::Refuse(Refusal::Offline) if session_read => Ok(run
+            .session()
+            .await?
+            .unwrap_or_else(|| refuse(Refusal::Offline, Vec::new()))),
         Decision::Refuse(refusal) => Ok(refuse(refusal, Vec::new())),
         Decision::Local { plan, else_online } => match run.local(plan, &call).await? {
             LocalOutcome::Answer(answer) => Ok(answer),
-            LocalOutcome::Unsupported { .. } if else_online => run.online(&call, None, None).await,
+            LocalOutcome::Unsupported { .. } if else_online => {
+                run.online(&call, None, Keep::NOTHING).await
+            }
             LocalOutcome::Unsupported {
                 unsupported_filters,
             } => Ok(refuse(Refusal::Offline, unsupported_filters)),
         },
-        Decision::Online { deadline, fallback } => match run
-            .online(&call, deadline, snapshot.map(|t| &t.resource))
-            .await
-        {
+        Decision::Online { deadline, fallback } => match run.online(&call, deadline, keep).await {
             Err(error) if error.code == NETWORK_ERROR => match fallback {
                 Some(plan) => match run.local(plan, &call).await? {
                     LocalOutcome::Answer(answer) => Ok(answer),
                     LocalOutcome::Unsupported { .. } => Err(error),
                 },
+                // The server went away before the engine noticed (a reload
+                // or a cold start right after): the kept session answer.
+                None if session_read => run.session().await?.ok_or(error),
                 None => Err(error),
             },
             other => other,
         },
     }
+}
+
+/// `GET /api/v1/auth/me` without a query: the session read the web starts
+/// with. Its `200` answer is kept for the offline start, and offline (or
+/// when the server cannot be reached) it is answered from that copy. Every
+/// other `/auth` path stays online only.
+fn is_session_read(call: &ApiCall) -> bool {
+    call.method == ProxyMethod::Get && call.path == SESSION_PATH && call.query.is_empty()
+}
+
+const SESSION_PATH: &str = "/api/v1/auth/me";
+
+/// What a successful server answer is kept for.
+#[derive(Clone, Copy)]
+struct Keep<'a> {
+    /// The snapshot of this resource.
+    snapshot: Option<&'a ResourceName>,
+    /// The session answer ([`is_session_read`]).
+    session: bool,
+}
+
+impl Keep<'_> {
+    const NOTHING: Keep<'static> = Keep {
+        snapshot: None,
+        session: false,
+    };
 }
 
 const NETWORK_ERROR: &str = "NETWORK_ERROR";
@@ -269,15 +312,32 @@ impl Run<'_> {
         blocking(move || resolver.resolve(&engine, store.as_deref(), &plan, &call)).await
     }
 
+    /// The kept session answer ([`LocalResolver::session`]); `None` without
+    /// an engine.
+    async fn session(&self) -> CommandResult<Option<ApiResponseDto>> {
+        let Some(engine) = self.engine.clone() else {
+            return Ok(None);
+        };
+        let resolver = self.resolver.clone();
+        blocking(move || resolver.session(&engine)).await
+    }
+
     /// Sends `call` and records whether the server answered (a connection
-    /// that could not be made: unreachable). `snapshot`: the resource a
-    /// successful answer is kept for.
+    /// that could not be made: unreachable). `keep`: what a successful
+    /// answer is kept for.
     async fn online(
         &self,
         call: &ApiCall,
         deadline: Option<Duration>,
-        snapshot: Option<&ResourceName>,
+        keep: Keep<'_>,
     ) -> CommandResult<ApiResponseDto> {
+        // Taken before sending: the kept session answer is as of its request,
+        // and an older request answered last does not replace a newer one.
+        let sent_at = if keep.session {
+            local_read::now().ok()
+        } else {
+            None
+        };
         let result = send(self.client.clone(), proxy_request(call), deadline).await?;
         let reachable = match &result {
             Ok(_) | Err(SyncError::Api { .. }) => Some(true),
@@ -292,8 +352,11 @@ impl Run<'_> {
         }
         let (response, generation) = result.map_err(CommandError::from)?;
         let answer = envelope::from_proxy(response);
-        if let Some(resource) = snapshot {
+        if let Some(resource) = keep.snapshot {
             self.keep_snapshot(resource, &answer, generation).await;
+        }
+        if let Some(sent_at) = sent_at {
+            self.keep_session(&answer, generation, sent_at).await;
         }
         Ok(answer)
     }
@@ -307,12 +370,39 @@ impl Run<'_> {
         answer: &ApiResponseDto,
         generation: u64,
     ) {
-        let Some(engine) = self.engine.clone() else {
+        let Some((engine, body)) = self.keepable(answer) else {
             return;
         };
+        let resource = resource.clone();
+        let saved =
+            blocking(move || local_read::save_snapshot(&engine, &resource, &body, generation));
+        if let Err(error) = saved.await {
+            log::debug!("snapshot not kept: {}", error.code);
+        }
+    }
+
+    /// Keeps the session answer like a snapshot ([`Run::keep_snapshot`]);
+    /// the engine refuses it for another sign-in, a signed-out or
+    /// deactivated one, and a body carrying a credential (see
+    /// [`local_read::save_session`]). Only the error code is logged.
+    async fn keep_session(&self, answer: &ApiResponseDto, generation: u64, sent_at: Timestamp) {
+        let Some((engine, body)) = self.keepable(answer) else {
+            return;
+        };
+        let saved =
+            blocking(move || local_read::save_session(&engine, &body, generation, &sent_at));
+        if let Err(error) = saved.await {
+            log::debug!("session answer not kept: {}", error.code);
+        }
+    }
+
+    /// The engine and body of a `200` envelope with `data`, while this
+    /// call's client and engine are still the active ones.
+    fn keepable(&self, answer: &ApiResponseDto) -> Option<(Arc<Engine>, Value)> {
+        let engine = self.engine.clone()?;
         let body = answer.json().filter(|body| body.get("data").is_some());
         let (true, Some(body)) = (answer.status == 200, body) else {
-            return;
+            return None;
         };
         let current = self
             .state
@@ -322,15 +412,7 @@ impl Run<'_> {
                 .state
                 .engine()
                 .is_ok_and(|active| Arc::ptr_eq(&active, &engine));
-        if !current {
-            return;
-        }
-        let (resource, body) = (resource.clone(), body.clone());
-        let saved =
-            blocking(move || local_read::save_snapshot(&engine, &resource, &body, generation));
-        if let Err(error) = saved.await {
-            log::debug!("snapshot not kept: {}", error.code);
-        }
+        current.then(|| (engine, body.clone()))
     }
 }
 

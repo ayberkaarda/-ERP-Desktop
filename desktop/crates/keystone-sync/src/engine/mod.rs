@@ -31,6 +31,12 @@
 //!   sign-in they fail with `OFFLINE_UNAVAILABLE` until a run has checked
 //!   who signed in; a snapshot is stored only for the generation its answer
 //!   was fetched in. Writes, sign-out and every wipe exclude each other.
+//! - Session answer: [`SyncEngine::put_session_copy`] keeps the last
+//!   `GET /auth/me` answer of a sign-in in `engine_meta` (the encrypted
+//!   store, no token in it) and [`SyncEngine::session_copy`] gives it back
+//!   under the same rule, for that sign-in, user and company only. Sign-out,
+//!   every wipe, seal and close remove it; a run keeps it only for its own
+//!   sign-in, user and company.
 //! - Sign-out is persisted in stages bound to its generation: tokens of
 //!   that generation are revoked before any local data goes, and a
 //!   sign-out cut short is finished for that generation only (a later
@@ -301,6 +307,8 @@ enum Hook {
     CommitChecked,
     /// A failed pass found no other sign-in and has not published yet.
     FailureKept,
+    /// A session answer passed its checks and is not written yet.
+    SessionCopyChecked,
 }
 
 #[cfg(test)]
@@ -737,6 +745,104 @@ impl<A: SyncApi> SyncEngine<A> {
             ));
         }
         self.store.put_snapshot(resource, data, fetched_at)
+    }
+
+    /// Keeps `body`, a `200` answer of `GET /api/v1/auth/me` fetched by a
+    /// call bound to sign-in `generation`, as of `fetched_at`, for an
+    /// offline start ([`SyncEngine::session_copy`]). `fetched_at` is the time
+    /// the request was sent, so the copy is never shown fresher than it is.
+    /// It replaces the copy kept before, except one of the same sign-in
+    /// fetched later: an older answer arriving last leaves it (`Ok(false)`;
+    /// check and write are one transaction). Refused unwritten when another sign-in happened since
+    /// (`UNAUTHENTICATED`), when the sign-in has no tokens, is deactivated or
+    /// is being signed out (`OFFLINE_UNAVAILABLE`), and when the body is not
+    /// a `{data: {user: {id}, companies, permissions}}` answer or carries a
+    /// credential (a key naming a token, password or secret, or a token of
+    /// this sign-in) (`INVALID_REQUEST`). It is bound to that sign-in, its
+    /// user and the company of this engine's client. Excluded with sign-out
+    /// and wipes like [`SyncEngine::enqueue`]: a sign-out either removes it
+    /// or comes first and refuses it.
+    pub fn put_session_copy(
+        &self,
+        body: &Value,
+        fetched_at: &Timestamp,
+        generation: u64,
+    ) -> Result<bool> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the checks below and the write.
+        let _sign_in = self.session.hold();
+        self.ensure_generation(generation)?;
+        let record = self.session.record()?;
+        let tokens = match &record.tokens {
+            Some(tokens) if !record.deactivated => tokens,
+            _ => return Err(not_signed_in()),
+        };
+        if local::pending_sign_out(&self.store)?.is_some() {
+            return Err(not_signed_in());
+        }
+        let user_id = session_user(body)?;
+        if carries_credential(
+            body,
+            &[tokens.access_token.expose(), tokens.refresh_token.expose()],
+        ) {
+            return Err(SyncError::InvalidRequest(
+                "the session answer carries a credential; it is not kept".to_owned(),
+            ));
+        }
+        let Some(company_id) = self.api.company_id() else {
+            return Err(SyncError::InvalidRequest(
+                "the client has no company; the session answer is not kept".to_owned(),
+            ));
+        };
+        self.hook(Hook::SessionCopyChecked);
+        local::offer_session_copy(
+            &self.store,
+            &local::StoredSessionCopy {
+                format: 0,
+                generation,
+                user_id,
+                company_id,
+                fetched_at: fetched_at.0.clone(),
+                body: body.clone(),
+            },
+        )
+    }
+
+    /// The kept `GET /auth/me` answer ([`SyncEngine::put_session_copy`]),
+    /// for an offline start. Only while the local data is verified for the
+    /// current sign-in (same rule as [`SyncEngine::list`]: not deactivated,
+    /// not sealed, not being signed out), the sign-in still has tokens, and
+    /// the copy was fetched in that same sign-in, for the user and company
+    /// the local data belongs to and for this engine's company. `Ok(None)`:
+    /// no such copy.
+    ///
+    /// The permissions in it are the last ones the server sent, possibly
+    /// old. That is safe for writes: every queued draft is authorized again
+    /// on push against the user's current permissions
+    /// (docs/SYNC-PROTOCOL.md, push step 3 "Manifest ve izin", and step 4
+    /// Policy), and online requests are authorized by the server as usual.
+    pub fn session_copy(&self) -> Result<Option<SessionCopy>> {
+        let _local = self.local.read().unwrap_or_else(PoisonError::into_inner);
+        // No sign-in completes between the checks below and the read.
+        let _sign_in = self.session.hold();
+        let session = self.check_verified()?;
+        self.hook(Hook::AccessChecked);
+        let record = self.session.record()?;
+        if record.tokens.is_none() {
+            return Err(not_signed_in());
+        }
+        let Some(copy) = local::session_copy(&self.store)? else {
+            return Ok(None);
+        };
+        let identity = session.identity.as_deref();
+        let matches = copy.generation == record.generation
+            && identity.and_then(identity_user) == Some(copy.user_id)
+            && identity.and_then(identity_company) == Some(copy.company_id)
+            && self.api.company_id() == Some(copy.company_id);
+        Ok(matches.then_some(SessionCopy {
+            data: copy.body,
+            fetched_at: Timestamp(copy.fetched_at),
+        }))
     }
 
     /// Retention prune of the verified local data (window and size, see
@@ -1301,6 +1407,82 @@ fn identity_company(identity: &str) -> Option<Uuid> {
     identity
         .rsplit_once(':')
         .and_then(|(_, company)| Uuid::parse_str(company).ok())
+}
+
+/// User of a local `user_id:company_id` identity.
+fn identity_user(identity: &str) -> Option<Uuid> {
+    identity
+        .split_once(':')
+        .and_then(|(user, _)| Uuid::parse_str(user).ok())
+}
+
+/// The kept `GET /auth/me` answer of the current sign-in, see
+/// [`SyncEngine::session_copy`].
+#[derive(Clone, PartialEq)]
+pub struct SessionCopy {
+    /// The whole answer body, `{data: {user, companies, permissions}}`.
+    pub data: Value,
+    /// When it was fetched.
+    pub fetched_at: Timestamp,
+}
+
+/// The body (user data) is never printed.
+impl std::fmt::Debug for SessionCopy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionCopy")
+            .field("fetched_at", &self.fetched_at)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The local data is closed to the current sign-in.
+fn not_signed_in() -> SyncError {
+    SyncError::OfflineUnavailable("there is no live sign-in for the session answer".to_owned())
+}
+
+/// `data.user.id` of a `GET /auth/me` answer that has the shape the web
+/// reads (`user` with an id, `companies` list, `permissions` map).
+fn session_user(body: &Value) -> Result<Uuid> {
+    let data = body.get("data");
+    let user = data
+        .and_then(|d| d.get("user"))
+        .and_then(|u| u.get("id"))
+        .and_then(Value::as_str)
+        .and_then(|id| Uuid::parse_str(id).ok());
+    let shaped = data.is_some_and(|d| {
+        d.get("companies").is_some_and(Value::is_array)
+            && d.get("permissions").is_some_and(Value::is_object)
+    });
+    match user {
+        Some(user) if shaped => Ok(user),
+        _ => Err(SyncError::InvalidRequest(
+            "the session answer has an unexpected shape; it is not kept".to_owned(),
+        )),
+    }
+}
+
+/// Whether `value` holds a key that names a credential, or a string that
+/// contains one of `secrets` (empty ones ignored).
+fn carries_credential(value: &Value, secrets: &[&str]) -> bool {
+    match value {
+        Value::Object(map) => map.iter().any(|(key, value)| {
+            let key = key.to_ascii_lowercase();
+            ["token", "password", "secret"]
+                .iter()
+                .any(|word| key.contains(word) && !is_flag(&key))
+                || carries_credential(value, secrets)
+        }),
+        Value::Array(items) => items.iter().any(|item| carries_credential(item, secrets)),
+        Value::String(text) => secrets
+            .iter()
+            .any(|secret| !secret.is_empty() && text.contains(secret)),
+        _ => false,
+    }
+}
+
+/// Keys of `GET /auth/me` that name a credential but only flag it.
+fn is_flag(key: &str) -> bool {
+    matches!(key, "must_change_password")
 }
 
 /// State after a failed run, by error.
