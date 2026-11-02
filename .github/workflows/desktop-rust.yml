@@ -7,6 +7,10 @@ on:
       - 'frontend/**'
       - 'contracts/sync/**'
       - 'contracts/offline-manifest.json'
+      # Read by the wire tests (schema of the manifest, Node fixture table, resolution table).
+      - 'contracts/offline-manifest.schema.json'
+      - 'contracts/scripts/validate.mjs'
+      - 'docs/SYNC-PROTOCOL.md'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/desktop-rust.yml'
@@ -17,6 +21,10 @@ on:
       - 'frontend/**'
       - 'contracts/sync/**'
       - 'contracts/offline-manifest.json'
+      # Read by the wire tests (schema of the manifest, Node fixture table, resolution table).
+      - 'contracts/offline-manifest.schema.json'
+      - 'contracts/scripts/validate.mjs'
+      - 'docs/SYNC-PROTOCOL.md'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/desktop-rust.yml'
@@ -128,6 +136,8 @@ jobs:
       # Includes the module swap and the in-memory bundle trace tests (tooling/).
       - run: npm run test
       - run: npm run i18n:check
+      - name: Wire TypeScript matches contracts/
+        run: sh scripts/check-wire-ts.sh
       - run: npm run build
       - name: The built bundle carries no web transport
         run: |

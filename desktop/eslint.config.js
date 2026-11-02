@@ -66,7 +66,7 @@ const networkBan = {
 }
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', 'src-tauri', 'crates', 'target', 'src/bridge/generated']),
+  globalIgnores(['dist', 'coverage', 'src-tauri', 'crates', 'target', 'src/bridge/generated', 'src/wire/generated']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

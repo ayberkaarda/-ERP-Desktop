@@ -9,9 +9,14 @@
     "gen:api": "composer --working-dir=backend openapi && npm run gen:api --workspace frontend",
     "contracts:validate": "npm exec --yes --package=ajv@8.17.1 --package=ajv-formats@3.0.1 -- node contracts/scripts/validate.mjs"
   },
+  "devDependencies": {
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1"
+  },
   "overrides": {
     "openapi-typescript": {
       "typescript": "6.0.3"
-    }
+    },
+    "ajv-formats": "3.0.1"
   }
 }
