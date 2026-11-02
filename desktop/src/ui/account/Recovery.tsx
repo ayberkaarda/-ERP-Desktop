@@ -158,13 +158,25 @@ export function MalformedRecovery({ profileId }: { profileId: string }) {
 }
 
 /** profiles.json cannot be read; the shell leaves it as it is. */
-export function ProfilesFileRecovery({ message }: { message: string }) {
+export function ProfilesFileRecovery({ message, path }: { message: string; path?: string | undefined }) {
   const td = useTd()
   return (
     <GateFrame testId="recovery-profiles-file">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-[-0.015em]">{td('account.recovery.file.title')}</h1>
-        <p className="text-sm text-muted-foreground">{td('account.recovery.file.body')}</p>
+        {path ? (
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">{td('account.recovery.file.bodyAt')}</p>
+            <code
+              className="block rounded-md bg-surface-sunken px-2 py-1 font-mono text-xs break-all select-all"
+              data-testid="profiles-file-path"
+            >
+              {path}
+            </code>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{td('account.recovery.file.body')}</p>
+        )}
         <p className="text-sm text-muted-foreground">{td('account.recovery.file.notOverwritten')}</p>
         {message ? (
           <p className="font-mono text-xs text-subtle-foreground">{td('account.recovery.file.detail', { message })}</p>

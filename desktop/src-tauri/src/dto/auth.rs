@@ -87,4 +87,50 @@ pub struct DeviceDto {
     pub expires_at: String,
     #[serde(default)]
     pub created_at: Option<String>,
+    /// The sign-in of this desktop (the token the request was made with).
+    /// False when the server does not send it, or sends null.
+    #[serde(default, deserialize_with = "null_as_false")]
+    pub is_current: bool,
+}
+
+/// `null` reads as `false`, so one odd device does not fail the whole list.
+fn null_as_false<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<bool, D::Error> {
+    Ok(Option::<bool>::deserialize(deserializer)?.unwrap_or(false))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DeviceDto;
+    use serde_json::json;
+
+    fn answer(extra: serde_json::Value) -> serde_json::Value {
+        let mut device = json!({
+            "id": "0192f5a0-0000-7000-8000-0000000000d3",
+            "name": "LAPTOP",
+            "expires_at": "2026-11-26T09:15:00+03:00"
+        });
+        let fields = device.as_object_mut().unwrap();
+        fields.extend(extra.as_object().unwrap().clone());
+        device
+    }
+
+    #[test]
+    fn the_webview_receives_is_current_under_its_own_name() {
+        let device: DeviceDto =
+            serde_json::from_value(answer(json!({"is_current": true}))).unwrap();
+        let sent = serde_json::to_value(&device).unwrap();
+        assert_eq!(sent["is_current"], json!(true));
+        assert!(sent.get("isCurrent").is_none());
+    }
+
+    #[test]
+    fn a_missing_or_null_is_current_is_not_this_device() {
+        for extra in [json!({}), json!({"is_current": null})] {
+            let device: DeviceDto = serde_json::from_value(answer(extra.clone())).unwrap();
+            assert!(!device.is_current, "{extra}");
+        }
+        let device: DeviceDto =
+            serde_json::from_value(answer(json!({"is_current": false}))).unwrap();
+        assert!(!device.is_current);
+    }
 }

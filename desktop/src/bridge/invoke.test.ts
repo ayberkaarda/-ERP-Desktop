@@ -31,6 +31,17 @@ describe('toCommandError', () => {
     expect(toCommandError({ code: 7 })).toMatchObject({ code: 'UNKNOWN' })
   })
 
+  it('keeps the path of an unreadable profiles file', () => {
+    const error = toCommandError({ code: 'PROFILES_FILE_INVALID', message: 'bad', path: 'C:/Users/ada/AppData/Roaming/com.keystone.desktop/profiles.json' })
+    expect(error.path).toBe('C:/Users/ada/AppData/Roaming/com.keystone.desktop/profiles.json')
+  })
+
+  it('leaves the path out when the shell sent none or an odd one', () => {
+    expect(toCommandError({ code: 'STORE_ERROR', message: 'x' }).path).toBeUndefined()
+    expect(toCommandError({ code: 'PROFILES_FILE_INVALID', message: 'x', path: 3 }).path).toBeUndefined()
+    expect(new CommandError('A', 'b').path).toBeUndefined()
+  })
+
   it('returns a CommandError as it is', () => {
     const original = new CommandError('A', 'b', 1)
     expect(toCommandError(original)).toBe(original)

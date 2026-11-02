@@ -41,6 +41,13 @@ describe('account command call sites', () => {
     expect(callSiteProblems(sources)).toEqual([])
   })
 
+  it('ends device sign-ins from the security page only (it guards this device)', () => {
+    const files = Object.entries(sources)
+      .filter(([, text]) => literalsOf(text, 'auth_devices_revoke').length > 0)
+      .map(([file]) => file)
+    expect(files).toEqual(['./DesktopSecurityExtras.tsx'])
+  })
+
   it('flag each kind of break', () => {
     expect(
       callSiteProblems({

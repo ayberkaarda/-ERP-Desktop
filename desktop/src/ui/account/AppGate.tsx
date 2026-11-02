@@ -212,7 +212,7 @@ function GateBody({
   }
   if (state.phase === 'failed') {
     if (code === 'PROFILE_RECORD_MALFORMED') return <MalformedRecovery profileId={state.profile_id ?? ''} />
-    if (code === 'PROFILES_FILE_INVALID') return <ProfilesFileRecovery message={state.error?.message ?? ''} />
+    if (code === 'PROFILES_FILE_INVALID') return <ProfilesFileRecovery message={state.error?.message ?? ''} path={state.error?.path} />
     return <FailedProfile error={state.error} />
   }
   if (!showsApp(view)) return unreadable

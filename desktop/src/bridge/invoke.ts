@@ -13,12 +13,15 @@ export class CommandError extends Error {
   readonly code: string
   /** Whole seconds to wait before retrying, when the server said so. */
   readonly retryAfter: number | undefined
+  /** `PROFILES_FILE_INVALID` only: the absolute path of the profiles file. */
+  readonly path: string | undefined
 
-  constructor(code: string, message: string, retryAfter?: number) {
+  constructor(code: string, message: string, retryAfter?: number, path?: string) {
     super(message)
     this.name = 'CommandError'
     this.code = code
     this.retryAfter = retryAfter
+    this.path = path
   }
 }
 
@@ -26,12 +29,13 @@ export class CommandError extends Error {
 export function toCommandError(reason: unknown): CommandError {
   if (reason instanceof CommandError) return reason
   if (typeof reason === 'object' && reason !== null && 'code' in reason) {
-    const { code, message, retry_after } = reason as Partial<Record<keyof CommandErrorBody, unknown>>
+    const { code, message, retry_after, path } = reason as Partial<Record<keyof CommandErrorBody, unknown>>
     if (typeof code === 'string') {
       return new CommandError(
         code,
         typeof message === 'string' ? message : '',
         typeof retry_after === 'number' ? retry_after : undefined,
+        typeof path === 'string' ? path : undefined,
       )
     }
   }
