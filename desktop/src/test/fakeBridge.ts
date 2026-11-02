@@ -6,6 +6,7 @@ import { ENGINE_EVENT, REALTIME_EVENT, type Listen, type Unlisten } from '../bri
 import type { EngineEvent } from '../bridge/generated/EngineEvent'
 import type { RealtimeEventDto } from '../bridge/generated/RealtimeEventDto'
 import type { Invoke } from '../bridge/invoke'
+import type { DesktopBridge } from '../platform'
 
 /** Answer of a command: a value, a promise, or a throw (use `fail`). */
 export type CommandHandler = (args: Record<string, unknown> | undefined) => unknown
@@ -15,7 +16,8 @@ export interface FakeCall {
   args: Record<string, unknown> | undefined
 }
 
-export interface FakeBridge {
+/** Same shape as the platform's `desktop.bridge`, so screens under test take a fake. */
+export interface FakeBridge extends DesktopBridge {
   invoke: Invoke
   listen: Listen
   /** Every command call, in order. */
