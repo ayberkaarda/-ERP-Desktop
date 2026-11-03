@@ -40,6 +40,8 @@ final class DeviceController
     ): JsonResponse {
         $email = $request->string('email')->toString();
         $user = $credentials->verify($request, $email, $request->string('password')->toString());
+        // The version that goes with the verified password; the 2FA step must not refresh it.
+        $checkedVersion = $user->auth_version;
 
         if ($user->hasTwoFactorEnabled()) {
             $code = $request->input('two_factor_code');
@@ -74,6 +76,7 @@ final class DeviceController
             $request,
             $request->string('device_name')->toString(),
             $request->string('fingerprint')->toString(),
+            $checkedVersion,
         );
         $logger->log(SessionEvent::DeviceLogin, $request, $user);
 

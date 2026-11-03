@@ -12,7 +12,6 @@ use App\Modules\Identity\Enums\SessionEvent;
 use App\Modules\Identity\Http\Requests\LoginRequest;
 use App\Modules\Identity\Http\Requests\TwoFactorVerifyRequest;
 use App\Modules\Identity\Http\Resources\AuthUserResource;
-use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\CredentialVerifier;
 use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Identity\Services\LoginThrottle;
@@ -119,8 +118,7 @@ final class AuthController
         $token = CurrentToken::of($user);
 
         if ($token !== null) {
-            $device = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->first();
-            $device instanceof UserDevice ? $tokens->revoke($user, $device) : $token->delete();
+            $tokens->signOut($user, $token);
             $this->logger->log(SessionEvent::Logout, $request, $user);
 
             return ApiResponse::noContent();

@@ -15,6 +15,9 @@ abstract class TestCase extends BaseTestCase
     /** Keep in sync with tests/bootstrap.php. */
     public const string TEST_DATABASE_PATTERN = '/^keystone_test(_[a-z0-9]{1,20})?$/';
 
+    /** Session default lock_timeout of the test connection. */
+    public const string LOCK_TIMEOUT = '60s';
+
     /**
      * Refuses any database that is not a keystone_test[_lane] database.
      */
@@ -39,6 +42,13 @@ abstract class TestCase extends BaseTestCase
         $app->useEnvironmentPath($app->basePath('tests'))->loadEnvironmentFrom('testing.env');
         $this->traitsUsedByTest = class_uses_recursive(static::class);
         $app->make(Kernel::class)->bootstrap();
+
+        // A lock wait that never ends (a session left holding a lock the test needs) fails the
+        // test with SQLSTATE 55P03 instead of stalling the run. Tests of lock waits set their
+        // own, shorter lock_timeout; RESET returns to this one.
+        $connection = 'database.connections.'.config('database.default');
+        config([$connection.'.server_options' => [...(array) config($connection.'.server_options', []), 'lock_timeout' => self::LOCK_TIMEOUT]]);
+        DB::purge();
 
         $row = DB::selectOne('select current_database() as name');
         $name = is_object($row) && property_exists($row, 'name') && is_string($row->name) ? $row->name : null;
