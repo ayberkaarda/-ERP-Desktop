@@ -264,6 +264,59 @@ async fn drafts_are_laid_over_reads() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_queued_count_shows_on_the_count_document() {
+    const STOCK: &str = "/api/v1/stock-documents";
+    let (line_1, line_2) = (Uuid::now_v7(), Uuid::now_v7());
+    let item_c = Uuid::now_v7();
+    let id = Uuid::now_v7();
+    let fields = json!({
+        "status": "draft", "doc_type": "count", "document_date": "2026-10-20",
+        "lines": [
+            {"id": line_1, "item_id": Uuid::now_v7(), "location_id": null,
+             "lot_no": null, "counted_quantity": "10"},
+            {"id": line_2, "item_id": Uuid::now_v7(), "location_id": null,
+             "lot_no": null, "counted_quantity": "5"},
+        ],
+    });
+    let fx = fixture(vec![("stock-documents", vec![row(id, 2, fields)])]).await;
+    fx.go_offline();
+    let detail = format!("{STOCK}/{id}");
+    let before = fx.call(get(&detail, json!([]))).await;
+    assert_eq!(offline_of(&before)["pending"], Value::Null);
+
+    let saved = fx
+        .call(send(
+            "PATCH",
+            &format!("{detail}/counts"),
+            None,
+            Some(json!({
+                "counts": [
+                    {"line_id": line_1, "counted_quantity": "12"},
+                    {"line_id": line_2, "counted_quantity": "7"},
+                ],
+                "add": [{"item_id": item_c, "location_id": null, "counted_quantity": "3"}],
+            })),
+        ))
+        .await;
+    assert_eq!(saved.status, 202, "{:?}", saved.json());
+
+    let after = fx.call(get(&detail, json!([]))).await;
+    assert_eq!(after.status, 200);
+    assert_eq!(offline_of(&after)["pending"], true);
+    let lines = &after.json().unwrap()["data"]["lines"];
+    let counted: Vec<&Value> = lines
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|l| &l["counted_quantity"])
+        .collect();
+    assert_eq!(counted, [&json!("12"), &json!("7"), &json!("3")]);
+    assert_eq!(lines[2]["item_id"], json!(item_c));
+    let list = fx.call(get(STOCK, json!([]))).await;
+    assert_eq!(offline_of(&list)["pending"], true);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_finished_copy_without_rows_is_an_empty_list() {
     let fx = fixture(vec![]).await;
     fx.go_offline();

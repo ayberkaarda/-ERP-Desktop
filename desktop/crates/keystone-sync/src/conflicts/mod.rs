@@ -253,7 +253,7 @@ pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
 }
 
 /// The offline action of count documents (`StockDocumentSyncWriter::action`).
-const COUNTS_ACTION: &str = "counts";
+pub(crate) const COUNTS_ACTION: &str = "counts";
 
 /// The version the server gives a record it creates (`HasVersion` starts
 /// every row at 1); the local router bases edits of a draft on it too.
@@ -284,7 +284,7 @@ fn balance_key(line: &Map<String, Value>) -> (Option<&str>, Option<&str>, Option
 /// so an earlier `add` left at the end would overwrite a later count.
 /// False, leaving `payload` untouched, when a counted line is not there or
 /// the body has another shape.
-fn apply_counts(payload: &mut Map<String, Value>, action: &Map<String, Value>) -> bool {
+pub(crate) fn apply_counts(payload: &mut Map<String, Value>, action: &Map<String, Value>) -> bool {
     let mut lines = match payload.get("lines") {
         Some(Value::Array(lines)) => lines.clone(),
         None | Some(Value::Null) => Vec::new(),
