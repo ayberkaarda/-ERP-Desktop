@@ -1,5 +1,5 @@
 {
-  "description": "List requests the web frontend sends to the mirrored list endpoints (contracts/offline-manifest.json query). expect: local = every sort/filter is declared in query; online_only = at least one param is in query.online_only and the rest are declared; server_rejects = the server refuses it (422). @uuid stands for any uuid. Update this file with the web code; OfflineManifestQueryTest checks it against the manifest, the server and the frontend source. other_endpoints: filters named in a file that also reads a mirrored list, but sent to an endpoint that is not mirrored.",
+  "description": "List requests the web frontend sends to the mirrored list endpoints (contracts/offline-manifest.json query). expect: local = every sort/filter is declared in query; online_only = at least one param is in query.online_only and the rest are declared; server_rejects = the server refuses it (422). @uuid stands for any uuid. Update this file with the web code; OfflineManifestQueryTest checks it against the manifest, the server and the frontend source. other_endpoints: filters named in a file that also reads a mirrored list, but sent to an endpoint that is not a pulled list (not mirrored, or a snapshot such as /stock-balances).",
   "queries": [
     {
       "resource": "parties",
@@ -404,6 +404,12 @@
       "source": "frontend/src/features/sales/shared/lib/listFilters.ts"
     },
     {
+      "resource": "sales-orders",
+      "query": "page=1&per_page=25&sort=total_local,-status,due_date,created_at",
+      "expect": "local",
+      "source": "frontend/src/features/sales/shared/lib/listFilters.ts"
+    },
+    {
       "resource": "sales-invoices",
       "query": "page=1&per_page=25&sort=-document_date&filter[invoice_type]=return",
       "expect": "local",
@@ -475,6 +481,12 @@
     },
     {
       "resource": "purchase-requests",
+      "query": "page=1&per_page=25&sort=status,-created_at",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/shared/lib/listFilters.ts"
+    },
+    {
+      "resource": "purchase-rfqs",
       "query": "page=1&per_page=25&sort=status,-created_at",
       "expect": "local",
       "source": "frontend/src/features/purchasing/shared/lib/listFilters.ts"
@@ -577,6 +589,11 @@
       "endpoint": "/stock-lots"
     },
     {
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "filter": "item_id",
+      "endpoint": "/stock-lots"
+    },
+    {
       "source": "frontend/src/features/parties/api/parties.ts",
       "filter": "subject_type",
       "endpoint": "/logs/audit"
@@ -585,6 +602,16 @@
       "source": "frontend/src/features/parties/api/parties.ts",
       "filter": "subject_id",
       "endpoint": "/logs/audit"
+    },
+    {
+      "source": "frontend/src/features/sales/deliveries/api.ts",
+      "filter": "item_id",
+      "endpoint": "/stock-balances"
+    },
+    {
+      "source": "frontend/src/features/sales/deliveries/api.ts",
+      "filter": "warehouse_id",
+      "endpoint": "/stock-balances"
     }
   ]
 }
