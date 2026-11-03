@@ -6,4 +6,4 @@ import type { RealtimeStateDto } from "./RealtimeStateDto";
  * Payload of `realtime-event`. Every event names its profile, so the UI can
  * drop news of a profile it has already left.
  */
-export type RealtimeEventDto = { "type": "state", profile_id: string, state: RealtimeStateDto, } | { "type": "session_revoked", profile_id: string, reason: string, } | { "type": "membership_revoked", profile_id: string, company_id: string, } | { "type": "notification_created", profile_id: string, notification: NotificationDto, };
+export type RealtimeEventDto = { "type": "state", profile_id: string, state: RealtimeStateDto, } | { "type": "session_revoked", profile_id: string, reason: string, } | { "type": "membership_revoked", profile_id: string, company_id: string, } | { "type": "notification_created", profile_id: string, notification: NotificationDto, } | { "type": "subscribed", profile_id: string, channel: string, } | { "type": "subscription_failed", profile_id: string, channel: string, };

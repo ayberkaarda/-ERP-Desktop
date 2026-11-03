@@ -701,12 +701,11 @@ impl Desktop {
     /// The realtime state of the active profile.
     pub async fn realtime_status(&self) -> RealtimeStatusDto {
         let running = self.running.lock().await;
+        let bridge = running.as_ref().and_then(|tasks| tasks.realtime.as_ref());
         RealtimeStatusDto {
             profile_id: running.as_ref().map(|tasks| tasks.profile_id.clone()),
-            state: running
-                .as_ref()
-                .and_then(|tasks| tasks.realtime.as_ref())
-                .map_or(RealtimeStateDto::Idle, Bridge::state),
+            state: bridge.map_or(RealtimeStateDto::Idle, Bridge::state),
+            subscribed: bridge.map(Bridge::subscribed).unwrap_or_default(),
         }
     }
 

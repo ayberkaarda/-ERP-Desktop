@@ -9,4 +9,9 @@ export type RealtimeStatusDto = {
 /**
  * The active profile; `None` when none is open.
  */
-profile_id: string | null, state: RealtimeStateDto, };
+profile_id: string | null, state: RealtimeStateDto, 
+/**
+ * Channels (Pusher names) the server accepted on the current socket;
+ * empty unless `state` is `connected`.
+ */
+subscribed: Array<string>, };

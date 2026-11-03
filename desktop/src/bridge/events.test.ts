@@ -114,6 +114,8 @@ describe('parseRealtimeEvent', () => {
       { type: 'session_revoked', profile_id: 'p1', reason: 'deactivated' },
       { type: 'membership_revoked', profile_id: 'p1', company_id: 'c1' },
       { type: 'notification_created', profile_id: 'p1', notification },
+      { type: 'subscribed', profile_id: 'p1', channel: 'private-user.u1' },
+      { type: 'subscription_failed', profile_id: 'p1', channel: 'private-user.u1' },
     ]) {
       expect(parseRealtimeEvent(payload)).toEqual(payload)
     }
@@ -128,6 +130,8 @@ describe('parseRealtimeEvent', () => {
       { type: 'session_revoked', profile_id: 'p1' },
       { type: 'membership_revoked', profile_id: 'p1', company_id: 1 },
       { type: 'notification_created', profile_id: 'p1', notification: { id: 'n1' } },
+      { type: 'subscribed', profile_id: 'p1' },
+      { type: 'subscription_failed', profile_id: 'p1', channel: null },
       { type: 'other', profile_id: 'p1' },
     ]) {
       expect(parseRealtimeEvent(payload)).toBeUndefined()
