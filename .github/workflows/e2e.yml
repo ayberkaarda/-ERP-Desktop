@@ -1,10 +1,15 @@
 name: E2E
 on:
   push:
+    branches: [main]
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Check for E2E suite
         id: e2e
