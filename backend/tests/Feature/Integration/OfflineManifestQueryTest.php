@@ -14,6 +14,7 @@ use Illuminate\Support\Str;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
 use Tests\Support\Inventory\Inv;
+use Tests\Support\PlannerStatistics;
 use Tests\Support\Purchasing\PurchKit;
 use Tests\Support\Sales\SalesKit;
 
@@ -143,6 +144,7 @@ function oqWorld(): object
 
     $p = PurchKit::world();
     $p->user = Actors::user(array_values(array_unique([...$permissions, ...PurchKit::ALL])));
+    PlannerStatistics::refresh(PlannerStatistics::PERMISSION_TABLES);
     PurchKit::post($p->user, $p->company, 'purchase-requests', [
         'document_date' => '2027-06-02', 'notes' => 'Talep bir',
         'lines' => [['item_id' => $p->item->id, 'quantity' => '1', 'estimated_price' => '9']],
@@ -215,6 +217,8 @@ function oqWorld(): object
     $delivery = SalesKit::deliver((object) [...(array) $w, 'user' => $user], $order['id'], [$order['lines'][0]['id'] => '2']);
     $invoice = SalesKit::invoiceDelivery((object) [...(array) $w, 'user' => $user], $delivery['id']);
     SalesKit::post($user, $company, "sales-invoices/{$invoice['id']}/returns", ['lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1']]])->assertCreated();
+
+    PlannerStatistics::refresh();
 
     return (object) [
         'sales' => (object) [

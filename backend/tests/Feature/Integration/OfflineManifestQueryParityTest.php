@@ -11,6 +11,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
+use Tests\Support\PlannerStatistics;
 use Tests\Support\Purchasing\PurchKit;
 use Tests\Support\Sales\SalesKit;
 
@@ -226,6 +227,7 @@ function oqpWorld(): object
 
     $p = PurchKit::world();
     $p->user = Actors::user(array_values(array_unique([...$permissions, ...PurchKit::ALL])));
+    PlannerStatistics::refresh(PlannerStatistics::PERMISSION_TABLES);
 
     foreach ([
         ['2027-06-02', null, '9.5', 'Çay talebi'], ['2027-06-02', '2027-06-30', '100', 'cam'], ['2027-06-03', '2027-06-04', '1000.25', 'İzmir'],
@@ -329,6 +331,8 @@ function oqpWorld(): object
         oqpTick();
         SalesKit::post($user, $company, "sales-invoices/{$invoice['id']}/returns", ['lines' => [['invoice_line_id' => $invoice['lines'][0]['id'], 'quantity' => '1']]])->assertCreated();
     }
+
+    PlannerStatistics::refresh();
 
     return (object) [
         'sales' => (object) ['company' => $company, 'user' => $user],
@@ -528,6 +532,7 @@ it('refuses an empty sort parameter online, so the desktop refuses it too', func
         static fn (array $r): array => [...$r['requires']['all_of'] ?? [], ...$r['requires']['any_of'] ?? []],
         array_values(oqpResources()),
     )))))];
+    PlannerStatistics::refresh();
 
     foreach (oqpResources() as $name => $resource) {
         if (isset($resource['query'])) {
