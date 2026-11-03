@@ -1,4 +1,4 @@
-export { AsyncCombobox, type AsyncComboboxProps } from './AsyncCombobox'
+export { AsyncCombobox, type AsyncComboboxProps, type LoadedOptions } from './AsyncCombobox'
 export { Combobox, type ComboboxOption, type ComboboxProps } from './Combobox'
 export { DateInput, type DateInputProps } from './DateInput'
 export {

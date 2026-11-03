@@ -108,6 +108,45 @@ describe('AsyncCombobox', () => {
     expect(onPick).toHaveBeenLastCalledWith('customer:ab')
   })
 
+  it('keeps the newer result when a loader that ignores the signal answers late', async () => {
+    const user = userEvent.setup()
+    const pending = new Map<string, (o: ComboboxOption[]) => void>()
+    const load = vi.fn(
+      (q: string) => new Promise<ComboboxOption[]>((resolve) => pending.set(q, resolve)),
+    )
+    render(<AsyncHarness load={load} scope="c" onPick={vi.fn()} />)
+    const input = screen.getByRole('combobox', { name: 'Cari' })
+    await user.type(input, 'a')
+    await waitFor(() => expect(pending.has('c:a')).toBe(true))
+    await user.keyboard('b')
+    await waitFor(() => expect(pending.has('c:ab')).toBe(true))
+    pending.get('c:ab')?.(optionsFor('c:ab'))
+    await screen.findByRole('option', { name: 'Sonuç c:ab' })
+    pending.get('c:a')?.(optionsFor('c:a')) // superseded answer arrives last
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.getByRole('option', { name: 'Sonuç c:ab' })).toBeInTheDocument()
+  })
+
+  it('keeps the newer result when a superseded load fails late', async () => {
+    const user = userEvent.setup()
+    const pending = new Map<string, [(o: ComboboxOption[]) => void, (e: unknown) => void]>()
+    const load = vi.fn(
+      (q: string) =>
+        new Promise<ComboboxOption[]>((resolve, reject) => pending.set(q, [resolve, reject])),
+    )
+    render(<AsyncHarness load={load} scope="c" onPick={vi.fn()} />)
+    const input = screen.getByRole('combobox', { name: 'Cari' })
+    await user.type(input, 'a')
+    await waitFor(() => expect(pending.has('c:a')).toBe(true))
+    await user.keyboard('b')
+    await waitFor(() => expect(pending.has('c:ab')).toBe(true))
+    pending.get('c:ab')?.[0](optionsFor('c:ab'))
+    await screen.findByRole('option', { name: 'Sonuç c:ab' })
+    pending.get('c:a')?.[1](new Error('late'))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(screen.getByRole('option', { name: 'Sonuç c:ab' })).toBeInTheDocument()
+  })
+
   it('searches again when the scope changes for the same text', async () => {
     const user = userEvent.setup()
     const load = vi.fn((q: string) => Promise.resolve(optionsFor(q)))
