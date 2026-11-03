@@ -1,5 +1,5 @@
 {
-  "description": "Rows of two list streams and list requests on them, with the ids and total PostgreSQL 18 (en_US.utf8, the server database) gives for the SQL the server builds for each request (server_sql: WHERE and ORDER BY before the final id). Text columns are text, totals numeric, created_at timestamptz, roles and lines jsonb.",
+  "description": "Rows of two list streams and list requests on them, with the ids and total PostgreSQL 18 (en_US.utf8, the server database) gives for the SQL the server builds for each request (server_sql: WHERE and ORDER BY before the final id). Text columns are text, totals numeric, created_at timestamptz, roles and lines jsonb. A request with server_status instead of ids is one the server refuses with that status (measured over HTTP).",
   "rows": {
     "parties": [
       {
@@ -1186,17 +1186,7 @@
           ""
         ]
       ],
-      "server_sql": "WHERE true ORDER BY document_date DESC, created_at DESC, id",
-      "ids": [
-        "0192f5a0-0000-7000-8000-000000000205",
-        "0192f5a0-0000-7000-8000-000000000204",
-        "0192f5a0-0000-7000-8000-000000000206",
-        "0192f5a0-0000-7000-8000-000000000203",
-        "0192f5a0-0000-7000-8000-000000000202",
-        "0192f5a0-0000-7000-8000-000000000207",
-        "0192f5a0-0000-7000-8000-000000000201"
-      ],
-      "total": 7
+      "server_status": 422
     },
     {
       "resource": "sales-quotes",

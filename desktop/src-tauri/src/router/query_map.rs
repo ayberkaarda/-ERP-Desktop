@@ -10,6 +10,7 @@
 //! it declares:
 //!
 //! - `sort`: a comma list; every name (without `-`) must be a declared sort.
+//!   A blank `sort=` is refused, as the server refuses it (422).
 //!   Typed order, then `id` ascending; without `sort`, `default_sort`, else
 //!   `id` ascending.
 //! - `filter[<name>]`: a declared filter, its value checked by type (`bool`
@@ -125,6 +126,9 @@ pub fn list_query(
                     }
                     true
                 }
+                // `sort=` (blank) is refused by the server (422): Laravel makes
+                // it null and `ListQuery` takes a string only.
+                "sort" if value.trim().is_empty() => false,
                 "sort" => match declared {
                     Some(query) => match typed_order(query, value) {
                         Some(keys) => {
@@ -241,8 +245,8 @@ fn window_filter(name: &str, value: &str, window: Option<&str>) -> Option<Filter
     }
 }
 
-/// Typed keys of a `sort` value (`-a,b`); `None` when a name is not a
-/// declared sort of a known type.
+/// Typed keys of a `sort` value (`-a,b`, empty parts skipped); `None` when
+/// a name is not a declared sort of a known type.
 fn typed_order(query: &QuerySpec, value: &str) -> Option<Vec<OrderKey>> {
     let mut keys = Vec::new();
     for part in value.split(',').filter(|part| !part.is_empty()) {
@@ -363,12 +367,16 @@ fn value_problem(filter: &FilterField, value: &str) -> String {
 /// The declared filters of `params` whose value the server would refuse
 /// (`filter[id]=abc`), each with its reason; request order.
 pub fn invalid_values(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<InvalidValue> {
-    let Some(query) = &spec.query else {
-        return Vec::new();
-    };
     params
         .iter()
         .filter_map(|(name, value)| {
+            if name == "sort" && value.trim().is_empty() {
+                return Some(InvalidValue {
+                    param: name.clone(),
+                    reason: "empty".into(),
+                });
+            }
+            let query = spec.query.as_ref()?;
             let filter_name = filter_name(name)?;
             let filter = query.filters.get(filter_name)?;
             let value = value.trim();
@@ -544,7 +552,6 @@ mod tests {
             key("created_at", SortType::Datetime, true),
         ]);
         assert_eq!(mapped(&[]).query.order, default);
-        assert_eq!(mapped(&[("sort", "")]).query.order, default);
         let parties = list_query(parties(), &params(&[])).unwrap();
         assert_eq!(parties.query.order, Some(Vec::new()));
         // Up to the first name without a declared sort.
@@ -939,19 +946,38 @@ mod tests {
         );
     }
 
-    /// An empty `sort=` is no sort, so the default order applies, as on the
-    /// server: Laravel's global `ConvertEmptyStringsToNull` turns it into
-    /// null and the document controllers take their default order for null.
+    /// No `sort` is the default order. A blank `sort=` is refused: the
+    /// server answers it 422 (measured over HTTP on every mirrored list:
+    /// Laravel's `ConvertEmptyStringsToNull` makes it null and the
+    /// `ListQuery` rule takes a string only).
     #[test]
-    fn an_empty_or_missing_sort_is_the_default_sort() {
-        let default = Some(vec![
-            key("document_date", SortType::Date, true),
-            key("created_at", SortType::Datetime, true),
-        ]);
-        for request in [&[][..], &[("sort", "")][..]] {
-            let list = mapped(request);
-            assert_eq!(list.query.order, default, "{request:?}");
-            assert!(list.applied.is_empty(), "{request:?}");
+    fn a_missing_sort_is_the_default_sort_and_a_blank_one_is_refused() {
+        let list = mapped(&[]);
+        assert_eq!(
+            list.query.order,
+            Some(vec![
+                key("document_date", SortType::Date, true),
+                key("created_at", SortType::Datetime, true),
+            ])
+        );
+        assert!(list.applied.is_empty());
+        for value in ["", " "] {
+            let request = params(&[("sort", value), ("page", "1")]);
+            assert_eq!(
+                list_query(quotes(), &request).unwrap_err(),
+                ["sort"],
+                "{value:?}"
+            );
+            assert_eq!(
+                invalid_values(quotes(), &request),
+                [InvalidValue {
+                    param: "sort".into(),
+                    reason: "empty".into(),
+                }]
+            );
+            // On every list, with or without a query section.
+            assert_eq!(list_query(&windowed(), &request).unwrap_err(), ["sort"]);
+            assert_eq!(invalid_values(&windowed(), &request).len(), 1);
         }
     }
 
@@ -991,7 +1017,6 @@ mod tests {
         let list = mapped(&[
             ("q", "acme"),
             ("filter[status]", ""),
-            ("sort", ""),
             ("search", "x"),
             ("filter[number]", "SQ"),
         ]);

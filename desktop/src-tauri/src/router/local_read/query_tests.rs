@@ -215,6 +215,7 @@ async fn local_answers_give_the_server_rows_order_and_total() {
 
     let requests = fixture_json["requests"].as_array().unwrap();
     assert!(requests.len() >= 50);
+    let mut refused = 0;
     for request in requests {
         let resource = request["resource"].as_str().unwrap();
         let label = format!(
@@ -227,6 +228,13 @@ async fn local_answers_give_the_server_rows_order_and_total() {
                 request["query"].clone(),
             ))
             .await;
+        // A request the server refuses (422) is not answered here either.
+        if request["server_status"] == 422 {
+            assert_eq!(answer.status, 503, "{label}");
+            assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE", "{label}");
+            refused += 1;
+            continue;
+        }
         assert_eq!(answer.status, 200, "{label}");
         let expected: Vec<Uuid> = request["ids"]
             .as_array()
@@ -241,6 +249,7 @@ async fn local_answers_give_the_server_rows_order_and_total() {
             "{label}"
         );
     }
+    assert_eq!(refused, 1, "the blank sort= the server refuses");
 }
 
 // ---------------------------------------------------------- web coverage
@@ -715,11 +724,10 @@ async fn a_value_that_is_not_a_uuid_is_refused_with_its_reason() {
     assert!(unknown.json().unwrap()["errors"]["details"]["invalid_values"].is_null());
 }
 
-/// `sort=` empty and no `sort` both give the default order: the server's
-/// global `ConvertEmptyStringsToNull` makes the empty value null, and the
-/// document controllers apply their default order for null.
+/// No `sort` gives the default order; a blank `sort=` is refused, as the
+/// server answers it 422 (measured over HTTP).
 #[tokio::test(flavor = "multi_thread")]
-async fn an_empty_sort_is_the_default_order_as_on_the_server() {
+async fn no_sort_is_the_default_order_and_a_blank_sort_is_refused() {
     let (old, a) = with_id(
         1,
         json!({"document_date": "2026-10-01", "created_at": "2026-10-01T08:00:00Z"}),
@@ -734,8 +742,15 @@ async fn an_empty_sort_is_the_default_order_as_on_the_server() {
     );
     let fx = fixture(vec![("sales-quotes", vec![a, b, c])]).await;
     fx.go_offline();
-    for query in [json!([]), json!([["sort", ""]])] {
-        let answer = fx.call(get(QUOTES, query.clone())).await;
-        assert_eq!(ids(&answer), [later, new, old], "{query}");
+    let answer = fx.call(get(QUOTES, json!([]))).await;
+    assert_eq!(ids(&answer), [later, new, old]);
+    for value in ["", "  "] {
+        let blank = fx.call(get(QUOTES, json!([["sort", value]]))).await;
+        assert_eq!(blank.status, 503, "{value:?}");
+        assert_eq!(offline_of(&blank)["unsupported_filters"], json!(["sort"]));
+        assert_eq!(
+            blank.json().unwrap()["errors"]["details"]["invalid_values"],
+            json!([{"param": "sort", "reason": "empty"}])
+        );
     }
 }

@@ -82,7 +82,10 @@ cases.push(['parties', [['filter[role]', 'nobody']], `roles ? 'nobody'`, null]);
 cases.push(['parties', [['search', 'acme']], 'true', null]);
 cases.push(['parties', [['filter[country]', ' TR ']], `country = 'TR'`, null]);
 cases.push(['sales-quotes', [], 'true', 'document_date DESC, created_at DESC']);
-cases.push(['sales-quotes', [['sort', '']], 'true', 'document_date DESC, created_at DESC']);
+// The server refuses a blank sort= with 422 (measured over HTTP on every
+// mirrored list: ConvertEmptyStringsToNull makes it null, ListQuery takes a
+// string only): kept as a refusal, not as SQL.
+cases.push(['sales-quotes', [['sort', '']], null, null, 422]);
 cases.push(['sales-quotes', [['sort', 'status,-total']], 'true', 'status ASC, total DESC']);
 cases.push(['sales-quotes', [['page', '2'], ['per_page', '2'], ['sort', '-total']], 'true', 'total DESC']);
 cases.push(['sales-quotes', [['page', '4'], ['per_page', '2'], ['sort', '-total']], 'true', 'total DESC']);
@@ -117,7 +120,8 @@ const pageOf = (pairs) => {
   const get = (k, d) => Number((pairs.find(([n]) => n === k) || [k, d])[1]);
   return [get('page', 1), get('per_page', 25)];
 };
-cases.forEach(([resource, pairs, where, order], i) => {
+cases.forEach(([resource, pairs, where, order, status], i) => {
+  if (status) return
   const name = 't_' + resource.replace('-', '_');
   const [page, per] = pageOf(pairs);
   const by = (order ? order + ', ' : '') + 'id ASC';
@@ -141,9 +145,10 @@ for (const line of out.split('\n')) {
   if (m) results[m[1]] = { ids: m[2] ? m[2].split(',') : [], total: Number(m[3]) };
 }
 const fixture = {
-  description: 'Rows of two list streams and list requests on them, with the ids and total PostgreSQL 18 (en_US.utf8, the server database) gives for the SQL the server builds for each request (server_sql: WHERE and ORDER BY before the final id). Text columns are text, totals numeric, created_at timestamptz, roles and lines jsonb.',
+  description: 'Rows of two list streams and list requests on them, with the ids and total PostgreSQL 18 (en_US.utf8, the server database) gives for the SQL the server builds for each request (server_sql: WHERE and ORDER BY before the final id). Text columns are text, totals numeric, created_at timestamptz, roles and lines jsonb. A request with server_status instead of ids is one the server refuses with that status (measured over HTTP).',
   rows: Object.fromEntries(Object.entries(tables).map(([r, t]) => [r, t.rows.map(([rid, row]) => ({ id: rid, version: 1, ...row }))])),
-  requests: cases.map(([resource, pairs, where, order], i) => {
+  requests: cases.map(([resource, pairs, where, order, status], i) => {
+    if (status) return { resource, query: pairs, server_status: status }
     if (!results[i]) throw new Error('no result for case ' + i);
     return { resource, query: pairs, server_sql: `WHERE ${where} ORDER BY ${(order ? order + ', ' : '') + 'id'}`, ids: results[i].ids, total: results[i].total };
   }),

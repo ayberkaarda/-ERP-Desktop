@@ -453,6 +453,20 @@ mod tests {
         assert_eq!(sorted(&shuffled, collation_key), server);
     }
 
+    /// Dotless `ı` right after `i` (before `j`), lower case before upper
+    /// case on equal letters, then punctuation: PostgreSQL 18 order.
+    #[test]
+    fn dotless_i_and_case_follow_the_server_collation() {
+        let server = [
+            "a.1-2", "A-1.2", "A-12", "A1.2", "ab", "aB", "Ab", "AB", "hız", "ilk", "ipek", "IPEK",
+            "İpek", "ispanak", "Ispanak", "Isparta", "ışık", "ıspanak", "jale", "p-001", "P-001",
+            "P.001", "P001",
+        ];
+        let mut shuffled = server.to_vec();
+        shuffled.reverse();
+        assert_eq!(sorted(&shuffled, collation_key), server);
+    }
+
     #[test]
     fn a_combining_mark_is_the_accent_of_its_letter() {
         assert_eq!(collation_key("s\u{0327}eker"), collation_key("şeker"));
