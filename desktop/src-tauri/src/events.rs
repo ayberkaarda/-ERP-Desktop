@@ -10,14 +10,14 @@
 
 use std::sync::Arc;
 
-use keystone_sync::engine::{ResourcesChanged, SyncHandle, SyncStatus, Trigger};
+use keystone_sync::engine::{ResourcesChanged, SyncHandle, SyncState, SyncStatus, Trigger};
 use serde::Serialize;
 use tokio::sync::{broadcast, watch};
 use ts_rs::TS;
 
 use crate::dto::profile::ProfileStateDto;
 use crate::dto::status::StatusDto;
-use crate::router::ConnectivityChange;
+use crate::router::{Connectivity, ConnectivityChange};
 
 /// Payload of `engine-event`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
@@ -68,30 +68,99 @@ impl<R: tauri::Runtime> EventSink for TauriSink<R> {
     }
 }
 
-/// Forwards connectivity changes of `profile_id` to `sink` until aborted;
-/// when the server is reachable again, asks the sync loop for a run
-/// (`Trigger::NetworkChanged`).
+/// The engine side of a [`connectivity_bridge`]: its status, its finished
+/// passes ([`keystone_sync::engine::SyncEngine::subscribe_passes`]) and the
+/// view it feeds.
+pub struct EngineView {
+    pub status: watch::Receiver<SyncStatus>,
+    pub passes: watch::Receiver<u64>,
+    pub connectivity: Connectivity,
+}
+
+/// Forwards connectivity changes of `profile_id` to `sink` until aborted.
+///
+/// - A change the engine does not agree with yet (a request reached the
+///   server while the engine is offline, or found it gone while the engine
+///   is not) asks the sync loop for a run (`Trigger::NetworkChanged`), so
+///   the engine finds out at once. Without `engine`, only a return does.
+/// - With `engine`, the engine's own findings feed the view: leaving
+///   `Offline` (the server answered it) counts as reachable, entering it as
+///   unreachable. A pass that ends idle while the view says unreachable
+///   counts as reachable too: a request that found the server gone for a
+///   moment (the engine never went offline) does not keep the profile
+///   offline until that finding expires. So a request after the engine
+///   found the server again is not answered from the earlier failed one.
 pub async fn connectivity_bridge(
     profile_id: String,
     mut changes: broadcast::Receiver<ConnectivityChange>,
+    engine: Option<EngineView>,
     sync: Option<SyncHandle>,
     sink: Arc<dyn EventSink>,
 ) {
+    let (mut status, mut passes, connectivity) = match engine {
+        Some(view) => (
+            Some(view.status),
+            Some(view.passes),
+            Some(view.connectivity),
+        ),
+        None => (None, None, None),
+    };
+    let mut engine_offline = status
+        .as_mut()
+        .is_some_and(|rx| rx.borrow_and_update().state == SyncState::Offline);
     loop {
-        match changes.recv().await {
-            Ok(change) if change.profile == profile_id => {
-                sink.emit(EngineEvent::Connectivity {
-                    profile_id: profile_id.clone(),
-                    online: change.online,
-                });
-                if change.online
-                    && let Some(sync) = &sync
-                {
-                    sync.trigger(Trigger::NetworkChanged);
+        tokio::select! {
+            received = changes.recv() => match received {
+                Ok(change) if change.profile == profile_id => {
+                    sink.emit(EngineEvent::Connectivity {
+                        profile_id: profile_id.clone(),
+                        online: change.online,
+                    });
+                    let disagrees = match &status {
+                        Some(rx) => change.online == (rx.borrow().state == SyncState::Offline),
+                        None => change.online,
+                    };
+                    if disagrees && let Some(sync) = &sync {
+                        sync.trigger(Trigger::NetworkChanged);
+                    }
+                }
+                Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
+                Err(broadcast::error::RecvError::Closed) => return,
+            },
+            changed = async { status.as_mut()?.changed().await.ok() }, if status.is_some() => {
+                let Some(rx) = status.as_mut().filter(|_| changed.is_some()) else {
+                    // The engine is gone: connectivity news still goes on.
+                    status = None;
+                    continue;
+                };
+                let offline = rx.borrow_and_update().state == SyncState::Offline;
+                if offline != engine_offline {
+                    engine_offline = offline;
+                    if let Some(connectivity) = &connectivity {
+                        connectivity.observe(
+                            &profile_id,
+                            !offline,
+                            tokio::time::Instant::now().into_std(),
+                        );
+                    }
                 }
             }
-            Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
-            Err(broadcast::error::RecvError::Closed) => return,
+            changed = async { passes.as_mut()?.changed().await.ok() }, if passes.is_some() => {
+                if changed.is_none() {
+                    passes = None;
+                    continue;
+                }
+                let idle = status
+                    .as_ref()
+                    .is_some_and(|rx| rx.borrow().state == SyncState::Idle);
+                let now = tokio::time::Instant::now().into_std();
+                if idle
+                    && let Some(connectivity) = &connectivity
+                    && !connectivity.online(&profile_id, Some(false), now)
+                {
+                    connectivity.observe(&profile_id, true, now);
+                }
+            }
         }
     }
 }
@@ -251,6 +320,7 @@ mod tests {
             "p1".into(),
             connectivity.subscribe(),
             None,
+            None,
             recorder.clone(),
         ));
         let now = std::time::Instant::now();
@@ -275,6 +345,64 @@ mod tests {
         task.abort();
     }
 
+    /// The engine's own findings move the view: entering `Offline` makes the
+    /// profile unreachable, leaving it reachable; other moves change nothing.
+    #[tokio::test]
+    async fn the_engine_leaving_or_entering_offline_moves_the_view() {
+        let connectivity = crate::router::Connectivity::default();
+        let recorder = Arc::new(Recorder::default());
+        let (status, status_rx) = watch::channel(SyncStatus::default());
+        let task = tokio::spawn(connectivity_bridge(
+            "p1".into(),
+            connectivity.subscribe(),
+            Some(EngineView {
+                status: status_rx,
+                passes: tokio::sync::watch::channel(0).1,
+                connectivity: connectivity.clone(),
+            }),
+            None,
+            recorder.clone(),
+        ));
+        let set = |state: SyncState| status.send_modify(|s| s.state = state);
+        // The bridge reads the engine's state as it starts: idle.
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        set(SyncState::Syncing);
+        set(SyncState::Idle);
+        set(SyncState::Offline);
+        recorder
+            .wait_for(|e| matches!(e, EngineEvent::Connectivity { online: false, .. }))
+            .await;
+        let later = std::time::Instant::now() + std::time::Duration::from_secs(1);
+        assert!(!connectivity.online("p1", Some(false), later));
+        // Still offline: nothing new.
+        status.send_modify(|s| s.failures += 1);
+        set(SyncState::Syncing);
+        recorder
+            .wait_for(|e| matches!(e, EngineEvent::Connectivity { online: true, .. }))
+            .await;
+        assert!(connectivity.online("p1", Some(true), later));
+        set(SyncState::Failed("SERVER_ERROR"));
+        set(SyncState::Idle);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let events: Vec<Value> = recorder
+            .events()
+            .iter()
+            .map(|e| serde_json::to_value(e).unwrap())
+            .collect();
+        assert_eq!(
+            events,
+            [
+                serde_json::json!({"type": "connectivity", "profile_id": "p1", "online": false}),
+                serde_json::json!({"type": "connectivity", "profile_id": "p1", "online": true}),
+            ]
+        );
+        // The engine gone, connectivity news still goes on.
+        drop(status);
+        connectivity.observe("p1", false, std::time::Instant::now());
+        recorder.wait_for(|_| recorder.events().len() == 3).await;
+        task.abort();
+    }
+
     #[tokio::test]
     async fn the_connectivity_bridge_outlives_lost_news() {
         let connectivity = crate::router::Connectivity::default();
@@ -288,6 +416,7 @@ mod tests {
         let task = tokio::spawn(connectivity_bridge(
             "p1".into(),
             changes,
+            None,
             None,
             recorder.clone(),
         ));

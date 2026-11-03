@@ -49,6 +49,15 @@ struct Fixture {
 }
 
 fn client(base_url: &str, store: &Arc<MemoryTokenStore>) -> HttpClient {
+    client_waiting(base_url, store, Duration::from_secs(20))
+}
+
+/// A client that gives up on an answer after `request_timeout`.
+fn client_waiting(
+    base_url: &str,
+    store: &Arc<MemoryTokenStore>,
+    request_timeout: Duration,
+) -> HttpClient {
     let config = ApiConfig {
         base_url: base_url.to_owned(),
         company_id: COMPANY.parse().unwrap(),
@@ -56,7 +65,7 @@ fn client(base_url: &str, store: &Arc<MemoryTokenStore>) -> HttpClient {
     };
     let options = ClientOptions {
         connect_timeout: Duration::from_secs(2),
-        request_timeout: Duration::from_secs(20),
+        request_timeout,
         allow_http_localhost: true,
     };
     HttpClient::new(&config, PROFILE, store.clone(), &options).unwrap()
@@ -95,6 +104,38 @@ fn fixture_with_engine(base_url: &str) -> Fixture {
     fixture.state.set_engine(PROFILE, engine).unwrap();
     fixture._dir = Some(dir);
     fixture
+}
+
+/// [`fixture_with_engine`] whose clients give up on an answer after
+/// `request_timeout`.
+fn fixture_waiting(base_url: &str, request_timeout: Duration) -> Fixture {
+    let store = Arc::new(MemoryTokenStore::signed_in(PROFILE, &tokens(1)));
+    let client = Arc::new(client_waiting(base_url, &store, request_timeout));
+    let state = AppState::default();
+    state.activate(ActiveProfile {
+        id: PROFILE.into(),
+        client: client.clone(),
+        engine: None,
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let db = Store::open(dir.path().join("p.db"), &DbKey::from_bytes([7; 32])).unwrap();
+    let manifest =
+        keystone_sync::store::offline_manifest(crate::router::decide::OFFLINE_MANIFEST).unwrap();
+    let engine = Arc::new(
+        SyncEngine::new(
+            client_waiting(base_url, &store, request_timeout),
+            Arc::new(db),
+        )
+        .with_offline_manifest(manifest),
+    );
+    state.set_engine(PROFILE, engine).unwrap();
+    Fixture {
+        state,
+        connectivity: Connectivity::default(),
+        store,
+        client,
+        _dir: Some(dir),
+    }
 }
 
 impl Fixture {
@@ -987,4 +1028,166 @@ async fn a_rejected_session_is_not_retried() {
         .count();
     assert_eq!(gets, 2, "first send and the one retry after refresh");
     assert_eq!(fx.store.load_record(PROFILE).unwrap().generation, before);
+}
+
+// ------------------------------------------------- a write the server never got
+
+fn party_post() -> Value {
+    json!({ "method": "POST", "path": "/api/v1/parties",
+        "headers": [["Idempotency-Key", "0192f5a0-0000-7000-8000-0000000000aa"]],
+        "body": { "kind": "json", "value": { "id": ID, "name": "Acme" } } })
+}
+
+fn draft_answer() -> Option<Value> {
+    Some(json!({ "data": { "id": ID }, "meta": { "offline": { "pending": true } } }))
+}
+
+fn is_create_draft(plans: &[LocalPlan]) -> bool {
+    matches!(
+        plans,
+        [LocalPlan::Write {
+            op: keystone_sync::wire::MutationOp::Create,
+            ..
+        }]
+    )
+}
+
+/// The profile still counts as online (nothing failed yet), the server is
+/// gone and the connection is refused: the write never left this device,
+/// so it becomes the draft it would be offline, and the profile is offline
+/// from now on.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_first_write_after_the_server_went_away_becomes_a_draft() {
+    let fx = fixture_with_engine(&dead_url().await);
+    assert!(fx.connectivity.online(PROFILE, Some(false), Instant::now()));
+    let local = FakeLocal::new(LocalCopy::Complete, draft_answer());
+    let answer = fx.call_with(local.clone(), party_post()).await.unwrap();
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert_eq!(answer.json().unwrap()["meta"]["offline"]["pending"], true);
+    assert!(is_create_draft(&local.plans()), "{:?}", local.plans());
+    assert!(!fx.connectivity.online(PROFILE, Some(false), Instant::now()));
+
+    // The next write takes the offline way at once.
+    fx.call_with(local.clone(), party_post()).await.unwrap();
+    assert_eq!(local.plans().len(), 2);
+}
+
+/// A host that does not resolve never got the request either.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_write_to_an_unknown_host_becomes_a_draft() {
+    let fx = fixture_with_engine("https://keystone-desktop-test.invalid");
+    let local = FakeLocal::new(LocalCopy::Complete, draft_answer());
+    let answer = fx.call_with(local.clone(), party_post()).await.unwrap();
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert!(is_create_draft(&local.plans()));
+}
+
+/// Connected, sent, no answer in time: the server may have applied it. It
+/// is not queued (a draft would be sent a second time) and the profile
+/// stays online.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_write_whose_answer_did_not_come_is_not_queued() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/parties"))
+        .respond_with(
+            ResponseTemplate::new(201)
+                .set_body_json(json!({ "data": { "id": ID } }))
+                .set_delay(Duration::from_secs(3)),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = fixture_waiting(&server.uri(), Duration::from_millis(500));
+    let local = FakeLocal::new(LocalCopy::Complete, draft_answer());
+    let error = fx.call_with(local.clone(), party_post()).await.unwrap_err();
+    assert_eq!(error.code, "NETWORK_ERROR");
+    assert!(local.plans().is_empty(), "{:?}", local.plans());
+    assert!(fx.connectivity.online(PROFILE, Some(false), Instant::now()));
+}
+
+/// The server answered with an error: that is the answer, not a draft.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_server_error_on_a_write_is_not_queued() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/parties"))
+        .respond_with(ResponseTemplate::new(503).set_body_json(json!({
+            "errors": { "code": "SERVER_ERROR", "message": "down for maintenance" }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = fixture_with_engine(&server.uri());
+    let local = FakeLocal::new(LocalCopy::Complete, draft_answer());
+    let answer = fx.call_with(local.clone(), party_post()).await.unwrap();
+    assert_eq!(
+        (answer.status, answer.source),
+        (503, ResponseSource::Network)
+    );
+    assert!(local.plans().is_empty());
+    assert!(fx.connectivity.online(PROFILE, Some(false), Instant::now()));
+}
+
+/// A write that is online only, or a resource without offline writes,
+/// keeps the network error: there is no draft to fall back to.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unsent_online_only_write_keeps_its_network_error() {
+    let fx = fixture_with_engine(&dead_url().await);
+    let local = FakeLocal::new(LocalCopy::Complete, draft_answer());
+    let send = json!({ "method": "POST", "path": format!("/api/v1/sales-quotes/{ID}/send") });
+    let error = fx.call_with(local.clone(), send.clone()).await.unwrap_err();
+    assert_eq!(error.code, "NETWORK_ERROR");
+    // Offline from now on: the same action is refused on this device.
+    let refused = fx.call_with(local.clone(), send).await.unwrap();
+    assert_eq!(
+        (refused.status, refused.source),
+        (503, ResponseSource::Local)
+    );
+
+    let fx = fixture_with_engine(&dead_url().await);
+    let unmapped = json!({ "method": "POST", "path": "/api/v1/treasury-payments",
+        "body": { "kind": "json", "value": {} } });
+    let error = fx.call_with(local.clone(), unmapped).await.unwrap_err();
+    assert_eq!(error.code, "NETWORK_ERROR");
+    assert!(local.plans().is_empty());
+}
+
+/// Without a local store there is no outbox: the error stays.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unsent_write_without_a_local_store_keeps_its_network_error() {
+    let fx = fixture(&dead_url().await);
+    let local = FakeLocal::new(LocalCopy::Complete, draft_answer());
+    let error = fx.call_with(local.clone(), party_post()).await.unwrap_err();
+    assert_eq!(error.code, "NETWORK_ERROR");
+    assert!(local.plans().is_empty());
+}
+
+/// Reads that could not connect still take their local fallback.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unsent_read_still_takes_its_local_fallback() {
+    let fx = fixture_with_engine(&dead_url().await);
+    let local = FakeLocal::new(LocalCopy::Partial, Some(parties_page()));
+    let answer = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "GET", "path": "/api/v1/parties" }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert!(matches!(
+        local.plans().as_slice(),
+        [LocalPlan::Read { stale: true, .. }]
+    ));
+}
+
+#[test]
+fn a_refused_certificate_has_its_own_code() {
+    let error = CommandError::from(SyncError::CertificateInvalid(
+        "the server certificate is not trusted: unknown issuer".into(),
+    ));
+    assert_eq!(error.code, "TLS_CERTIFICATE_INVALID");
+    let network = CommandError::from(SyncError::NotSent("connection refused".into()));
+    assert_eq!(network.code, "NETWORK_ERROR");
 }

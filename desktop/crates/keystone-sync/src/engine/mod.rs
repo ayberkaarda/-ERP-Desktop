@@ -66,7 +66,7 @@ mod pass;
 mod tests;
 
 use std::collections::{BTreeMap, HashMap};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 use std::time::Duration;
 
@@ -405,6 +405,12 @@ pub struct SyncEngine<A> {
     /// Wakes a run waiting on `retry_not_before` to re-evaluate it.
     retry_changed: tokio::sync::Notify,
     status: watch::Sender<SyncStatus>,
+    /// Passes started so far (passes run one at a time, so the n-th pass to
+    /// start is the n-th to end).
+    started: AtomicU64,
+    /// The number of the last pass that finished, set after it published
+    /// its outcome. A pass cut short is not announced.
+    passes: watch::Sender<u64>,
     changes: broadcast::Sender<ResourcesChanged>,
     /// Signalled when a cancelled run leaves a promised follow-up behind.
     follow_up: tokio::sync::Notify,
@@ -449,6 +455,8 @@ impl<A: SyncApi> SyncEngine<A> {
             retry_not_before: Mutex::default(),
             retry_changed: tokio::sync::Notify::new(),
             status: watch::Sender::new(SyncStatus::default()),
+            started: AtomicU64::new(0),
+            passes: watch::Sender::new(0),
             changes: broadcast::channel(64).0,
             follow_up: tokio::sync::Notify::new(),
             session,
@@ -586,6 +594,20 @@ impl<A: SyncApi> SyncEngine<A> {
 
     pub fn subscribe_changes(&self) -> broadcast::Receiver<ResourcesChanged> {
         self.changes.subscribe()
+    }
+
+    /// The number of the last pass that finished. It moves after the pass
+    /// has published its outcome in [`Self::status`]; a pass cut short is not
+    /// announced. Compared with [`Self::passes_started`] taken before a
+    /// trigger, it tells the verdict of a pass that began after the trigger
+    /// from one that was already running.
+    pub fn subscribe_passes(&self) -> watch::Receiver<u64> {
+        self.passes.subscribe()
+    }
+
+    /// The number of passes started so far, a running one included.
+    pub fn passes_started(&self) -> u64 {
+        self.started.load(Ordering::SeqCst)
     }
 
     /// Recounts outbox and conflicts into the published status.
@@ -1064,13 +1086,37 @@ impl<A: SyncApi> SyncEngine<A> {
         f()
     }
 
+    /// One pass ([`Self::published_pass`]), counted once its outcome is out.
+    async fn pass(&self, trigger: Trigger) -> Result<SyncReport> {
+        // Passes run one at a time (the run gate): numbers follow the order.
+        let number = self.started.fetch_add(1, Ordering::SeqCst) + 1;
+        let result = self.published_pass(trigger).await;
+        self.passes.send_replace(number);
+        result
+    }
+
+    /// From `Offline`, the server answered: the pass shows as syncing now.
+    fn reached(&self) {
+        self.status.send_if_modified(|status| {
+            let offline = status.state == SyncState::Offline;
+            if offline {
+                status.state = SyncState::Syncing;
+            }
+            offline
+        });
+    }
+
     /// One pass under the work lock, with state publication and the
     /// identity-loss rules applied to its error.
-    async fn pass(&self, trigger: Trigger) -> Result<SyncReport> {
+    async fn published_pass(&self, trigger: Trigger) -> Result<SyncReport> {
         let _work = self.work.lock().await;
         let before = self.status.borrow().state.clone();
-        self.status
-            .send_modify(|status| status.state = SyncState::Syncing);
+        // Offline stays offline until the server answers ([`Self::reached`]):
+        // a probe that fails never shows as syncing.
+        if before != SyncState::Offline {
+            self.status
+                .send_modify(|status| status.state = SyncState::Syncing);
+        }
         let mut guard = PassGuard {
             engine: self,
             before,

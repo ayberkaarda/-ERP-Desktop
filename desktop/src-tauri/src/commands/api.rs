@@ -31,6 +31,19 @@
 //!   verified for the sign-in that fetched it (`meta.offline`: as of its
 //!   fetch, stale); without one it stays `OFFLINE_UNAVAILABLE`. Every other
 //!   `/auth` path stays online only.
+//! - A write sent while the profile counted as online whose connection
+//!   could not be made (`NotSent`: refused, unknown host, connect timeout,
+//!   a handshake that is not TLS) never reached the server: it takes the
+//!   offline way (a draft where the resource allows one) and the profile is
+//!   offline from then on. A write whose answer was lost (timeout after
+//!   sending, a cut connection) is not queued: the server may have applied
+//!   it. A refused server certificate (`TLS_CERTIFICATE_INVALID`) is told to
+//!   the user as such and does not turn the profile offline.
+//! - A request answered on this device because the profile is offline asks
+//!   the engine for a probe, at most once per
+//!   [`crate::router::PROBE_INTERVAL`]; one that would be refused waits for
+//!   the verdict ([`PROBE_WAIT`]) and is decided again when the server
+//!   answered, so the first retry after the server is back reaches it.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -40,7 +53,7 @@ use keystone_sync::client::{
     AUTH_READS, HttpClient, PROXY_BODY_LIMIT, ProxyMethod, ProxyRequest, ProxyResponse,
     REQUEST_HEADERS,
 };
-use keystone_sync::engine::SyncState;
+use keystone_sync::engine::{SyncState, Trigger};
 use keystone_sync::store::{LocalCopy, Store};
 use keystone_sync::wire::{ResourceName, Source, Timestamp};
 use serde_json::{Map, Value};
@@ -50,7 +63,7 @@ use crate::dto::api::{ApiBody, ApiRequestDto, ApiResponseDto, ResponseSource};
 use crate::router::envelope::{self, OfflineMeta};
 use crate::router::{
     ApiCall, Connectivity, Decision, Facts, LocalOutcome, LocalPlan, LocalResolver, OfflineWrites,
-    Refusal, Router, Target, TargetKind, local_read, local_resolver,
+    PROBE_WAIT, Refusal, Router, Target, TargetKind, local_read, local_resolver,
 };
 use crate::state::{AppState, Engine};
 
@@ -146,12 +159,90 @@ fn method_name(method: ProxyMethod) -> &'static str {
     }
 }
 
+/// Answers `call`; when it was answered on this device because the profile
+/// is offline, asks the engine for a probe.
+///
+/// - A local answer (a draft, a local read) only triggers it, at most once
+///   per [`crate::router::PROBE_INTERVAL`] ([`Connectivity::probe_due`]). Its
+///   verdict reaches the view through the connectivity bridge: the engine
+///   leaving `Offline`, or a pass that ends idle while the view says
+///   unreachable, counts as reachable.
+/// - A request that would be refused waits for the verdict ([`PROBE_WAIT`];
+///   its own turn, [`Connectivity::wait_due`], so a local answer just before
+///   does not take it) and, when the server answered, is decided again: the
+///   first retry after the server came back reaches it. A refusal never
+///   queued anything, so deciding again sends nothing twice.
 async fn respond(
     state: &AppState,
     connectivity: &Connectivity,
     resolver: Arc<dyn LocalResolver>,
     call: ApiCall,
 ) -> CommandResult<ApiResponseDto> {
+    let routed = respond_once(state, connectivity, resolver.clone(), &call).await?;
+    if routed.online {
+        return Ok(routed.answer);
+    }
+    let Some(profile) = state.active_profile_id() else {
+        return Ok(routed.answer);
+    };
+    if !is_offline_refusal(&routed.answer) {
+        if connectivity.probe_due(&profile, clock()) {
+            let _ = state.trigger(&profile, Trigger::Probe);
+        }
+        return Ok(routed.answer);
+    }
+    if !connectivity.wait_due(&profile, clock()) {
+        return Ok(routed.answer);
+    }
+    let verdict =
+        crate::commands::sync::probe(state, connectivity, &profile, Trigger::Probe, PROBE_WAIT)
+            .await;
+    if matches!(verdict, Ok(Some(true))) {
+        return Ok(respond_once(state, connectivity, resolver, &call)
+            .await?
+            .answer);
+    }
+    Ok(routed.answer)
+}
+
+/// The time the connectivity view and the probe interval are measured in:
+/// the Tokio clock, so paused tests move it.
+fn clock() -> Instant {
+    tokio::time::Instant::now().into_std()
+}
+
+/// A local `OFFLINE_UNAVAILABLE` refusal: nothing was answered or queued.
+fn is_offline_refusal(answer: &ApiResponseDto) -> bool {
+    answer.source == ResponseSource::Local
+        && answer.status == 503
+        && answer
+            .json()
+            .and_then(|body| body.pointer("/errors/code"))
+            .and_then(Value::as_str)
+            == Some("OFFLINE_UNAVAILABLE")
+}
+
+/// An answer, and whether it was decided as online.
+struct Routed {
+    answer: ApiResponseDto,
+    online: bool,
+}
+
+impl Routed {
+    fn offline(answer: ApiResponseDto) -> Self {
+        Self {
+            answer,
+            online: false,
+        }
+    }
+}
+
+async fn respond_once(
+    state: &AppState,
+    connectivity: &Connectivity,
+    resolver: Arc<dyn LocalResolver>,
+    call: &ApiCall,
+) -> CommandResult<Routed> {
     let profile = state.active_profile_id().ok_or_else(no_profile)?;
     let client = state.client()?;
     let engine = state.engine().ok();
@@ -170,14 +261,18 @@ async fn respond(
     {
         let (resolver, engine, repeat) = (resolver.clone(), engine.clone(), call.clone());
         if let Some(answer) = blocking(move || resolver.replay(&engine, &repeat)).await? {
-            return Ok(answer);
+            // A replay is the same answer online and offline: no probe.
+            return Ok(Routed {
+                answer,
+                online: true,
+            });
         }
     }
     let status = engine.as_ref().map(|engine| engine.status());
     let online = connectivity.online(
         &profile,
         status.as_ref().map(|s| s.state == SyncState::Offline),
-        Instant::now(),
+        clock(),
     );
     let local_copy = match (&engine, &target) {
         (Some(engine), Some(target)) => {
@@ -209,8 +304,8 @@ async fn respond(
         offline_writes,
     };
     let decision = Router::decide(target.as_ref(), &facts, policy.as_ref());
-    let snapshot = target.as_ref().filter(|t| is_whole_snapshot(t, &call));
-    let session_read = is_session_read(&call);
+    let snapshot = target.as_ref().filter(|t| is_whole_snapshot(t, call));
+    let session_read = is_session_read(call);
 
     let run = Run {
         state,
@@ -225,34 +320,85 @@ async fn respond(
         snapshot: snapshot.map(|t| &t.resource),
         session: session_read,
     };
+    let answered = |answer| Routed { answer, online };
     match decision {
-        Decision::Refuse(Refusal::Offline) if session_read => Ok(run
-            .session()
-            .await?
-            .unwrap_or_else(|| refuse(Refusal::Offline, Vec::new()))),
-        Decision::Refuse(refusal) => Ok(refuse(refusal, Vec::new())),
-        Decision::Local { plan, else_online } => match run.local(plan, &call).await? {
-            LocalOutcome::Answer(answer) => Ok(answer),
+        Decision::Refuse(Refusal::Offline) if session_read => Ok(answered(
+            run.session()
+                .await?
+                .unwrap_or_else(|| refuse(Refusal::Offline, Vec::new())),
+        )),
+        Decision::Refuse(refusal) => Ok(answered(refuse(refusal, Vec::new()))),
+        Decision::Local { plan, else_online } => match run.local(plan, call).await? {
+            LocalOutcome::Answer(answer) => Ok(answered(answer)),
             LocalOutcome::Unsupported { .. } if else_online => {
-                run.online(&call, None, Keep::NOTHING).await
+                Ok(answered(run.online(call, None, Keep::NOTHING).await?))
             }
             LocalOutcome::Unsupported {
                 unsupported_filters,
-            } => Ok(refuse(Refusal::Offline, unsupported_filters)),
+            } => Ok(answered(refuse(Refusal::Offline, unsupported_filters))),
         },
-        Decision::Online { deadline, fallback } => match run.online(&call, deadline, keep).await {
-            Err(error) if error.code == NETWORK_ERROR => match fallback {
-                Some(plan) => match run.local(plan, &call).await? {
-                    LocalOutcome::Answer(answer) => Ok(answer),
+        Decision::Online { deadline, fallback } => match run.online(call, deadline, keep).await {
+            Ok(answer) => Ok(answered(answer)),
+            // The server went away before this profile was seen offline,
+            // and the write certainly did not leave this device: it takes
+            // the way it takes offline (a draft, when the resource allows
+            // one). A write whose answer was lost is not queued: the server
+            // may have applied it.
+            Err(Unanswered {
+                error,
+                not_sent: true,
+            }) if error.code == NETWORK_ERROR
+                && matches!(&target, Some(t) if matches!(t.kind, TargetKind::Write { .. })) =>
+            {
+                let offline = Facts {
+                    online: false,
+                    ..facts
+                };
+                match Router::decide(target.as_ref(), &offline, policy.as_ref()) {
+                    Decision::Local {
+                        plan: plan @ LocalPlan::Write { .. },
+                        ..
+                    } => match run.local(plan, call).await? {
+                        LocalOutcome::Answer(answer) => Ok(Routed::offline(answer)),
+                        LocalOutcome::Unsupported { .. } => Err(error),
+                    },
+                    _ => Err(error),
+                }
+            }
+            Err(Unanswered { error, .. }) if error.code == NETWORK_ERROR => match fallback {
+                Some(plan) => match run.local(plan, call).await? {
+                    LocalOutcome::Answer(answer) => Ok(answered(answer)),
                     LocalOutcome::Unsupported { .. } => Err(error),
                 },
                 // The server went away before the engine noticed (a reload
                 // or a cold start right after): the kept session answer.
-                None if session_read => run.session().await?.ok_or(error),
+                None if session_read => run.session().await?.map(answered).ok_or(error),
                 None => Err(error),
             },
-            other => other,
+            Err(Unanswered { error, .. }) => Err(error),
         },
+    }
+}
+
+/// A call the server did not answer. `not_sent`: it certainly did not
+/// reach the server (no connection, or a refused certificate).
+struct Unanswered {
+    error: CommandError,
+    not_sent: bool,
+}
+
+impl From<CommandError> for Unanswered {
+    fn from(error: CommandError) -> Self {
+        Self {
+            error,
+            not_sent: false,
+        }
+    }
+}
+
+impl From<Unanswered> for CommandError {
+    fn from(failure: Unanswered) -> Self {
+        failure.error
     }
 }
 
@@ -330,7 +476,7 @@ impl Run<'_> {
         call: &ApiCall,
         deadline: Option<Duration>,
         keep: Keep<'_>,
-    ) -> CommandResult<ApiResponseDto> {
+    ) -> Result<ApiResponseDto, Unanswered> {
         // Taken before sending: the kept session answer is as of its request,
         // and an older request answered last does not replace a newer one.
         let sent_at = if keep.session {
@@ -342,15 +488,19 @@ impl Run<'_> {
         let reachable = match &result {
             Ok(_) | Err(SyncError::Api { .. }) => Some(true),
             // Only a failed connection marks the server unreachable; a slow or
-            // cut-off answer (and the online-first deadline) says nothing.
+            // cut-off answer (and the online-first deadline) says nothing,
+            // and neither does a refused certificate: the server is there
+            // but not trusted, and the user is told so.
             Err(SyncError::NotSent(_)) => Some(false),
             Err(_) => None,
         };
         if let Some(reachable) = reachable {
-            self.connectivity
-                .observe(&self.profile, reachable, Instant::now());
+            self.connectivity.observe(&self.profile, reachable, clock());
         }
-        let (response, generation) = result.map_err(CommandError::from)?;
+        let (response, generation) = result.map_err(|error| Unanswered {
+            not_sent: error.not_sent(),
+            error: CommandError::from(error),
+        })?;
         let answer = envelope::from_proxy(response);
         if let Some(resource) = keep.snapshot {
             self.keep_snapshot(resource, &answer, generation).await;
@@ -603,5 +753,9 @@ fn is_reserved(method: ProxyMethod, path: &str) -> bool {
         .any(|reserved| rest == *reserved || rest.starts_with(&format!("{reserved}/")))
 }
 
+#[cfg(test)]
+mod probe_tests;
+#[cfg(test)]
+mod probe_timing_tests;
 #[cfg(test)]
 mod tests;

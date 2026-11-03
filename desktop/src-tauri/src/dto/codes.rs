@@ -43,10 +43,11 @@ pub enum ShellErrorCode {
     NotImplemented,
     InvalidRequest,
     PayloadTooLarge,
+    TlsCertificateInvalid,
 }
 
 impl ShellErrorCode {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::NoActiveProfile,
         Self::EngineUnavailable,
         Self::ExternalOpenFailed,
@@ -71,6 +72,7 @@ impl ShellErrorCode {
         Self::NotImplemented,
         Self::InvalidRequest,
         Self::PayloadTooLarge,
+        Self::TlsCertificateInvalid,
     ];
 
     /// The code as `CommandError::code` carries it.
@@ -93,6 +95,7 @@ impl ShellErrorCode {
             LocalCode::NotImplemented => Self::NotImplemented,
             LocalCode::InvalidRequest => Self::InvalidRequest,
             LocalCode::PayloadTooLarge => Self::PayloadTooLarge,
+            LocalCode::TlsCertificateInvalid => Self::TlsCertificateInvalid,
         }
     }
 }
@@ -104,7 +107,7 @@ mod tests {
 
     use super::*;
 
-    const LOCAL: [LocalCode; 11] = [
+    const LOCAL: [LocalCode; 12] = [
         LocalCode::OfflineUnavailable,
         LocalCode::NetworkError,
         LocalCode::StoreKeyInvalid,
@@ -116,6 +119,7 @@ mod tests {
         LocalCode::NotImplemented,
         LocalCode::InvalidRequest,
         LocalCode::PayloadTooLarge,
+        LocalCode::TlsCertificateInvalid,
     ];
 
     fn names() -> BTreeSet<String> {

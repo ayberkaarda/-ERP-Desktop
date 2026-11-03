@@ -2,3 +2,5 @@
 # and compared byte for byte by the check scripts; keep it LF on checkout.
 src/bridge/generated/** text eol=lf
 src/wire/generated/** text eol=lf
+# Test certificates (DER) are binary.
+*.der binary

@@ -23,7 +23,7 @@ use crate::dto::api::{ApiRequestDto, ApiResponseDto};
 use crate::state::{ActiveProfile, AppState, Engine};
 
 pub const PROFILE: &str = "local-answers";
-const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
+pub const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
 const USER: &str = "0192f5a0-0000-7000-8000-00000000000a";
 
 /// Rows the first pull brings, per resource.
@@ -35,7 +35,7 @@ pub struct Fixture {
     pub connectivity: Connectivity,
     pub engine: Arc<Engine>,
     pub store: Arc<Store>,
-    tokens: Arc<MemoryTokenStore>,
+    pub tokens: Arc<MemoryTokenStore>,
     _dir: tempfile::TempDir,
 }
 

@@ -53,6 +53,7 @@ describe('ProfilesPage', () => {
     ['DESKTOP_UPDATE_REQUIRED', 'Bu sunucu uygulamanın daha yeni bir sürümünü istiyor.'],
     ['SYNC_SCHEMA_MISMATCH', 'Sunucunun eşitleme şeması bu uygulamayla uyumlu değil.'],
     ['NETWORK_ERROR', 'Sunucuya ulaşılamadı.'],
+    ['TLS_CERTIFICATE_INVALID', 'Sunucunun sertifikasına güvenilmiyor; bağlantı kurulmadı.'],
     ['PROFILES_FILE_INVALID', 'Profil dosyası okunamadı ya da yazılamadı; dosyaya dokunulmadı.'],
   ])('shows %s from profile_add', async (code, text) => {
     const h = harness({ profile_add: () => fail(code, 'shell message') })

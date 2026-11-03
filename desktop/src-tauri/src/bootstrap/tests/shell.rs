@@ -529,13 +529,17 @@ async fn a_sign_in_that_moves_the_company_is_not_held_up_by_unsent_work() {
 
 // ---- connectivity -----------------------------------------------------------------
 
+/// A request that finds the server gone while the engine still has it
+/// asks the engine at once (one run, however often it is told); the engine
+/// agreeing again asks nothing more.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_lost_server_and_its_return_are_told_and_the_return_starts_a_run() {
+async fn a_lost_server_and_its_return_are_told_and_the_loss_asks_the_engine() {
     let server = server(&[(COMPANY, "Acme")]).await;
     let fx = fx();
     let profile = synced(&fx, &server).await;
     let id = profile.id.clone();
     let connectivity = fx.desktop.connectivity().clone();
+    tokio::time::sleep(Duration::from_millis(200)).await;
     let before = requests(&server, "/api/v1/sync/manifest").await.len();
 
     connectivity.observe(&id, false, std::time::Instant::now());
@@ -543,20 +547,24 @@ async fn a_lost_server_and_its_return_are_told_and_the_return_starts_a_run() {
     fx.events
         .wait_for(|e| matches!(e, EngineEvent::Connectivity { online: false, .. }))
         .await;
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    assert_eq!(
-        requests(&server, "/api/v1/sync/manifest").await.len(),
-        before
-    );
+    eventually("a run once the loss is told", async || {
+        requests(&server, "/api/v1/sync/manifest").await.len() > before
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let after_loss = requests(&server, "/api/v1/sync/manifest").await.len();
+    assert_eq!(after_loss, before + 1);
 
+    // The engine is idle: a return it agrees with asks nothing.
     connectivity.observe(&id, true, std::time::Instant::now());
     fx.events
         .wait_for(|e| matches!(e, EngineEvent::Connectivity { online: true, .. }))
         .await;
-    eventually("a run once the server is back", async || {
-        requests(&server, "/api/v1/sync/manifest").await.len() > before
-    })
-    .await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(
+        requests(&server, "/api/v1/sync/manifest").await.len(),
+        after_loss
+    );
     let told: Vec<Value> = fx
         .events
         .events()
@@ -585,16 +593,16 @@ async fn the_return_of_another_profiles_server_neither_is_told_nor_starts_a_run(
     let now = std::time::Instant::now();
     connectivity.observe("another-profile", false, now);
     connectivity.observe("another-profile", true, now);
-    // A change of this profile after them: the bridge has read past both.
-    connectivity.observe(&profile.id, false, now);
-    fx.events
-        .wait_for(|e| matches!(e, EngineEvent::Connectivity { online: false, .. }))
-        .await;
     tokio::time::sleep(Duration::from_millis(500)).await;
     assert_eq!(
         requests(&server, "/api/v1/sync/manifest").await.len(),
         before
     );
+    // A change of this profile after them: the bridge has read past both.
+    connectivity.observe(&profile.id, false, now);
+    fx.events
+        .wait_for(|e| matches!(e, EngineEvent::Connectivity { online: false, .. }))
+        .await;
     let told: Vec<Value> = fx
         .events
         .events()
@@ -622,6 +630,13 @@ async fn a_removed_profile_leaves_nothing_announced_behind() {
     let server = server(&[(COMPANY, "Acme")]).await;
     let fx = fx();
     let profile = synced(&fx, &server).await;
+    // The run the finding below asks for must not end idle.
+    let _failing = Mock::given(method("POST"))
+        .and(path("/api/v1/sync/pull"))
+        .respond_with(ResponseTemplate::new(503))
+        .with_priority(1)
+        .mount_as_scoped(&server)
+        .await;
     let connectivity = fx.desktop.connectivity().clone();
     let mut rx = connectivity.subscribe();
     let now = std::time::Instant::now();
@@ -642,10 +657,19 @@ async fn a_sign_out_leaves_nothing_announced_behind() {
     let server = server(&[(COMPANY, "Acme")]).await;
     let fx = fx();
     let profile = synced(&fx, &server).await;
+    // The run the finding below asks for must not end idle (that would make
+    // the profile reachable again before the sign-out).
+    let _failing = Mock::given(method("POST"))
+        .and(path("/api/v1/sync/pull"))
+        .respond_with(ResponseTemplate::new(503))
+        .with_priority(1)
+        .mount_as_scoped(&server)
+        .await;
     let connectivity = fx.desktop.connectivity().clone();
     let mut rx = connectivity.subscribe();
     let now = std::time::Instant::now();
     connectivity.observe(&profile.id, false, now);
+    tokio::time::sleep(Duration::from_millis(300)).await;
     assert_eq!(announced(&mut rx), [false]);
 
     assert_eq!(
@@ -744,7 +768,15 @@ async fn snapshots_are_kept_every_period_and_skipped_offline() {
         assert_eq!(request.headers.get("x-company-id").unwrap(), COMPANY);
     }
 
-    // Offline: rounds are skipped.
+    // Offline: rounds are skipped. The sync calls fail too, so the run the
+    // finding asks for does not end idle (an idle pass would make the
+    // profile reachable again at once).
+    let failing = Mock::given(method("POST"))
+        .and(path("/api/v1/sync/pull"))
+        .respond_with(ResponseTemplate::new(503))
+        .with_priority(1)
+        .mount_as_scoped(&server)
+        .await;
     let connectivity = fx.desktop.connectivity().clone();
     connectivity.observe(&profile.id, false, std::time::Instant::now());
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -752,6 +784,7 @@ async fn snapshots_are_kept_every_period_and_skipped_offline() {
     tokio::time::sleep(Duration::from_millis(1000)).await;
     assert_eq!(requests(&server, BALANCES).await.len(), offline);
 
+    drop(failing);
     connectivity.observe(&profile.id, true, std::time::Instant::now());
     eventually("rounds again online", async || {
         requests(&server, BALANCES).await.len() > offline
@@ -903,6 +936,50 @@ async fn a_source_that_answers_without_data_waits_for_the_next_period() {
     assert_eq!(requests(&server, BALANCES).await.len(), 1);
 }
 
+/// A snapshot the server refuses for the account (here the password must
+/// be changed first) is not asked again by the engine's runs; the other
+/// snapshots are not asked either. Another sign-in asks again.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_refused_account_is_not_asked_again_until_another_sign_in() {
+    let server = snapshot_server(&[(COMPANY, "Acme")]).await;
+    Mock::given(method("GET"))
+        .and(path(BALANCES))
+        .respond_with(ResponseTemplate::new(403).set_body_json(json!({
+            "errors": {"code": "PASSWORD_CHANGE_REQUIRED", "message": "change it"}
+        })))
+        .mount(&server)
+        .await;
+    let fx = fx();
+    synced(&fx, &server).await;
+    eventually("the first round", async || {
+        !requests(&server, BALANCES).await.is_empty()
+    })
+    .await;
+
+    for _ in 0..3 {
+        let before = requests(&server, "/api/v1/sync/manifest").await.len();
+        crate::bootstrap::trigger(&fx.state, Trigger::Manual).unwrap();
+        eventually("another run", async || {
+            requests(&server, "/api/v1/sync/manifest").await.len() > before
+        })
+        .await;
+    }
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert_eq!(requests(&server, BALANCES).await.len(), 1);
+    for other in [
+        "/api/v1/treasury-reports/receivables-ageing",
+        "/api/v1/treasury-reports/payables-ageing",
+    ] {
+        assert!(requests(&server, other).await.is_empty(), "{other}");
+    }
+
+    assert_eq!(fx.login().await.unwrap().generation, 2);
+    eventually("asked again for the new sign-in", async || {
+        requests(&server, BALANCES).await.len() >= 2
+    })
+    .await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_round_waits_while_the_engine_finds_the_server_gone() {
     use crate::bootstrap::snapshots::{Live, Refresh};
@@ -917,6 +994,7 @@ async fn a_round_waits_while_the_engine_finds_the_server_gone() {
         // No proxy result: the engine decides.
         connectivity: Connectivity::default(),
         resources: Vec::new(),
+        refused: Default::default(),
     };
     assert!(live(&fx.state).ready().await);
 
@@ -1177,4 +1255,72 @@ async fn open_external_keeps_to_the_plain_http_switch() {
         .unwrap_err();
     assert_eq!(error.code, "INVALID_SERVER_URL");
     assert!(opener.opened().is_empty());
+}
+
+/// The snapshot answers 401 every time while the refresh succeeds: after
+/// the refresh and the second 401 the sign-in is refused (UNAUTHENTICATED)
+/// and not asked again, so no refresh token is spent every second.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_unauthenticated_snapshot_is_not_asked_again() {
+    let server = snapshot_server(&[(COMPANY, "Acme")]).await;
+    Mock::given(method("GET"))
+        .and(path(BALANCES))
+        .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+            "errors": {"code": "UNAUTHENTICATED", "message": "no"}
+        })))
+        .mount(&server)
+        .await;
+    let next = Arc::new(AtomicU64::new(100));
+    Mock::given(method("POST"))
+        .and(path("/api/v1/auth/device/refresh"))
+        .respond_with(move |_: &Request| {
+            let n = next.fetch_add(1, Ordering::SeqCst);
+            ResponseTemplate::new(200).set_body_json(token_body(u32::try_from(n).unwrap()))
+        })
+        .mount(&server)
+        .await;
+    let fx = fx();
+    synced(&fx, &server).await;
+    eventually("the first round", async || {
+        !requests(&server, BALANCES).await.is_empty()
+    })
+    .await;
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    let asked = requests(&server, BALANCES).await.len();
+    let refreshed = requests(&server, "/api/v1/auth/device/refresh").await.len();
+    assert!(asked <= 2, "{asked}");
+    assert!(refreshed <= 1, "{refreshed}");
+}
+
+/// Account answers to a snapshot are asked once: TWO_FACTOR_REQUIRED and
+/// USER_DEACTIVATED come back as a refused sign-in (not asked again for it),
+/// COMPANY_FORBIDDEN as an answer that waits for the next period.
+#[tokio::test(flavor = "multi_thread")]
+async fn account_answers_to_a_snapshot_are_asked_once() {
+    for code in [
+        "TWO_FACTOR_REQUIRED",
+        "COMPANY_FORBIDDEN",
+        "USER_DEACTIVATED",
+    ] {
+        let server = snapshot_server(&[(COMPANY, "Acme")]).await;
+        Mock::given(method("GET"))
+            .and(path(BALANCES))
+            .respond_with(ResponseTemplate::new(403).set_body_json(json!({
+                "errors": {"code": code, "message": "no"}
+            })))
+            .mount(&server)
+            .await;
+        let fx = fx();
+        synced(&fx, &server).await;
+        eventually("the first round", async || {
+            !requests(&server, BALANCES).await.is_empty()
+        })
+        .await;
+        for _ in 0..2 {
+            let _ = crate::bootstrap::trigger(&fx.state, Trigger::Manual);
+            tokio::time::sleep(Duration::from_millis(400)).await;
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
+        assert_eq!(requests(&server, BALANCES).await.len(), 1, "{code}");
+    }
 }

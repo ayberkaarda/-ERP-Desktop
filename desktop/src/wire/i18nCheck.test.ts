@@ -55,7 +55,7 @@ function edit(dir: string, file: string, change: (data: Json) => void) {
 describe('check-desktop-i18n', () => {
   it('passes on the committed locales', () => {
     const { status, out } = run()
-    expect(out).toMatch(/58 error codes, 19 online-only actions/)
+    expect(out).toMatch(/59 error codes, 19 online-only actions/)
     expect(status).toBe(0)
   })
 
