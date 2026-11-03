@@ -6,22 +6,6 @@ Keystone ERP brings accounting, inventory, sales, purchasing and treasury into a
 
 Development has reached Phase 9: e-documents with official UBL-TR structural validation and a local sandbox. Manufacturing, HR/payroll and later roadmap modules are not implemented yet. See the [roadmap](docs/ROADMAP.md) and [delivery progress](docs/PROGRESS.md).
 
-## Desktop app progress
-
-`██████████████░░░░░░ 69%`
-
-| Phase | Deliverable | Weight | Status | Phase progress |
-|---|---|---|---|---|
-| D0 | Repository and contracts | 5 | Done | 100% |
-| D1 | Server sync module (web repository) | 25 | Done | 100% |
-| D2 | `keystone-sync` crate | 20 | Done | 100% |
-| D3 | Tauri shell | 20 | In progress | 95% |
-| D4 | Frontend integration | 15 | Not started | 0% |
-| D5 | OS integration | 5 | Not started | 0% |
-| D6 | Release and hardening | 10 | Not started | 0% |
-
-Weighted phases; phase progress is based on merged work packages (D3: 10 of 10 work packages merged; end-to-end manual check pending). Last updated: 2026-11-01. Details: [desktop/PLAN.md](desktop/PLAN.md).
-
 ## Screenshots
 
 The following screens use synthetic demonstration data.
@@ -34,6 +18,28 @@ The following screens use synthetic demonstration data.
 
 ![Inventory workspace with demonstration data](docs/screenshots/inventory-en.png)
 *Inventory and warehouse operations.*
+
+## Desktop app
+
+A Tauri 2 desktop client (Rust shell with the shared React frontend) lives in [desktop/](desktop/README.md). You connect it to a Keystone server through a server profile and sign in with that server's device tokens, which are kept in the operating system credential store rather than in the webview. An encrypted local store (SQLCipher) mirrors the data the server's offline manifest declares, so reads work offline and changes queue in an outbox until the server is reachable. Conflicts land in an inbox where you keep your value, take the server's, or merge. Notifications arrive over the server's WebSocket channel, and the security page lists signed-in devices and can sign them out remotely. See the [desktop architecture](desktop/docs/ARCHITECTURE.md). The screens below use synthetic demonstration data.
+
+![Desktop app: server profile and sign-in](desktop/docs/screenshots/01-profile-login.png)
+*Server profile and sign-in.*
+
+![Desktop app: dashboard with demonstration data](desktop/docs/screenshots/02-dashboard.png)
+*Dashboard.*
+
+![Desktop app: offline mode with queued changes](desktop/docs/screenshots/03-offline-outbox.png)
+*Offline mode with queued changes in the outbox.*
+
+![Desktop app: conflict inbox](desktop/docs/screenshots/04-conflict-inbox.png)
+*Conflict inbox: choosing which value wins.*
+
+![Desktop app: security page with signed-in devices](desktop/docs/screenshots/05-security-devices.png)
+*Security page with signed-in desktop devices.*
+
+![Desktop app: recovery screen](desktop/docs/screenshots/06-profile-recovery.png)
+*Recovery screen when the profile file cannot be read.*
 
 ## Implemented scope
 
@@ -169,6 +175,7 @@ OpenAPI output and frontend API types are generated artifacts and are not commit
 - [Accounting](docs/ACCOUNTING-ENGINE.md) · [Inventory](docs/INVENTORY-ENGINE.md) · [Sales](docs/SALES-ENGINE.md)
 - [Purchasing](docs/PURCHASING-ENGINE.md) · [Treasury](docs/TREASURY-ENGINE.md)
 - [Assistant](docs/ASSISTANT.md) · [E-documents](docs/EDOCUMENTS.md)
+- [Desktop app](desktop/README.md) · [Desktop architecture](desktop/docs/ARCHITECTURE.md)
 
 ## License
 

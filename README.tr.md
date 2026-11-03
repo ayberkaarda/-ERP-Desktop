@@ -6,22 +6,6 @@ Keystone ERP; muhasebe, stok, satış, satın alma ve finans süreçlerini şirk
 
 Geliştirme, resmî UBL-TR yapısal doğrulaması ve yerel sandbox içeren Faz 9'a ulaşmıştır. Üretim, İK/bordro ve yol haritasındaki sonraki modüller henüz uygulanmamıştır. Ayrıntılar için [yol haritasına](docs/ROADMAP.md) ve [ilerleme durumuna](docs/PROGRESS.md) bakın.
 
-## Masaüstü uygulaması ilerlemesi
-
-`██████████████░░░░░░ 69%`
-
-| Faz | Teslimat | Ağırlık | Durum | Faz içi yüzde |
-|---|---|---|---|---|
-| D0 | Repo ve sözleşmeler | 5 | Tamam | %100 |
-| D1 | Sunucu sync modülü (web reposu) | 25 | Tamam | %100 |
-| D2 | `keystone-sync` crate | 20 | Tamam | %100 |
-| D3 | Tauri kabuğu | 20 | Sürüyor | %95 |
-| D4 | Frontend entegrasyonu | 15 | Başlamadı | %0 |
-| D5 | OS entegrasyonu | 5 | Başlamadı | %0 |
-| D6 | Release ve sertleştirme | 10 | Başlamadı | %0 |
-
-Ağırlıklı fazlar; faz içi yüzde birleştirilmiş iş paketlerine göre hesaplanır (D3: 10 iş paketinin 10'u birleştirildi; uçtan uca elle kontrol bekliyor). Son güncelleme: 2026-11-01. Ayrıntılar: [desktop/PLAN.md](desktop/PLAN.md).
-
 ## Ekran görüntüleri
 
 Aşağıdaki ekranlarda sentetik demo verileri kullanılmıştır.
@@ -34,6 +18,28 @@ Aşağıdaki ekranlarda sentetik demo verileri kullanılmıştır.
 
 ![Demo verileriyle stok çalışma alanı](docs/screenshots/inventory-tr.png)
 *Stok ve depo işlemleri.*
+
+## Masaüstü uygulaması
+
+[desktop/](desktop/README.md) altında Tauri 2 tabanlı bir masaüstü istemcisi bulunur (Rust kabuğu ve ortak React frontend). Bir sunucu profiliyle Keystone sunucusuna bağlanılır; giriş, sunucunun cihaz tokenlarıyla yapılır ve tokenlar webview'da değil, işletim sisteminin kimlik bilgisi deposunda tutulur. Şifreli yerel depo (SQLCipher), sunucunun çevrimdışı manifestinde bildirilen veriyi yansıtır; böylece okumalar çevrimdışı çalışır, değişiklikler sunucuya ulaşılana kadar giden kutusunda (outbox) bekler. Çakışmalar, kendi değerini tutma, sunucununkini alma ya da birleştirme seçenekleriyle bir gelen kutusuna düşer. Bildirimler sunucunun WebSocket kanalından gelir; güvenlik sayfası oturum açmış cihazları listeler ve uzaktan oturum kapatabilir. Ayrıntı: [masaüstü mimarisi](desktop/docs/ARCHITECTURE.md). Aşağıdaki ekranlar sentetik gösterim verisi kullanır.
+
+![Masaüstü uygulaması: sunucu profili ve giriş](desktop/docs/screenshots/01-profile-login.png)
+*Sunucu profili ve giriş.*
+
+![Masaüstü uygulaması: gösterim verisiyle panel](desktop/docs/screenshots/02-dashboard.png)
+*Panel.*
+
+![Masaüstü uygulaması: bekleyen değişikliklerle çevrimdışı mod](desktop/docs/screenshots/03-offline-outbox.png)
+*Çevrimdışı mod; bekleyen değişiklikler giden kutusunda.*
+
+![Masaüstü uygulaması: çakışma gelen kutusu](desktop/docs/screenshots/04-conflict-inbox.png)
+*Çakışma gelen kutusu: hangi değerin geçerli olacağı seçilir.*
+
+![Masaüstü uygulaması: oturum açmış cihazlarla güvenlik sayfası](desktop/docs/screenshots/05-security-devices.png)
+*Oturum açmış masaüstü cihazlarını gösteren güvenlik sayfası.*
+
+![Masaüstü uygulaması: kurtarma ekranı](desktop/docs/screenshots/06-profile-recovery.png)
+*Profil dosyası okunamadığında açılan kurtarma ekranı.*
 
 ## Uygulanan kapsam
 
@@ -169,6 +175,7 @@ OpenAPI çıktısı ve frontend API tipleri üretilen dosyalardır; depoda tutul
 - [Muhasebe](docs/ACCOUNTING-ENGINE.md) · [Stok](docs/INVENTORY-ENGINE.md) · [Satış](docs/SALES-ENGINE.md)
 - [Satın alma](docs/PURCHASING-ENGINE.md) · [Finans](docs/TREASURY-ENGINE.md)
 - [Asistan](docs/ASSISTANT.md) · [E-belgeler](docs/EDOCUMENTS.md)
+- [Masaüstü uygulaması](desktop/README.md) · [Masaüstü mimarisi](desktop/docs/ARCHITECTURE.md)
 
 ## Lisans
 
