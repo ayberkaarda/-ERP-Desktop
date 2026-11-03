@@ -314,6 +314,24 @@ async fn a_queued_count_shows_on_the_count_document() {
     assert_eq!(lines[2]["item_id"], json!(item_c));
     let list = fx.call(get(STOCK, json!([]))).await;
     assert_eq!(offline_of(&list)["pending"], true);
+
+    // The write policy now sees the projected row; it reads `status` and
+    // `doc_type` only, which a count does not change: a further count of
+    // the draft is still queued.
+    let again = fx
+        .call(send(
+            "PATCH",
+            &format!("{detail}/counts"),
+            None,
+            Some(json!({"counts": [{"line_id": line_1, "counted_quantity": "13"}]})),
+        ))
+        .await;
+    assert_eq!(again.status, 202, "{:?}", again.json());
+    let last = fx.call(get(&detail, json!([]))).await;
+    assert_eq!(
+        last.json().unwrap()["data"]["lines"][0]["counted_quantity"],
+        "13"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
