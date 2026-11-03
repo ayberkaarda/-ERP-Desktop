@@ -1,5 +1,5 @@
 {
-  "description": "List requests the web frontend sends to the mirrored list endpoints (contracts/offline-manifest.json query). expect: local = every sort/filter is declared in query; online_only = at least one param is in query.online_only and the rest are declared; server_rejects = the server refuses it (422). @uuid stands for any uuid. Update this file with the web code; OfflineManifestQueryTest checks it against the manifest, the server and the frontend source. other_endpoints: filters named in a file that also reads a mirrored list, but sent to an endpoint that is not a pulled list (not mirrored, or a snapshot such as /stock-balances).",
+  "description": "List requests the web frontend sends to the mirrored list endpoints (contracts/offline-manifest.json query). expect: local = every sort/filter is declared in query; online_only = at least one param is in query.online_only, or a non-empty q searches a resource whose query.search has server_also, and the rest are declared; server_rejects = the server refuses it (422). @uuid stands for any uuid. Update this file with the web code; OfflineManifestQueryTest checks it against the manifest, the server and the frontend source. other_endpoints: filters named in a file that also reads a mirrored list, but sent to an endpoint that is not a pulled list (not mirrored, or a snapshot such as /stock-balances).",
   "queries": [
     {
       "resource": "parties",
@@ -56,7 +56,7 @@
     {
       "resource": "items",
       "query": "page=1&per_page=25&sort=-name&q=wid&filter[type]=stock&filter[tracking]=lot&filter[is_active]=false",
-      "expect": "local",
+      "expect": "online_only",
       "source": "frontend/src/features/catalog/pages/ItemListPage.tsx"
     },
     {
@@ -68,14 +68,14 @@
     {
       "resource": "items",
       "query": "page=1&per_page=20&q=wid&filter[is_active]=true&filter[type]=stock",
-      "expect": "local",
+      "expect": "online_only",
       "source": "frontend/src/features/catalog/components/ItemCombobox.tsx",
       "evidence": "filters.is_active = 'true'"
     },
     {
       "resource": "items",
       "query": "q=8690000000001&filter[is_active]=true&per_page=10",
-      "expect": "local",
+      "expect": "online_only",
       "source": "frontend/src/features/inventory/documents/api/client.ts",
       "evidence": "params: { q, 'filter[is_active]': 'true', per_page: 10 }"
     },
