@@ -23,6 +23,7 @@ final class AccessRevoker
         ?string $keepSessionHash = null,
         ?string $keepTokenId = null,
         bool $broadcast = true,
+        ?string $keepDeviceId = null,
     ): void {
         $this->sessions->revokeAll($user, $keepSessionHash);
         $this->rotateRememberToken($user);
@@ -31,8 +32,14 @@ final class AccessRevoker
         $tokens = $user->tokens();
 
         if ($keepTokenId !== null) {
-            $devices->where(fn ($q) => $q->whereNull('token_id')->orWhere('token_id', '!=', $keepTokenId));
             $tokens->whereKeyNot($keepTokenId);
+        }
+
+        // The device is kept by its stable id when known: a refresh may have moved its token_id.
+        if ($keepDeviceId !== null) {
+            $devices->whereKeyNot($keepDeviceId);
+        } elseif ($keepTokenId !== null) {
+            $devices->where(fn ($q) => $q->whereNull('token_id')->orWhere('token_id', '!=', $keepTokenId));
         }
 
         // Device rows are locked by the delete, so a concurrent refresh finishes before or fails after it.

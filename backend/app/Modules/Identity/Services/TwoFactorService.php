@@ -63,24 +63,23 @@ final class TwoFactorService
 
         $codes = $this->newRecoveryCodes();
 
-        $user->forceFill([
+        // Same write as the version bump: a device login never sees 2FA on with the old version.
+        $user->bumpAuthVersionLocked([
             'two_factor_confirmed_at' => Carbon::now(),
             'two_factor_recovery_codes' => array_map(self::hashCode(...), $codes),
-        ])->save();
-        $user->bumpAuthVersion();
+        ]);
 
         return $codes;
     }
 
     public function disable(User $user): void
     {
-        $user->forceFill([
+        $user->bumpAuthVersionLocked([
             'two_factor_secret' => null,
             'two_factor_confirmed_at' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_last_timestep' => null,
-        ])->save();
-        $user->bumpAuthVersion();
+        ]);
     }
 
     /**
@@ -132,7 +131,11 @@ final class TwoFactorService
                 if (hash_equals($hash, $candidate)) {
                     unset($hashes[$i]);
                     $locked->forceFill(['two_factor_recovery_codes' => array_values($hashes)])->save();
-                    $user->setRawAttributes($locked->getAttributes(), true);
+                    // Only the codes: the rest of $user stays as the caller verified it, so a
+                    // credential change committed meanwhile is not carried into the login.
+                    $user->setRawAttributes(array_merge($user->getAttributes(), [
+                        'two_factor_recovery_codes' => $locked->getAttributes()['two_factor_recovery_codes'],
+                    ]), true);
 
                     return true;
                 }
