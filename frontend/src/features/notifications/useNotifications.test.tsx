@@ -1,8 +1,11 @@
 import { act, screen, waitFor } from '@testing-library/react'
+import { delay, http } from 'msw'
 import { platform, type RealtimeState, type SubscriptionStatus } from '@/platform'
+import { useAuthStore } from '@/stores/auth'
 import { renderRoutes, setupFea, signIn } from '@/test/handlers/feaRender'
 import type { FeaDb } from '@/test/handlers/fea'
-import { notificationsApi } from './api'
+import { server } from '@/test/msw/server'
+import { notificationKeys, notificationsApi } from './api'
 import { useNotifications } from './useNotifications'
 
 function Probe() {
@@ -12,20 +15,22 @@ function Probe() {
       <p data-testid="unread">{feed.data?.unread ?? '-'}</p>
       <p data-testid="ids">{feed.data?.items.map((n) => n.id).join(',') ?? ''}</p>
       <p data-testid="live">{live ? 'live' : 'polling'}</p>
+      <p data-testid="fetching">{feed.isFetching ? 'fetching' : 'idle'}</p>
     </div>
   )
 }
 
-/** Drives the realtime platform by hand: socket state plus the private channel status. */
+/** Drives the realtime platform by hand: socket state plus each private channel's status. */
 function fakeRealtime() {
   let current: RealtimeState = 'connected'
   const stateListeners = new Set<(s: RealtimeState) => void>()
-  let report: ((s: SubscriptionStatus) => void) | undefined
+  // One status reporter per listenPrivate call, in subscription order.
+  const reports: ((s: SubscriptionStatus) => void)[] = []
   const stop = vi.fn()
   const listen = vi
     .spyOn(platform.realtime, 'listenPrivate')
     .mockImplementation((_c, _e, _h, onStatus) => {
-      report = onStatus
+      if (onStatus) reports.push(onStatus)
       return stop
     })
   const spies = [
@@ -45,8 +50,9 @@ function fakeRealtime() {
         stateListeners.forEach((l) => l(next))
       })
     },
-    status(s: SubscriptionStatus) {
-      act(() => report?.(s))
+    /** Reports a status on the latest subscription, or on an earlier one by index. */
+    status(s: SubscriptionStatus, index = reports.length - 1) {
+      act(() => reports[index]?.(s))
     },
     restore: () => spies.forEach((s) => s.mockRestore()),
   }
@@ -55,9 +61,22 @@ function fakeRealtime() {
 const feedFetches = (db: FeaDb) =>
   db.calls.filter((c) => c.method === 'GET' && c.path === '/api/v1/notifications').length
 
-/** Waits for the count, then gives stray fetches a chance to show up before re-checking. */
+/** Holds every feed response back by `ms`, then falls through to the fake backend. */
+function delayFeed(ms: number) {
+  server.use(
+    http.get('*/api/v1/notifications', async () => {
+      await delay(ms)
+    }),
+  )
+}
+
+/**
+ * Waits until exactly `n` feed requests reached the backend and the query is idle again,
+ * then gives stray fetches a chance to show up before re-checking.
+ */
 async function expectFetches(db: FeaDb, n: number) {
   await waitFor(() => expect(feedFetches(db)).toBe(n))
+  await waitFor(() => expect(screen.getByTestId('fetching')).toHaveTextContent('idle'))
   await act(() => new Promise((r) => setTimeout(r, 30)))
   expect(feedFetches(db)).toBe(n)
 }
@@ -73,32 +92,38 @@ describe('useNotifications realtime catch-up', () => {
   })
   afterEach(() => rt.restore())
 
-  it('refetches the feed when the channel is subscribed again after a drop', async () => {
-    const db = setupFea()
-    signIn(db)
-    renderProbe()
-    await waitFor(() => expect(screen.getByTestId('unread')).toHaveTextContent('1'))
-    rt.status('subscribed')
-    await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent('live'))
-    const before = feedFetches(db)
+  it.each([0, 80])(
+    'fetches again after a drop and shows the notification missed in the gap (response delay %i ms)',
+    async (ms) => {
+      const db = setupFea()
+      if (ms) delayFeed(ms)
+      signIn(db)
+      renderProbe()
+      await waitFor(() => expect(screen.getByTestId('unread')).toHaveTextContent('1'))
+      rt.status('subscribed')
+      await waitFor(() => expect(screen.getByTestId('live')).toHaveTextContent('live'))
+      // Initial load plus the first-subscription refetch, both finished before the drop.
+      await expectFetches(db, 2)
+      expect(screen.getByTestId('ids').textContent.split(',')).not.toContain('missed')
 
-    // Socket drops; a notification is created while no event can be delivered.
-    rt.setState('connecting')
-    expect(screen.getByTestId('live')).toHaveTextContent('polling')
-    db.notifications.unshift({
-      id: 'missed',
-      title: 'Kaçırılan bildirim',
-      read_at: null,
-      created_at: '2026-10-21T09:30:00Z',
-    })
-    rt.setState('connected')
-    rt.status('subscribed')
+      // Socket drops; a notification is created while no event can be delivered.
+      rt.setState('connecting')
+      expect(screen.getByTestId('live')).toHaveTextContent('polling')
+      db.notifications.unshift({
+        id: 'missed',
+        title: 'Kaçırılan bildirim',
+        read_at: null,
+        created_at: '2026-10-21T09:30:00Z',
+      })
+      rt.setState('connected')
+      rt.status('subscribed')
 
-    await waitFor(() => expect(screen.getByTestId('unread')).toHaveTextContent('2'))
-    expect(screen.getByTestId('ids').textContent.split(',')[0]).toBe('missed')
-    expect(screen.getByTestId('live')).toHaveTextContent('live')
-    await expectFetches(db, before + 1)
-  })
+      await expectFetches(db, 3)
+      expect(screen.getByTestId('unread')).toHaveTextContent('2')
+      expect(screen.getByTestId('ids').textContent.split(',')[0]).toBe('missed')
+      expect(screen.getByTestId('live')).toHaveTextContent('live')
+    },
+  )
 
   it('does not double fetch when the first subscription lands during the initial load', async () => {
     const db = setupFea()
@@ -111,6 +136,29 @@ describe('useNotifications realtime catch-up', () => {
     await waitFor(() => expect(screen.getByTestId('unread')).toHaveTextContent('1'))
     await expectFetches(db, 1)
     expect(list).toHaveBeenCalledTimes(1)
+    list.mockRestore()
+  })
+
+  it('reuses a background refetch that is in flight instead of cancelling and restarting it', async () => {
+    const db = setupFea()
+    signIn(db)
+    const list = vi.spyOn(notificationsApi, 'list')
+    const { queryClient } = renderProbe()
+    await waitFor(() => expect(screen.getByTestId('unread')).toHaveTextContent('1'))
+    await expectFetches(db, 1)
+    expect(list).toHaveBeenCalledTimes(1)
+
+    // A background refetch over loaded data (what a poll does), held in flight by a slow response.
+    delayFeed(150)
+    act(() => {
+      void queryClient.refetchQueries({ queryKey: notificationKeys.feed(db.user.id) })
+    })
+    await waitFor(() => expect(screen.getByTestId('fetching')).toHaveTextContent('fetching'))
+    expect(list).toHaveBeenCalledTimes(2)
+
+    rt.status('subscribed')
+    await expectFetches(db, 2)
+    expect(list).toHaveBeenCalledTimes(2)
     list.mockRestore()
   })
 
@@ -152,7 +200,33 @@ describe('useNotifications realtime catch-up', () => {
     await expectFetches(db, 5)
   })
 
-  it('does not refetch after unmount', async () => {
+  it('ignores a late status from the previous user channel after the user changes', async () => {
+    const db = setupFea()
+    signIn(db)
+    renderProbe()
+    await waitFor(() => expect(screen.getByTestId('unread')).toHaveTextContent('1'))
+    await expectFetches(db, 1)
+
+    act(() => {
+      const user = useAuthStore.getState().user
+      if (user) useAuthStore.setState({ user: { ...user, id: `${user.id}-other` } })
+    })
+    await waitFor(() => expect(rt.listen).toHaveBeenCalledTimes(2))
+    await expectFetches(db, 2)
+    expect(rt.stop).toHaveBeenCalledTimes(1)
+
+    // The old channel reports after its cleanup: it must not mark the new user's feed live
+    // (which would stop polling) nor trigger a refetch.
+    rt.status('subscribed', 0)
+    await expectFetches(db, 2)
+    expect(screen.getByTestId('live')).toHaveTextContent('polling')
+
+    rt.status('subscribed', 1)
+    await expectFetches(db, 3)
+    expect(screen.getByTestId('live')).toHaveTextContent('live')
+  })
+
+  it('makes no request after unmount', async () => {
     const db = setupFea()
     signIn(db)
     const { unmount } = renderProbe()
@@ -161,7 +235,8 @@ describe('useNotifications realtime catch-up', () => {
     unmount()
     expect(rt.stop).toHaveBeenCalled()
     rt.status('subscribed')
-    await expectFetches(db, 1)
+    await act(() => new Promise((r) => setTimeout(r, 30)))
+    expect(feedFetches(db)).toBe(1)
   })
 
   it('does not subscribe or fetch without a signed-in user', async () => {
