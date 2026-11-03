@@ -45,6 +45,7 @@
   "TASK_FAILED": "L'opération s'est arrêtée de façon inattendue.",
   "OFFLINE_UNAVAILABLE": "Ceci n'est pas disponible hors ligne.",
   "NETWORK_ERROR": "Le serveur est injoignable.",
+  "TLS_CERTIFICATE_INVALID": "Le certificat du serveur n'est pas reconnu comme fiable ; aucune connexion n'a été établie.",
   "STORE_KEY_INVALID": "La clé des données locales est illisible.",
   "STORE_ERROR": "Une erreur est survenue dans le stockage local.",
   "STORE_MIGRATION_INVALID": "Le stockage local ne peut pas être ouvert avec cette version.",

@@ -24,6 +24,7 @@ import {
 import { conflictModel, RESOLUTION_TABLE, type ConflictChoice, type ConflictModel } from '../../wire'
 import { useSyncDeps } from './context'
 import { CONFLICTS_KEY, OUTBOX_KEY } from './paths'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -163,32 +164,74 @@ function CardHeader({ conflict }: { conflict: ConflictDto }) {
   )
 }
 
+// A discard deletes the outbox entry and the conflict, and for a create the
+// local draft too, with nothing to undo it: it is confirmed first.
+function DiscardButton({
+  conflict,
+  disabled,
+  onDiscard,
+}: {
+  conflict: ConflictDto
+  disabled: boolean
+  onDiscard: () => Promise<void>
+}) {
+  const text = useDesktopText()
+  const label = text.td('sync.conflict.choice.discard')
+  const description = text.td('sync.conflict.discardDescription')
+  return (
+    <ConfirmDialog
+      trigger={
+        <Button size="sm" variant="ghost" data-testid="conflict-choice-discard" disabled={disabled}>
+          {label}
+        </Button>
+      }
+      title={text.td('sync.conflict.discardTitle')}
+      description={
+        conflict.local_op === 'create' ? `${description} ${text.td('sync.conflict.discardDraft')}` : description
+      }
+      confirmLabel={label}
+      onConfirm={onDiscard}
+    />
+  )
+}
+
 function ChoiceButtons({
+  conflict,
   choices,
   disabled,
   onChoose,
 }: {
+  conflict: ConflictDto
   choices: readonly ConflictChoice[]
   disabled: (choice: ConflictChoice) => boolean
-  onChoose: (choice: ConflictChoice) => void
+  onChoose: (choice: ConflictChoice) => Promise<void>
 }) {
   const text = useDesktopText()
   return (
     <div className="flex flex-wrap gap-2">
-      {choices.map((choice) => (
-        <Button
-          key={choice}
-          size="sm"
-          variant={choice === 'discard' ? 'ghost' : 'secondary'}
-          data-testid={`conflict-choice-${choice}`}
-          disabled={disabled(choice)}
-          onClick={() => {
-            onChoose(choice)
-          }}
-        >
-          {text.td(`sync.conflict.choice.${choice}`)}
-        </Button>
-      ))}
+      {choices.map((choice) =>
+        choice === 'discard' ? (
+          <DiscardButton
+            key={choice}
+            conflict={conflict}
+            disabled={disabled(choice)}
+            onDiscard={() => onChoose(choice)}
+          />
+        ) : (
+          <Button
+            key={choice}
+            size="sm"
+            variant="secondary"
+            data-testid={`conflict-choice-${choice}`}
+            disabled={disabled(choice)}
+            onClick={() => {
+              void onChoose(choice)
+            }}
+          >
+            {text.td(`sync.conflict.choice.${choice}`)}
+          </Button>
+        ),
+      )}
     </div>
   )
 }
@@ -262,13 +305,14 @@ function ModelBody({
       ) : null}
 
       <ChoiceButtons
+        conflict={conflict}
         choices={model.choices}
         disabled={(choice) =>
           busy ||
           (choice === 'merge' && Object.keys(merged).length === 0) ||
           (choice === 'use_existing' && candidate === undefined)
         }
-        onChoose={(choice) => void decide(choice)}
+        onChoose={decide}
       />
     </>
   )
@@ -306,13 +350,16 @@ function RefusedBody({
       </p>
       {discard ? (
         <ChoiceButtons
+          conflict={conflict}
           choices={['discard']}
           disabled={() => busy}
-          onChoose={(choice) => {
+          onChoose={async (choice) => {
             setBusy(true)
-            void resolver.resolve(conflict, { choice }).finally(() => {
+            try {
+              await resolver.resolve(conflict, { choice })
+            } finally {
               setBusy(false)
-            })
+            }
           }}
         />
       ) : (

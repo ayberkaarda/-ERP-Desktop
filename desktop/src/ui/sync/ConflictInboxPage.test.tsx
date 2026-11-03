@@ -92,6 +92,40 @@ describe('conflict inbox from the contract fixtures', () => {
     expect(notify.success).toHaveBeenCalledWith('Mevcut kayıt kullanılıyor.')
   })
 
+  it('discards only after a confirmation that says what is lost', async () => {
+    const locked = fixtureConflict('DOCUMENT_LOCKED')
+    const { bridge, notify } = await inbox([locked], 'discard')
+    await userEvent.click(within(card(locked)).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Değişikliğinizden vazgeçilsin mi?')
+    expect(dialog).toHaveTextContent('bu geri alınamaz')
+    expect(dialog).not.toHaveTextContent('Kayıt yalnızca bu cihazda var')
+    expect(bridge.callsOf('conflicts_resolve')).toHaveLength(0)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Değişikliğimden vazgeç' }))
+    expect(decision(bridge)).toEqual([{ idempotency_key: locked.idempotency_key, choice: 'discard' }])
+    expect(notify.success).toHaveBeenCalledWith('Değişiklikten vazgeçildi.')
+  })
+
+  it('a cancelled discard changes nothing', async () => {
+    const locked = fixtureConflict('DOCUMENT_LOCKED')
+    const { bridge } = await inbox([locked], 'discard')
+    await userEvent.click(within(card(locked)).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    // The web dialog's own cancel label (its namespace is not loaded here).
+    await userEvent.click(within(dialog).getByRole('button', { name: 'confirm.cancel' }))
+    await act(flush)
+    expect(bridge.callsOf('conflicts_resolve')).toHaveLength(0)
+    expect(card(locked)).toBeInTheDocument()
+  })
+
+  it('discarding a duplicate create warns that the local record goes too', async () => {
+    const duplicate = fixtureConflict('DUPLICATE_RECORD')
+    await inbox([{ ...duplicate, local_op: 'create' }])
+    await userEvent.click(within(card(duplicate)).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Kayıt yalnızca bu cihazda var; o da silinir.')
+  })
+
   it('a deleted record shows no field choice', async () => {
     const deleted = { ...fixtureConflict('VERSION_CONFLICT'), local_op: 'delete', local_payload: {} }
     await inbox([deleted])
@@ -110,7 +144,27 @@ describe('a conflict the model refuses', () => {
     expect(within(shown).getByTestId('conflict-refused')).toHaveTextContent('DOCUMENT_LOCKED: keep_mine')
     expect(shownChoices(odd)).toEqual(['discard'])
     await userEvent.click(within(shown).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(dialog).toHaveTextContent('Değişikliğinizden vazgeçilsin mi?')
+    expect(decision(bridge)).toEqual([])
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Değişikliğimden vazgeç' }))
     expect(decision(bridge)).toEqual([{ idempotency_key: odd.idempotency_key, choice: 'discard' }])
+  })
+
+  it('a refused card disables discard while it runs and enables it again after a failure', async () => {
+    const locked = fixtureConflict('DOCUMENT_LOCKED')
+    const odd = { ...locked, choices: ['keep_mine', ...locked.choices] }
+    const run = deferred<unknown>()
+    await inboxWith([odd], { resolve: () => run.promise })
+    await userEvent.click(within(card(odd)).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Değişikliğimden vazgeç' }))
+    expect(within(card(odd)).getByTestId('conflict-choice-discard')).toBeDisabled()
+    await act(async () => {
+      run.reject(new Error('refused'))
+      await flush()
+    })
+    expect(within(card(odd)).getByTestId('conflict-choice-discard')).toBeEnabled()
   })
 
   it('without a discard the engine takes, it only explains and offers a new sync', async () => {

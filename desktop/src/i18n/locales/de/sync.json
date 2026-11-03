@@ -100,6 +100,9 @@
     },
     "refused": "Dieser Konflikt kann in dieser Version nicht gelöst werden ({{detail}}).",
     "refusedDiscard": "Sie können Ihre Änderung verwerfen.",
+    "discardTitle": "Ihre Änderung verwerfen?",
+    "discardDescription": "Ihre Änderung wird von diesem Gerät gelöscht und nie an den Server gesendet; das lässt sich nicht rückgängig machen. Davon abhängige Änderungen können ebenfalls nicht gesendet werden.",
+    "discardDraft": "Der Datensatz existiert nur auf diesem Gerät und wird ebenfalls gelöscht.",
     "refusedHint": "Erneut synchronisieren; bleibt es so, die App aktualisieren.",
     "resync": "Erneut synchronisieren"
   },

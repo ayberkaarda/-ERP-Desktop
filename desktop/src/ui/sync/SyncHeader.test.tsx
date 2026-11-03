@@ -96,6 +96,14 @@ describe('sync status badge', () => {
     expect(bridge.callsOf('sync_now')).toHaveLength(1)
   })
 
+  it('a refused certificate is told apart from a server that cannot be reached', async () => {
+    await header(status({ state: 'failed', error_code: 'TLS_CERTIFICATE_INVALID' }))
+    await userEvent.click(screen.getByTestId('sync-status'))
+    const shown = await screen.findByTestId('sync-last-error')
+    expect(shown).toHaveTextContent('Son hata: Sunucunun sertifikasına güvenilmiyor; bağlantı kurulmadı.')
+    expect(shown).not.toHaveTextContent('Sunucuya ulaşılamıyor.')
+  })
+
   it('an error code without a translation is shown as the code', async () => {
     await header(status({ state: 'failed', error_code: 'SOMETHING_NEW' }))
     await userEvent.click(screen.getByTestId('sync-status'))

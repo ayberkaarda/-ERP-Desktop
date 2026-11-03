@@ -61,6 +61,8 @@ custom-protocol = ["tauri/custom-protocol"]
 linker_messages = "allow"
 
 [dev-dependencies]
+# A TLS server on loopback for the certificate routing tests of api_request.
+rustls.workspace = true
 tempfile.workspace = true
 # test-util: paused time in the snapshot schedule tests.
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time", "test-util"] }

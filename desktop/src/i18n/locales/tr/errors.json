@@ -45,6 +45,7 @@
   "TASK_FAILED": "İşlem beklenmedik biçimde durdu.",
   "OFFLINE_UNAVAILABLE": "Bu bilgi çevrimdışıyken kullanılamıyor.",
   "NETWORK_ERROR": "Sunucuya ulaşılamıyor.",
+  "TLS_CERTIFICATE_INVALID": "Sunucunun sertifikasına güvenilmiyor; bağlantı kurulmadı.",
   "STORE_KEY_INVALID": "Yerel verinin anahtarı okunamıyor.",
   "STORE_ERROR": "Yerel veri deposunda bir hata oluştu.",
   "STORE_MIGRATION_INVALID": "Yerel veri deposu bu sürümle açılamıyor.",

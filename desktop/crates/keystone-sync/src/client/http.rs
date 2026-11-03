@@ -120,12 +120,84 @@ enum Transport {
     Lost(reqwest::Error),
 }
 
+impl Transport {
+    /// The one rule for every request of the client (proxy, sync calls,
+    /// meta, refresh): only a failure while the connection was being made
+    /// (DNS, TCP, the TLS handshake, the connect timeout; reqwest
+    /// `is_connect`) or while the request was being built (`is_builder`)
+    /// means it certainly did not reach the server. Everything else (the
+    /// whole-request timeout, a connection cut after writing, an answer cut
+    /// in its body) may have reached it.
+    pub(crate) fn of(error: reqwest::Error) -> Self {
+        if error.is_connect() || error.is_builder() {
+            Transport::NotSent(error)
+        } else {
+            Transport::Lost(error)
+        }
+    }
+}
+
 impl From<Transport> for SyncError {
     fn from(error: Transport) -> Self {
         match error {
-            Transport::NotSent(e) => SyncError::NotSent(e.to_string()),
+            Transport::NotSent(e) => match certificate_refusal(&e) {
+                Some(reason) => SyncError::CertificateInvalid(format!(
+                    "the server certificate is not trusted: {reason}"
+                )),
+                None => SyncError::NotSent(e.to_string()),
+            },
             Transport::Lost(e) => SyncError::Network(e.to_string()),
         }
+    }
+}
+
+/// The rustls verdict when the handshake failed on the server's certificate
+/// (`rustls::Error::InvalidCertificate`: unknown issuer, expired, wrong
+/// name, ...). Found by type along the source chain, never by message text.
+/// An `io::Error` hides the error it wraps from `source()` (it returns the
+/// source of that error), and the connector nests one `io::Error` in
+/// another, so the wrapped error of each one is walked too. Any other
+/// handshake failure (not TLS, a protocol alert, a refused connection)
+/// gives `None`.
+fn certificate_refusal(error: &(dyn std::error::Error + 'static)) -> Option<String> {
+    let mut pending = vec![error];
+    // A bound against a source chain that loops.
+    let mut budget = 32;
+    while let Some(current) = pending.pop() {
+        budget -= 1;
+        if budget == 0 {
+            break;
+        }
+        if let Some(rustls::Error::InvalidCertificate(reason)) =
+            current.downcast_ref::<rustls::Error>()
+        {
+            return Some(certificate_reason(reason).to_owned());
+        }
+        if let Some(inner) = current
+            .downcast_ref::<std::io::Error>()
+            .and_then(|io| io.get_ref())
+        {
+            pending.push(inner);
+        }
+        if let Some(source) = current.source() {
+            pending.push(source);
+        }
+    }
+    None
+}
+
+/// A fixed name for the certificate problem: the detailed variants carry
+/// the expected host name and times, which stay out of messages and logs.
+fn certificate_reason(reason: &rustls::CertificateError) -> &'static str {
+    use rustls::CertificateError as E;
+    match reason {
+        E::UnknownIssuer => "unknown issuer",
+        E::Expired | E::ExpiredContext { .. } => "expired",
+        E::NotValidYet | E::NotValidYetContext { .. } => "not valid yet",
+        E::NotValidForName | E::NotValidForNameContext { .. } => "not valid for this name",
+        E::Revoked => "revoked",
+        E::BadSignature | E::BadEncoding => "malformed",
+        _ => "rejected",
     }
 }
 
@@ -424,7 +496,7 @@ impl TokenTask {
                 self.store()
                     .save(&TokenWrite::new(), self.profile(), &taken)
                     .map_err(local)?;
-                return Err(local(SyncError::NotSent(e.to_string())));
+                return Err(local(SyncError::from(Transport::NotSent(e))));
             }
             Err(Transport::Lost(_)) => {
                 return Err(local(sign_in_required(
@@ -772,20 +844,14 @@ async fn send(
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .body(body);
     }
-    let response = request.send().await.map_err(|e| {
-        if e.is_connect() || e.is_builder() {
-            Transport::NotSent(e)
-        } else {
-            Transport::Lost(e)
-        }
-    })?;
+    let response = request.send().await.map_err(Transport::of)?;
     let status = response.status().as_u16();
     let retry_after = response
         .headers()
         .get(RETRY_AFTER)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| parse_retry_after(value, SystemTime::now()));
-    let body = response.bytes().await.map_err(Transport::Lost)?.to_vec();
+    let body = response.bytes().await.map_err(Transport::of)?.to_vec();
     Ok(RawResponse {
         status,
         retry_after,

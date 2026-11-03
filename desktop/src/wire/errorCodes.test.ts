@@ -66,7 +66,7 @@ describe('errorKey', () => {
   })
 
   it('has a text for every code in tr', () => {
-    expect(Object.keys(trErrors)).toHaveLength(58)
+    expect(Object.keys(trErrors)).toHaveLength(59)
     expect(Object.keys(trOnlineOnly)).toHaveLength(19)
   })
 })

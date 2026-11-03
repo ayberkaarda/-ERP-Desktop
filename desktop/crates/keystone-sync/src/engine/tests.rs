@@ -46,6 +46,12 @@ struct FakeApi {
     ended: Mutex<Vec<String>>,
     /// What a server sign-out answers.
     server_ends: AtomicBool,
+    /// Every manifest and pull call fails as a refused connection.
+    unreachable: AtomicBool,
+    /// The engine status, read by those calls.
+    watched: Mutex<Option<tokio::sync::watch::Receiver<super::SyncStatus>>>,
+    /// The engine state each manifest and pull call saw, in order.
+    seen: Mutex<Vec<(&'static str, super::SyncState)>>,
 }
 
 impl FakeApi {
@@ -58,7 +64,23 @@ impl FakeApi {
             busy_retry_after: Mutex::new(BUSY_RETRY_AFTER),
             ended: Mutex::default(),
             server_ends: AtomicBool::new(true),
+            unreachable: AtomicBool::new(false),
+            watched: Mutex::default(),
+            seen: Mutex::default(),
         }
+    }
+
+    /// Records the state the engine shows while `call` is in flight, then
+    /// fails it when the server is away.
+    fn call(&self, call: &'static str) -> Result<()> {
+        if let Some(status) = self.watched.lock().unwrap().as_ref() {
+            let state = status.borrow().state.clone();
+            self.seen.lock().unwrap().push((call, state));
+        }
+        if self.unreachable.load(Ordering::SeqCst) {
+            return Err(SyncError::NotSent("connection refused".into()));
+        }
+        Ok(())
     }
 
     fn pushes(&self) -> Vec<Vec<Uuid>> {
@@ -115,10 +137,12 @@ impl SyncApi for FakeApi {
 
     async fn manifest(&self) -> Result<ManifestResponse> {
         self.manifests.fetch_add(1, Ordering::SeqCst);
+        self.call("manifest")?;
         Ok(manifest())
     }
 
     async fn pull(&self, request: &PullRequest) -> Result<PullResponse> {
+        self.call("pull")?;
         let pages: Vec<_> = request
             .resources
             .iter()
@@ -883,4 +907,133 @@ async fn a_sign_out_cannot_land_between_the_session_answer_check_and_its_write()
         "the session answer outlived the sign-out"
     );
     assert!(f.tokens.load(PROFILE).unwrap().is_none());
+}
+
+/// While the engine is offline, a probe that does not reach the server
+/// never shows as syncing; one that does shows as syncing only from its
+/// first answer on, then idle.
+#[tokio::test]
+async fn an_offline_probe_shows_syncing_only_once_the_server_answered() {
+    use super::SyncState::{Idle, Offline, Syncing};
+    let f = fixture();
+    f.engine.api.unreachable.store(true, Ordering::SeqCst);
+    let _ = f.engine.run_once(Trigger::Startup).await;
+    assert_eq!(f.engine.status().state, Offline);
+
+    let mut status = f.engine.subscribe();
+    status.borrow_and_update();
+    *f.engine.api.watched.lock().unwrap() = Some(f.engine.subscribe());
+    let _ = f.engine.run_once(Trigger::Probe).await;
+    assert_eq!(f.engine.status().state, Offline);
+    assert_eq!(*f.engine.api.seen.lock().unwrap(), [("manifest", Offline)]);
+    // The failed probe published only its outcome, never `Syncing`.
+    assert!(status.has_changed().unwrap());
+    assert_eq!(status.borrow_and_update().state, Offline);
+
+    f.engine.api.seen.lock().unwrap().clear();
+    f.engine.api.unreachable.store(false, Ordering::SeqCst);
+    f.engine.run_once(Trigger::Probe).await.unwrap();
+    assert_eq!(
+        *f.engine.api.seen.lock().unwrap(),
+        [("manifest", Offline), ("pull", Syncing)]
+    );
+    assert_eq!(f.engine.status().state, Idle);
+
+    // Online, a pass shows as syncing from its start, as before.
+    f.engine.api.seen.lock().unwrap().clear();
+    f.engine.run_once(Trigger::Timer).await.unwrap();
+    assert_eq!(
+        *f.engine.api.seen.lock().unwrap(),
+        [("manifest", Syncing), ("pull", Syncing)]
+    );
+}
+
+/// The pass count moves once per finished pass, after its outcome is
+/// published, also for a failed one.
+#[tokio::test]
+async fn the_pass_count_moves_after_each_outcome() {
+    let f = fixture();
+    let mut passes = f.engine.subscribe_passes();
+    assert_eq!(*passes.borrow_and_update(), 0);
+    f.engine.api.unreachable.store(true, Ordering::SeqCst);
+    let _ = f.engine.run_once(Trigger::Startup).await;
+    assert!(passes.has_changed().unwrap());
+    assert_eq!(*passes.borrow_and_update(), 1);
+    assert_eq!(f.engine.status().state, super::SyncState::Offline);
+    f.engine.api.unreachable.store(false, Ordering::SeqCst);
+    f.engine.run_once(Trigger::Manual).await.unwrap();
+    assert_eq!(*passes.borrow_and_update(), 2);
+    assert_eq!(f.engine.status().state, super::SyncState::Idle);
+}
+
+/// From `Failed`, a pass shows as syncing from its start: only `Offline`
+/// waits for the first answer.
+#[tokio::test]
+async fn a_pass_after_a_failure_shows_syncing_from_its_start() {
+    use super::SyncState::Syncing;
+    let f = fixture();
+    f.engine
+        .status
+        .send_modify(|s| s.state = super::SyncState::Failed("SERVER_ERROR"));
+    *f.engine.api.watched.lock().unwrap() = Some(f.engine.subscribe());
+    f.engine.run_once(Trigger::Timer).await.unwrap();
+    assert_eq!(
+        *f.engine.api.seen.lock().unwrap(),
+        [("manifest", Syncing), ("pull", Syncing)]
+    );
+}
+
+/// A waiter woken by the pass count reads the pass's outcome, not the
+/// state before it.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_pass_count_wakes_a_waiter_after_the_outcome() {
+    use super::SyncState::{Idle, Offline};
+    let f = fixture();
+    f.engine.api.unreachable.store(true, Ordering::SeqCst);
+    let _ = f.engine.run_once(Trigger::Startup).await;
+    assert_eq!(f.engine.status().state, Offline);
+    f.engine.api.unreachable.store(false, Ordering::SeqCst);
+    let mut passes = f.engine.subscribe_passes();
+    passes.borrow_and_update();
+    let engine = f.engine.clone();
+    let waiter = tokio::spawn(async move {
+        passes.changed().await.unwrap();
+        engine.status().state
+    });
+    tokio::task::yield_now().await;
+    f.engine.run_once(Trigger::Probe).await.unwrap();
+    assert_eq!(waiter.await.unwrap(), Idle);
+}
+
+/// While a pass runs, it is counted as started but not as finished; when
+/// it ends, the finished number is its own.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_running_pass_is_started_but_not_finished() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    assert_eq!(
+        (
+            f.engine.passes_started(),
+            *f.engine.subscribe_passes().borrow()
+        ),
+        (1, 1)
+    );
+    let seen: Arc<Mutex<Option<(u64, u64)>>> = Arc::default();
+    let (engine, record) = (Arc::downgrade(&f.engine), seen.clone());
+    f.engine.set_hook(move |point| {
+        if point == Hook::GateDecided {
+            return;
+        }
+        if let Some(engine) = engine.upgrade()
+            && record.lock().unwrap().is_none()
+        {
+            *record.lock().unwrap() =
+                Some((engine.passes_started(), *engine.subscribe_passes().borrow()));
+        }
+    });
+    f.engine.api.unreachable.store(true, Ordering::SeqCst);
+    let _ = f.engine.run_once(Trigger::Manual).await;
+    // Inside the second pass (its failure being kept): started 2, finished 1.
+    assert_eq!(*seen.lock().unwrap(), Some((2, 1)));
+    assert_eq!(*f.engine.subscribe_passes().borrow(), 2);
 }
