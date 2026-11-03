@@ -283,19 +283,7 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
         let request = Value::Array(query.iter().map(|(n, v)| json!([n, v])).collect());
         let answer = fx.call(get(&list_path(resource, parent), request)).await;
         assert_eq!(answer.source, ResponseSource::Local, "{label}");
-        // `q` where the server also searches what the rows do not carry
-        // (item barcodes, variant SKUs) is the server's; the web fixture
-        // still counts it local.
-        let searched = query.iter().any(|(n, v)| n == "q" && !v.trim().is_empty());
-        let server_also = query_map::spec_of(&name(resource))
-            .and_then(|spec| spec.query.as_ref())
-            .and_then(|query| query.search.as_ref())
-            .is_some_and(|search| search.server_also.is_some());
-        let expect = match entry["expect"].as_str().unwrap() {
-            "local" if searched && server_also => "online_only",
-            other => other,
-        };
-        match expect {
+        match entry["expect"].as_str().unwrap() {
             "local" => {
                 assert_eq!(answer.status, 200, "{label} {:?}", answer.json());
                 counts[0] += 1;
