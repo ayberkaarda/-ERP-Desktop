@@ -112,11 +112,20 @@ export function createDesktopRealtime(options: {
           version += 1
           setState(event.state)
           return
-        case 'subscribed':
-          // Sent after the state of its socket: one that is not connected
-          // any more took the subscription with it.
-          accept(event.channel)
+        case 'subscribed': {
+          // Sent after the state of its socket. Not connected here: either
+          // that socket is gone, or its state came before the first
+          // realtime_status answer, which may predate the subscription.
+          // The shell records a subscription before it reports it, so a
+          // fresh read settles both.
+          if (state === 'connected') {
+            accept(event.channel)
+            return
+          }
+          const id = profile.current()
+          if (id) readStatus(id)
           return
+        }
         case 'subscription_failed':
           accepted.delete(event.channel)
           report(event.channel, 'error')

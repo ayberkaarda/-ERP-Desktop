@@ -490,11 +490,18 @@ impl Worker {
         let ended = self.follow(&mut events, &mut connection, generation).await;
         // Close frame sent and the task gone before anything else opens.
         handle.close().await;
+        self.closed(&ended, *connection.borrow());
+        ended
+    }
+
+    /// After a connection that ended as `ended`, its socket last `last`.
+    /// The socket is gone and its subscriptions with it, even when it last
+    /// said connected (a sign-in that moved).
+    fn closed(&self, ended: &Ended, last: RealtimeState) {
+        self.state.send_modify(|live| live.subscribed.clear());
         if !matches!(ended, Ended::Shutdown) {
-            let last = *connection.borrow();
             self.publish(last.into());
         }
-        ended
     }
 
     /// Hands on events and states until the connection has to end.
@@ -1107,6 +1114,95 @@ mod tests {
         // Late news of the lost socket.
         worker.note(&subscribed);
         assert!(live.borrow().subscribed.is_empty());
+    }
+
+    #[test]
+    fn a_closed_connection_takes_its_subscriptions_along() {
+        let (state, live) = watch::channel(Live::new(RealtimeStateDto::Connecting));
+        let (_stop_tx, stop) = watch::channel(false);
+        let sink = Arc::new(Recorder::default());
+        let worker = Worker {
+            handler: handler(&signed_in(), &sink),
+            state,
+            stop,
+            status: None,
+            sessions: None,
+            options: Options::default(),
+        };
+        worker.publish(RealtimeStateDto::Connected);
+        worker.note(&RealtimeEvent::Subscribed {
+            channel: "private-user.u1".into(),
+        });
+        let told = sink.events().len();
+
+        // The sign-in moved: the socket said connected to the last.
+        worker.closed(&Ended::SessionMoved, RealtimeState::Connected);
+
+        assert!(live.borrow().subscribed.is_empty());
+        assert_eq!(live.borrow().state, RealtimeStateDto::Connected);
+        assert_eq!(sink.events().len(), told);
+    }
+
+    /// Each event with what `realtime_status` would answer as it goes out.
+    struct Probe {
+        live: watch::Receiver<Live>,
+        seen: std::sync::Mutex<Vec<(RealtimeEventDto, Vec<String>)>>,
+    }
+
+    impl RealtimeSink for Probe {
+        fn emit(&self, event: RealtimeEventDto) {
+            let subscribed = self.live.borrow().subscribed.clone();
+            self.seen.lock().unwrap().push((event, subscribed));
+        }
+    }
+
+    #[tokio::test]
+    async fn the_socket_state_and_the_status_lead_a_subscription_made_on_it() {
+        let (state, live) = watch::channel(Live::new(RealtimeStateDto::Connecting));
+        let (_stop_tx, stop) = watch::channel(false);
+        let probe = Arc::new(Probe {
+            live,
+            seen: std::sync::Mutex::default(),
+        });
+        let mut worker = Worker {
+            handler: Handler {
+                profile_id: PROFILE.into(),
+                client: client("http://127.0.0.1:9", &signed_in()),
+                sync: None,
+                sink: probe.clone(),
+            },
+            state,
+            stop,
+            status: None,
+            sessions: None,
+            options: Options::default(),
+        };
+        // The socket came up and was accepted before the worker looked.
+        let (socket, mut connection) = watch::channel(RealtimeState::Connecting);
+        connection.borrow_and_update();
+        socket.send_replace(RealtimeState::Connected);
+        let (tx, mut events) = mpsc::unbounded_channel();
+        let channel = "private-user.u1".to_owned();
+        tx.send(RealtimeEvent::Subscribed {
+            channel: channel.clone(),
+        })
+        .unwrap();
+        drop(tx);
+
+        worker.follow(&mut events, &mut connection, 1).await;
+
+        let state = RealtimeEventDto::State {
+            profile_id: PROFILE.into(),
+            state: RealtimeStateDto::Connected,
+        };
+        let subscribed = RealtimeEventDto::Subscribed {
+            profile_id: PROFILE.into(),
+            channel: channel.clone(),
+        };
+        assert_eq!(
+            *probe.seen.lock().unwrap(),
+            [(state, vec![]), (subscribed, vec![channel])]
+        );
     }
 
     #[tokio::test]

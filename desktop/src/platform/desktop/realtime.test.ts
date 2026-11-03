@@ -154,6 +154,49 @@ describe('desktop realtime', () => {
     expect(other.statuses).toEqual([])
   })
 
+  it('a listener stopped, or a socket lost, before the late report hears nothing', async () => {
+    const s = await setup()
+    s.bridge.emitRealtime(subscribed())
+    const stopped = listener(s.realtime, 'user.u1', '.notification.created')
+    stopped.stop()
+    const lost = listener(s.realtime, 'user.u1', '.membership.revoked')
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'unavailable' })
+    await flush()
+    expect(stopped.statuses).toEqual([])
+    expect(lost.statuses).toEqual([])
+  })
+
+  it('a refused channel is not subscribed for a later listener', async () => {
+    const s = await setup()
+    s.bridge.emitRealtime(subscribed())
+    s.bridge.emitRealtime(refused())
+    const late = listener(s.realtime, 'user.u1', '.notification.created')
+    await flush()
+    expect(late.statuses).toEqual([])
+  })
+
+  it('a disposed realtime reports no subscription', async () => {
+    const s = await setup()
+    s.bridge.emitRealtime(subscribed())
+    s.realtime.dispose()
+    const late = listener(s.realtime, 'user.u1', '.notification.created')
+    await flush()
+    expect(late.statuses).toEqual([])
+  })
+
+  it('a subscription reported while the first status read is in flight is not lost', async () => {
+    const answer = deferred<RealtimeStatusDto>()
+    const s = await setup(() => answer.promise)
+    s.bridge.handle({ realtime_status: () => ({ profile_id: 'p1', state: 'connected', subscribed: ['private-user.u1'] }) })
+    const l = listener(s.realtime, 'user.u1', '.notification.created')
+    // The shell read its status (connected, nothing yet) just before the server accepted.
+    s.bridge.emitRealtime(subscribed())
+    answer.resolve({ profile_id: 'p1', state: 'connected', subscribed: [] })
+    await flush()
+    expect(s.realtime.state()).toBe('connected')
+    expect(l.statuses).toEqual(['subscribed'])
+  })
+
   it('a listener added after the subscription hears subscribed right away', async () => {
     const s = await setup()
     s.bridge.emitRealtime(subscribed())
