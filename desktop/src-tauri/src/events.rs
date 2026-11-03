@@ -90,6 +90,8 @@ pub struct EngineView {
 ///   moment (the engine never went offline) does not keep the profile
 ///   offline until that finding expires. So a request after the engine
 ///   found the server again is not answered from the earlier failed one.
+///   A pass that ended before the bridge took an unreachable finding is
+///   no return: it may be older than the finding.
 pub async fn connectivity_bridge(
     profile_id: String,
     mut changes: broadcast::Receiver<ConnectivityChange>,
@@ -110,12 +112,22 @@ pub async fn connectivity_bridge(
         .is_some_and(|rx| rx.borrow_and_update().state == SyncState::Offline);
     loop {
         tokio::select! {
+            // A change waiting is taken before a finished pass waiting: the
+            // pass may have ended before the change was found.
+            biased;
             received = changes.recv() => match received {
                 Ok(change) if change.profile == profile_id => {
                     sink.emit(EngineEvent::Connectivity {
                         profile_id: profile_id.clone(),
                         online: change.online,
                     });
+                    if !change.online
+                        && let Some(rx) = passes.as_mut()
+                    {
+                        // A pass that ended before the server was found
+                        // gone says nothing about it now.
+                        rx.borrow_and_update();
+                    }
                     let disagrees = match &status {
                         Some(rx) => change.online == (rx.borrow().state == SyncState::Offline),
                         None => change.online,
