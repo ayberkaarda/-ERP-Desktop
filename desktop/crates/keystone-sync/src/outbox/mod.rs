@@ -425,6 +425,39 @@ fn reaches(start: Uuid, target: Uuid, all: &[OutboxEntry]) -> bool {
     false
 }
 
+/// Every prerequisite is known (queued or settled) and none failed, was
+/// cancelled or waits for a failed one: a write after it could never be sent.
+pub(crate) fn ensure_live_dependencies(
+    tx: &Connection,
+    all: &[OutboxEntry],
+    deps: &[Uuid],
+) -> Result<()> {
+    for key in deps {
+        let dead = all.iter().any(|e| {
+            e.mutation.idempotency_key == *key
+                && (matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)
+                    || e.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED"))
+        }) || tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1 AND success=0)",
+            [key.to_string()],
+            |r| r.get::<_, bool>(0),
+        )?;
+        if dead {
+            return Err(invalid("dependency failed or cancelled"));
+        }
+        let known = all.iter().any(|e| e.mutation.idempotency_key == *key)
+            || tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1)",
+                [key.to_string()],
+                |r| r.get::<_, bool>(0),
+            )?;
+        if !known {
+            return Err(invalid("unknown dependency"));
+        }
+    }
+    Ok(())
+}
+
 fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOutcome> {
     ensure_unsealed(tx)?;
     if draft.id.get_version_num() != 7
@@ -482,29 +515,7 @@ fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOut
     if deps.len() > 50 {
         return Err(invalid("too many dependencies"));
     }
-    for key in &deps {
-        let dead = all.iter().any(|e| {
-            e.mutation.idempotency_key == *key
-                && (matches!(e.state, OutboxState::Rejected | OutboxState::Quarantined)
-                    || e.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED"))
-        }) || tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1 AND success=0)",
-            [key.to_string()],
-            |r| r.get::<_, bool>(0),
-        )?;
-        if dead {
-            return Err(invalid("dependency failed or cancelled"));
-        }
-        let known = all.iter().any(|e| e.mutation.idempotency_key == *key)
-            || tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM outbox_settled WHERE key=?1)",
-                [key.to_string()],
-                |r| r.get::<_, bool>(0),
-            )?;
-        if !known {
-            return Err(invalid("unknown dependency"));
-        }
-    }
+    ensure_live_dependencies(tx, &all, &deps)?;
     // Only the last write to a row can coalesce, and only before its first send.
     let previous = all
         .iter()

@@ -151,6 +151,22 @@ describe('a conflict the model refuses', () => {
     expect(decision(bridge)).toEqual([{ idempotency_key: odd.idempotency_key, choice: 'discard' }])
   })
 
+  it('a refused card disables discard while it runs and enables it again after a failure', async () => {
+    const locked = fixtureConflict('DOCUMENT_LOCKED')
+    const odd = { ...locked, choices: ['keep_mine', ...locked.choices] }
+    const run = deferred<unknown>()
+    await inboxWith([odd], { resolve: () => run.promise })
+    await userEvent.click(within(card(odd)).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Değişikliğimden vazgeç' }))
+    expect(within(card(odd)).getByTestId('conflict-choice-discard')).toBeDisabled()
+    await act(async () => {
+      run.reject(new Error('refused'))
+      await flush()
+    })
+    expect(within(card(odd)).getByTestId('conflict-choice-discard')).toBeEnabled()
+  })
+
   it('without a discard the engine takes, it only explains and offers a new sync', async () => {
     const lost = updateConflict({ server_data: null, choices: ['keep_mine', 'take_server'] })
     const { bridge } = await inbox([lost])

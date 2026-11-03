@@ -259,10 +259,29 @@ const COUNTS_ACTION: &str = "counts";
 /// every row at 1); the local router bases edits of a draft on it too.
 const CREATED_VERSION: u64 = 1;
 
+/// The balance key a count line is merged by (`StockDocuments::addCountLines`):
+/// item, location (or none) and trimmed lot number (empty is none).
+fn balance_key(line: &Map<String, Value>) -> (Option<&str>, Option<&str>, Option<&str>) {
+    let lot = line
+        .get("lot_no")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|lot| !lot.is_empty());
+    (
+        line.get("item_id").and_then(Value::as_str),
+        line.get("location_id").and_then(Value::as_str),
+        lot,
+    )
+}
+
 /// Applies a `counts` action body (`counts: [{line_id, counted_quantity}]`,
 /// `add: [line]`) to a document body's `lines`, the shape a create takes:
-/// counted quantities go onto the line with that `id`, added lines are
-/// appended (the server merges them by balance key, as `counts` does).
+/// counted quantities go onto the line with that `id`; an added line is
+/// merged into the line of its balance key as the server does (a string or
+/// number `counted_quantity` replaces, a string `unit_cost` replaces, the
+/// rest stays), else appended. Merging here, not on the server, keeps the
+/// order of the actions: the server merges a create's lines in list order,
+/// so an earlier `add` left at the end would overwrite a later count.
 /// False, leaving `payload` untouched, when a counted line is not there or
 /// the body has another shape.
 fn apply_counts(payload: &mut Map<String, Value>, action: &Map<String, Value>) -> bool {
@@ -299,7 +318,29 @@ fn apply_counts(payload: &mut Map<String, Value>, action: &Map<String, Value>) -
         let Some(add) = add.as_array() else {
             return false;
         };
-        lines.extend(add.iter().cloned());
+        for added in add {
+            let Some(added) = added.as_object() else {
+                return false;
+            };
+            let key = balance_key(added);
+            let existing = lines
+                .iter_mut()
+                .filter_map(Value::as_object_mut)
+                .find(|line| balance_key(line) == key);
+            let Some(existing) = existing else {
+                lines.push(Value::Object(added.clone()));
+                continue;
+            };
+            if let Some(counted) = added
+                .get("counted_quantity")
+                .filter(|v| v.is_string() || v.is_number())
+            {
+                existing.insert("counted_quantity".into(), counted.clone());
+            }
+            if let Some(cost) = added.get("unit_cost").filter(|v| v.is_string()) {
+                existing.insert("unit_cost".into(), cost.clone());
+            }
+        }
     }
     payload.insert("lines".into(), Value::Array(lines));
     true
@@ -340,16 +381,20 @@ pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &mut Mutation) -> R
 
 /// Later unsent `counts` of the locked document name its line ids, which the
 /// new document will not have: they go into the create, in order. One that
-/// does not fit stays queued (and is rebased like any other write).
+/// does not fit, or that could never be sent (it waits for a failed write),
+/// refuses the whole choice, as for the conflicted write itself: queued on
+/// the new id it would only be rejected, and the count lost. Discard stays.
+/// The prerequisites a folded count brings must be live, as on enqueue.
 fn fold_counts(
     tx: &Transaction<'_>,
     key: Uuid,
     record: &ConflictRecord,
     mutation: &mut Mutation,
 ) -> Result<Vec<Mutation>> {
-    let mut folded = Vec::new();
-    for entry in crate::outbox::load(tx)? {
-        let later = entry.mutation;
+    let all = crate::outbox::load(tx)?;
+    let mut folded: Vec<Mutation> = Vec::new();
+    for entry in &all {
+        let later = &entry.mutation;
         if entry.sent
             || entry.state != crate::outbox::OutboxState::Pending
             || later.resource != record.resource
@@ -358,21 +403,33 @@ fn fold_counts(
             || later.resolution.is_some()
             || later.op != MutationOp::Action
             || later.action.as_deref() != Some(COUNTS_ACTION)
-            || !apply_counts(&mut mutation.payload, &later.payload)
         {
             continue;
         }
+        if entry.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED") {
+            return Err(invalid(
+                "a later count of this document waits for a failed change",
+            ));
+        }
+        if !apply_counts(&mut mutation.payload, &later.payload) {
+            return Err(invalid("a counted line is not on the server document"));
+        }
         let mut edges = mutation.depends_on.take().unwrap_or_default();
-        edges.extend(later.depends_on.iter().flatten().filter(|dep| {
-            **dep != key && !folded.iter().any(|f: &Mutation| f.idempotency_key == **dep)
-        }));
+        edges.extend(
+            later
+                .depends_on
+                .iter()
+                .flatten()
+                .filter(|dep| **dep != key && !folded.iter().any(|f| f.idempotency_key == **dep)),
+        );
         edges.sort();
         edges.dedup();
         if edges.len() > 50 {
             return Err(invalid("too many dependencies"));
         }
+        crate::outbox::ensure_live_dependencies(tx, &all, &edges)?;
         mutation.depends_on = (!edges.is_empty()).then_some(edges);
-        folded.push(later);
+        folded.push(later.clone());
     }
     Ok(folded)
 }

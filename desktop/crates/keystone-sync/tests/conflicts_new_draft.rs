@@ -46,7 +46,7 @@ fn server_document(id: Uuid) -> ResourceRow {
             "warehouse_id": "0190a000-0000-7000-8000-0000000000d1",
             "lines": [
                 {"id": LINE_A, "item_id": ITEM, "counted_quantity": "1.000000", "system_quantity": "4.000000"},
-                {"id": LINE_B, "item_id": ITEM, "counted_quantity": null, "system_quantity": "2.000000"},
+                {"id": LINE_B, "item_id": ITEM, "lot_no": "L-1", "counted_quantity": null, "system_quantity": "2.000000"},
             ],
         })),
     }
@@ -147,7 +147,7 @@ fn counts_become_the_lines_of_the_new_draft() {
 
 #[test]
 fn add_only_counts_append_lines() {
-    let added = json!({"item_id": ITEM, "counted_quantity": "3"});
+    let added = json!({"item_id": ITEM, "lot_no": "L-2", "counted_quantity": "3"});
     let f = locked(counts(Uuid::now_v7(), json!({"add": [added.clone()]})));
     let draft = new_draft(&f);
     assert!(!draft.payload.contains_key("add"));
@@ -286,4 +286,341 @@ fn later_counts_fold_into_the_new_draft_and_their_dependants_follow() {
     assert_eq!(dependant.mutation.depends_on, Some(vec![create]));
     assert_eq!(dependant.last_error, None);
     assert_eq!(f.inbox.count().unwrap(), 0);
+}
+
+// ---- mutation round: missing pins ----
+
+fn entry(f: &Fixture, key: Uuid) -> Option<Mutation> {
+    f.q.list()
+        .unwrap()
+        .into_iter()
+        .find(|e| e.mutation.idempotency_key == key)
+        .map(|e| e.mutation)
+}
+
+fn locked_counts(doc: Uuid) -> Fixture {
+    locked(counts(
+        doc,
+        json!({"counts": [{"line_id": LINE_A, "counted_quantity": "5"}]}),
+    ))
+}
+
+fn later_counts(doc: Uuid, payload: Value) -> NewMutation {
+    let mut later = counts(doc, payload);
+    later.base_version = Some(7);
+    later
+}
+
+#[test]
+fn counts_of_another_document_stay_queued() {
+    let f = locked_counts(Uuid::now_v7());
+    let other_doc = Uuid::now_v7();
+    let other =
+        f.q.enqueue(counts(
+            other_doc,
+            json!({"add": [{"item_id": ITEM, "counted_quantity": "1"}]}),
+        ))
+        .unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    assert_eq!(entry(&f, other).unwrap().id, other_doc);
+    assert_eq!(
+        entry(&f, create).unwrap().payload["lines"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn a_misfit_later_count_refuses_the_new_draft_atomically() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    let fits = json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]});
+    let fits = f.q.enqueue(later_counts(doc, fits)).unwrap();
+    let misfit = json!({"counts": [{"line_id": Uuid::now_v7(), "counted_quantity": "1"}]});
+    let misfit = f.q.enqueue(later_counts(doc, misfit)).unwrap();
+    // Queued on the new id it would be rejected line_missing: the count lost.
+    assert!(f.q.enqueue(new_draft(&f)).is_err());
+    assert_eq!(f.inbox.count().unwrap(), 1);
+    for key in [fits, misfit] {
+        let kept = entry(&f, key).unwrap();
+        assert_eq!((kept.id, kept.base_version), (doc, Some(7)));
+    }
+    assert_eq!(f.q.list().unwrap().len(), 3);
+    // Discard is still offered.
+    assert_eq!(
+        f.inbox
+            .resolve(f.sent.idempotency_key, ConflictChoice::Discard)
+            .unwrap(),
+        ResolutionAction::Discard
+    );
+}
+
+#[test]
+fn a_later_count_waiting_for_a_failed_change_is_not_folded() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    let item =
+        f.q.enqueue(write(
+            MutationOp::Create,
+            None,
+            Uuid::now_v7(),
+            json!({"name": "i"}),
+        ))
+        .unwrap();
+    let mut later = later_counts(
+        doc,
+        json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]}),
+    );
+    later.depends_on = vec![item];
+    let later = f.q.enqueue(later).unwrap();
+    rejected_prerequisite_of(&f, item);
+    f.q.next_batch(10).unwrap();
+    let waiting = f.q.list().unwrap();
+    let waiting = waiting
+        .iter()
+        .find(|e| e.mutation.idempotency_key == later)
+        .unwrap();
+    assert_eq!(
+        waiting.last_error.as_deref(),
+        Some("SYNC_DEPENDENCY_FAILED")
+    );
+    // Folded, the create would wait for the failed change forever.
+    assert!(f.q.enqueue(new_draft(&f)).is_err());
+    assert_eq!(f.inbox.count().unwrap(), 1);
+    assert_eq!(entry(&f, later).unwrap().id, doc);
+}
+
+#[test]
+fn a_folded_count_brings_no_dead_prerequisite() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    // The later count names a create that was rejected after it was queued;
+    // no pass has marked it SYNC_DEPENDENCY_FAILED yet.
+    let item =
+        f.q.enqueue(write(
+            MutationOp::Create,
+            None,
+            Uuid::now_v7(),
+            json!({"name": "i"}),
+        ))
+        .unwrap();
+    let mut later = later_counts(
+        doc,
+        json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]}),
+    );
+    later.depends_on = vec![item];
+    let later = f.q.enqueue(later).unwrap();
+    rejected_prerequisite_of(&f, item);
+    assert_eq!(entry(&f, later).unwrap().id, doc);
+    assert!(f.q.enqueue(new_draft(&f)).is_err());
+    assert_eq!(f.inbox.count().unwrap(), 1);
+}
+
+/// Sends the queued create `item` (and nothing else) and rejects it.
+fn rejected_prerequisite_of(f: &Fixture, item: Uuid) {
+    let sent = f.q.next_batch(1).unwrap();
+    assert_eq!(sent[0].idempotency_key, item);
+    f.q.record_results(&[PushResult {
+        idempotency_key: item,
+        resource: sent[0].resource.clone(),
+        id: sent[0].id,
+        status: PushStatus::Rejected,
+        replayed: false,
+        version: None,
+        data: None,
+        merged_fields: None,
+        conflict: None,
+        error: Some(ApiError {
+            message: "no".into(),
+            code: ErrorCode::ValidationError,
+            fields: None,
+        }),
+    }])
+    .unwrap();
+}
+
+#[test]
+fn an_earlier_add_does_not_overwrite_a_later_count_of_its_line() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    // Same balance key as LINE_A (item, no location, no lot).
+    let add = json!({"add": [{"item_id": ITEM, "lot_no": " ", "counted_quantity": "2", "unit_cost": "4.5"}]});
+    f.q.enqueue(later_counts(doc, add)).unwrap();
+    let count = json!({"counts": [{"line_id": LINE_A, "counted_quantity": "6"}]});
+    f.q.enqueue(later_counts(doc, count)).unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    let lines = entry(&f, create).unwrap().payload["lines"]
+        .as_array()
+        .unwrap()
+        .clone();
+    // The server merges a create's lines by balance key in list order: an
+    // added line left at the end would write 2 over the later count of 6.
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["id"], LINE_A);
+    assert_eq!(lines[0]["counted_quantity"], "6");
+    assert_eq!(lines[0]["unit_cost"], "4.5");
+}
+
+#[test]
+fn an_add_with_no_quantity_keeps_the_count_of_its_line() {
+    let f = locked(counts(
+        Uuid::now_v7(),
+        json!({
+            "counts": [{"line_id": LINE_B, "counted_quantity": "7"}],
+            "add": [{"item_id": ITEM, "lot_no": "L-1", "counted_quantity": null}],
+        }),
+    ));
+    let draft = new_draft(&f);
+    let lines = draft.payload["lines"].as_array().unwrap();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[1]["counted_quantity"], "7");
+}
+
+#[test]
+fn a_count_sent_before_is_not_folded() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    let later = later_counts(
+        doc,
+        json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]}),
+    );
+    let later = f.q.enqueue(later).unwrap();
+    // Sent once and requeued: the server may hold it under its key already,
+    // so its body is never changed or merged into another write.
+    f.q.store()
+        .write(|tx| {
+            tx.execute(
+                "UPDATE outbox_entries SET sent=1 WHERE key=?1",
+                [later.to_string()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    let kept = entry(&f, later).unwrap();
+    assert_eq!((kept.id, kept.base_version), (doc, Some(7)));
+    assert_eq!(
+        entry(&f, create).unwrap().payload["lines"][1]["counted_quantity"],
+        Value::Null
+    );
+}
+
+#[test]
+fn a_failed_enqueue_can_be_resolved_again_with_the_same_draft() {
+    let f = locked_counts(Uuid::now_v7());
+    let first = new_draft(&f);
+    let mut broken = first.clone();
+    broken.payload.insert("version".into(), json!(1));
+    assert!(f.q.enqueue(broken).is_err());
+    assert_eq!(f.inbox.count().unwrap(), 1);
+    let again = new_draft(&f);
+    assert_eq!(again.id, first.id);
+    assert_eq!(again.payload, first.payload);
+    f.q.enqueue(again).unwrap();
+    assert_eq!(f.inbox.count().unwrap(), 0);
+}
+
+#[test]
+fn a_folded_count_keeps_its_other_prerequisites() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    let item =
+        f.q.enqueue(write(
+            MutationOp::Create,
+            None,
+            Uuid::now_v7(),
+            json!({"name": "i"}),
+        ))
+        .unwrap();
+    let mut later = later_counts(
+        doc,
+        json!({"add": [{"item_id": ITEM, "counted_quantity": "1"}]}),
+    );
+    later.depends_on = vec![item];
+    f.q.enqueue(later).unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    assert_eq!(entry(&f, create).unwrap().depends_on, Some(vec![item]));
+}
+
+#[test]
+fn a_write_naming_a_folded_count_waits_for_the_create() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    let later = later_counts(
+        doc,
+        json!({"add": [{"item_id": ITEM, "counted_quantity": "1"}]}),
+    );
+    let later = f.q.enqueue(later).unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    let mut next = write(
+        MutationOp::Create,
+        None,
+        Uuid::now_v7(),
+        json!({"name": "n"}),
+    );
+    next.depends_on = vec![later];
+    let next = f.q.enqueue(next).unwrap();
+    assert_eq!(entry(&f, next).unwrap().depends_on, Some(vec![create]));
+}
+
+#[test]
+fn request_keys_of_a_folded_count_answer_with_the_create() {
+    let doc = Uuid::now_v7();
+    let f = locked_counts(doc);
+    let later = later_counts(
+        doc,
+        json!({"add": [{"item_id": ITEM, "counted_quantity": "1"}]}),
+    );
+    let later = f.q.enqueue(later).unwrap();
+    f.q.store()
+        .write(|tx| {
+            tx.execute(
+                "INSERT INTO outbox_request_keys(key,fingerprint,resource,id,cancelled,created_at,entry_key)
+                 VALUES ('rk','fp','stock-documents',?1,0,strftime('%Y-%m-%dT%H:%M:%fZ','now'),?2)",
+                [doc.to_string(), later.to_string()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    let owner: String =
+        f.q.store()
+            .read(|c| {
+                Ok(c.query_row(
+                    "SELECT entry_key FROM outbox_request_keys WHERE key='rk'",
+                    [],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+    assert_eq!(owner, create.to_string());
+    // A repeat of that request answers with the new document: the key's
+    // target follows the identity replacement (find_request).
+    let new_id = entry(&f, create).unwrap().id;
+    let target: String =
+        f.q.store()
+            .read(|c| {
+                Ok(c.query_row(
+                    "SELECT new_id FROM outbox_id_remaps WHERE old_id=?1",
+                    [doc.to_string()],
+                    |r| r.get(0),
+                )?)
+            })
+            .unwrap();
+    assert_eq!(target, new_id.to_string());
+}
+
+#[test]
+fn a_counts_body_with_other_keys_is_refused() {
+    let f = locked(counts(
+        Uuid::now_v7(),
+        json!({"counts": [{"line_id": LINE_A, "counted_quantity": "5"}], "freeze": false}),
+    ));
+    assert!(
+        f.inbox
+            .resolve(f.sent.idempotency_key, ConflictChoice::SaveAsNewDraft)
+            .is_err()
+    );
 }
