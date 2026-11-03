@@ -345,12 +345,12 @@ async fn respond_once(
                 let invalid = spec
                     .map(|spec| query_map::invalid_values(spec, &call.query))
                     .unwrap_or_default();
-                Ok(refuse_with(
+                Ok(answered(refuse_with(
                     Refusal::Offline,
                     unsupported_filters,
                     online_only,
                     &invalid,
-                ))
+                )))
             }
         },
         Decision::Online { deadline, fallback } => match run.online(call, deadline, keep).await {

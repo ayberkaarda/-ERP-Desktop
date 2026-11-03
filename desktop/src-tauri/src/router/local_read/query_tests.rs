@@ -312,7 +312,7 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
             other => panic!("{other}"),
         }
     }
-    assert_eq!(counts, [81, 6, 1]);
+    assert_eq!(counts, [83, 6, 1]);
     assert_eq!(fx.server.received_requests().await.unwrap().len(), 2);
 }
 
