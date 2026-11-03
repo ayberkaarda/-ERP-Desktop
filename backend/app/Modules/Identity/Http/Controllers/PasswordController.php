@@ -7,6 +7,7 @@ namespace App\Modules\Identity\Http\Controllers;
 use App\Core\Http\ApiException;
 use App\Core\Http\ApiResponse;
 use App\Core\Http\ErrorCode;
+use App\Models\User;
 use App\Modules\Identity\Http\Requests\PasswordChangeRequest;
 use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\AccessRevoker;
@@ -17,6 +18,7 @@ use App\Modules\Identity\Support\CurrentToken;
 use Illuminate\Contracts\Hashing\Hasher;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 final class PasswordController
 {
@@ -50,21 +52,29 @@ final class PasswordController
 
         $throttle->clear($key);
 
-        $user->forceFill([
-            'password' => $request->string('password')->toString(),
-            'must_change_password' => false,
-            'password_changed_at' => Carbon::now(),
-        ])->save();
-        $user->bumpAuthVersion();
-
         $token = CurrentToken::of($user);
-        $revoker->revokeAll(
-            $user,
-            'password_changed',
-            $sessions->currentHash($request),
-            $token === null ? null : (string) $token->getKey(),
-            broadcast: false,
-        );
+
+        // Under the user lock a device login (DeviceTokens::issue takes the same lock) either
+        // finishes first and its device is revoked here, or waits and sees the new auth_version.
+        DB::transaction(function () use ($request, $user, $revoker, $sessions, $token): void {
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            $user->forceFill([
+                'password' => $request->string('password')->toString(),
+                'must_change_password' => false,
+                'password_changed_at' => Carbon::now(),
+                'auth_version' => $locked->auth_version,
+            ])->save();
+            $user->bumpAuthVersion();
+
+            $revoker->revokeAll(
+                $user,
+                'password_changed',
+                $sessions->currentHash($request),
+                $token === null ? null : (string) $token->getKey(),
+                broadcast: false,
+            );
+        });
 
         // A desktop client keeps its sign-in with a fresh token pair; every older refresh token is void.
         if ($token !== null) {
