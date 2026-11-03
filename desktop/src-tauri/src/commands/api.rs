@@ -605,9 +605,11 @@ async fn send(
     joined.map_err(|_| CommandError::new(TASK_FAILED, "the request task stopped"))
 }
 
-/// One proxy call bound to the current sign-in, sent once more when it
-/// failed with `UNAUTHENTICATED` because another sign-in happened meanwhile.
-/// Comes with the generation of the sign-in that answered.
+/// One proxy call bound to the current sign-in. A read is sent once more
+/// when it failed with `UNAUTHENTICATED` because another sign-in happened
+/// meanwhile; a write is not: it was meant for the old sign-in, and the new
+/// one (maybe another user) must not make it. Comes with the generation of
+/// the sign-in that answered.
 async fn proxy(
     client: &Arc<HttpClient>,
     request: &ProxyRequest,
@@ -617,6 +619,9 @@ async fn proxy(
         Err(error) if error.code() == "UNAUTHENTICATED" => error,
         other => return other.map(|answer| (answer, before.generation)),
     };
+    if request.method != ProxyMethod::Get {
+        return Err(error);
+    }
     let after = record(client).await?;
     if after.generation != before.generation && after.tokens.is_some() && !after.deactivated {
         let answer = client.proxy_in(request, after.generation).await?;

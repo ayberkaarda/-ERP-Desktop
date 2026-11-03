@@ -973,13 +973,7 @@ impl Desktop {
     /// rejected or quarantined, and open conflicts. None without an engine.
     async fn unsent_work(&self, state: &AppState) -> CommandResult<(usize, usize)> {
         match state.engine() {
-            Ok(engine) => {
-                let status = blocking(move || Ok(engine.refresh_status()?)).await?;
-                Ok((
-                    status.pending + status.rejected + status.quarantined,
-                    status.conflicts,
-                ))
-            }
+            Ok(engine) => work_of(engine).await,
             Err(_) => Ok((0, 0)),
         }
     }
@@ -1021,11 +1015,19 @@ impl Desktop {
             // Nothing was deleted: open the profile again, as the file says.
             if active {
                 let profile = self.profile(id).await?;
-                if let Err(error) = self.start(state, running, &profile).await {
-                    log::warn!("profile not reopened: {}", error.code);
-                }
+                self.reopen(state, running, &profile).await;
             }
             return Err(busy);
+        }
+        // A local write that held the engine across the first count may
+        // have queued work since; no client is left to queue more.
+        if active && !force {
+            let (outbox, conflicts) = self.pending_work_of(id).await;
+            if outbox + conflicts > 0 {
+                let profile = self.profile(id).await?;
+                self.reopen(state, running, &profile).await;
+                return Err(pending_work(outbox, conflicts));
+            }
         }
         let tokens = self.tokens.clone();
         let db_keys = self.db_keys.clone();
@@ -1082,11 +1084,24 @@ impl Desktop {
         .unwrap_or((0, 0))
     }
 
+    /// Opens `profile` again after a refused change; a failure is logged,
+    /// the refusal stays the answer.
+    async fn reopen(&self, state: &AppState, running: &mut Option<Running>, profile: &Profile) {
+        if let Err(error) = self.start(state, running, profile).await {
+            log::warn!("profile not reopened: {}", error.code);
+        }
+    }
+
     /// Waits until no session of the profile is alive (requests still
     /// running hold its client). `PROFILE_BUSY` after `release_wait`.
     async fn wait_released(&self, session: &Weak<Session>) -> CommandResult<()> {
+        self.wait_until(|| session.strong_count() == 0).await
+    }
+
+    /// Waits until `done`; `PROFILE_BUSY` after `release_wait`.
+    async fn wait_until(&self, done: impl Fn() -> bool) -> CommandResult<()> {
         let deadline = tokio::time::Instant::now() + self.release_wait;
-        while session.strong_count() > 0 {
+        while !done() {
             if tokio::time::Instant::now() >= deadline {
                 return Err(CommandError::new(
                     codes::PROFILE_BUSY,
@@ -1132,10 +1147,37 @@ impl Desktop {
                 ..profile.clone()
             };
             drop(self.client(&candidate)?);
+            let engine = state.engine().ok();
+            self.stop(state, &mut running).await;
+            // A local write still holding the engine would queue into the
+            // store the new company opens (one store per profile): wait for
+            // it, then count again; the old company opens again on work.
+            if let Some(engine) = engine {
+                let waited = self.wait_until(|| Arc::strong_count(&engine) == 1).await;
+                let refused = match waited {
+                    Err(busy) => Some(busy),
+                    Ok(()) if force => None,
+                    Ok(()) => match work_of(engine).await {
+                        Ok((0, 0)) => None,
+                        Ok((outbox, conflicts)) => Some(pending_work(outbox, conflicts)),
+                        Err(error) => Some(error),
+                    },
+                };
+                if let Some(refused) = refused {
+                    self.reopen(state, &mut running, &profile).await;
+                    return Err(refused);
+                }
+            }
             let registry = self.profiles_blocking();
             let changed_id = id.to_owned();
-            profile = blocking(move || registry.set_company(&changed_id, company)).await?;
-            self.stop(state, &mut running).await;
+            let changed = blocking(move || registry.set_company(&changed_id, company)).await;
+            profile = match changed {
+                Ok(changed) => changed,
+                Err(error) => {
+                    self.reopen(state, &mut running, &profile).await;
+                    return Err(error);
+                }
+            };
             self.start(state, &mut running, &profile).await?;
         } else {
             state.trigger(id, Trigger::Manual)?;
@@ -1247,6 +1289,16 @@ fn no_profile() -> CommandError {
         crate::commands::codes::NO_ACTIVE_PROFILE,
         "no server profile is selected",
     )
+}
+
+/// Unsent work of `engine`: outbox entries waiting, rejected or
+/// quarantined, and open conflicts.
+async fn work_of(engine: Arc<Engine>) -> CommandResult<(usize, usize)> {
+    let status = blocking(move || Ok(engine.refresh_status()?)).await?;
+    Ok((
+        status.pending + status.rejected + status.quarantined,
+        status.conflicts,
+    ))
 }
 
 fn pending_work(outbox: usize, conflicts: usize) -> CommandError {

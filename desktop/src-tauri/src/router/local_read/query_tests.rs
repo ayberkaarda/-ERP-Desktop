@@ -312,7 +312,7 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
             other => panic!("{other}"),
         }
     }
-    assert_eq!(counts, [83, 6, 1]);
+    assert_eq!(counts, [80, 9, 1]);
     assert_eq!(fx.server.received_requests().await.unwrap().len(), 2);
 }
 
@@ -410,6 +410,53 @@ async fn online_an_online_only_filter_goes_to_the_server() {
     let local = fx.call(get(ITEMS, pairs(&[("sort", "-code")]))).await;
     assert_eq!(local.source, ResponseSource::Local);
     assert_eq!(fx.received(ITEMS).await, 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_item_search_is_the_servers_because_it_also_finds_barcodes() {
+    let (item, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt"}));
+    let (_, barcode) = with_id(
+        2,
+        json!({"item_id": item, "barcode": "8690000000001", "is_primary": true}),
+    );
+    let fx = fixture(vec![
+        ("items", vec![bolt]),
+        ("items.barcodes", vec![barcode]),
+    ])
+    .await;
+    Mock::given(method("GET"))
+        .and(path(ITEMS))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": [{"id": item}] })))
+        .mount(&fx.server)
+        .await;
+
+    // Online: the server answers, with the item its barcode finds.
+    let online = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
+    assert_eq!(online.source, ResponseSource::Network);
+    assert_eq!(fx.received(ITEMS).await, 1);
+
+    // Offline: refused with the reason, not an empty list.
+    fx.go_offline();
+    let answer = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
+    assert_eq!(answer.status, 503);
+    assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
+    let offline = offline_of(&answer);
+    assert_eq!(offline["unsupported_filters"], json!(["q"]));
+    assert_eq!(offline["online_only"][0]["param"], "q");
+    assert!(
+        offline["online_only"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("items.barcodes")
+    );
+
+    // A blank `q` is no search; other lists still search here.
+    let blank = fx.call(get(ITEMS, pairs(&[("q", " ")]))).await;
+    assert_eq!(blank.status, 200);
+    assert_eq!(
+        fx.call(get(PARTIES, pairs(&[("q", "x")]))).await.status,
+        200
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -753,4 +800,26 @@ async fn no_sort_is_the_default_order_and_a_blank_sort_is_refused() {
             json!([{"param": "sort", "reason": "empty"}])
         );
     }
+}
+
+/// A blank `q` searches nothing: refused for another parameter, the answer
+/// does not name it as needing the server.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_blank_item_search_is_not_named_online_only() {
+    let (_, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt"}));
+    let fx = fixture(vec![("items", vec![bolt])]).await;
+    fx.go_offline();
+
+    let answer = fx
+        .call(get(ITEMS, pairs(&[("q", "  "), ("filter[category]", "x")])))
+        .await;
+    assert_eq!(answer.status, 503);
+    let offline = offline_of(&answer);
+    let named: Vec<&str> = offline["online_only"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["param"].as_str().unwrap())
+        .collect();
+    assert_eq!(named, ["filter[category]"]);
 }

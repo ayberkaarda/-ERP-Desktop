@@ -28,7 +28,7 @@ use Tests\Support\Sales\SalesKit;
  *   in the same order as the server.
  * - The list requests the web frontend sends (tests/Fixtures/Sync/web-list-queries.json) are
  *   covered: each sort and filter is declared, or the request is marked online_only and names a
- *   declared online_only parameter.
+ *   declared online_only parameter or searches (`q`) a resource whose search has server_also.
  */
 uses(RefreshDatabase::class);
 
@@ -124,6 +124,25 @@ function oqCoverage(array $query, string $name): string
     }
 
     return isset($query['filters'][substr($name, 7, -1)]) ? 'local' : 'unsupported';
+}
+
+/**
+ * How the desktop treats a non-empty `q`: 'online_only' when the server also searches what is not
+ * in the row (search.server_also), so a local answer would miss rows; otherwise 'local'. An empty
+ * or missing `q` is no search (null).
+ *
+ * @param  array<string, mixed>  $query
+ * @param  list<array{0: string, 1: string}>  $pairs
+ */
+function oqSearchCoverage(array $query, array $pairs): ?string
+{
+    foreach ($pairs as [$name, $value]) {
+        if ($name === 'q' && $value !== '') {
+            return isset($query['search']['server_also']) ? 'online_only' : 'local';
+        }
+    }
+
+    return null;
 }
 
 /**
@@ -432,7 +451,14 @@ it('covers every list request the web sends, as the fixture classifies it', func
 
     foreach (oqKnownQueries() as $known) {
         $query = $resources[$known['resource']]['query'] ?? [];
-        $coverage = array_map(static fn (string $name): string => oqCoverage($query, $name), oqQueryNames(oqPairs($known['query'])));
+        $pairs = oqPairs($known['query']);
+        $coverage = array_map(static fn (string $name): string => oqCoverage($query, $name), oqQueryNames($pairs));
+        $search = oqSearchCoverage($query, $pairs);
+
+        if ($search !== null) {
+            $coverage[] = $search;
+        }
+
         $label = "{$known['resource']}?{$known['query']}";
 
         $kinds = array_values(array_unique($coverage));

@@ -381,7 +381,7 @@ Masaüstü bir liste isteğini (`GET <path>?page&per_page&sort&filter[...]&q`) y
 Kurallar:
 
 - Bildirilmeyen her `sort` alanı ve `filter[...]` (ve `online_only` içindekiler) çevrimdışıyken eskisi gibi reddedilir: `503 OFFLINE_UNAVAILABLE`, `unsupported_filters` istekteki adları sırasıyla listeler. Masaüstü tahmin etmez; filtrelenmiş gibi görünen yanlış bir liste göstermemek (D2b kararı) korunur. `query` bölümü yoksa önceki davranış geçerlidir: yalnız `window_field` üzerinde `sort`, `filter[<window_field>]`, `filter[date_from]` / `filter[date_to]`.
-- `page`, `per_page` (1..100), `q` her kaynakta geçerlidir; boş filtre değeri filtre değildir (sunucudaki gibi).
+- `page`, `per_page` (1..100), `q` her kaynakta geçerlidir (`search.server_also` olan kaynakta `q` hariç; aşağıdaki yerel uygulama kuralları); boş filtre değeri filtre değildir (sunucudaki gibi).
 - Sunucu arama için yalnız `q` okur. `search` adlı parametreyi tanımaz ve yok sayar (filtresiz liste döner). Masaüstü `search`'ü `q` gibi uygulamaz: sunucu gibi yok sayar ya da reddeder, filtrelenmiş bir yanıt vermez.
 - Boş `sort=` (parametre var, değer boş) sunucuda 422'dir: `ConvertEmptyStringsToNull` değeri `null` yapar, `ListQuery`'nin `string` kuralı reddeder. Masaüstü de reddeder. `default_sort` yalnız `sort` hiç yokken uygulanır.
 - Bildirilen her ad sunucunun o uçta kabul ettiği addır; aynı istek çevrimiçi 200 döner. Yerel uygulama, sunucunun aynı satırlara verdiği yanıtla aynı satırları verir. Sıra `decimal`, `date`, `datetime`, `integer`, `bool` ve `null` yerleşiminde sunucuyla birebir aynıdır, `text`te yaklaşıktır (aşağıda). `OfflineManifestQueryTest` ve `OfflineManifestQueryParityTest` bunu gerçek uçlara ve satırlara karşı denetler.
@@ -406,6 +406,7 @@ Yerel uygulama kuralları:
   Bu kural Türkçe harf, büyük/küçük harf ve noktalama içeren 308 sıralama isteğinde PostgreSQL ile aynı sırayı verdi. Yine de glibc ile her girdide aynı olması garanti değildir. Sayfalar yerel sırada tutarlıdır.
 - **Filtre:** `string` tam ve harf duyarlıdır. `uuid` küçük harfe çevrilerek karşılaştırılır; uuid biçiminde olmayan değer yerelde reddedilir. `bool` yalnız `1`/`0`/`true`/`false` alır; başka değer yerelde reddedilir. `date` aralığı `YYYY-MM-DD` dizesi olarak dahil uçlarla karşılaştırılır; geçersiz tarih (ör. `#invalid-date`) yerelde reddedilir (sunucu 422 döner). `max_values` aşılırsa reddedilir.
 - **Arama:** sunucu `ILIKE '%q%'` kullanır; yerelde aynı alanlarda harf duyarsız alt dize (`%` ve `_` düz karakterdir). Türkçe büyük/küçük harf eşlemesi (`İ`/`i`, `I`/`ı`) yerelde daha geniş olabilir; bu fazladan eşleşme verir, eksik vermez.
+- **`server_also` olan arama yerelde yanıtlanmaz.** Yerel arama sunucunun bulduğu satırların bir alt kümesini veremez (eksik eşleşme yasaktır); `search.server_also` bildirilmiş kaynakta boş olmayan `q` bu yüzden `online_only` gibi işlenir: çevrimiçiyken sunucuya gider, çevrimdışıyken `503 OFFLINE_UNAVAILABLE` döner, `unsupported_filters` içinde `q` yer alır ve neden `server_also` metnidir. Boş `q` arama değildir. `web-list-queries.json` bu istekleri `online_only` sınıflar (ör. ürünlerde `q=wid`, `q=8690000000001`); `OfflineManifestQueryTest` sınıfı manifestteki `server_also`'dan türetir.
 
 ## Çevrimdışı yazma kapsamı
 

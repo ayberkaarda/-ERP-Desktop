@@ -16,7 +16,8 @@
 //! - `filter[<name>]`: a declared filter, its value checked by type (`bool`
 //!   takes `1`/`true`/`0`/`false`, `date` takes `YYYY-MM-DD`, `uuid` a uuid,
 //!   `max_values`); [`invalid_values`] gives the reasons of refused values.
-//! - `q`: substring over `search.fields` when declared.
+//! - `q`: substring over `search.fields` when declared; refused when the
+//!   server also searches what the rows do not carry (`search.server_also`).
 //! - `online_only` names are refused like unknown ones; [`online_only`]
 //!   gives their reasons.
 //!
@@ -113,18 +114,24 @@ pub fn list_query(
                 "search" => true,
                 "q" => {
                     let text = value.trim();
-                    if !text.is_empty() {
-                        match declared.and_then(|q| q.search.as_ref()) {
-                            Some(search) => {
-                                mapped.query.text = Some(TextSearch {
-                                    fields: search.fields.clone(),
-                                    text: text.to_owned(),
-                                });
-                            }
-                            None => mapped.query.search = Some(text.to_owned()),
+                    match declared.and_then(|q| q.search.as_ref()) {
+                        _ if text.is_empty() => true,
+                        // The server also searches what the rows do not
+                        // carry (item barcodes and variant SKUs): an empty
+                        // local answer would look like "no such item".
+                        Some(search) if search.server_also.is_some() => false,
+                        Some(search) => {
+                            mapped.query.text = Some(TextSearch {
+                                fields: search.fields.clone(),
+                                text: text.to_owned(),
+                            });
+                            true
+                        }
+                        None => {
+                            mapped.query.search = Some(text.to_owned());
+                            true
                         }
                     }
-                    true
                 }
                 // `sort=` (blank) is refused by the server (422): Laravel makes
                 // it null and `ListQuery` takes a string only.
@@ -391,8 +398,30 @@ pub fn invalid_values(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<I
 }
 
 /// The `online_only` entries of `spec` that `params` use: `filter[x]` with a
-/// value, or a `sort` naming `x` (`sort=x`). Manifest order.
+/// value, or a `sort` naming `x` (`sort=x`). Manifest order; then `q` with a
+/// value when the server searches more than the rows carry
+/// (`search.server_also`, its text the reason).
 pub fn online_only(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<OnlineOnly> {
+    let mut found = declared_online_only(spec, params);
+    let server_also = spec
+        .query
+        .as_ref()
+        .and_then(|query| query.search.as_ref())
+        .and_then(|search| search.server_also.as_ref());
+    if let Some(reason) = server_also
+        && params
+            .iter()
+            .any(|(name, value)| name == "q" && !value.trim().is_empty())
+    {
+        found.push(OnlineOnly {
+            param: "q".to_owned(),
+            reason: reason.clone(),
+        });
+    }
+    found
+}
+
+fn declared_online_only(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<OnlineOnly> {
     let Some(query) = &spec.query else {
         return Vec::new();
     };
