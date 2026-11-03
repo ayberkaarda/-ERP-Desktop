@@ -8,7 +8,6 @@ use App\Core\Http\ApiException;
 use App\Core\Http\ApiResponse;
 use App\Core\Http\ErrorCode;
 use App\Modules\Identity\Http\Requests\PasswordChangeRequest;
-use App\Modules\Identity\Models\UserDevice;
 use App\Modules\Identity\Services\AccessRevoker;
 use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Identity\Services\LoginThrottle;
@@ -50,30 +49,30 @@ final class PasswordController
 
         $throttle->clear($key);
 
-        $user->forceFill([
+        $token = CurrentToken::of($user);
+        // By the id the token carries: a refresh racing this request may have rotated the device.
+        $deviceId = $token === null ? null : $tokens->deviceIdOf($user, $token);
+
+        // Under the user lock a device login (DeviceTokens::issue takes the same lock) either
+        // finishes first and its device is revoked here, or waits and sees the new auth_version.
+        $user->bumpAuthVersionLocked([
             'password' => $request->string('password')->toString(),
             'must_change_password' => false,
             'password_changed_at' => Carbon::now(),
-        ])->save();
-        $user->bumpAuthVersion();
-
-        $token = CurrentToken::of($user);
-        $revoker->revokeAll(
+        ], fn () => $revoker->revokeAll(
             $user,
             'password_changed',
             $sessions->currentHash($request),
             $token === null ? null : (string) $token->getKey(),
             broadcast: false,
-        );
+            keepDeviceId: $deviceId,
+        ));
 
         // A desktop client keeps its sign-in with a fresh token pair; every older refresh token is void.
-        if ($token !== null) {
-            $device = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->first();
-            $issued = $device instanceof UserDevice ? $tokens->reissue($user, $device) : null;
+        $issued = $deviceId === null ? null : $tokens->reissue($user, $deviceId);
 
-            if ($issued !== null) {
-                return ApiResponse::success($issued);
-            }
+        if ($issued !== null) {
+            return ApiResponse::success($issued);
         }
 
         return ApiResponse::noContent();

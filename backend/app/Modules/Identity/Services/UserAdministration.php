@@ -115,14 +115,11 @@ final class UserAdministration
     {
         $this->guardSelf($actor, $target);
 
-        $target->forceFill([
+        $target->bumpAuthVersionLocked([
             'password' => $password,
             'must_change_password' => true,
             'password_changed_at' => Carbon::now(),
-        ])->save();
-        $target->bumpAuthVersion();
-
-        $this->revoker->revokeAll($target, 'password_reset');
+        ], fn () => $this->revoker->revokeAll($target, 'password_reset'));
     }
 
     public function delete(User $actor, User $target): void

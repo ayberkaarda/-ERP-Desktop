@@ -59,20 +59,23 @@ async fn a_list_comes_from_the_mirror_in_the_server_envelope() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn search_folds_turkish_text_under_both_parameter_names() {
+async fn search_folds_turkish_text_and_only_q_searches() {
     let (a, row_a) = party("İSTANBUL Şişli");
     let (_, row_b) = party("Bursa");
     let fx = fixture(vec![("parties", vec![row_a, row_b])]).await;
     fx.go_offline();
 
-    for name in ["search", "q"] {
-        let answer = fx.call(get(PARTIES, json!([[name, "istan sis"]]))).await;
-        assert_eq!(ids(&answer), [a], "{name}");
-    }
+    let answer = fx.call(get(PARTIES, json!([["q", "ISTANBUL sis"]]))).await;
+    assert_eq!(ids(&answer), [a]);
+    // The server does not read `search`: no filter here either.
+    let ignored = fx
+        .call(get(PARTIES, json!([["search", "ISTANBUL sis"]])))
+        .await;
+    assert_eq!(ids(&ignored).len(), 2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_window_field_filters_and_sorts_documents() {
+async fn documents_sort_and_filter_on_the_document_date() {
     let (old, row_old) = quote("2026-10-01", "draft");
     let (mid, row_mid) = quote("2026-10-10", "draft");
     let (new, row_new) = quote("2026-10-20", "sent");
@@ -89,19 +92,14 @@ async fn the_window_field_filters_and_sorts_documents() {
         ids(&list(json!([["sort", "-document_date"]])).await),
         [new, mid, old]
     );
-    assert_eq!(
-        ids(&list(json!([["filter[document_date]", "2026-10-10"]])).await),
-        [mid]
-    );
-    assert_eq!(
-        ids(&list(json!([["filter[document_date]", "2026-10-10,2026-10-20"]])).await),
-        [new, mid]
-    );
     let range = json!([
         ["filter[date_from]", "2026-10-02"],
         ["filter[date_to]", "2026-10-10"]
     ]);
     assert_eq!(ids(&list(range).await), [mid]);
+    // Not a filter of the server's list (422 online): not guessed here.
+    let exact = list(json!([["filter[document_date]", "2026-10-10"]])).await;
+    assert_eq!(exact.status, 503);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -114,8 +112,9 @@ async fn other_filters_are_refused_offline_and_named() {
         .call(get(
             QUOTES,
             json!([
+                ["filter[colour]", "red"],
                 ["filter[status]", "draft"],
-                ["sort", "total"],
+                ["sort", "colour"],
                 ["open", "1"]
             ]),
         ))
@@ -126,7 +125,7 @@ async fn other_filters_are_refused_offline_and_named() {
     assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
     assert_eq!(
         offline_of(&answer)["unsupported_filters"],
-        json!(["filter[status]", "sort", "open"])
+        json!(["filter[colour]", "sort", "open"])
     );
 }
 
@@ -141,7 +140,7 @@ async fn online_an_unsupported_filter_goes_to_the_server() {
         .await;
 
     let answer = fx
-        .call(get(PARTIES, json!([["filter[role]", "customer"]])))
+        .call(get(PARTIES, json!([["filter[legal_name]", "Acme"]])))
         .await;
 
     assert_eq!(answer.source, ResponseSource::Network);
@@ -253,13 +252,14 @@ async fn drafts_are_laid_over_reads() {
         .parse()
         .unwrap();
 
+    // Server order without a sort: by id, the draft's too.
     let list = fx.call(get(PARTIES, json!([]))).await;
-    assert_eq!(ids(&list), [id, a]);
+    assert_eq!(ids(&list), [a, id]);
     assert_eq!(offline_of(&list)["pending"], true);
     let item = fx.call(get(&format!("{PARTIES}/{id}"), json!([]))).await;
     assert_eq!(item.json().unwrap()["data"]["name"], "Yeni Cari");
     assert_eq!(offline_of(&item)["pending"], true);
-    let found = fx.call(get(PARTIES, json!([["search", "yeni"]]))).await;
+    let found = fx.call(get(PARTIES, json!([["q", "yeni"]]))).await;
     assert_eq!(ids(&found), [id]);
 }
 
@@ -277,7 +277,7 @@ async fn a_finished_copy_without_rows_is_an_empty_list() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_copy_never_downloaded_is_unavailable_until_a_draft_shows_rows() {
-    let fx = fixture_with(vec![], NO_PULL, 2).await;
+    let fx = fixture_with(vec![], NO_PULL, compiled_version()).await;
     fx.go_offline();
     let answer = fx.call(get(PARTIES, json!([]))).await;
     assert_eq!(answer.status, 503);
@@ -296,7 +296,12 @@ async fn a_copy_never_downloaded_is_unavailable_until_a_draft_shows_rows() {
 #[tokio::test(flavor = "multi_thread")]
 async fn online_an_unfinished_copy_lets_the_server_answer_first() {
     let (_, row_a) = party("Acme");
-    let fx = fixture_with(vec![("parties", vec![row_a])], &["parties"], 2).await;
+    let fx = fixture_with(
+        vec![("parties", vec![row_a])],
+        &["parties"],
+        compiled_version(),
+    )
+    .await;
     Mock::given(method("GET"))
         .and(path(PARTIES))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": [] })))
@@ -342,7 +347,12 @@ async fn answers_say_how_fresh_they_are() {
 #[tokio::test(flavor = "multi_thread")]
 async fn an_unfinished_download_is_labelled_partial() {
     let (_, row_a) = party("Acme");
-    let fx = fixture_with(vec![("parties", vec![row_a])], &["parties"], 2).await;
+    let fx = fixture_with(
+        vec![("parties", vec![row_a])],
+        &["parties"],
+        compiled_version(),
+    )
+    .await;
     fx.go_offline();
 
     let answer = fx.call(get(PARTIES, json!([]))).await;

@@ -146,10 +146,23 @@ describe('type binding of the valid fixtures', () => {
     expect(entries.length).toBe(jsonFiles(fixturesDir).length)
   })
 
-  it.each(jsonFiles(fixturesDir))('%s ends in `satisfies` with its schema type and is never cast', (name) => {
+  const typed = jsonFiles(fixturesDir).filter((name) => !name.startsWith('offline-manifest.'))
+
+  it.each(typed)('%s ends in `satisfies` with its schema type and is never cast', (name) => {
     const body = entries.find(([entry]) => entry === name)?.[1] ?? ''
     expect(body.endsWith(` satisfies ${ROOT_TYPES[schemaFor(name)] ?? '?'},`)).toBe(true)
     expect(body).not.toMatch(/\bas\s+(unknown|any|const|[A-Z]\w*)\b/)
     expect(text).toContain(`import type { ${ROOT_TYPES[schemaFor(name)] ?? '?'} } from`)
   })
+
+  // The offline manifest schema has no generated type: its fixtures are
+  // plain data, never cast (the Rust tests check them against the schema).
+  it.each(jsonFiles(fixturesDir).filter((name) => name.startsWith('offline-manifest.')))(
+    '%s is plain data',
+    (name) => {
+      const body = entries.find(([entry]) => entry === name)?.[1] ?? ''
+      expect(body.endsWith('},')).toBe(true)
+      expect(body).not.toMatch(/\bsatisfies\b|\bas\s+(unknown|any|const|[A-Z]\w*)\b/)
+    },
+  )
 })

@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 
 /**
  * Desktop device tokens: a short-lived Sanctum access token (ability `desktop`) plus a rotating
@@ -30,14 +31,33 @@ final class DeviceTokens
     public function __construct(private readonly RateLimiter $limiter) {}
 
     /**
+     * Mints for the user as it is under the lock, not as the caller read it: a password or 2FA
+     * change, reset, deactivation or deletion that committed after the credentials were checked
+     * fails the login instead of yielding a token for a credential that is already void.
+     *
+     * `$checkedVersion` is the auth_version read together with the password hash that was
+     * verified; later steps (2FA) must not move it. It defaults to `$checked->auth_version`.
+     *
      * @return array{token: string, expires_at: string, refresh_token: string, refresh_expires_at: string}
+     *
+     * @throws ApiException
      */
-    public function issue(User $user, Request $request, string $name, string $fingerprint): array
+    public function issue(User $checked, Request $request, string $name, string $fingerprint, ?int $checkedVersion = null): array
     {
         $hash = hash('sha256', $fingerprint);
+        $checkedVersion ??= $checked->auth_version;
 
-        return DB::transaction(function () use ($user, $request, $name, $hash): array {
-            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+        return DB::transaction(function () use ($checked, $checkedVersion, $request, $name, $hash): array {
+            $user = User::query()->whereKey($checked->id)->lockForUpdate()->first();
+
+            if (! $user instanceof User || $user->auth_version !== $checkedVersion) {
+                throw new ApiException(ErrorCode::Unauthenticated);
+            }
+
+            if (! $user->is_active) {
+                throw new ApiException(ErrorCode::UserDeactivated);
+            }
+
             $device = UserDevice::query()->where('user_id', $user->id)->where('fingerprint_hash', $hash)->lockForUpdate()->first();
 
             if ($device instanceof UserDevice) {
@@ -109,8 +129,47 @@ final class DeviceTokens
      */
     public function revoke(User $user, UserDevice $device): void
     {
-        DB::transaction(function () use ($user, $device): void {
-            $locked = UserDevice::query()->whereKey($device->id)->lockForUpdate()->first();
+        $this->revokeById($user, $device->id);
+    }
+
+    /**
+     * Signs out the device an access token was minted for. The device is found by the id the token
+     * carries, not by its mutable token_id: a refresh that rotated the device after this token
+     * authenticated the request has already deleted the token row, and the device's new pair must
+     * end as well. A token that belongs to no device is deleted on its own.
+     */
+    public function signOut(User $user, PersonalAccessToken $token): void
+    {
+        $deviceId = $this->deviceIdOf($user, $token);
+
+        if ($deviceId !== null) {
+            $this->revokeById($user, $deviceId);
+        }
+
+        $token->delete();
+    }
+
+    /**
+     * The device a token was minted for: the stable id it carries, or for tokens minted before
+     * device ids were stored on them, the device that currently points at the token.
+     */
+    public function deviceIdOf(User $user, PersonalAccessToken $token): ?string
+    {
+        $deviceId = $token->getAttribute('device_id');
+
+        if (is_string($deviceId) && $deviceId !== '') {
+            return $deviceId;
+        }
+
+        $legacy = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->value('id');
+
+        return is_string($legacy) ? $legacy : null;
+    }
+
+    private function revokeById(User $user, string $deviceId): void
+    {
+        DB::transaction(function () use ($user, $deviceId): void {
+            $locked = UserDevice::query()->whereKey($deviceId)->where('user_id', $user->id)->lockForUpdate()->first();
 
             if ($locked instanceof UserDevice) {
                 $this->purge($user, $locked);
@@ -124,10 +183,10 @@ final class DeviceTokens
      *
      * @return array{token: string, expires_at: string, refresh_token: string, refresh_expires_at: string}|null
      */
-    public function reissue(User $user, UserDevice $device): ?array
+    public function reissue(User $user, string $deviceId): ?array
     {
-        return DB::transaction(function () use ($user, $device): ?array {
-            $locked = UserDevice::query()->whereKey($device->id)->lockForUpdate()->first();
+        return DB::transaction(function () use ($user, $deviceId): ?array {
+            $locked = UserDevice::query()->whereKey($deviceId)->where('user_id', $user->id)->lockForUpdate()->first();
 
             if (! $locked instanceof UserDevice) {
                 return null;
@@ -213,7 +272,14 @@ final class DeviceTokens
     private function mintAccess(User $user, UserDevice $device, string $familyId): array
     {
         $accessExpiresAt = $this->accessExpiry();
+
+        // The token carries its device's id, which survives rotations; a new device row goes first.
+        if (! $device->exists) {
+            $device->forceFill(['expires_at' => $accessExpiresAt])->save();
+        }
+
         $token = $user->createToken($device->name, [self::ABILITY], $accessExpiresAt);
+        $token->accessToken->forceFill(['device_id' => $device->id])->save();
         $device->forceFill([
             'token_id' => (string) $token->accessToken->getKey(),
             'last_used_at' => Carbon::now(),

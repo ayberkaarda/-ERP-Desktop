@@ -9,7 +9,9 @@
 //! small pool of `query_only` readers. WAL lets readers run while the writer
 //! holds a transaction; they see the last committed state.
 
+mod collate;
 mod fold;
+pub(crate) mod listing;
 pub mod migrations;
 mod mirror;
 mod query;
@@ -29,7 +31,11 @@ use rusqlite::{Connection, ErrorCode as SqliteCode, OpenFlags, Transaction, Tran
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 use crate::error::{Result, SyncError};
+pub use collate::{collation_key, datetime_key, decimal_key, is_date, plain};
 pub use fold::{fold, match_expression};
+pub use listing::{
+    Condition, OrderKey, Test, TextSearch, bool_value, compare_keys, row_matches, sort_key,
+};
 pub use migrations::{Migration, RANGES};
 pub(crate) use mirror::MirrorStore;
 pub use mirror::{AppliedPage, PageApply, PullBase, ResourceState, Snapshot};
@@ -39,8 +45,9 @@ pub use query::{
 };
 pub use retention::{PruneReport, RetentionPolicy};
 pub use spec::{
-    DEFAULT_SEARCH_FIELDS, DraftOnly, OfflineManifest, ResourceSpec, Window, WriteOp, WritePolicy,
-    offline_manifest, specs_from_offline_manifest,
+    DEFAULT_SEARCH_FIELDS, DraftOnly, FilterField, FilterMatch, OfflineManifest, OnlineOnly,
+    QUERY_MANIFEST_VERSION, QuerySpec, ResourceSpec, SearchSpec, SortField, SortType, ValueType,
+    Window, WriteOp, WritePolicy, offline_manifest, specs_from_offline_manifest,
 };
 
 /// Store base tables.
@@ -186,6 +193,7 @@ impl Store {
         sqlcipher_ready()?;
         let mut conn = Connection::open(&path)?;
         unlock(&conn, key)?;
+        listing::install(&conn)?;
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA foreign_keys = ON;
@@ -207,6 +215,7 @@ impl Store {
                     | OpenFlags::SQLITE_OPEN_NO_MUTEX,
             )?;
             unlock(&reader, key)?;
+            listing::install(&reader)?;
             reader.execute_batch(
                 "PRAGMA query_only = ON;
                  PRAGMA foreign_keys = ON;

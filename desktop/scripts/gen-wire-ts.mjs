@@ -112,10 +112,16 @@ function fixturesModule() {
   const lines = []
   for (const name of valid) {
     const schema = schemaFor(name)
+    const data = JSON.stringify(readJson(join(fixturesDir, name)), null, 2).replace(/\n/g, '\n  ')
+    // The offline manifest schema has no generated type (the Rust tests check
+    // these fixtures against it): kept as plain data.
+    if (schema === '../offline-manifest.schema.json') {
+      lines.push(`  '${name}': ${data},`)
+      continue
+    }
     if (!(schema in ROOT_TYPES)) throw new Error(`fixture ${name} has no generated type (${schema})`)
     const type = rootType(schema)
     imports.set(type, `./${moduleName(schema)}`)
-    const data = JSON.stringify(readJson(join(fixturesDir, name)), null, 2).replace(/\n/g, '\n  ')
     lines.push(`  '${name}': ${data} satisfies ${type},`)
   }
   const invalidLines = invalid.map((name) => {

@@ -366,6 +366,47 @@ Numara verme sunucudadır. Çevrimdışı oluşturulan taslak numarasızdır; nu
 
 `write` tanımlı her kaynak `local-first` olmak zorundadır (şema bunu denetler).
 
+## Çevrimdışı liste sorguları
+
+Masaüstü bir liste isteğini (`GET <path>?page&per_page&sort&filter[...]&q`) yerel kopyadan yanıtlarken yalnız kaynağın `query` bölümünde bildirilen adları uygular (`offline-manifest.json`, `manifest_version` 3). Bölüm isteğe bağlıdır ve `pull` kaynaklarında ve alt akışlarda (`children`) bulunur; `snapshot` kaynaklarında yoktur (şema reddeder). Bölüm sunucunun pull/push davranışını değiştirmez; yine de manifest içeriği değiştiği için sürüm 3'e çıktı. Sürüm 2 manifesti derlenmiş bir masaüstü, sunucu 3'ü bildirdiğinde `manifest_mismatch` ile çevrimdışı yazmayı kapatır; masaüstü sözleşme dosyalarını aldığında kalkar. Eski manifestte `query` olmaması geçerlidir.
+
+| Alan | Anlamı |
+|---|---|
+| `sort.<ad>` | `sort=<ad>` / `sort=-<ad>` yerelde uygulanır. `field` satırdaki alan (yoksa ad), `type` karşılaştırma kuralı: `text`, `date`, `datetime`, `decimal`, `integer`, `bool`. Virgüllü çok anahtarlı sıralamanın her parçası bildirilmiş olmalıdır. |
+| `default_sort` | `sort` parametresi hiç yokken sunucunun sırası (belgelerde `-document_date,-created_at`). Bildirilmemişse bu durumda yalnız `id` artan. Boş `sort=` ayrı bir durumdur: sunucu 422 verir, masaüstü de reddeder. |
+| `filters.<ad>` | `filter[<ad>]` yerelde uygulanır. `match`: `eq` (tek değer veya virgüllü liste = herhangi biri), `any_of` (satırdaki dizi, değerlerden birini içerir; `element_field` ile nesne dizisinin bir alanı, ör. `lines[].item_id`), `gte` / `lte` (dahil uç; `filter[date_from]` / `filter[date_to]`), `contains` (harf duyarsız alt dize; `filter[number]`). `type`: `string`, `uuid`, `bool`, `integer`, `date`. `max_values`: sunucunun kabul ettiği en çok değer. |
+| `search.fields` | `q` bu alanlarda harf duyarsız alt dize olarak aranır. `server_also`, sunucunun ayrıca aradığı ama satırda olmayan şeydir (ör. ürünlerde barkod ve varyant SKU'su); yerel arama onları bulamaz. |
+| `online_only[]` | Web'in gönderdiği ama yerelde doğru uygulanamayan parametre (`filter[x]` veya `sort=x`) ve nedeni. |
+
+Kurallar:
+
+- Bildirilmeyen her `sort` alanı ve `filter[...]` (ve `online_only` içindekiler) çevrimdışıyken eskisi gibi reddedilir: `503 OFFLINE_UNAVAILABLE`, `unsupported_filters` istekteki adları sırasıyla listeler. Masaüstü tahmin etmez; filtrelenmiş gibi görünen yanlış bir liste göstermemek (D2b kararı) korunur. `query` bölümü yoksa önceki davranış geçerlidir: yalnız `window_field` üzerinde `sort`, `filter[<window_field>]`, `filter[date_from]` / `filter[date_to]`.
+- `page`, `per_page` (1..100), `q` her kaynakta geçerlidir; boş filtre değeri filtre değildir (sunucudaki gibi).
+- Sunucu arama için yalnız `q` okur. `search` adlı parametreyi tanımaz ve yok sayar (filtresiz liste döner). Masaüstü `search`'ü `q` gibi uygulamaz: sunucu gibi yok sayar ya da reddeder, filtrelenmiş bir yanıt vermez.
+- Boş `sort=` (parametre var, değer boş) sunucuda 422'dir: `ConvertEmptyStringsToNull` değeri `null` yapar, `ListQuery`'nin `string` kuralı reddeder. Masaüstü de reddeder. `default_sort` yalnız `sort` hiç yokken uygulanır.
+- Bildirilen her ad sunucunun o uçta kabul ettiği addır; aynı istek çevrimiçi 200 döner. Yerel uygulama, sunucunun aynı satırlara verdiği yanıtla aynı satırları verir. Sıra `decimal`, `date`, `datetime`, `integer`, `bool` ve `null` yerleşiminde sunucuyla birebir aynıdır, `text`te yaklaşıktır (aşağıda). `OfflineManifestQueryTest` ve `OfflineManifestQueryParityTest` bunu gerçek uçlara ve satırlara karşı denetler.
+- Web'in gerçekte gönderdiği liste istekleri `backend/tests/Fixtures/Sync/web-list-queries.json` içinde kaynak dosyalarıyla durur. Her biri ya tümüyle bildirilmiştir (`local`), ya bir `online_only` parametresi taşır, ya da sunucu onu zaten reddeder (`server_rejects`). Web'e yeni bir liste sorgusu eklenince bu dosya ve manifest birlikte güncellenir. `OfflineManifestWebQueriesTest` web kaynağını tarar; şunlar manifestte ve bu dosyada bulunmalıdır:
+  - DataTable sayfalarının sıralanabilir kolonları ve kolon filtreleri (`meta.filter`; anahtar `key` ya da kolon kimliği),
+  - satış, satın alma ve kit liste yardımcılarının `LIST_FILTERS`, `LIST_SORTS`, `COMMON_FILTERS` listeleri ve kit sayfalarının ek filtreleri,
+  - stok belgesi `FILTERS` listesi,
+  - eşlenen bir listeyi okuyan dosyalardaki literal `filter[...]` adları.
+
+  DataTable içeren her sayfa ya eşlenen ya da çevrimiçi bir liste olarak adlandırılmıştır. Taranmayanlar: elle yazılmış URL'lerden ve kayıtlı görünümlerden gelen keyfî `sort`/`filter[...]` (çevrimdışıyken reddedilir), şablonla üretilen parametre adları (`filter[${k}]`) ve bu kalıplara uymayan çağrılar.
+
+Yerel uygulama kuralları:
+
+- **Sıralama:** `null` artan sırada en sonda, azalan sırada en baştadır. Eşitlikte, ve her zaman son anahtar olarak, `id` artan (sunucu `ListQuery` aynısını ekler); sayfalar böylece kararlıdır. `decimal` değerler satırda dizedir (`"9.50"`); sayı olarak karşılaştırılır, dize olarak değil. `date` (`YYYY-MM-DD`) dize olarak karşılaştırılabilir; `datetime` ISO 8601 anına çevrilerek karşılaştırılır. Bu türler (`decimal`, `date`, `datetime`, `integer`, `bool`) sunucuyla birebir aynı sırayı verir.
+- **Metin sırası (`text`) yaklaşıktır**, birebir değildir. Sunucu PostgreSQL `en_US.utf8` (glibc) harmanlamasıyla sıralar; bu harmanlama noktalamayı ve boşluğu birincil düzeyde yok sayar. Masaüstü kuralı:
+  1. dizeyi NFKD ile ayrıştır, birleştirici işaretleri at;
+  2. harf büyüklüğünü katla (casefold);
+  3. birincil anahtarda harf ve rakam dışındaki karakterleri (noktalama, boşluk) yok say;
+  4. noktasız `ı` ayrı bir harftir, `i`'den hemen sonra gelir;
+  5. birincil anahtar eşitse küçük harf önce (`ab` < `AB`), sonra ham dize, sonra `id`.
+
+  Bu kural Türkçe harf, büyük/küçük harf ve noktalama içeren 308 sıralama isteğinde PostgreSQL ile aynı sırayı verdi. Yine de glibc ile her girdide aynı olması garanti değildir. Sayfalar yerel sırada tutarlıdır.
+- **Filtre:** `string` tam ve harf duyarlıdır. `uuid` küçük harfe çevrilerek karşılaştırılır; uuid biçiminde olmayan değer yerelde reddedilir. `bool` yalnız `1`/`0`/`true`/`false` alır; başka değer yerelde reddedilir. `date` aralığı `YYYY-MM-DD` dizesi olarak dahil uçlarla karşılaştırılır; geçersiz tarih (ör. `#invalid-date`) yerelde reddedilir (sunucu 422 döner). `max_values` aşılırsa reddedilir.
+- **Arama:** sunucu `ILIKE '%q%'` kullanır; yerelde aynı alanlarda harf duyarsız alt dize (`%` ve `_` düz karakterdir). Türkçe büyük/küçük harf eşlemesi (`İ`/`i`, `I`/`ı`) yerelde daha geniş olabilir; bu fazladan eşleşme verir, eksik vermez.
+
 ## Çevrimdışı yazma kapsamı
 
 | Kaynak | İşlemler (`version_check`) | Kısıt |
@@ -423,6 +464,8 @@ Son dört kodun `status()` eşlemesi 422'dir, ancak bugün yalnızca push sonucu
 - **Yenileme.** `POST /auth/device/refresh` gövdesi `{refresh_token}`; `Authorization` başlığı gerekmez. Sunucu token'ı `used_at` ile işaretler, aynı `family_id` içinde yeni refresh token ve yeni erişim token'ı verir, eski erişim token'ını siler. Yanıt ilk girişle aynı şekildedir.
 - **Yeniden kullanım.** `used_at` dolu bir refresh token gelirse sunucu ailenin tamamını, cihazın erişim token'larını ve cihaz kaydını iptal eder ve 401 `UNAUTHENTICATED` döner. İstemci yerel oturumu kapatır; outbox korunur ve aynı kimlikle (`kullanıcı:şirket`) yeniden girişten sonra gönderilir (farklı kimlikte silinir).
 - **Diğer hatalar.** Bilinmeyen, süresi dolmuş veya iptal edilmiş cihaza ait refresh token: 401 `UNAUTHENTICATED`. Pasif kullanıcı: 403 `USER_DEACTIVATED`. Hız sınırı: 429 `TOO_MANY_ATTEMPTS`. Biçimsiz gövde: 422 `VALIDATION_ERROR`.
+- **Giriş sırasında kimlik değişimi.** `POST /auth/device` token'ı kullanıcı satırı kilidi altında üretir. Parola doğrulandıktan sonra parola değişimi, yönetici sıfırlaması veya 2FA açma/kapama (`auth_version` artışı) ya da hesap silme commit olduysa 401 `UNAUTHENTICATED` döner; arada pasifleştirilen hesap 403 `USER_DEACTIVATED` alır. İstemci yeni kimlik bilgileriyle yeniden girer.
+- **Çıkış.** Her erişim token'ı cihazının kimliğini taşır (`personal_access_tokens.device_id`); `POST /auth/logout` cihazı bu kimlikle iptal eder. Aynı anda bir yenileme token çiftini döndürmüş olsa bile yeni çift de iptal edilir.
 - **Eşzamanlılık.** Eşzamanlı yenileme desteklenmez; ikinci istek yeniden kullanım sayılır. İstemci yenilemeyi tek uçuşla sıralar ve erişim token'ı `expires_at`'ten önce (ör. 5 dakika kala) yeniler.
 - **İptal.** `DELETE /me/devices/{id}`, kullanıcı pasifleştirme, parola değişimi ve yönetici sıfırlaması (`AccessRevoker`) aileyi de iptal eder.
 - **İstemci kimlik kuralları.** Aşağıdaki kurallar yalnız hatayı alan isteğin nesli (oturum üretimi) hâlâ güncelse uygulanır; eski nesilden gelen 401/403 hiçbir şey silmez.

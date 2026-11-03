@@ -7,8 +7,12 @@ use serde_json::Value;
 
 use super::Store;
 use super::fold::match_expression;
+use super::listing::{Condition, OrderKey, Test, TextSearch, kind_name};
 use super::mirror::{Registered, decode_row, lookup, read_snapshot};
-use super::spec::{column_name, invalid, json_path, validate_field};
+use super::spec::{column_name, invalid, json_path, quoted_path, validate_field};
+
+/// A typed condition on the JSON value of a row field (path bound).
+const TEST_SQL: &str = "ks_test(?, data -> ?)";
 use crate::error::Result;
 use crate::wire::{ReadMode, ResourceName, ResourceRow, Source};
 
@@ -76,15 +80,23 @@ impl SortKey {
     }
 }
 
-/// All filters must hold. Without `sort`, documents come newest window
-/// value first, other resources in insertion order. Ties break on insertion
-/// order, so paging is stable.
+/// All filters and conditions must hold. With `order`, rows come in that
+/// typed order and then by `id`. Without it: by `sort`; without `sort`,
+/// documents come newest window value first, other resources in insertion
+/// order; ties break on insertion order. Either way paging is stable.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ListQuery {
     pub filters: Vec<Filter>,
     pub sort: Vec<SortKey>,
     /// Free text, matched with Turkish folding as word prefixes.
     pub search: Option<String>,
+    /// Typed filters of a manifest `query` section.
+    pub conditions: Vec<Condition>,
+    /// Typed order of a manifest `query` section (`Some(vec![])`: `id`
+    /// ascending only). Replaces `sort`.
+    pub order: Option<Vec<OrderKey>>,
+    /// Substring search of a manifest `query` section.
+    pub text: Option<TextSearch>,
     /// `None`: [`LIST_LIMIT_DEFAULT`]; capped at [`LIST_LIMIT_MAX`].
     pub limit: Option<u32>,
     pub offset: u64,
@@ -265,17 +277,56 @@ fn list_in(conn: &Connection, reg: &Registered, query: &ListQuery) -> Result<Lis
         args.push(SqlValue::Text(expr));
     }
 
+    for condition in &query.conditions {
+        clauses.push(TEST_SQL.to_owned());
+        args.push(SqlValue::Text(serde_json::to_string(&condition.test)?));
+        args.push(SqlValue::Text(quoted_path(&condition.field)?));
+    }
+    if let Some(search) = &query.text {
+        let test = serde_json::to_string(&Test::Contains {
+            text: search.text.clone(),
+        })?;
+        let mut any = Vec::new();
+        for field in &search.fields {
+            any.push(TEST_SQL);
+            args.push(SqlValue::Text(test.clone()));
+            args.push(SqlValue::Text(quoted_path(field)?));
+        }
+        clauses.push(if any.is_empty() {
+            "0".to_owned()
+        } else {
+            format!("({})", any.join(" OR "))
+        });
+    }
+
     let mut order: Vec<String> = Vec::new();
-    for key in &query.sort {
-        let dir = if key.descending { "DESC" } else { "ASC" };
-        order.push(format!("{} {dir}", field_expr(reg, &key.field)?));
+    let mut order_args: Vec<SqlValue> = Vec::new();
+    match &query.order {
+        Some(keys) => {
+            for key in keys {
+                order.push(if key.descending {
+                    "ks_key(?, data -> ?) DESC NULLS FIRST".to_owned()
+                } else {
+                    "ks_key(?, data -> ?) ASC NULLS LAST".to_owned()
+                });
+                order_args.push(SqlValue::Text(kind_name(key.kind).to_owned()));
+                order_args.push(SqlValue::Text(quoted_path(&key.field)?));
+            }
+            order.push("id ASC".to_owned());
+        }
+        None => {
+            for key in &query.sort {
+                let dir = if key.descending { "DESC" } else { "ASC" };
+                order.push(format!("{} {dir}", field_expr(reg, &key.field)?));
+            }
+            if query.sort.is_empty()
+                && let Some(window) = &reg.spec.window
+            {
+                order.push(format!("\"{}\" DESC", column_name(&window.field)));
+            }
+            order.push("k ASC".to_owned());
+        }
     }
-    if query.sort.is_empty()
-        && let Some(window) = &reg.spec.window
-    {
-        order.push(format!("\"{}\" DESC", column_name(&window.field)));
-    }
-    order.push("k ASC".to_owned());
 
     let filter_sql = if clauses.is_empty() {
         String::new()
@@ -294,6 +345,7 @@ fn list_in(conn: &Connection, reg: &Registered, query: &ListQuery) -> Result<Lis
         .min(LIST_LIMIT_MAX);
     let offset = i64::try_from(query.offset).map_err(|_| invalid("offset out of range"))?;
     let mut page_args = args;
+    page_args.extend(order_args);
     page_args.push(SqlValue::Integer(i64::from(limit)));
     page_args.push(SqlValue::Integer(offset));
     let mut stmt = conn.prepare(&format!(

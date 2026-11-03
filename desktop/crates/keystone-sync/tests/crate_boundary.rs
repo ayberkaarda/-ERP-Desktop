@@ -110,7 +110,7 @@ fn db_key_bytes_are_zero_after_drop() {
 #[test]
 fn offline_manifest_reads_version_and_write_policies() {
     let manifest = shipped();
-    assert_eq!(manifest.manifest_version, 2);
+    assert_eq!(manifest.manifest_version, 3);
     let spec = |name: &str| {
         manifest
             .specs
@@ -184,7 +184,7 @@ fn code(result: keystone_sync::Result<impl std::fmt::Debug>) -> &'static str {
 #[tokio::test]
 async fn write_policy_is_applied_locally_on_enqueue() {
     let env = shipped_env().await;
-    synced(&env, 2).await;
+    synced(&env, 3).await;
     let e = &env.engine;
 
     let requests = name("purchase-requests");
@@ -263,10 +263,10 @@ async fn write_policy_is_applied_locally_on_enqueue() {
 #[tokio::test]
 async fn manifest_version_mismatch_closes_offline_writes() {
     let env = shipped_env().await;
-    assert_eq!(env.engine.offline_manifest_version(), Some(2));
+    assert_eq!(env.engine.offline_manifest_version(), Some(3));
     assert!(!env.engine.status().manifest_mismatch);
 
-    synced(&env, 3).await;
+    synced(&env, 4).await;
     assert!(env.engine.status().manifest_mismatch);
     let id = Uuid::now_v7();
     put_row(
@@ -285,7 +285,7 @@ async fn manifest_version_mismatch_closes_offline_writes() {
     // Reads keep working.
     assert!(env.engine.get(&name("sales-quotes"), id).unwrap().is_some());
 
-    synced(&env, 2).await;
+    synced(&env, 3).await;
     assert!(!env.engine.status().manifest_mismatch);
     env.engine
         .enqueue(draft(
@@ -392,7 +392,7 @@ fn target_constraints_are_checked_before_draft_only() {
 #[tokio::test]
 async fn stored_manifest_mismatch_is_published_at_construction() {
     let env = shipped_env().await;
-    synced(&env, 3).await;
+    synced(&env, 4).await;
     assert!(env.engine.status().manifest_mismatch);
     env.server.reset().await;
 

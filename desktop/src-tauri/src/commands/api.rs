@@ -54,7 +54,7 @@ use keystone_sync::client::{
     REQUEST_HEADERS,
 };
 use keystone_sync::engine::{SyncState, Trigger};
-use keystone_sync::store::{LocalCopy, Store};
+use keystone_sync::store::{LocalCopy, OnlineOnly, Store};
 use keystone_sync::wire::{ResourceName, Source, Timestamp};
 use serde_json::{Map, Value};
 
@@ -63,7 +63,7 @@ use crate::dto::api::{ApiBody, ApiRequestDto, ApiResponseDto, ResponseSource};
 use crate::router::envelope::{self, OfflineMeta};
 use crate::router::{
     ApiCall, Connectivity, Decision, Facts, LocalOutcome, LocalPlan, LocalResolver, OfflineWrites,
-    PROBE_WAIT, Refusal, Router, Target, TargetKind, local_read, local_resolver,
+    PROBE_WAIT, Refusal, Router, Target, TargetKind, local_read, local_resolver, query_map,
 };
 use crate::state::{AppState, Engine};
 
@@ -335,7 +335,23 @@ async fn respond_once(
             }
             LocalOutcome::Unsupported {
                 unsupported_filters,
-            } => Ok(answered(refuse(Refusal::Offline, unsupported_filters))),
+            } => {
+                let spec = target
+                    .as_ref()
+                    .and_then(|t| query_map::spec_of(&t.resource));
+                let online_only = spec
+                    .map(|spec| query_map::online_only(spec, &call.query))
+                    .unwrap_or_default();
+                let invalid = spec
+                    .map(|spec| query_map::invalid_values(spec, &call.query))
+                    .unwrap_or_default();
+                Ok(answered(refuse_with(
+                    Refusal::Offline,
+                    unsupported_filters,
+                    online_only,
+                    &invalid,
+                )))
+            }
         },
         Decision::Online { deadline, fallback } => match run.online(call, deadline, keep).await {
             Ok(answer) => Ok(answered(answer)),
@@ -635,8 +651,28 @@ fn proxy_request(call: &ApiCall) -> ProxyRequest {
 }
 
 fn refuse(refusal: Refusal, unsupported_filters: Vec<String>) -> ApiResponseDto {
+    refuse_with(refusal, unsupported_filters, Vec::new(), &[])
+}
+
+/// [`refuse`] naming the filters it could not apply; those the offline
+/// manifest keeps for the server also come with their reason, and values
+/// the server would refuse are named in `errors.details.invalid_values`.
+fn refuse_with(
+    refusal: Refusal,
+    unsupported_filters: Vec<String>,
+    online_only: Vec<OnlineOnly>,
+    invalid: &[query_map::InvalidValue],
+) -> ApiResponseDto {
     let (code, status) = refusal.code_and_status();
-    let body = envelope::error(code, refusal.message(), None);
+    let mut body = envelope::error(code, refusal.message(), None);
+    if !invalid.is_empty()
+        && let Some(errors) = body.get_mut("errors").and_then(Value::as_object_mut)
+    {
+        let values = serde_json::to_value(invalid).unwrap_or(Value::Null);
+        let mut details = Map::new();
+        details.insert("invalid_values".into(), values);
+        errors.insert("details".into(), Value::Object(details));
+    }
     let body = if unsupported_filters.is_empty() {
         body
     } else {
@@ -644,6 +680,7 @@ fn refuse(refusal: Refusal, unsupported_filters: Vec<String>) -> ApiResponseDto 
             body,
             &OfflineMeta {
                 unsupported_filters,
+                online_only,
                 ..OfflineMeta::default()
             },
         )

@@ -1,0 +1,1427 @@
+{
+  "description": "Rows of two list streams and list requests on them, with the ids and total PostgreSQL 18 (en_US.utf8, the server database) gives for the SQL the server builds for each request (server_sql: WHERE and ORDER BY before the final id). Text columns are text, totals numeric, created_at timestamptz, roles and lines jsonb. A request with server_status instead of ids is one the server refuses with that status (measured over HTTP).",
+  "rows": {
+    "parties": [
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000109",
+        "version": 1,
+        "name": "Çevrimdışı Cari A.Ş.",
+        "legal_name": null,
+        "code": "P000007",
+        "tax_number": "1234567890",
+        "country": "TR",
+        "roles": [
+          "customer"
+        ],
+        "is_active": true
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000102",
+        "version": 1,
+        "name": "Charlie Ortak",
+        "legal_name": "Charlie Ortak Ltd",
+        "code": "P-CHARLIE",
+        "tax_number": null,
+        "country": "TR",
+        "roles": [
+          "customer",
+          "supplier"
+        ],
+        "is_active": true
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000105",
+        "version": 1,
+        "name": "Bravo Tedarik",
+        "legal_name": null,
+        "code": "P-BRAVO",
+        "tax_number": "9999999999",
+        "country": "DE",
+        "roles": [
+          "supplier"
+        ],
+        "is_active": false
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000101",
+        "version": 1,
+        "name": "acme",
+        "legal_name": null,
+        "code": "p-acme",
+        "tax_number": "0000000001",
+        "country": null,
+        "roles": [
+          "customer"
+        ],
+        "is_active": true
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000108",
+        "version": 1,
+        "name": "Acme",
+        "legal_name": "ACME A.Ş.",
+        "code": "P-ACME",
+        "tax_number": "0000000001",
+        "country": "TR",
+        "roles": [],
+        "is_active": true
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000103",
+        "version": 1,
+        "name": "İstanbul Gıda",
+        "legal_name": "İSTANBUL GIDA LTD",
+        "code": "P-IST",
+        "tax_number": null,
+        "country": "TR",
+        "roles": [
+          "customer"
+        ],
+        "is_active": true
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000107",
+        "version": 1,
+        "name": "Işık Ltd",
+        "legal_name": null,
+        "code": "P-ISIK",
+        "tax_number": "5555555555",
+        "country": "TR",
+        "roles": [
+          "supplier"
+        ],
+        "is_active": false
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000104",
+        "version": 1,
+        "name": "Ömer Usta",
+        "legal_name": null,
+        "code": "P-OMER",
+        "tax_number": "4444444444",
+        "country": "AZ",
+        "roles": [
+          "customer"
+        ],
+        "is_active": true
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000106",
+        "version": 1,
+        "name": "Cevrimdisi",
+        "legal_name": null,
+        "code": "P-CEV",
+        "tax_number": "3333333333",
+        "country": "TR",
+        "roles": [
+          "customer"
+        ],
+        "is_active": true
+      }
+    ],
+    "sales-quotes": [
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000206",
+        "version": 1,
+        "document_date": "2027-06-12",
+        "number": "SQ-0002",
+        "created_at": "2027-06-12T10:00:00.000000Z",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000a1",
+        "party_name": "Bravo Tedarik",
+        "total": "96.00",
+        "total_local": "96.00",
+        "status": "draft",
+        "due_date": null,
+        "notes": "ilk teklif",
+        "lines": [
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000a1"
+          }
+        ]
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000203",
+        "version": 1,
+        "document_date": "2027-06-12",
+        "number": "SQ-0003",
+        "created_at": "2027-06-12T12:30:00+03:00",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000b2",
+        "party_name": "acme",
+        "total": "288.00",
+        "total_local": null,
+        "status": "sent",
+        "due_date": "2027-07-01",
+        "notes": null,
+        "lines": [
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000b2"
+          }
+        ]
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000201",
+        "version": 1,
+        "document_date": "2027-06-01",
+        "number": "SQ-0001",
+        "created_at": "2027-06-01T08:00:00.000000Z",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000a1",
+        "party_name": "Çağ Ltd",
+        "total": "1000000000000000000.01",
+        "total_local": "1000000000000000000.00",
+        "status": "draft",
+        "due_date": "2027-06-30",
+        "notes": "Büyük tutar",
+        "lines": [
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000a1"
+          },
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000b2"
+          }
+        ]
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000207",
+        "version": 1,
+        "document_date": "2027-06-05",
+        "number": "sq-0010",
+        "created_at": "2027-06-05T08:00:00.000000Z",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000b2",
+        "party_name": "Cag",
+        "total": "9.5",
+        "total_local": "9.50",
+        "status": "accepted",
+        "due_date": null,
+        "notes": null,
+        "lines": []
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000202",
+        "version": 1,
+        "document_date": "2027-06-05",
+        "number": "SQ-0004",
+        "created_at": "2027-06-05T08:00:00.000000Z",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000c3",
+        "party_name": null,
+        "total": "-5.00",
+        "total_local": "-5.00",
+        "status": "draft",
+        "due_date": null,
+        "notes": "iade",
+        "lines": [
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000c3"
+          }
+        ]
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000205",
+        "version": 1,
+        "document_date": "2027-06-20",
+        "number": "SQ-0005",
+        "created_at": "2027-06-20T23:30:00-02:00",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000c3",
+        "party_name": "Zeytin",
+        "total": "9007199254740993.00",
+        "total_local": "9007199254740993",
+        "status": "sent",
+        "due_date": "2027-06-30",
+        "notes": null,
+        "lines": [
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000c3"
+          }
+        ]
+      },
+      {
+        "id": "0192f5a0-0000-7000-8000-000000000204",
+        "version": 1,
+        "document_date": "2027-06-20",
+        "number": "SQ-0006",
+        "created_at": "2027-06-21T01:00:00Z",
+        "party_id": "0192f5a0-0000-7000-8000-0000000000b2",
+        "party_name": "zeytin",
+        "total": "9007199254740992.99",
+        "total_local": null,
+        "status": "sent",
+        "due_date": "2027-06-30",
+        "notes": "Zeytin bayi",
+        "lines": [
+          {
+            "item_id": "0192f5a0-0000-7000-8000-0000000000b2"
+          }
+        ]
+      }
+    ]
+  },
+  "requests": [
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "code"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY code ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-code"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY code DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000109"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "name"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY name ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-name"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY name DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000101"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "tax_number"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY tax_number ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-tax_number"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY tax_number DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "country"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY country ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000101"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-country"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY country DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000104"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "document_date"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY document_date ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-document_date"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY document_date DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "number"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY number ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000207"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-number"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY number DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "created_at"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY created_at ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-created_at"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "party_name"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY party_name ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000202"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-party_name"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY party_name DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "total"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY total ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-total"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY total DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000202"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "total_local"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY total_local ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000204"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-total_local"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY total_local DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000202"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "status"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY status ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-status"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY status DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000207"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "due_date"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY due_date ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000207"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "per_page",
+          "100"
+        ],
+        [
+          "sort",
+          "-due_date"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY due_date DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "parties",
+      "query": [],
+      "server_sql": "WHERE true ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "page",
+          "1"
+        ],
+        [
+          "per_page",
+          "25"
+        ],
+        [
+          "sort",
+          "name"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY name ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "sort",
+          "-country,name"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY country DESC, name ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000104"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[role]",
+          "customer"
+        ]
+      ],
+      "server_sql": "WHERE roles ? 'customer' ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000109"
+      ],
+      "total": 6
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "sort",
+          "name"
+        ],
+        [
+          "filter[role]",
+          "supplier"
+        ],
+        [
+          "filter[is_active]",
+          "1"
+        ]
+      ],
+      "server_sql": "WHERE roles ? 'supplier' AND is_active = true ORDER BY name ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000102"
+      ],
+      "total": 1
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[is_active]",
+          "0"
+        ]
+      ],
+      "server_sql": "WHERE is_active = false ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000107"
+      ],
+      "total": 2
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[is_active]",
+          "true"
+        ]
+      ],
+      "server_sql": "WHERE is_active = true ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[is_active]",
+          "FALSE"
+        ]
+      ],
+      "server_sql": "WHERE is_active = false ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000107"
+      ],
+      "total": 2
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[country]",
+          "TR,DE"
+        ],
+        [
+          "sort",
+          "code"
+        ]
+      ],
+      "server_sql": "WHERE country IN ('TR','DE') ORDER BY code ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000109",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000103"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[country]",
+          "tr"
+        ]
+      ],
+      "server_sql": "WHERE country = 'tr' ORDER BY id",
+      "ids": [],
+      "total": 0
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "q",
+          "acme"
+        ]
+      ],
+      "server_sql": "WHERE (name ILIKE '%acme%' OR legal_name ILIKE '%acme%' OR code ILIKE '%acme%' OR tax_number ILIKE '%acme%') ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000108"
+      ],
+      "total": 2
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "q",
+          "p-ch"
+        ],
+        [
+          "sort",
+          "name"
+        ]
+      ],
+      "server_sql": "WHERE (name ILIKE '%p-ch%' OR legal_name ILIKE '%p-ch%' OR code ILIKE '%p-ch%' OR tax_number ILIKE '%p-ch%') ORDER BY name ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000102"
+      ],
+      "total": 1
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "q",
+          "999"
+        ]
+      ],
+      "server_sql": "WHERE (name ILIKE '%999%' OR legal_name ILIKE '%999%' OR code ILIKE '%999%' OR tax_number ILIKE '%999%') ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000105"
+      ],
+      "total": 1
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "q",
+          "ltd"
+        ],
+        [
+          "sort",
+          "-name"
+        ]
+      ],
+      "server_sql": "WHERE (name ILIKE '%ltd%' OR legal_name ILIKE '%ltd%' OR code ILIKE '%ltd%' OR tax_number ILIKE '%ltd%') ORDER BY name DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000102"
+      ],
+      "total": 3
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[role]",
+          "nobody"
+        ]
+      ],
+      "server_sql": "WHERE roles ? 'nobody' ORDER BY id",
+      "ids": [],
+      "total": 0
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "search",
+          "acme"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000101",
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000104",
+        "0192f5a0-0000-7000-8000-000000000105",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109"
+      ],
+      "total": 9
+    },
+    {
+      "resource": "parties",
+      "query": [
+        [
+          "filter[country]",
+          " TR "
+        ]
+      ],
+      "server_sql": "WHERE country = 'TR' ORDER BY id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000102",
+        "0192f5a0-0000-7000-8000-000000000103",
+        "0192f5a0-0000-7000-8000-000000000106",
+        "0192f5a0-0000-7000-8000-000000000107",
+        "0192f5a0-0000-7000-8000-000000000108",
+        "0192f5a0-0000-7000-8000-000000000109"
+      ],
+      "total": 6
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [],
+      "server_sql": "WHERE true ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "sort",
+          ""
+        ]
+      ],
+      "server_status": 422
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "sort",
+          "status,-total"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY status ASC, total DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000203"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "page",
+          "2"
+        ],
+        [
+          "per_page",
+          "2"
+        ],
+        [
+          "sort",
+          "-total"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY total DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000203"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "page",
+          "4"
+        ],
+        [
+          "per_page",
+          "2"
+        ],
+        [
+          "sort",
+          "-total"
+        ]
+      ],
+      "server_sql": "WHERE true ORDER BY total DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000202"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[status]",
+          "draft"
+        ]
+      ],
+      "server_sql": "WHERE status = 'draft' ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 3
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[status]",
+          "draft,sent"
+        ],
+        [
+          "sort",
+          "number"
+        ]
+      ],
+      "server_sql": "WHERE status IN ('draft','sent') ORDER BY number ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000201",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204"
+      ],
+      "total": 6
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[party_id]",
+          "0192F5A0-0000-7000-8000-0000000000B2"
+        ]
+      ],
+      "server_sql": "WHERE party_id = '0192f5a0-0000-7000-8000-0000000000b2' ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000207"
+      ],
+      "total": 3
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[date_from]",
+          "2027-06-05"
+        ],
+        [
+          "filter[date_to]",
+          "2027-06-12"
+        ]
+      ],
+      "server_sql": "WHERE document_date >= '2027-06-05' AND document_date <= '2027-06-12' ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207"
+      ],
+      "total": 4
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[number]",
+          "sq-00"
+        ]
+      ],
+      "server_sql": "WHERE number ILIKE '%sq-00%' ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000205",
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000203",
+        "0192f5a0-0000-7000-8000-000000000202",
+        "0192f5a0-0000-7000-8000-000000000207",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 7
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[number]",
+          "0010"
+        ]
+      ],
+      "server_sql": "WHERE number ILIKE '%0010%' ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000207"
+      ],
+      "total": 1
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[item_id]",
+          "0192f5a0-0000-7000-8000-0000000000a1"
+        ]
+      ],
+      "server_sql": "WHERE EXISTS (SELECT 1 FROM jsonb_array_elements(lines) l WHERE (l->>'item_id')::uuid = '0192f5a0-0000-7000-8000-0000000000a1') ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000206",
+        "0192f5a0-0000-7000-8000-000000000201"
+      ],
+      "total": 2
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "q",
+          "zeytin"
+        ],
+        [
+          "sort",
+          "created_at"
+        ]
+      ],
+      "server_sql": "WHERE (number ILIKE '%zeytin%' OR party_name ILIKE '%zeytin%' OR notes ILIKE '%zeytin%') ORDER BY created_at ASC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000204",
+        "0192f5a0-0000-7000-8000-000000000205"
+      ],
+      "total": 2
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "q",
+          "teklif"
+        ]
+      ],
+      "server_sql": "WHERE (number ILIKE '%teklif%' OR party_name ILIKE '%teklif%' OR notes ILIKE '%teklif%') ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [
+        "0192f5a0-0000-7000-8000-000000000206"
+      ],
+      "total": 1
+    },
+    {
+      "resource": "sales-quotes",
+      "query": [
+        [
+          "filter[status]",
+          "none"
+        ]
+      ],
+      "server_sql": "WHERE status = 'none' ORDER BY document_date DESC, created_at DESC, id",
+      "ids": [],
+      "total": 0
+    }
+  ]
+}

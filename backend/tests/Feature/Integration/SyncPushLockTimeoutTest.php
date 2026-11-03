@@ -62,6 +62,9 @@ it('takes the push row lock under a bounded lock_timeout', function (): void {
     $order = pushLockDraftOrder($this);
     $headers = pushLockHeaders($this);
     $seen = null;
+    // The test connection has a session lock_timeout of its own (TestCase::LOCK_TIMEOUT): the
+    // push must set its own one, not inherit that one.
+    $session = (string) DB::selectOne('show lock_timeout')->lock_timeout;
     DB::listen(function ($query) use (&$seen): void {
         if ($seen === null && str_contains(strtolower($query->sql), 'for update')) {
             $seen = 'pending';
@@ -71,7 +74,7 @@ it('takes the push row lock under a bounded lock_timeout', function (): void {
 
     SyncKit::push($this, [pushLockUpdate($order['id'], (int) $order['version'])], $headers)->assertOk();
 
-    expect($seen)->not->toBeNull()->not->toBe('0');
+    expect($seen)->not->toBeNull()->not->toBe('0')->not->toBe($session);
 });
 
 it('answers a push on a row held by another transaction with 409 IDEMPOTENCY_IN_PROGRESS', function (): void {

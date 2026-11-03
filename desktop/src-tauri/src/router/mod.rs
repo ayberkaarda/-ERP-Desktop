@@ -14,7 +14,7 @@ mod local_support;
 mod local_write;
 #[cfg(test)]
 mod net_tests;
-mod query_map;
+pub(crate) mod query_map;
 #[cfg(test)]
 mod session_tests;
 

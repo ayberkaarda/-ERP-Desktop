@@ -1,0 +1,143 @@
+{
+  "manifest_version": 3,
+  "sync_schema_version": 1,
+  "api_prefix": "/api/v1",
+  "defaults": {
+    "recent_window_days": 30,
+    "snapshot_refresh_minutes": 15
+  },
+  "resources": [
+    {
+      "resource": "parties",
+      "module": "Parties",
+      "scope": "company",
+      "path": "/api/v1/parties",
+      "detail_path": "/api/v1/parties/{id}",
+      "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+      "requires": {
+        "all_of": [
+          "parties.view"
+        ]
+      },
+      "read": "local-first",
+      "source": "pull",
+      "query": {
+        "sort": {
+          "code": {
+            "type": "text"
+          },
+          "name": {
+            "type": "text"
+          },
+          "created_at": {
+            "type": "datetime"
+          }
+        },
+        "filters": {
+          "is_active": {
+            "match": "eq",
+            "type": "bool"
+          },
+          "id": {
+            "match": "eq",
+            "type": "uuid",
+            "max_values": 100
+          },
+          "role": {
+            "field": "roles",
+            "match": "any_of",
+            "type": "string"
+          }
+        },
+        "search": {
+          "fields": [
+            "name",
+            "legal_name",
+            "code",
+            "tax_number"
+          ]
+        },
+        "online_only": [
+          {
+            "param": "filter[category]",
+            "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+          }
+        ]
+      }
+    },
+    {
+      "resource": "sales-invoices",
+      "module": "Sales",
+      "scope": "company",
+      "path": "/api/v1/sales-invoices",
+      "detail_path": "/api/v1/sales-invoices/{id}",
+      "api_resource": "App\\Modules\\Sales\\Http\\Resources\\DocumentResource",
+      "requires": {
+        "all_of": [
+          "sales.invoices.view"
+        ]
+      },
+      "read": "online-first",
+      "source": "pull",
+      "window_days": 30,
+      "window_field": "document_date",
+      "query": {
+        "default_sort": [
+          "-document_date",
+          "-created_at"
+        ],
+        "sort": {
+          "document_date": {
+            "type": "date"
+          },
+          "total": {
+            "type": "decimal"
+          }
+        },
+        "filters": {
+          "status": {
+            "match": "eq",
+            "type": "string"
+          },
+          "date_from": {
+            "field": "document_date",
+            "match": "gte",
+            "type": "date"
+          },
+          "date_to": {
+            "field": "document_date",
+            "match": "lte",
+            "type": "date"
+          },
+          "number": {
+            "match": "contains",
+            "type": "string"
+          }
+        }
+      }
+    },
+    {
+      "resource": "stock-balances",
+      "module": "Inventory",
+      "scope": "company",
+      "path": "/api/v1/stock-balances",
+      "requires": {
+        "all_of": [
+          "inventory.stock.view"
+        ]
+      },
+      "read": "offline-fallback",
+      "source": "snapshot"
+    }
+  ],
+  "online_only": [
+    {
+      "action": "decideApproval",
+      "i18n_key": "desktop.onlineOnly.decideApproval",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/approvals/{id}/decisions"
+      ]
+    }
+  ]
+}

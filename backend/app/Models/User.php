@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
@@ -77,11 +78,27 @@ class User extends Authenticatable
     }
 
     /**
-     * Invalidates pending login challenges issued before a credential change.
+     * Writes a credential change and bumps auth_version in one transaction under the user row
+     * lock, which invalidates pending login challenges and refresh tokens issued before it. A
+     * device login (DeviceTokens::issue takes the same lock) either commits first, and `$then`
+     * (run under the lock) or the caller revokes what it minted, or waits and sees the new
+     * version. The version is incremented from the stored value, so concurrent changes never
+     * write the same version twice.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  (callable(): void)|null  $then
      */
-    public function bumpAuthVersion(): void
+    public function bumpAuthVersionLocked(array $attributes = [], ?callable $then = null): void
     {
-        $this->forceFill(['auth_version' => $this->auth_version + 1])->save();
+        DB::transaction(function () use ($attributes, $then): void {
+            $stored = self::query()->whereKey($this->getKey())->lockForUpdate()->value('auth_version');
+
+            $this->forceFill([...$attributes, 'auth_version' => (is_numeric($stored) ? (int) $stored : $this->auth_version) + 1])->save();
+
+            if ($then !== null) {
+                $then();
+            }
+        });
     }
 
     public function hasTwoFactorEnabled(): bool

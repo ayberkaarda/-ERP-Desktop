@@ -198,6 +198,30 @@ it('counts the deadline from the wait for the slot and checks the setup statemen
     expect($left)->toBeLessThanOrEqual(600)->toBeGreaterThan(0);
 });
 
+it('lets a transaction set its isolation level first once the time left has moved on', function (): void {
+    // The statement_timeout adjustment used to run as the first query of the pull's REPEATABLE
+    // READ transaction, ahead of SET TRANSACTION (SQLSTATE 25001), whenever more than STEP_MS
+    // had passed since the last one.
+    $db = DB::connection();
+    $lease = PullLease::begin($db, 30_000);
+    usleep(250_000);
+
+    try {
+        $isolation = $db->transaction(function () use ($db): string {
+            $db->statement('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+
+            return (string) $db->selectOne('show transaction_isolation')->transaction_isolation;
+        });
+        $timeout = (int) $db->selectOne("select setting from pg_settings where name = 'statement_timeout'")->setting;
+    } finally {
+        $lease->end();
+    }
+
+    // The statement after SET TRANSACTION still lowered the timeout to the time left.
+    expect($isolation)->toBe('repeatable read')
+        ->and($timeout)->toBeLessThanOrEqual(29_750)->toBeGreaterThan(0);
+});
+
 it('ends the deadline before the slots can expire', function (int $slot, int $deadline): void {
     expect(LimitConcurrentPulls::deadlineMs($slot))->toBe($deadline)
         ->and($deadline)->toBeLessThan($slot * 1000);

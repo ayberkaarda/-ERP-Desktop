@@ -64,7 +64,7 @@ final class PullLease
         if (! isset(self::$hooked[$db])) {
             self::$hooked[$db] = true;
             $db->beforeExecuting(static function (string $query, array $bindings, Connection $connection): void {
-                (self::$active[$connection] ?? null)?->check();
+                (self::$active[$connection] ?? null)?->check($query);
             });
         }
 
@@ -121,11 +121,14 @@ final class PullLease
         return $left;
     }
 
-    private function check(): void
+    private function check(string $query): void
     {
         $left = $this->left();
 
-        if ($this->adjusting || $left >= $this->statementMs - self::STEP_MS) {
+        // SET TRANSACTION must be the first statement of its transaction (PullService::snapshot()
+        // opens one with it): an adjustment run ahead of it fails it with SQLSTATE 25001. It
+        // takes no time, so the next statement adjusts instead.
+        if ($this->adjusting || $left >= $this->statementMs - self::STEP_MS || preg_match('/^\s*set\s+transaction\b/i', $query) === 1) {
             return;
         }
 

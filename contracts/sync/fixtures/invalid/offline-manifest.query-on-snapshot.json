@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "sync_schema_version": 1,
+  "api_prefix": "/api/v1",
+  "defaults": {
+    "recent_window_days": 30,
+    "snapshot_refresh_minutes": 15
+  },
+  "resources": [
+    {
+      "resource": "stock-balances",
+      "module": "Inventory",
+      "scope": "company",
+      "path": "/api/v1/stock-balances",
+      "requires": {
+        "all_of": [
+          "inventory.stock.view"
+        ]
+      },
+      "read": "offline-fallback",
+      "source": "snapshot",
+      "query": {
+        "sort": {
+          "code": {
+            "type": "text"
+          }
+        }
+      }
+    }
+  ],
+  "online_only": [
+    {
+      "action": "decideApproval",
+      "i18n_key": "desktop.onlineOnly.decideApproval",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/approvals/{id}/decisions"
+      ]
+    }
+  ]
+}
