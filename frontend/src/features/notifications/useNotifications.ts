@@ -70,10 +70,27 @@ export function useNotifications() {
 
   useEffect(() => {
     if (!userId) return
+    const feedKey = notificationKeys.feed(userId)
+    let active = true
+    // Tracks the channel locally so only a transition into "subscribed" triggers a refetch.
+    let channelUp = false
     const stopState = platform.realtime.subscribe((state) => {
-      if (state !== 'connected') setSubscribed(false)
+      if (state !== 'connected') {
+        channelUp = false
+        setSubscribed(false)
+      }
     })
-    const onStatus = (status: SubscriptionStatus) => setSubscribed(status === 'subscribed')
+    const onStatus = (status: SubscriptionStatus) => {
+      if (!active) return
+      const up = status === 'subscribed'
+      setSubscribed(up)
+      if (up && !channelUp) {
+        // Events broadcast while the channel was down are never redelivered and polling stops
+        // once live again, so catch up over HTTP. An in-flight load or poll is reused, not restarted.
+        void queryClient.invalidateQueries({ queryKey: feedKey }, { cancelRefetch: false })
+      }
+      channelUp = up
+    }
     const stopListening = platform.realtime.listenPrivate(
       `user.${userId}`,
       NOTIFICATION_EVENT,
@@ -81,10 +98,11 @@ export function useNotifications() {
       onStatus,
     )
     return () => {
+      active = false
       stopState()
       stopListening()
     }
-  }, [userId, onPush])
+  }, [userId, onPush, queryClient])
 
   const markRead = useMutation({
     mutationFn: notificationsApi.markRead,
