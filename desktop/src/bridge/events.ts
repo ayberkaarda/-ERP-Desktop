@@ -85,6 +85,10 @@ export function parseRealtimeEvent(payload: unknown): RealtimeEventDto | undefin
     case 'membership_revoked':
       if (typeof payload.company_id !== 'string') return undefined
       break
+    case 'subscribed':
+    case 'subscription_failed':
+      if (typeof payload.channel !== 'string') return undefined
+      break
     case 'notification_created': {
       const notification = payload.notification
       if (!isRecord(notification) || typeof notification.id !== 'string') return undefined

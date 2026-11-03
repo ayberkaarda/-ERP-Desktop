@@ -98,6 +98,16 @@ impl Conn {
     /// Handshake and subscription of the signed-in user's channel; `false`
     /// when the client is gone.
     async fn subscribe(&mut self, socket_id: &str) -> bool {
+        if !self.asked(socket_id).await {
+            return false;
+        }
+        self.accept().await;
+        true
+    }
+
+    /// Handshake up to the client's `pusher:subscribe` (left unanswered);
+    /// `false` when the client is gone.
+    async fn asked(&mut self, socket_id: &str) -> bool {
         let data = json!({"socket_id": socket_id, "activity_timeout": 30});
         let established =
             json!({"event": "pusher:connection_established", "data": data.to_string()});
@@ -125,13 +135,16 @@ impl Conn {
                 "data": {"channel": channel(), "auth": signature(socket_id)}
             })
         );
+        true
+    }
+
+    async fn accept(&mut self) {
         self.send(json!({
             "event": "pusher_internal:subscription_succeeded",
             "channel": channel(),
             "data": "{}"
         }))
         .await;
-        true
     }
 
     /// Waits for the end of the socket. The client may close with an answer
@@ -828,4 +841,136 @@ async fn a_revocation_of_an_earlier_sign_in_starts_no_run() {
     .await;
     eventually("a run", async || manifests(&server).await > before).await;
     sync.abort();
+}
+
+fn is_subscribed(event: &RealtimeEventDto, profile: &str) -> bool {
+    matches!(event, RealtimeEventDto::Subscribed { profile_id, channel: c }
+        if profile_id == profile && *c == channel())
+}
+
+fn is_refused(event: &RealtimeEventDto, profile: &str) -> bool {
+    matches!(event, RealtimeEventDto::SubscriptionFailed { profile_id, channel: c }
+        if profile_id == profile && *c == channel())
+}
+
+impl Fx {
+    fn subscriptions(&self, id: &str) -> usize {
+        self.realtime
+            .events()
+            .iter()
+            .filter(|e| is_subscribed(e, id))
+            .count()
+    }
+}
+
+/// The next socket that asks for the user channel, left unanswered.
+async fn asking(reverb: &mut FakeReverb, socket_id: &str) -> Conn {
+    loop {
+        let mut conn = reverb.next().await;
+        if conn.asked(socket_id).await {
+            return conn;
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_subscription_is_reported_only_once_the_server_accepted_it() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let mut conn = asking(&mut reverb, "1.1").await;
+
+    // The socket is up, the channel is not.
+    fx.wait_state(&profile.id, RealtimeStateDto::Connected)
+        .await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(fx.subscriptions(&profile.id), 0);
+    let status = fx.desktop.realtime_status().await;
+    assert_eq!(status.state, RealtimeStateDto::Connected);
+    assert!(status.subscribed.is_empty());
+
+    conn.accept().await;
+    fx.realtime
+        .wait_for(|e| is_subscribed(e, &profile.id))
+        .await;
+    assert_eq!(fx.desktop.realtime_status().await.subscribed, [channel()]);
+
+    // A lost socket loses its subscription until the next one is accepted.
+    conn.0.close(None).await.unwrap();
+    eventually("the subscription ends with its socket", async || {
+        let status = fx.desktop.realtime_status().await;
+        status.state != RealtimeStateDto::Connected && status.subscribed.is_empty()
+    })
+    .await;
+    let mut again = asking(&mut reverb, "1.2").await;
+    fx.wait_state(&profile.id, RealtimeStateDto::Connected)
+        .await;
+    assert_eq!(fx.subscriptions(&profile.id), 1);
+    assert!(fx.desktop.realtime_status().await.subscribed.is_empty());
+    again.accept().await;
+    eventually("subscribed again", async || {
+        fx.subscriptions(&profile.id) == 2
+    })
+    .await;
+    assert_eq!(fx.desktop.realtime_status().await.subscribed, [channel()]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_denied_channel_is_reported_and_never_subscribed() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    Mock::given(method("POST"))
+        .and(path(paths::BROADCASTING_AUTH))
+        .respond_with(ResponseTemplate::new(403).set_body_json(json!({
+            "errors": {"code": "FORBIDDEN", "message": "not yours"}
+        })))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    // Every socket gets its handshake; no subscribe frame can follow.
+    let server_side = tokio::spawn(async move {
+        let mut held = Vec::new();
+        while let Some(mut conn) = reverb.conns.recv().await {
+            let data = json!({"socket_id": "1.1", "activity_timeout": 30});
+            let established =
+                json!({"event": "pusher:connection_established", "data": data.to_string()});
+            let _ = conn.0.send(Message::text(established.to_string())).await;
+            held.push(conn);
+        }
+    });
+
+    fx.realtime.wait_for(|e| is_refused(e, &profile.id)).await;
+    eventually("the socket stays up", async || {
+        fx.desktop.realtime_status().await.state == RealtimeStateDto::Connected
+    })
+    .await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    assert_eq!(fx.subscriptions(&profile.id), 0);
+    assert!(fx.desktop.realtime_status().await.subscribed.is_empty());
+    server_side.abort();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_subscription_error_of_the_server_is_reported() {
+    let mut reverb = FakeReverb::start().await;
+    let server = realtime_server(&reverb).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let mut conn = asking(&mut reverb, "1.1").await;
+
+    conn.send(json!({
+        "event": "pusher:subscription_error",
+        "channel": channel(),
+        "data": {"status": 403}
+    }))
+    .await;
+
+    fx.realtime.wait_for(|e| is_refused(e, &profile.id)).await;
+    assert_eq!(fx.subscriptions(&profile.id), 0);
+    let status = fx.desktop.realtime_status().await;
+    assert_eq!(status.state, RealtimeStateDto::Connected);
+    assert!(status.subscribed.is_empty());
 }

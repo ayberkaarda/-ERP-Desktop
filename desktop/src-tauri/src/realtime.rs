@@ -259,10 +259,20 @@ impl Handler {
                     notification: notification.into(),
                 });
             }
-            RealtimeEvent::Subscribed { .. } | RealtimeEvent::Stopped(_) => {}
-            RealtimeEvent::SubscriptionFailed { reason, .. } => {
-                log::warn!("realtime: subscription failed: {reason:?}");
+            RealtimeEvent::Subscribed { channel } => {
+                self.sink.emit(RealtimeEventDto::Subscribed {
+                    profile_id,
+                    channel,
+                });
             }
+            RealtimeEvent::SubscriptionFailed { channel, reason } => {
+                log::warn!("realtime: subscription failed: {reason:?}");
+                self.sink.emit(RealtimeEventDto::SubscriptionFailed {
+                    profile_id,
+                    channel,
+                });
+            }
+            RealtimeEvent::Stopped(_) => {}
         }
     }
 
@@ -291,9 +301,26 @@ pub struct Link {
     pub options: Options,
 }
 
+/// What the bridge last told the webview.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Live {
+    state: RealtimeStateDto,
+    /// Channels the server accepted on the current socket.
+    subscribed: Vec<String>,
+}
+
+impl Live {
+    fn new(state: RealtimeStateDto) -> Self {
+        Self {
+            state,
+            subscribed: Vec::new(),
+        }
+    }
+}
+
 /// The running bridge of the active profile.
 pub struct Bridge {
-    state: watch::Receiver<RealtimeStateDto>,
+    state: watch::Receiver<Live>,
     shutdown: watch::Sender<bool>,
     task: JoinHandle<()>,
 }
@@ -302,7 +329,7 @@ impl Bridge {
     /// Starts the bridge on the engine runtime.
     pub fn start(runtime: &EngineRuntime, link: Link) -> Self {
         let plan = plan(&link.reverb, &link.app_version, link.allow_dev_plain);
-        let (state_tx, state) = watch::channel(plan.first_state());
+        let (state_tx, state) = watch::channel(Live::new(plan.first_state()));
         let (shutdown, stop) = watch::channel(false);
         let worker = Worker {
             handler: Handler {
@@ -326,7 +353,12 @@ impl Bridge {
     }
 
     pub fn state(&self) -> RealtimeStateDto {
-        *self.state.borrow()
+        self.state.borrow().state
+    }
+
+    /// Channels the server accepted on the current socket.
+    pub fn subscribed(&self) -> Vec<String> {
+        self.state.borrow().subscribed.clone()
     }
 
     /// Closes the connection and waits for the bridge; a bridge stuck longer
@@ -355,7 +387,7 @@ enum Ended {
 
 struct Worker {
     handler: Handler,
-    state: watch::Sender<RealtimeStateDto>,
+    state: watch::Sender<Live>,
     stop: watch::Receiver<bool>,
     status: Option<watch::Receiver<SyncStatus>>,
     sessions: Option<watch::Receiver<u64>>,
@@ -488,7 +520,16 @@ impl Worker {
                             Some(_) => Ended::SessionMoved,
                         };
                     }
-                    Some(event) => self.handler.handle(event, generation).await,
+                    Some(event) => {
+                        // The socket state first: a subscription is never
+                        // reported ahead of the socket it was made on.
+                        if states_open {
+                            let state = *connection.borrow_and_update();
+                            self.publish(state.into());
+                        }
+                        self.note(&event);
+                        self.handler.handle(event, generation).await;
+                    }
                 },
                 changed = connection.changed(), if states_open => match changed {
                     Ok(()) => {
@@ -531,11 +572,38 @@ impl Worker {
         }
     }
 
-    /// Sets the state and tells the webview, when it changed.
+    /// Sets the state and tells the webview, when it changed. Any state
+    /// but `connected` ends the subscriptions of the socket.
     fn publish(&self, state: RealtimeStateDto) {
-        if self.state.send_replace(state) != state {
+        let changed = self.state.send_if_modified(|live| {
+            if state != RealtimeStateDto::Connected {
+                live.subscribed.clear();
+            }
+            if live.state == state {
+                return false;
+            }
+            live.state = state;
+            true
+        });
+        if changed {
             self.emit(state);
         }
+    }
+
+    /// Keeps the subscriptions of the socket for `realtime_status`.
+    fn note(&self, event: &RealtimeEvent) {
+        self.state.send_modify(|live| match event {
+            RealtimeEvent::Subscribed { channel } => {
+                // A socket already lost took the subscription with it.
+                if live.state == RealtimeStateDto::Connected && !live.subscribed.contains(channel) {
+                    live.subscribed.push(channel.clone());
+                }
+            }
+            RealtimeEvent::SubscriptionFailed { channel, .. } => {
+                live.subscribed.retain(|c| c != channel);
+            }
+            _ => {}
+        });
     }
 
     /// Tells the webview the state the bridge starts in.
@@ -649,7 +717,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::time::Duration;
 
-    use keystone_realtime::{Backoff, Transport};
+    use keystone_realtime::{Backoff, SubscriptionFailure, Transport};
     use keystone_sync::auth::{MemoryTokenStore, Secret, StoredTokens, TokenStore};
     use keystone_sync::client::{ApiConfig, ClientOptions, paths};
     use keystone_sync::wire::{ErrorCode, Timestamp};
@@ -954,6 +1022,91 @@ mod tests {
             sync: None,
             sink: sink.clone(),
         }
+    }
+
+    #[tokio::test]
+    async fn subscription_results_reach_the_ui_with_their_channel() {
+        let store = signed_in();
+        let sink = Arc::new(Recorder::default());
+        let handler = handler(&store, &sink);
+
+        handler
+            .handle(
+                RealtimeEvent::Subscribed {
+                    channel: "private-user.u1".into(),
+                },
+                1,
+            )
+            .await;
+        for reason in [
+            SubscriptionFailure::Denied,
+            SubscriptionFailure::Rejected { status: Some(403) },
+        ] {
+            handler
+                .handle(
+                    RealtimeEvent::SubscriptionFailed {
+                        channel: "private-user.u1".into(),
+                        reason,
+                    },
+                    1,
+                )
+                .await;
+        }
+
+        let failed = RealtimeEventDto::SubscriptionFailed {
+            profile_id: PROFILE.into(),
+            channel: "private-user.u1".into(),
+        };
+        assert_eq!(
+            sink.events(),
+            [
+                RealtimeEventDto::Subscribed {
+                    profile_id: PROFILE.into(),
+                    channel: "private-user.u1".into(),
+                },
+                failed.clone(),
+                failed,
+            ]
+        );
+    }
+
+    #[test]
+    fn the_subscriptions_end_with_the_connected_state() {
+        let (state, live) = watch::channel(Live::new(RealtimeStateDto::Connecting));
+        let (_stop_tx, stop) = watch::channel(false);
+        let sink = Arc::new(Recorder::default());
+        let worker = Worker {
+            handler: handler(&signed_in(), &sink),
+            state,
+            stop,
+            status: None,
+            sessions: None,
+            options: Options::default(),
+        };
+        let subscribed = RealtimeEvent::Subscribed {
+            channel: "private-user.u1".into(),
+        };
+
+        worker.publish(RealtimeStateDto::Connected);
+        assert!(live.borrow().subscribed.is_empty());
+        worker.note(&subscribed);
+        worker.note(&subscribed);
+        worker.publish(RealtimeStateDto::Connected);
+        assert_eq!(live.borrow().subscribed, ["private-user.u1"]);
+
+        worker.note(&RealtimeEvent::SubscriptionFailed {
+            channel: "private-user.u1".into(),
+            reason: SubscriptionFailure::Denied,
+        });
+        assert!(live.borrow().subscribed.is_empty());
+
+        worker.note(&subscribed);
+        worker.publish(RealtimeStateDto::Unavailable);
+        assert!(live.borrow().subscribed.is_empty());
+        assert_eq!(live.borrow().state, RealtimeStateDto::Unavailable);
+        // Late news of the lost socket.
+        worker.note(&subscribed);
+        assert!(live.borrow().subscribed.is_empty());
     }
 
     #[tokio::test]

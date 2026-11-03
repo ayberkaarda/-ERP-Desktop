@@ -81,6 +81,14 @@ pub enum RealtimeEventDto {
         profile_id: String,
         notification: NotificationDto,
     },
+    /// The server accepted the subscription of `channel` (its Pusher name,
+    /// `private-user.{id}`). Sent again after each reconnect; until then a
+    /// state other than `connected` means not subscribed.
+    Subscribed { profile_id: String, channel: String },
+    /// The subscription of `channel` was refused (authorization denied or a
+    /// subscription error of the server): nothing arrives on it on this
+    /// socket.
+    SubscriptionFailed { profile_id: String, channel: String },
 }
 
 /// Answer of `realtime_status`: for a webview that starts listening after
@@ -91,6 +99,9 @@ pub struct RealtimeStatusDto {
     /// The active profile; `None` when none is open.
     pub profile_id: Option<String>,
     pub state: RealtimeStateDto,
+    /// Channels (Pusher names) the server accepted on the current socket;
+    /// empty unless `state` is `connected`.
+    pub subscribed: Vec<String>,
 }
 
 #[cfg(test)]

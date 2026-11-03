@@ -60,7 +60,7 @@ describe('desktop realtime', () => {
     const answer = deferred<RealtimeStatusDto>()
     const s = await setup(() => answer.promise)
     s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'unavailable' })
-    answer.resolve({ profile_id: 'p1', state: 'connected' })
+    answer.resolve({ profile_id: 'p1', state: 'connected', subscribed: [] })
     await flush()
     expect(s.realtime.state()).toBe('unavailable')
   })
@@ -90,22 +90,102 @@ describe('desktop realtime', () => {
     expect(s.realtime.state()).toBe('connected')
   })
 
-  it('reports subscribed when connected, and again after each reconnect', async () => {
+  const subscribed = (channel = 'private-user.u1', profile_id = 'p1') =>
+    ({ type: 'subscribed', profile_id, channel }) as const
+  const refused = (channel = 'private-user.u1') =>
+    ({ type: 'subscription_failed', profile_id: 'p1', channel }) as const
+
+  it('a connected socket alone is not a subscription', async () => {
     const s = await setup(() => ({ profile_id: 'p1', state: 'connecting' }))
     const l = listener(s.realtime, 'user.u1', '.notification.created')
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
     await flush()
+    expect(s.realtime.state()).toBe('connected')
     expect(l.statuses).toEqual([])
-    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
-    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connecting' })
-    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
-    expect(l.statuses).toEqual(['subscribed', 'subscribed'])
   })
 
-  it('reports subscribed right away when already connected', async () => {
+  it('reports an error, never subscribed, when the channel is refused', async () => {
+    const s = await setup(() => ({ profile_id: 'p1', state: 'connecting' }))
+    const l = listener(s.realtime, 'user.u1', '.notification.created')
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
+    s.bridge.emitRealtime(refused())
+    await flush()
+    expect(l.statuses).toEqual(['error'])
+    const late = listener(s.realtime, 'user.u1', '.notification.created')
+    await flush()
+    expect(late.statuses).toEqual([])
+  })
+
+  it('reports subscribed once the server accepted the channel, and again after each reconnect', async () => {
+    const s = await setup(() => ({ profile_id: 'p1', state: 'connecting' }))
+    const l = listener(s.realtime, 'user.u1', '.notification.created')
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
+    s.bridge.emitRealtime(subscribed())
+    s.bridge.emitRealtime(subscribed())
+    expect(l.statuses).toEqual(['subscribed'])
+
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connecting' })
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
+    const between = listener(s.realtime, 'user.u1', '.membership.revoked')
+    await flush()
+    expect(l.statuses).toEqual(['subscribed'])
+    expect(between.statuses).toEqual([])
+
+    s.bridge.emitRealtime(subscribed())
+    expect(l.statuses).toEqual(['subscribed', 'subscribed'])
+    expect(between.statuses).toEqual(['subscribed'])
+  })
+
+  it('a subscription of a socket already lost is not reported', async () => {
     const s = await setup()
+    const l = listener(s.realtime, 'user.u1', '.notification.created')
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'unavailable' })
+    s.bridge.emitRealtime(subscribed())
+    await flush()
+    expect(l.statuses).toEqual([])
+  })
+
+  it('only the listeners of the accepted channel hear about it', async () => {
+    const s = await setup()
+    const other = listener(s.realtime, 'user.u2', '.notification.created')
+    s.bridge.emitRealtime(subscribed('private-user.u1'))
+    s.bridge.emitRealtime(subscribed('private-user.u1', 'p0'))
+    await flush()
+    expect(other.statuses).toEqual([])
+  })
+
+  it('a listener added after the subscription hears subscribed right away', async () => {
+    const s = await setup()
+    s.bridge.emitRealtime(subscribed())
     const l = listener(s.realtime, 'user.u1', '.membership.revoked')
     await flush()
     expect(l.statuses).toEqual(['subscribed'])
+  })
+
+  it('takes the subscriptions already made from realtime_status', async () => {
+    const s = await setup(() => ({ profile_id: 'p1', state: 'connected', subscribed: ['private-user.u1'] }))
+    const l = listener(s.realtime, 'user.u1', '.notification.created')
+    await flush()
+    expect(l.statuses).toEqual(['subscribed'])
+    const none = await setup(() => ({ profile_id: 'p1', state: 'connected', subscribed: [] }))
+    const m = listener(none.realtime, 'user.u1', '.notification.created')
+    await flush()
+    expect(m.statuses).toEqual([])
+  })
+
+  it('a profile switch ends the subscription', async () => {
+    const s = await setup()
+    s.bridge.emitRealtime(subscribed())
+    s.bridge.handle({
+      profile_list: () => ({ active_id: 'p2', profiles: [] }),
+      realtime_status: () => ({ profile_id: 'p2', state: 'connected', subscribed: [] }),
+    })
+    await s.profile.refresh()
+    await flush()
+    const l = listener(s.realtime, 'user.u1', '.notification.created')
+    await flush()
+    expect(s.realtime.state()).toBe('connected')
+    expect(l.statuses).toEqual([])
   })
 
   it.each([
