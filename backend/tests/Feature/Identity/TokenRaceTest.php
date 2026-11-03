@@ -27,7 +27,7 @@ afterEach(function (): void {
     Sanctum::$accessTokenAuthenticationCallback = null;
 });
 
-function raceLogin(string $fingerprint = 'fp-0123456789abcdef'): TestResponse
+function tokenRaceLogin(string $fingerprint = 'fp-0123456789abcdef'): TestResponse
 {
     Identity::fresh();
 
@@ -39,12 +39,12 @@ function raceLogin(string $fingerprint = 'fp-0123456789abcdef'): TestResponse
     ])->assertOk();
 }
 
-function raceIssue(User $checked): array
+function tokenRaceIssue(User $checked): array
 {
     return app(DeviceTokens::class)->issue($checked, Request::create('/'), 'Office PC', 'fp-0123456789abcdef');
 }
 
-function raceErrorCode(Closure $call): ?string
+function tokenRaceErrorCode(Closure $call): ?string
 {
     try {
         $call();
@@ -66,7 +66,7 @@ it('refuses to mint a device token for a user whose password changed after the c
         'password_confirmation' => 'a-brand-new-passphrase',
     ], Identity::headers())->assertNoContent();
 
-    expect(raceErrorCode(fn () => raceIssue($checked)))->toBe('UNAUTHENTICATED')
+    expect(tokenRaceErrorCode(fn () => tokenRaceIssue($checked)))->toBe('UNAUTHENTICATED')
         ->and(UserDevice::query()->count())->toBe(0)
         ->and(DeviceRefreshToken::query()->count())->toBe(0)
         ->and($this->user->tokens()->count())->toBe(0);
@@ -76,15 +76,15 @@ it('refuses to mint a device token for a user deactivated or deleted after the c
     $checked = User::query()->findOrFail($this->user->id);
 
     User::query()->whereKey($this->user->id)->update(['is_active' => false]);
-    expect(raceErrorCode(fn () => raceIssue($checked)))->toBe('USER_DEACTIVATED');
+    expect(tokenRaceErrorCode(fn () => tokenRaceIssue($checked)))->toBe('USER_DEACTIVATED');
 
     User::query()->whereKey($this->user->id)->delete();
-    expect(raceErrorCode(fn () => raceIssue($checked)))->toBe('UNAUTHENTICATED')
+    expect(tokenRaceErrorCode(fn () => tokenRaceIssue($checked)))->toBe('UNAUTHENTICATED')
         ->and(UserDevice::query()->count())->toBe(0);
 });
 
 it('mints with the locked user so the refresh family carries the current auth version', function (): void {
-    $issued = raceIssue(User::query()->findOrFail($this->user->id));
+    $issued = tokenRaceIssue(User::query()->findOrFail($this->user->id));
 
     expect(DeviceRefreshToken::query()->sole()->auth_version)->toBe($this->user->fresh()?->auth_version);
 
@@ -109,7 +109,7 @@ it('bumps the auth version from the stored value, not from a stale model', funct
 
 // H2: a refresh rotates the device after the logout request was authenticated by the old token.
 it('ends the rotated token pair when logout runs with the access token a refresh just replaced', function (): void {
-    $login = raceLogin();
+    $login = tokenRaceLogin();
     $refreshToken = (string) $login->json('data.refresh_token');
     $rotated = null;
 
@@ -135,7 +135,7 @@ it('ends the rotated token pair when logout runs with the access token a refresh
 });
 
 it('keeps the device id on every access token of the device across refreshes', function (): void {
-    $login = raceLogin();
+    $login = tokenRaceLogin();
     $device = UserDevice::query()->sole();
 
     Identity::fresh();
@@ -147,7 +147,7 @@ it('keeps the device id on every access token of the device across refreshes', f
 });
 
 it('does not let a token sign out a device of another user', function (): void {
-    $login = raceLogin();
+    $login = tokenRaceLogin();
     $device = UserDevice::query()->sole();
     $other = Identity::member($this->company, ['Sales'], ['email' => 'mia@example.com']);
     $foreign = $other->createToken('Other', [DeviceTokens::ABILITY]);
