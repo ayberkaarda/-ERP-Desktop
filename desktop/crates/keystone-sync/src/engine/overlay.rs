@@ -4,8 +4,9 @@
 //! flight, conflict, rejected, quarantined), until it is settled or
 //! discarded: the user keeps seeing their own work. In outbox order a
 //! `create` sets the row to its payload, an `update` merges its payload's
-//! top-level keys into the row so far, a `delete` hides the row; actions do
-//! not change the row. An update starts from the mirror row, else from the
+//! top-level keys into the row so far, a `delete` hides the row. Of the
+//! actions only a stock document's `counts` changes the row (its `lines`,
+//! see [`project_action`]); others are not guessed. An update starts from the mirror row, else from the
 //! base saved at enqueue time ([`super::SyncEngine::enqueue`]), so retention
 //! or a reset that removes the mirror row does not hide the draft.
 //!
@@ -23,12 +24,13 @@ use serde_json::{Map, Value};
 use uuid::Uuid;
 
 use super::local;
+use crate::conflicts;
 use crate::error::Result;
 use crate::store::{
     Filter, FilterOp, LIST_LIMIT_DEFAULT, LIST_LIMIT_MAX, ListQuery, ResourceSpec, SortKey, Store,
     fold, listing, row_matches,
 };
-use crate::wire::{MutationOp, ResourceName, ResourceRow};
+use crate::wire::{Mutation, MutationOp, ResourceName, ResourceRow};
 
 /// A local list page. `drafts` holds the ids of rows on this page that come
 /// from (or are changed by) a local draft.
@@ -96,6 +98,7 @@ fn drafts_in(
             continue;
         }
         if m.op == MutationOp::Action {
+            project_action(conn, resource, m, &mut order, &mut state)?;
             continue;
         }
         let slot = match state.entry(m.id) {
@@ -129,6 +132,52 @@ fn drafts_in(
         .into_iter()
         .filter_map(|id| state.remove(&id).flatten().map(|d| (id, d)))
         .collect())
+}
+
+/// The resource whose `counts` action the overlay projects.
+const STOCK_DOCUMENTS: &str = "stock-documents";
+
+/// Lays a pending action over the row so far (a draft, else the mirror row,
+/// else the saved base), as the server will apply it. Only the `counts`
+/// action of a stock document is projected, with the same rules the
+/// conflict inbox folds it by ([`conflicts::apply_counts`]): counted
+/// quantities by line `id`, added lines merged by balance key or appended.
+/// Server-derived values (`difference`, an added line's `id`,
+/// `system_quantity`, `line_no`) are not guessed. Anything else, or a
+/// `counts` body that does not fit the row (a line id that is not there,
+/// another shape), leaves the row as it is and does not mark it a draft.
+fn project_action(
+    conn: &Connection,
+    resource: &ResourceName,
+    m: &Mutation,
+    order: &mut Vec<Uuid>,
+    state: &mut HashMap<Uuid, Option<Draft>>,
+) -> Result<()> {
+    if resource.as_str() != STOCK_DOCUMENTS
+        || m.action.as_deref() != Some(conflicts::COUNTS_ACTION)
+        || m.parent_id.is_some()
+    {
+        return Ok(());
+    }
+    let current = match state.get(&m.id) {
+        Some(Some(Draft::Row(row))) => Some(row.clone()),
+        Some(_) => None,
+        None => match Store::get_row_on(conn, resource, m.id)? {
+            Some(row) => Some(row),
+            None => local::base_on(conn, resource, m.id)?,
+        },
+    };
+    let Some(mut row) = current else {
+        return Ok(());
+    };
+    if !conflicts::apply_counts(&mut row.fields, &m.payload) {
+        return Ok(());
+    }
+    if !state.contains_key(&m.id) {
+        order.push(m.id);
+    }
+    state.insert(m.id, Some(Draft::Row(row)));
+    Ok(())
 }
 
 fn row_from(id: Uuid, version: Option<u64>, payload: &Map<String, Value>) -> ResourceRow {
