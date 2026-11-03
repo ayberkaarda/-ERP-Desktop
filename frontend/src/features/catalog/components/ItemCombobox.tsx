@@ -43,6 +43,23 @@ function isOfflineUnavailable(error: unknown) {
 /** How long the unfiltered page stands in for the server search before it is read again. */
 const OFFLINE_LIST_STALE_MS = 60_000
 
+/**
+ * `promise`, or the abort reason as soon as `signal` aborts. The shared page read itself goes
+ * on (other pickers may wait for it); only this caller stops waiting.
+ */
+function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason as Error)
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason as Error)
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise
+      .finally(() => {
+        signal.removeEventListener('abort', onAbort)
+      })
+      .then(resolve, reject)
+  })
+}
+
 function baseUnitCode(item: Item, units: readonly Unit[]) {
   return item.base_unit?.code ?? units.find((u) => u.id === item.base_unit_id)?.code ?? '—'
 }
@@ -92,8 +109,9 @@ export function ItemCombobox({
     const filters: Record<string, string> = {}
     if (!includeInactive) filters.is_active = 'true'
     if (type) filters.type = type
-    const query = { ...DEFAULT_LIST_QUERY, perPage: 20, q, filters }
+    // Spaces alone are no search: such a text lists like an empty box.
     const search = q.trim()
+    const query = { ...DEFAULT_LIST_QUERY, perPage: 20, q: search, filters }
     // The same page without the text: what an empty box lists.
     const unfiltered = { ...query, q: '' }
     const unfilteredKey = catalogKeys.itemList(unfiltered)
@@ -108,17 +126,20 @@ export function ItemCombobox({
       if (!search || !isOfflineUnavailable(error)) throw error
       // Offline the text search is refused, the unfiltered page is still answered. Searching
       // only its rows is a partial answer, so the notice says so.
-      const page = await queryClient
-        .query({
+      // Known limit: while a cached page is fresh, a 503 OFFLINE_UNAVAILABLE caused by another
+      // param (e.g. `filter[type]`) is also answered from that page under the same notice.
+      const page = await abortable(
+        queryClient.query({
           queryKey: unfilteredKey,
           queryFn: ({ signal: s }) => itemsApi.list(unfiltered, s),
           staleTime: OFFLINE_LIST_STALE_MS,
           // A refusal now is answered with the load error; the next keystroke tries again.
           retry: false,
-        })
-        .catch(() => {
-          throw error
-        })
+        }),
+        signal,
+      ).catch((reason: unknown) => {
+        throw signal.aborted ? reason : error
+      })
       const needle = search.toLocaleLowerCase(locale)
       rows = page.data.filter(
         (item) =>
@@ -127,6 +148,8 @@ export function ItemCombobox({
       )
       notice = t('itemCombobox.offlineSearch')
     }
+    // A superseded search must not replace the rows of the newer one: a pick reads them.
+    signal.throwIfAborted()
     lastResults.current = new Map(rows.map((item) => [item.id, item]))
     const options = rows.map(toOption)
     return notice ? { options, notice } : options

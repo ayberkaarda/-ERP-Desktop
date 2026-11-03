@@ -64,6 +64,7 @@ export function Combobox({
   const { t } = useTranslation('common')
   const locale = useIntlLocale()
   const listId = useId()
+  const noticeId = `${listId}-notice`
   const anchorRef = useRef<HTMLDivElement>(null)
   const [open, setOpenState] = useState(false)
   const [query, setQuery] = useState('')
@@ -165,6 +166,12 @@ export function Combobox({
             role="combobox"
             aria-expanded={open}
             aria-controls={listId}
+            // Focus stays in the input, so the notice is read through it.
+            aria-describedby={
+              [props['aria-describedby'], open && notice ? noticeId : undefined]
+                .filter(Boolean)
+                .join(' ') || undefined
+            }
             aria-autocomplete="list"
             aria-activedescendant={open && matches[current] ? optionId(current) : undefined}
             autoComplete="off"
@@ -233,7 +240,12 @@ export function Combobox({
         }}
       >
         {notice && (
-          <p className="px-2 py-1.5 text-xs text-muted-foreground" role="note">
+          <p
+            id={noticeId}
+            className="px-2 py-1.5 text-xs text-muted-foreground"
+            role="note"
+            aria-live="polite"
+          >
             {notice}
           </p>
         )}
