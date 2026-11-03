@@ -37,6 +37,7 @@ import { useStockWarehouses } from '../../shared/warehouses'
 import {
   changedCounts,
   countSummary,
+  fillBlanks,
   filterLines,
   initialCounts,
   type Counts,
@@ -229,14 +230,7 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
     post.reset()
   }
 
-  const fillBlanks = () =>
-    setCounts((prev) => {
-      const next = { ...prev }
-      for (const l of base.lines) {
-        if ((next[l.id] ?? '') === '') next[l.id] = l.system_quantity ?? '0'
-      }
-      return next
-    })
+  const fillBlankCounts = () => setCounts((prev) => fillBlanks(base.lines, prev))
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -403,7 +397,13 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
           {t('count.onlyUncounted')}
         </label>
         {canEdit && uncounted > 0 && (
-          <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={fillBlanks}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={fillBlankCounts}
+          >
             <ClipboardCopy aria-hidden="true" />
             {t('count.copySystem')}
           </Button>

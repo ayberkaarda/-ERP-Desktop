@@ -208,6 +208,7 @@
     "onlyVariance": "Seulement les lignes avec écart",
     "onlyUncounted": "Seulement non comptées",
     "copySystem": "Remplir les vides avec la quantité système",
+    "pendingLine": "En attente — modifiable après l’envoi",
     "save": "Enregistrer l'inventaire",
     "saved": "Inventaire enregistré.",
     "keys": "Naviguez entre les cellules avec les flèches et Entrée ; Ctrl+S enregistre.",

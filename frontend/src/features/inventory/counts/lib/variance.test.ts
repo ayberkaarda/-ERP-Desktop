@@ -2,7 +2,9 @@ import { formatDecimalDisplay } from '@/lib/money'
 import type { StockDocumentLine } from '../../documents/types'
 import {
   changedCounts,
+  countedOf,
   countSummary,
+  fillBlanks,
   filterLines,
   initialCounts,
   lineVariance,
@@ -81,5 +83,52 @@ describe('count variance', () => {
     const snapshot = line('s', { unit_cost: null, avg_cost: '12.500000' })
     expect(varianceValue(snapshot, '9')?.toFixed()).toBe('-12.5')
     expect(varianceValue(line('n', { unit_cost: null }), '9')?.toFixed()).toBe('0')
+  })
+})
+
+describe('lines not yet confirmed by the server', () => {
+  /** An offline `add` read back before the push: no id, line_no or system quantity. */
+  const pending = (code: string, counted: string | null): StockDocumentLine => {
+    const l: Partial<StockDocumentLine> = line(code, { counted_quantity: counted })
+    delete l.id
+    delete l.system_quantity
+    return l as StockDocumentLine
+  }
+  const saved = line('a', { counted_quantity: '4.000000' })
+  const counted = pending('p', '3.000000')
+  const blank = pending('q', null)
+  const lines = [saved, counted, blank]
+
+  it('keeps them out of the editable counts', () => {
+    expect(initialCounts(lines)).toEqual({ a: '4.000000' })
+    expect(Object.keys(initialCounts(lines))).not.toContain('undefined')
+  })
+
+  it('never sends them, even when the editable counts change', () => {
+    const counts = { ...initialCounts(lines), a: '5' }
+    expect(changedCounts(lines, counts)).toEqual([{ line_id: 'a', counted_quantity: '5' }])
+    // A stray value under the old "undefined" key must not produce an id-less entry either.
+    expect(changedCounts(lines, { ...counts, undefined: '9' })).toEqual([
+      { line_id: 'a', counted_quantity: '5' },
+    ])
+  })
+
+  it('does not fill them with a system quantity', () => {
+    expect(fillBlanks(lines, { a: '' })).toEqual({ a: '10.000000' })
+  })
+
+  it('shows their own counted quantity without a variance', () => {
+    const counts = initialCounts(lines)
+    expect(countedOf(counted, counts)).toBe('3.000000')
+    expect(countedOf(blank, counts)).toBe('')
+    expect(lineVariance(counted, '3.000000')).toBeNull()
+    expect(countSummary(lines, counts)).toEqual({
+      total: 3,
+      counted: 2,
+      differing: 1,
+      gain: '0.0000',
+      loss: '15.0000',
+      net: '-15.0000',
+    })
   })
 })

@@ -166,6 +166,66 @@ describe('stock count', () => {
     )
   })
 
+  /**
+   * Offline (desktop), a saved `add` is read back from the local queue before the push: the
+   * line has no id, line_no or system quantity yet. Two such lines are appended here.
+   */
+  function withPendingLines(db: ReturnType<typeof setupInvDocs>) {
+    const doc = db.documents.find((d) => d.id === DOC_COUNT)
+    if (!doc) throw new Error('count fixture missing')
+    type Line = (typeof doc.lines)[number]
+    for (const [index, counted_quantity] of [
+      [0, '3.000000'],
+      [1, null],
+    ] as const) {
+      const source = doc.lines[index]
+      if (!source) throw new Error('count line missing')
+      const l: Partial<Line> = { ...source, counted_quantity }
+      delete l.id
+      delete l.line_no
+      delete l.system_quantity
+      delete l.difference
+      doc.lines.push(l as Line)
+    }
+  }
+
+  it('keeps lines the server has not confirmed yet read-only and out of the saved counts', async () => {
+    const db = setupInvDocs()
+    withPendingLines(db)
+    const user = userEvent.setup()
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+
+    // Both id-less lines render as their own rows (no shared key), marked and locked.
+    const first = screen.getByTestId('count-row-pending-3')
+    const second = screen.getByTestId('count-row-pending-4')
+    for (const row of [first, second]) {
+      expect(row).toHaveTextContent('Bekliyor — gönderildikten sonra düzenlenebilir')
+      expect(within(row).getByRole('textbox')).toBeDisabled()
+    }
+    expect(within(first).getByRole('textbox')).toHaveValue('3')
+    expect(within(second).getByRole('textbox')).toHaveValue('')
+    expect(screen.getByTestId('count-progress')).toHaveTextContent('2 / 5 satır sayıldı')
+
+    // Editing a confirmed line and saving sends only that line: the batch stays valid.
+    const bolt = within(screen.getByTestId(`count-row-${DOC_COUNT}-l1`)).getByRole('textbox')
+    await user.click(bolt)
+    await user.keyboard('98')
+    await user.keyboard('{Control>}s{/Control}')
+    await waitFor(() => expect(db.calls.some((c) => c.method === 'PATCH')).toBe(true))
+    expect(db.calls.find((c) => c.method === 'PATCH')?.body as CountUpdateInput).toEqual({
+      version: 1,
+      counts: [{ line_id: `${DOC_COUNT}-l1`, counted_quantity: '98.000000' }],
+    })
+    // Saved: nothing left to send.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Sayımı kaydet' })).toBeDisabled(),
+    )
+    expect(screen.getAllByText('Bekliyor — gönderildikten sonra düzenlenebilir')).toHaveLength(2)
+    // Adding another line stays possible.
+    expect(screen.getByRole('button', { name: 'Satır ekle' })).toBeEnabled()
+  })
+
   it('refuses a non-CSV file', async () => {
     setupInvDocs()
     const user = userEvent.setup({ applyAccept: false })

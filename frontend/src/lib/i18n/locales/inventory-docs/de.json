@@ -208,6 +208,7 @@
     "onlyVariance": "Nur Positionen mit Differenz",
     "onlyUncounted": "Nur ungezählte",
     "copySystem": "Leere mit der Systemmenge füllen",
+    "pendingLine": "Ausstehend — nach dem Senden bearbeitbar",
     "save": "Inventur speichern",
     "saved": "Inventur gespeichert.",
     "keys": "Mit Pfeiltasten und Enter zwischen Zellen wechseln; Strg+S speichert.",

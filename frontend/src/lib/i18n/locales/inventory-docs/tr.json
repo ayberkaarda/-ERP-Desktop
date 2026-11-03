@@ -208,6 +208,7 @@
     "onlyVariance": "Yalnızca farklı satırlar",
     "onlyUncounted": "Yalnızca sayılmamış",
     "copySystem": "Boşları sistem miktarıyla doldur",
+    "pendingLine": "Bekliyor — gönderildikten sonra düzenlenebilir",
     "save": "Sayımı kaydet",
     "saved": "Sayım kaydedildi.",
     "keys": "Ok tuşları ve Enter ile hücreler arasında gezinin; Ctrl+S kaydeder.",

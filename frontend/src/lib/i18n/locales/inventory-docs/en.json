@@ -208,6 +208,7 @@
     "onlyVariance": "Only lines with a variance",
     "onlyUncounted": "Only uncounted",
     "copySystem": "Fill blanks with the system quantity",
+    "pendingLine": "Pending — editable once it has been sent",
     "save": "Save count",
     "saved": "Count saved.",
     "keys": "Move between cells with the arrow keys and Enter; Ctrl+S saves.",
