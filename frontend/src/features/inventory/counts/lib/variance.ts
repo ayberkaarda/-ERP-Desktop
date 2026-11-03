@@ -5,13 +5,31 @@ import type { StockDocumentLine } from '../../documents/types'
 /** Counted quantities being edited, by line id ('' = not counted). */
 export type Counts = Record<string, string>
 
+/**
+ * A line the server has not confirmed yet: an offline `add` read back from the local queue
+ * before it was pushed. It has no id (nor line_no / system quantity), so it cannot be counted
+ * or referenced by a `counts` entry until the server answers; it is shown read-only.
+ */
+export function isPendingLine(line: StockDocumentLine): boolean {
+  // The API type says string, but a locally projected line arrives without one.
+  return !(line.id as string | undefined)
+}
+
+/** Counted quantity of a line: the edited value, or a pending line's own (read-only) value. */
+export function countedOf(line: StockDocumentLine, counts: Counts): string {
+  return isPendingLine(line) ? (line.counted_quantity ?? '') : (counts[line.id] ?? '')
+}
+
 export function initialCounts(lines: readonly StockDocumentLine[]): Counts {
-  return Object.fromEntries(lines.map((l) => [l.id, l.counted_quantity ?? '']))
+  return Object.fromEntries(
+    lines.filter((l) => !isPendingLine(l)).map((l) => [l.id, l.counted_quantity ?? '']),
+  )
 }
 
 /** counted - system, or null while the line is not counted. */
 export function lineVariance(line: StockDocumentLine, counted: string): Decimal | null {
-  if (!isDecimal(counted)) return null
+  // A pending line's system quantity is only known once the server has added it.
+  if (isPendingLine(line) || !isDecimal(counted)) return null
   return new Decimal(counted).minus(dec(line.system_quantity))
 }
 
@@ -43,7 +61,7 @@ export function countSummary(lines: readonly StockDocumentLine[], counts: Counts
   let counted = 0
   let differing = 0
   for (const l of lines) {
-    const c = counts[l.id] ?? ''
+    const c = countedOf(l, counts)
     if (!isDecimal(c)) continue
     counted += 1
     const v = lineVariance(l, c)
@@ -68,12 +86,24 @@ export function changedCounts(
   counts: Counts,
 ): { line_id: string; counted_quantity: string | null }[] {
   return lines.flatMap((l) => {
+    // Never sent: the server requires a line id, and an id-less entry would reject the batch.
+    if (isPendingLine(l)) return []
     const now = counts[l.id] ?? ''
     const stored = l.counted_quantity ?? ''
     const same =
       now === stored || (isDecimal(now) && isDecimal(stored) && new Decimal(now).eq(stored))
     return same ? [] : [{ line_id: l.id, counted_quantity: now === '' ? null : now }]
   })
+}
+
+/** Fills the uncounted, editable lines with their system quantity. Pending lines are skipped. */
+export function fillBlanks(lines: readonly StockDocumentLine[], counts: Counts): Counts {
+  const next = { ...counts }
+  for (const l of lines) {
+    if (isPendingLine(l)) continue
+    if ((next[l.id] ?? '') === '') next[l.id] = l.system_quantity ?? '0'
+  }
+  return next
 }
 
 /** Search and toggles of the count grid. */
@@ -84,7 +114,7 @@ export function filterLines(
 ): StockDocumentLine[] {
   const needle = options.q.trim().toLocaleLowerCase('tr')
   return lines.filter((l) => {
-    const c = counts[l.id] ?? ''
+    const c = countedOf(l, counts)
     if (options.onlyUncounted && isDecimal(c)) return false
     if (options.onlyVariance) {
       const v = lineVariance(l, c)

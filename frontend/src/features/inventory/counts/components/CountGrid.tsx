@@ -8,7 +8,14 @@ import { formatDecimalDisplay } from '@/lib/money'
 import { cn } from '@/lib/utils'
 import { trimDecimal } from '../../documents/lib/quantity'
 import type { StockDocumentLine } from '../../documents/types'
-import { countCost, lineVariance, varianceValue, type Counts } from '../lib/variance'
+import {
+  countCost,
+  countedOf,
+  isPendingLine,
+  lineVariance,
+  varianceValue,
+  type Counts,
+} from '../lib/variance'
 
 export const COUNT_PAGE_SIZE = 100
 
@@ -64,8 +71,17 @@ export function CountGrid({
     if (pendingFocus.current !== null && focusRow(pendingFocus.current)) pendingFocus.current = null
   })
 
-  /** Moves to the line at absolute index `target`, switching page when needed. */
-  const go = (target: number) => {
+  /**
+   * Moves to the editable line at absolute index `target` (or the next one in `step`'s
+   * direction: pending lines have no input), switching page when needed.
+   */
+  const go = (start: number, step: 1 | -1) => {
+    let target = start
+    const pendingAt = (i: number) => {
+      const l = i >= 0 ? lines[i] : undefined
+      return l !== undefined && isPendingLine(l)
+    }
+    while (pendingAt(target)) target += step
     if (target < 0 || target >= lines.length) return
     const targetPage = Math.floor(target / COUNT_PAGE_SIZE)
     if (targetPage !== current) {
@@ -81,13 +97,13 @@ export function CountGrid({
     if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       const back = e.key === 'ArrowUp' || (e.key === 'Enter' && e.shiftKey)
-      go(index + (back ? -1 : 1))
+      go(index + (back ? -1 : 1), back ? -1 : 1)
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Home') {
       e.preventDefault()
-      go(0)
+      go(0, 1)
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'End') {
       e.preventDefault()
-      go(lines.length - 1)
+      go(lines.length - 1, -1)
     }
   }
 
@@ -139,7 +155,10 @@ export function CountGrid({
           <tbody>
             {visible.map((l, i) => {
               const index = start + i
-              const counted = counts[l.id] ?? ''
+              const pending = isPendingLine(l)
+              // Pending lines have no id yet: key them by position so they never collide.
+              const rowKey = pending ? `pending-${String(index)}` : l.id
+              const counted = countedOf(l, counts)
               const variance = lineVariance(l, counted)
               const value = varianceValue(l, counted)
               const tone =
@@ -150,7 +169,7 @@ export function CountGrid({
                     : 'text-success'
               const label = `${l.item_code ?? ''} ${l.lot_no ?? ''}`.trim()
               return (
-                <tr key={l.id} data-testid={`count-row-${l.id}`}>
+                <tr key={rowKey} data-testid={`count-row-${rowKey}`}>
                   <td className={cn(td, 'text-right text-xs text-muted-foreground')}>
                     {l.line_no}
                   </td>
@@ -162,22 +181,49 @@ export function CountGrid({
                   <td className={td}>{l.unit_code}</td>
                   <td className={cn(td, 'text-right tabular-nums')}>{qty(l.system_quantity)}</td>
                   <td className={cn(td, 'text-right')}>
-                    <DecimalInput
-                      scale={6}
-                      displayMinFraction={0}
-                      value={counted}
-                      locale={locale}
-                      disabled={disabled}
-                      data-count-row={index}
-                      aria-label={t('count.counted') + ', ' + label}
-                      className="h-control-sm"
-                      onChange={(v) => onChange(l.id, v)}
-                      onKeyDown={(e) => onKeyDown(e, index)}
-                    />
+                    {pending ? (
+                      <div className="space-y-1">
+                        <DecimalInput
+                          scale={6}
+                          displayMinFraction={0}
+                          value={counted}
+                          locale={locale}
+                          // Read-only rather than disabled: still focusable, so the pending
+                          // note is announced. Out of the Tab order like the grid's arrows.
+                          readOnly
+                          aria-readonly="true"
+                          tabIndex={-1}
+                          aria-label={t('count.counted') + ', ' + label}
+                          aria-describedby={`${rowKey}-note`}
+                          className="h-control-sm"
+                          onChange={() => undefined}
+                        />
+                        <p
+                          id={`${rowKey}-note`}
+                          className="text-xs whitespace-nowrap text-warning-soft-foreground"
+                          data-testid={`pending-${rowKey}`}
+                        >
+                          {t('count.pendingLine')}
+                        </p>
+                      </div>
+                    ) : (
+                      <DecimalInput
+                        scale={6}
+                        displayMinFraction={0}
+                        value={counted}
+                        locale={locale}
+                        disabled={disabled}
+                        data-count-row={index}
+                        aria-label={t('count.counted') + ', ' + label}
+                        className="h-control-sm"
+                        onChange={(v) => onChange(l.id, v)}
+                        onKeyDown={(e) => onKeyDown(e, index)}
+                      />
+                    )}
                   </td>
                   <td
                     className={cn(td, 'text-right tabular-nums', tone)}
-                    data-testid={`variance-${l.id}`}
+                    data-testid={`variance-${rowKey}`}
                   >
                     {variance ? qty(variance.toString()) : ''}
                   </td>
