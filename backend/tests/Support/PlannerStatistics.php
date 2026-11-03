@@ -16,8 +16,9 @@ use Illuminate\Support\Facades\DB;
  * the list queries turn into nested loops over all rows of the transaction, seconds per
  * request instead of milliseconds. Tests that send hundreds of requests over a large seeded
  * world call refresh() once their rows exist. ANALYZE counts the rows of its own uncommitted
- * transaction, its statistics roll back with the test, and its lock keeps autovacuum off the
- * tables until the test ends.
+ * transaction and its lock keeps autovacuum off the tables until the test ends. Its column
+ * statistics roll back with the test; the page and row counts it writes to pg_class are updated
+ * in place and stay until the next VACUUM or ANALYZE, which only gives later tests better plans.
  */
 final class PlannerStatistics
 {
