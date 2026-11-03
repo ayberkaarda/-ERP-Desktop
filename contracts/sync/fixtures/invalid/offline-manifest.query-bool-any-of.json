@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "sync_schema_version": 1,
+  "api_prefix": "/api/v1",
+  "defaults": {
+    "recent_window_days": 30,
+    "snapshot_refresh_minutes": 15
+  },
+  "resources": [
+    {
+      "resource": "parties",
+      "module": "Parties",
+      "scope": "company",
+      "path": "/api/v1/parties",
+      "detail_path": "/api/v1/parties/{id}",
+      "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+      "requires": {
+        "all_of": [
+          "parties.view"
+        ]
+      },
+      "read": "local-first",
+      "source": "pull",
+      "query": {
+        "filters": {
+          "is_active": {
+            "match": "any_of",
+            "type": "bool"
+          }
+        }
+      }
+    }
+  ],
+  "online_only": [
+    {
+      "action": "decideApproval",
+      "i18n_key": "desktop.onlineOnly.decideApproval",
+      "category": "approve",
+      "routes": [
+        "POST /api/v1/approvals/{id}/decisions"
+      ]
+    }
+  ]
+}
