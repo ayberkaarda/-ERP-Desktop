@@ -7,8 +7,11 @@ export interface AsyncComboboxProps extends Omit<
   ComboboxProps,
   'options' | 'filter' | 'loading' | 'onQueryChange' | 'onOpenChange'
 > {
-  /** Fetches options for the typed text; the signal aborts superseded requests. */
-  loadOptions: (query: string, signal: AbortSignal) => Promise<ComboboxOption[]>
+  /**
+   * Fetches options for the typed text; the signal aborts superseded requests. A loader that
+   * could only answer partly returns `{ options, notice }`; the notice is shown above them.
+   */
+  loadOptions: (query: string, signal: AbortSignal) => Promise<ComboboxOption[] | LoadedOptions>
   /** Label for the current value before any search ran (edit forms). */
   initialOption?: ComboboxOption | null
   minQueryLength?: number
@@ -20,9 +23,16 @@ export interface AsyncComboboxProps extends Omit<
   scopeKey?: string
 }
 
+export interface LoadedOptions {
+  options: ComboboxOption[]
+  /** Already translated; says how the options are limited. */
+  notice?: string
+}
+
 interface Result {
   key: string
   options: ComboboxOption[]
+  notice?: string
   failed: boolean
 }
 
@@ -50,8 +60,10 @@ export function AsyncCombobox({
     if (!ready) return
     const controller = new AbortController()
     loadOptions(debounced, controller.signal).then(
-      (options) => {
-        if (!controller.signal.aborted) setResult({ key, options, failed: false })
+      (loaded) => {
+        if (controller.signal.aborted) return
+        const { options, notice } = Array.isArray(loaded) ? { options: loaded } : loaded
+        setResult({ key, options, notice, failed: false })
       },
       () => {
         if (!controller.signal.aborted) setResult({ key, options: [], failed: true })
@@ -86,6 +98,7 @@ export function AsyncCombobox({
       filter={false}
       loading={loading}
       emptyText={empty}
+      notice={current ? result.notice : undefined}
       onQueryChange={setQuery}
       onOpenChange={(next) => {
         setOpen(next)
