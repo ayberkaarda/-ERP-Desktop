@@ -32,6 +32,8 @@ export interface ComboboxProps extends NativeProps {
   loading?: boolean
   /** Text shown in the list when there is nothing to pick. */
   emptyText?: string
+  /** A line above the options that qualifies them (e.g. a search limited to loaded rows). */
+  notice?: string
   ref?: Ref<HTMLInputElement>
 }
 
@@ -50,6 +52,7 @@ export function Combobox({
   onOpenChange,
   loading = false,
   emptyText,
+  notice,
   placeholder,
   disabled,
   className,
@@ -229,6 +232,11 @@ export function Combobox({
           if (anchorRef.current?.contains(e.target as Node)) e.preventDefault()
         }}
       >
+        {notice && (
+          <p className="px-2 py-1.5 text-xs text-muted-foreground" role="note">
+            {notice}
+          </p>
+        )}
         <ul id={listId} role="listbox" aria-label={props['aria-label']}>
           {matches.map((option, i) => (
             <li
