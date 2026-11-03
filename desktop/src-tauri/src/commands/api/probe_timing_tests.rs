@@ -3,7 +3,7 @@
 //! (far too late for the clients), up, a slow manifest and a stuck pull.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use keystone_sync::auth::{MemoryTokenStore, Secret, StoredTokens};
@@ -227,6 +227,7 @@ impl Live {
             Some(EngineView {
                 status: self.engine.subscribe(),
                 passes: self.engine.subscribe_passes(),
+                started: crate::events::passes_started(&self.engine),
                 connectivity: self.connectivity.clone(),
             }),
             Some(self.sync.clone()),
@@ -480,6 +481,7 @@ async fn a_pass_starting_is_not_a_finding() {
         Some(EngineView {
             status: status_rx,
             passes: passes_rx,
+            started: std::sync::Arc::new(|| 0),
             connectivity: connectivity.clone(),
         }),
         None,
@@ -516,6 +518,7 @@ async fn only_a_pass_that_ends_idle_is_a_return() {
         Some(EngineView {
             status: status_rx,
             passes: passes_rx,
+            started: std::sync::Arc::new(|| 0),
             connectivity: connectivity.clone(),
         }),
         None,
@@ -531,5 +534,115 @@ async fn only_a_pass_that_ends_idle_is_a_return() {
     passes.send_replace(2);
     tokio::time::sleep(Duration::from_millis(100)).await;
     assert!(connectivity.online("p1", Some(false), Instant::now()));
+    task.abort();
+}
+
+/// A bridge over fake engine channels with a started-passes counter, on the
+/// test's own runtime thread (`yields` lets it take what is waiting).
+struct FakeEngine {
+    connectivity: Connectivity,
+    status: tokio::sync::watch::Sender<SyncStatus>,
+    passes: tokio::sync::watch::Sender<u64>,
+    started: Arc<AtomicU64>,
+}
+
+impl FakeEngine {
+    fn new() -> Self {
+        Self {
+            connectivity: Connectivity::default(),
+            status: tokio::sync::watch::Sender::new(SyncStatus::default()),
+            passes: tokio::sync::watch::Sender::new(0),
+            started: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    fn bridge(&self) -> tokio::task::JoinHandle<()> {
+        let started = self.started.clone();
+        tokio::spawn(connectivity_bridge(
+            "p1".into(),
+            self.connectivity.subscribe(),
+            Some(EngineView {
+                status: self.status.subscribe(),
+                passes: self.passes.subscribe(),
+                started: Arc::new(move || started.load(Ordering::SeqCst)),
+                connectivity: self.connectivity.clone(),
+            }),
+            None,
+            Arc::new(Recorder::default()),
+        ))
+    }
+
+    fn start_pass(&self) {
+        self.started.fetch_add(1, Ordering::SeqCst);
+        self.status.send_modify(|s| s.state = SyncState::Syncing);
+    }
+
+    fn end_pass_idle(&self) {
+        self.status.send_modify(|s| s.state = SyncState::Idle);
+        self.passes
+            .send_replace(self.started.load(Ordering::SeqCst));
+    }
+
+    fn online(&self) -> bool {
+        self.connectivity.online("p1", Some(false), Instant::now())
+    }
+}
+
+async fn yields() {
+    for _ in 0..10 {
+        tokio::task::yield_now().await;
+    }
+}
+
+/// A pass that ended idle before the server was found gone, still unread
+/// when the bridge takes the finding (a bridge lagging behind), is no
+/// return.
+#[tokio::test]
+async fn a_pass_that_ended_before_the_finding_is_no_return() {
+    for _ in 0..20 {
+        let fake = FakeEngine::new();
+        let task = fake.bridge();
+        yields().await;
+        // The bridge does not run in between: both wait for it.
+        fake.start_pass();
+        fake.end_pass_idle();
+        fake.connectivity.observe("p1", false, Instant::now());
+        yields().await;
+        assert!(!fake.online());
+        task.abort();
+    }
+}
+
+/// A pass that was running when the server was found gone and ends idle
+/// after the bridge took the finding is no return: it may have reached
+/// the server before it went away.
+#[tokio::test]
+async fn a_pass_that_started_before_the_finding_is_no_return() {
+    let fake = FakeEngine::new();
+    let task = fake.bridge();
+    yields().await;
+    fake.start_pass();
+    yields().await;
+    fake.connectivity.observe("p1", false, Instant::now());
+    yields().await;
+    fake.end_pass_idle();
+    yields().await;
+    assert!(!fake.online());
+    task.abort();
+}
+
+/// A pass that started after the finding and ends idle is a return.
+#[tokio::test]
+async fn a_pass_that_started_after_the_finding_is_a_return() {
+    let fake = FakeEngine::new();
+    let task = fake.bridge();
+    yields().await;
+    fake.connectivity.observe("p1", false, Instant::now());
+    yields().await;
+    fake.start_pass();
+    yields().await;
+    fake.end_pass_idle();
+    yields().await;
+    assert!(fake.online());
     task.abort();
 }

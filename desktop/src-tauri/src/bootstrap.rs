@@ -790,6 +790,7 @@ impl Desktop {
             Some(EngineView {
                 status: opened.engine.subscribe(),
                 passes: opened.engine.subscribe_passes(),
+                started: crate::events::passes_started(&opened.engine),
                 connectivity: self.connectivity.clone(),
             }),
             sync.clone(),

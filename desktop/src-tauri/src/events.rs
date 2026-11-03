@@ -69,12 +69,25 @@ impl<R: tauri::Runtime> EventSink for TauriSink<R> {
 }
 
 /// The engine side of a [`connectivity_bridge`]: its status, its finished
-/// passes ([`keystone_sync::engine::SyncEngine::subscribe_passes`]) and the
-/// view it feeds.
+/// passes ([`keystone_sync::engine::SyncEngine::subscribe_passes`]), the
+/// passes it has started so far
+/// ([`keystone_sync::engine::SyncEngine::passes_started`]) and the view it
+/// feeds.
 pub struct EngineView {
     pub status: watch::Receiver<SyncStatus>,
     pub passes: watch::Receiver<u64>,
+    pub started: PassesStarted,
     pub connectivity: Connectivity,
+}
+
+/// Reads the number of passes an engine has started so far.
+pub type PassesStarted = Arc<dyn Fn() -> u64 + Send + Sync>;
+
+/// [`PassesStarted`] of `engine`, without keeping it alive: once it is
+/// gone, no pass counts.
+pub fn passes_started(engine: &Arc<crate::state::Engine>) -> PassesStarted {
+    let engine = Arc::downgrade(engine);
+    Arc::new(move || engine.upgrade().map_or(u64::MAX, |e| e.passes_started()))
 }
 
 /// Forwards connectivity changes of `profile_id` to `sink` until aborted.
@@ -90,6 +103,10 @@ pub struct EngineView {
 ///   moment (the engine never went offline) does not keep the profile
 ///   offline until that finding expires. So a request after the engine
 ///   found the server again is not answered from the earlier failed one.
+///   Only a pass that started after the bridge took the unreachable
+///   finding is a return (the engine's own rule, as in
+///   [`keystone_sync::engine::SyncEngine::subscribe_passes`]): one that
+///   started before may have reached the server before it went away.
 pub async fn connectivity_bridge(
     profile_id: String,
     mut changes: broadcast::Receiver<ConnectivityChange>,
@@ -97,25 +114,35 @@ pub async fn connectivity_bridge(
     sync: Option<SyncHandle>,
     sink: Arc<dyn EventSink>,
 ) {
-    let (mut status, mut passes, connectivity) = match engine {
+    let (mut status, mut passes, started, connectivity) = match engine {
         Some(view) => (
             Some(view.status),
             Some(view.passes),
+            Some(view.started),
             Some(view.connectivity),
         ),
-        None => (None, None, None),
+        None => (None, None, None, None),
     };
+    let started_now = || started.as_ref().map_or(0, |started| started());
+    // Passes up to this number started before the last unreachable finding
+    // the bridge took (or before the bridge: a finding it never saw).
+    let mut since = started_now();
     let mut engine_offline = status
         .as_mut()
         .is_some_and(|rx| rx.borrow_and_update().state == SyncState::Offline);
     loop {
         tokio::select! {
+            // A change waiting is taken before a finished pass waiting.
+            biased;
             received = changes.recv() => match received {
                 Ok(change) if change.profile == profile_id => {
                     sink.emit(EngineEvent::Connectivity {
                         profile_id: profile_id.clone(),
                         online: change.online,
                     });
+                    if !change.online {
+                        since = started_now();
+                    }
                     let disagrees = match &status {
                         Some(rx) => change.online == (rx.borrow().state == SyncState::Offline),
                         None => change.online,
@@ -124,7 +151,9 @@ pub async fn connectivity_bridge(
                         sync.trigger(Trigger::NetworkChanged);
                     }
                 }
-                Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
+                Ok(_) => {}
+                // A lost change may have been an unreachable finding.
+                Err(broadcast::error::RecvError::Lagged(_)) => since = started_now(),
                 Err(broadcast::error::RecvError::Closed) => return,
             },
             changed = async { status.as_mut()?.changed().await.ok() }, if status.is_some() => {
@@ -146,8 +175,17 @@ pub async fn connectivity_bridge(
                 }
             }
             changed = async { passes.as_mut()?.changed().await.ok() }, if passes.is_some() => {
-                if changed.is_none() {
+                let Some(finished) = passes
+                    .as_mut()
+                    .filter(|_| changed.is_some())
+                    .map(|rx| *rx.borrow_and_update())
+                else {
                     passes = None;
+                    continue;
+                };
+                // Passes run one at a time and are numbered as they start; a
+                // pass cut short only leaves its number out.
+                if finished <= since {
                     continue;
                 }
                 let idle = status
@@ -358,6 +396,7 @@ mod tests {
             Some(EngineView {
                 status: status_rx,
                 passes: tokio::sync::watch::channel(0).1,
+                started: Arc::new(|| 0),
                 connectivity: connectivity.clone(),
             }),
             None,

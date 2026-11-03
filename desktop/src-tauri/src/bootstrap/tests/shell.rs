@@ -625,6 +625,32 @@ fn announced(
         .collect()
 }
 
+/// Waits (up to 10 s) until the active engine has finished pass `number`;
+/// returns the number of passes started by then.
+async fn passes_done(fx: &Fx, number: u64) -> u64 {
+    let engine = fx.state.engine().unwrap();
+    let mut done = engine.subscribe_passes();
+    tokio::time::timeout(Duration::from_secs(10), done.wait_for(|n| *n >= number))
+        .await
+        .expect("the engine finished no such pass")
+        .unwrap();
+    engine.passes_started()
+}
+
+/// Waits until no pass of the active engine is running, so every pass from
+/// now on starts with the mocks mounted so far and the next one to finish
+/// is the run a finding asks for. Returns the passes started so far.
+async fn engine_settled(fx: &Fx) -> u64 {
+    let mut started = fx.state.engine().unwrap().passes_started();
+    loop {
+        let now = passes_done(fx, started).await;
+        if now == started {
+            return started;
+        }
+        started = now;
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_removed_profile_leaves_nothing_announced_behind() {
     let server = server(&[(COMPANY, "Acme")]).await;
@@ -637,10 +663,13 @@ async fn a_removed_profile_leaves_nothing_announced_behind() {
         .with_priority(1)
         .mount_as_scoped(&server)
         .await;
+    let started = engine_settled(&fx).await;
     let connectivity = fx.desktop.connectivity().clone();
     let mut rx = connectivity.subscribe();
     let now = std::time::Instant::now();
     connectivity.observe(&profile.id, false, now);
+    // The run the finding asks for has failed.
+    passes_done(&fx, started + 1).await;
     assert_eq!(announced(&mut rx), [false]);
 
     fx.desktop
@@ -665,11 +694,13 @@ async fn a_sign_out_leaves_nothing_announced_behind() {
         .with_priority(1)
         .mount_as_scoped(&server)
         .await;
+    let started = engine_settled(&fx).await;
     let connectivity = fx.desktop.connectivity().clone();
     let mut rx = connectivity.subscribe();
     let now = std::time::Instant::now();
     connectivity.observe(&profile.id, false, now);
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    // The run the finding asks for has failed.
+    passes_done(&fx, started + 1).await;
     assert_eq!(announced(&mut rx), [false]);
 
     assert_eq!(
