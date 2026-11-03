@@ -220,6 +220,7 @@
     "postBody": "Des mouvements d'ajustement d'inventaire et une écriture d'écart sont créés pour les différences.",
     "postSummary": "{{gain}} excédent · {{loss}} manquant · net {{net}}",
     "postNeedsCounts": "Comptez au moins une ligne avant de valider.",
+    "postPending": "Validation impossible tant que les lignes en attente ne sont pas arrivées au serveur.",
     "empty": "Cet inventaire n'a aucune ligne.",
     "notFound": "Aucune ligne ne correspond au filtre.",
     "saveBeforeImport": "Enregistrez l'inventaire avant l'import.",

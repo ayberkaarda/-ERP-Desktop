@@ -220,6 +220,7 @@
     "postBody": "Für die Differenzen werden Inventurkorrekturen und ein Differenz-Buchungssatz erstellt.",
     "postSummary": "{{gain}} Überbestand · {{loss}} Fehlbestand · netto {{net}}",
     "postNeedsCounts": "Vor dem Buchen mindestens eine Zeile zählen.",
+    "postPending": "Buchen erst möglich, wenn die ausstehenden Zeilen beim Server angekommen sind.",
     "empty": "Diese Inventur hat keine Positionen.",
     "notFound": "Keine Positionen entsprechen dem Filter.",
     "saveBeforeImport": "Speichern Sie die Inventur vor dem Import.",

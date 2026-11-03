@@ -220,6 +220,7 @@
     "postBody": "Farklar için sayım düzeltme hareketleri ve fark muhasebe fişi oluşur.",
     "postSummary": "{{gain}} fazla · {{loss}} eksik · net {{net}}",
     "postNeedsCounts": "En az bir satır sayılmadan kesinleştirilemez.",
+    "postPending": "Bekleyen satırlar sunucuya ulaşana dek kesinleştirilemez.",
     "empty": "Bu sayımda satır yok.",
     "notFound": "Filtreye uyan satır yok.",
     "saveBeforeImport": "İçe aktarmadan önce sayımı kaydedin.",

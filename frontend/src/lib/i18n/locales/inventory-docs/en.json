@@ -220,6 +220,7 @@
     "postBody": "Count adjustment movements and a variance journal entry are created for the differences.",
     "postSummary": "{{gain}} surplus · {{loss}} shortage · net {{net}}",
     "postNeedsCounts": "Count at least one line before posting.",
+    "postPending": "Cannot post until the pending lines have reached the server.",
     "empty": "This count has no lines.",
     "notFound": "No lines match the filter.",
     "saveBeforeImport": "Save the count before importing.",

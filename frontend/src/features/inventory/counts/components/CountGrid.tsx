@@ -188,7 +188,11 @@ export function CountGrid({
                           displayMinFraction={0}
                           value={counted}
                           locale={locale}
-                          disabled
+                          // Read-only rather than disabled: still focusable, so the pending
+                          // note is announced. Out of the Tab order like the grid's arrows.
+                          readOnly
+                          aria-readonly="true"
+                          tabIndex={-1}
                           aria-label={t('count.counted') + ', ' + label}
                           aria-describedby={`${rowKey}-note`}
                           className="h-control-sm"

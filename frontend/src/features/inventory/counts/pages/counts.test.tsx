@@ -192,6 +192,7 @@ describe('stock count', () => {
   it('keeps lines the server has not confirmed yet read-only and out of the saved counts', async () => {
     const db = setupInvDocs()
     withPendingLines(db)
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const user = userEvent.setup()
     renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
     await screen.findByRole('heading', { name: 'Sayım (taslak)' })
@@ -201,11 +202,16 @@ describe('stock count', () => {
     const second = screen.getByTestId('count-row-pending-4')
     for (const row of [first, second]) {
       expect(row).toHaveTextContent('Bekliyor — gönderildikten sonra düzenlenebilir')
-      expect(within(row).getByRole('textbox')).toBeDisabled()
+      const box = within(row).getByRole('textbox')
+      expect(box).toHaveAttribute('readonly')
+      expect(box).toHaveAttribute('aria-readonly', 'true')
+      expect(box).toHaveAccessibleDescription('Bekliyor — gönderildikten sonra düzenlenebilir')
     }
     expect(within(first).getByRole('textbox')).toHaveValue('3')
     expect(within(second).getByRole('textbox')).toHaveValue('')
     expect(screen.getByTestId('count-progress')).toHaveTextContent('2 / 5 satır sayıldı')
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key|unique "key"/)
+    error.mockRestore()
 
     // Editing a confirmed line and saving sends only that line: the batch stays valid.
     const bolt = within(screen.getByTestId(`count-row-${DOC_COUNT}-l1`)).getByRole('textbox')
@@ -224,6 +230,135 @@ describe('stock count', () => {
     expect(screen.getAllByText('Bekliyor — gönderildikten sonra düzenlenebilir')).toHaveLength(2)
     // Adding another line stays possible.
     expect(screen.getByRole('button', { name: 'Satır ekle' })).toBeEnabled()
+  })
+
+  it('adds another line while pending lines are shown, sending no counts for them', async () => {
+    const db = setupInvDocs()
+    withPendingLines(db)
+    const user = userEvent.setup()
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    await user.click(screen.getByRole('button', { name: 'Satır ekle' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Sayım satırı ekle' })
+    await user.type(within(dialog).getByLabelText(/^Stok kartı/), 'STK-001')
+    await user.click(await screen.findByRole('option', { name: /STK-001 · Cıvata M8/ }))
+    await user.type(within(dialog).getByLabelText(/^Lokasyon/), 'A-02')
+    await user.click(await screen.findByRole('option', { name: 'A-02 · Raf A-02' }))
+    await user.click(within(dialog).getByLabelText(/^Sayılan/))
+    await user.keyboard('3')
+    await user.click(within(dialog).getByRole('button', { name: 'Satır ekle' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    const patch = db.calls.find((c) => c.method === 'PATCH')
+    expect(patch?.body).toMatchObject({
+      version: 1,
+      counts: [],
+      add: [{ item_id: ITEM_BOLT, location_id: LOC_A2, lot_no: null }],
+    })
+  })
+
+  it('makes a pending line editable once the server has confirmed it', async () => {
+    const db = setupInvDocs()
+    withPendingLines(db)
+    const user = userEvent.setup()
+    const { queryClient } = renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    expect(screen.getByTestId('count-row-pending-3')).toBeInTheDocument()
+
+    // The push lands: the server gives the line its id, number and system quantity.
+    const doc = db.documents.find((d) => d.id === DOC_COUNT)
+    const pushed = doc?.lines[3]
+    if (!doc || !pushed) throw new Error('count fixture missing')
+    Object.assign(pushed, {
+      id: `${DOC_COUNT}-l4`,
+      line_no: 4,
+      system_quantity: '0.000000',
+      difference: '3.000000',
+    })
+    doc.lines.splice(4, 1)
+    doc.version += 1
+    await queryClient.invalidateQueries({ queryKey: invDocsKeys.document(DOC_COUNT, COMPANY_A) })
+    await user.click(await screen.findByRole('button', { name: 'Yeniden yükle' }))
+
+    const row = await screen.findByTestId(`count-row-${DOC_COUNT}-l4`)
+    expect(screen.queryByText('Bekliyor — gönderildikten sonra düzenlenebilir')).toBeNull()
+    const box = within(row).getByRole('textbox')
+    expect(box).toBeEnabled()
+    expect(box).not.toHaveAttribute('readonly')
+    expect(box).toHaveValue('3')
+    expect(screen.getByRole('button', { name: 'Kesinleştir' })).toBeEnabled()
+  })
+
+  it('does not post while lines are pending, and ignores them as uncounted', async () => {
+    const db = setupInvDocs()
+    withPendingLines(db)
+    // Every confirmed line is counted; only the second pending line is blank.
+    const doc = db.documents.find((d) => d.id === DOC_COUNT)
+    if (!doc) throw new Error('count fixture missing')
+    for (const l of doc.lines.slice(0, 3)) l.counted_quantity = l.system_quantity
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+
+    const post = screen.getByRole('button', { name: 'Kesinleştir' })
+    expect(post).toBeDisabled()
+    expect(post).toHaveAccessibleDescription(
+      'Bekleyen satırlar sunucuya ulaşana dek kesinleştirilemez.',
+    )
+    // The blank pending line cannot be filled in, so nothing offers to.
+    expect(screen.queryByRole('button', { name: 'Boşları sistem miktarıyla doldur' })).toBeNull()
+    expect(screen.queryByText(/satır henüz sayılmadı/)).toBeNull()
+  })
+
+  it('does not post when only a pending line is counted', async () => {
+    const db = setupInvDocs()
+    withPendingLines(db)
+    const doc = db.documents.find((d) => d.id === DOC_COUNT)
+    if (!doc) throw new Error('count fixture missing')
+    for (const l of doc.lines.slice(0, 3)) l.counted_quantity = null
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    expect(screen.getByRole('button', { name: 'Kesinleştir' })).toBeDisabled()
+    // The confirmed blanks can still be filled.
+    expect(screen.getByRole('button', { name: 'Boşları sistem miktarıyla doldur' })).toBeEnabled()
+  })
+
+  it('posts an online document as before', async () => {
+    setupInvDocs()
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    const post = screen.getByRole('button', { name: 'Kesinleştir' })
+    expect(post).toBeEnabled()
+    expect(post).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByText(/Bekleyen satırlar/)).toBeNull()
+  })
+
+  it('skips pending lines with the keyboard and keys them apart', async () => {
+    const db = setupInvDocs()
+    withPendingLines(db)
+    // One pending line between two confirmed ones (index 1), another one last.
+    const doc = db.documents.find((d) => d.id === DOC_COUNT)
+    const moved = doc?.lines.splice(3, 1)[0]
+    if (!doc || !moved) throw new Error('count fixture missing')
+    doc.lines.splice(1, 0, moved)
+    const user = userEvent.setup()
+    renderInvDocs(`/inventory/counts/${DOC_COUNT}`)
+    await screen.findByRole('heading', { name: 'Sayım (taslak)' })
+    const input = (id: string) =>
+      within(screen.getByTestId(`count-row-${DOC_COUNT}-${id}`)).getByRole('textbox')
+
+    await user.click(input('l1'))
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(input('l2')).toHaveFocus())
+    await user.keyboard('{ArrowUp}')
+    await waitFor(() => expect(input('l1')).toHaveFocus())
+    await user.keyboard('{ArrowDown}')
+    await waitFor(() => expect(input('l2')).toHaveFocus())
+    await user.keyboard('{Shift>}{Enter}{/Shift}')
+    await waitFor(() => expect(input('l1')).toHaveFocus())
+    await user.keyboard('{Control>}{End}{/Control}')
+    await waitFor(() => expect(input('l3')).toHaveFocus())
+    // Enter on the last confirmed line keeps the focus there.
+    await user.keyboard('{Enter}')
+    expect(input('l3')).toHaveFocus()
   })
 
   it('refuses a non-CSV file', async () => {

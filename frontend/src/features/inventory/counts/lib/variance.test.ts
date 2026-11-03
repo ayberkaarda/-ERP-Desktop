@@ -1,4 +1,8 @@
 import { formatDecimalDisplay } from '@/lib/money'
+import de from '@/lib/i18n/locales/inventory-docs/de.json'
+import en from '@/lib/i18n/locales/inventory-docs/en.json'
+import fr from '@/lib/i18n/locales/inventory-docs/fr.json'
+import tr from '@/lib/i18n/locales/inventory-docs/tr.json'
 import type { StockDocumentLine } from '../../documents/types'
 import {
   changedCounts,
@@ -7,6 +11,7 @@ import {
   fillBlanks,
   filterLines,
   initialCounts,
+  isPendingLine,
   lineVariance,
   varianceValue,
 } from './variance'
@@ -130,5 +135,23 @@ describe('lines not yet confirmed by the server', () => {
       loss: '15.0000',
       net: '-15.0000',
     })
+  })
+
+  it('treats an empty id as pending too', () => {
+    expect(isPendingLine(line('', {}))).toBe(true)
+    expect(isPendingLine(saved)).toBe(false)
+  })
+
+  it('hides a counted pending line under "only uncounted" and keeps the blank one', () => {
+    const counts = initialCounts(lines)
+    expect(filterLines(lines, counts, { q: '', onlyVariance: false, onlyUncounted: true })).toEqual(
+      [blank],
+    )
+  })
+
+  it('has the pending note in every language', () => {
+    for (const [lng, m] of Object.entries({ tr, en, de, fr })) {
+      expect((m as { count?: { pendingLine?: string } }).count?.pendingLine, lng).toBeTruthy()
+    }
   })
 })
