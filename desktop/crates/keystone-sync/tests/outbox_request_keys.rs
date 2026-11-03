@@ -416,6 +416,43 @@ async fn an_expired_key_is_gone_for_reads_before_any_write() {
     assert_eq!(env.engine.request_record(&key("old")).unwrap(), None);
 }
 
+#[tokio::test]
+async fn an_unreadable_rejection_body_costs_only_its_field_messages() {
+    let env = env().await;
+    verified(&env).await;
+    env.engine
+        .enqueue_keyed(create(Uuid::now_v7()), &key("bad"))
+        .unwrap();
+    env.engine
+        .enqueue_keyed(create(Uuid::now_v7()), &key("good"))
+        .unwrap();
+    env.store
+        .write(|tx| {
+            tx.execute(
+                "UPDATE outbox_request_keys SET rejection = 'not json' WHERE key = 'bad'",
+                [],
+            )?;
+            tx.execute(
+                "UPDATE outbox_request_keys
+                 SET rejection = '{\"message\":\"m\",\"code\":\"VALIDATION_ERROR\",\"fields\":{\"name\":[\"taken\"]}}'
+                 WHERE key = 'good'",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].rejection, None);
+    assert!(
+        entries[1]
+            .rejection
+            .as_ref()
+            .is_some_and(|e| e.fields.is_some())
+    );
+}
+
 #[test]
 fn a_database_of_the_previous_version_is_upgraded_with_its_drafts() {
     let dir = tempfile::tempdir().unwrap();

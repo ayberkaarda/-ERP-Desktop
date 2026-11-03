@@ -46,7 +46,77 @@ const FIELDS = [
   'unit_id',
   'category_id',
   'lines',
+  'legal_name',
+  'type',
+  'country',
+  'default_currency_code',
+  'risk_limit',
+  'risk_currency_code',
+  'tags',
+  'due_date',
+  'cost_center_id',
+  'project_id',
+  'requested_delivery_date',
+  'fx_rate',
+  'item_id',
+  'variant_id',
+  'quantity',
+  'unit_price',
+  'price',
+  'discount_percent',
+  'discount_amount',
+  'tax_code_id',
+  'tax_inclusive',
+  'lot_no',
+  'serial_numbers',
+  'base_unit_id',
+  'default_tax_code_id',
+  'purchase_tax_code_id',
+  'tracking',
+  'has_expiry',
+  'min_stock',
+  'reorder_point',
+  'attributes',
+  'sku',
+  'barcode',
+  'is_primary',
+  'is_default',
+  'factor',
+  'parent_id',
+  'doc_type',
+  'target_warehouse_id',
+  'reason',
+  'unit_cost',
+  'expiry_date',
+  'location_id',
+  'target_location_id',
+  'counted_quantity',
+  'valid_from',
+  'valid_to',
 ] as const
+
+/**
+ * Decimal fields: '2.000' and 2 are the same quantity. Anything else
+ * compares as text, so '05321234567' is not '5321234567'.
+ */
+const NUMERIC = new Set([
+  'quantity',
+  'counted_quantity',
+  'unit_price',
+  'price',
+  'unit_cost',
+  'discount_percent',
+  'discount_amount',
+  'risk_limit',
+  'min_stock',
+  'reorder_point',
+  'factor',
+  'fx_rate',
+])
+
+function isNumericField(field: string | undefined): boolean {
+  return field !== undefined && (NUMERIC.has(field) || /_(rate|amount|total|percent|quantity|price|cost)$/.test(field))
+}
 
 /** Documents whose number comes from the server: unnumbered until pushed. */
 const NUMBERED = new Set(['sales-quotes', 'sales-orders', 'stock-documents', 'purchase-requests'])
@@ -109,8 +179,24 @@ export function resourceName(text: DesktopText, resource: string): string {
     : humanize(resource)
 }
 
-export function fieldName(text: DesktopText, field: string): string {
+function oneField(text: DesktopText, field: string): string {
   return isOneOf(FIELDS, field) ? text.td(`sync.field.${field}`) : humanize(field)
+}
+
+/**
+ * A field's label; a server error path too: `lines.0.quantity` is
+ * "Line 1 · Quantity", `serial_numbers.2` is "Serial numbers",
+ * `billing_address.city` is "Billing address · City".
+ */
+export function fieldName(text: DesktopText, field: string): string {
+  const path = field.replace(/(\.\d+)+$/, '')
+  const line = /^lines\.(\d+)\.(.+)$/.exec(path)
+  if (line?.[1] !== undefined && line[2] !== undefined) {
+    return text.td('sync.field.lineField', { number: Number(line[1]) + 1, field: fieldName(text, line[2]) })
+  }
+  const [head, ...rest] = path.split('.')
+  if (head !== undefined && rest.length > 0) return `${oneField(text, head)} · ${fieldName(text, rest.join('.'))}`
+  return oneField(text, path)
 }
 
 function textOf(row: Record<string, unknown>, key: string): string | null {
@@ -171,26 +257,29 @@ function blank(value: unknown): boolean {
 }
 
 /**
- * Whether the draft's value is what the server has. Numbers and numeric
- * strings compare by value, a date by its day, and an object only by the keys
+ * Whether the draft's value is what the server has. A decimal field (or a
+ * JSON number) compares by value, a date by its day, and an object only by the keys
  * the draft sent (a server line carries its own computed fields).
  */
-export function sameValue(mine: unknown, server: unknown): boolean {
+export function sameValue(mine: unknown, server: unknown, field?: string): boolean {
   if (blank(mine) && blank(server)) return true
-  const a = numeric(mine)
-  const b = numeric(server)
-  if (a !== null && b !== null) return a === b
+  // By value only for a decimal field, or when one side is a JSON number.
+  if (isNumericField(field) || typeof mine === 'number' || typeof server === 'number') {
+    const a = numeric(mine)
+    const b = numeric(server)
+    if (a !== null && b !== null) return a === b
+  }
   if (typeof mine === 'string' && typeof server === 'string') {
     if (DATE_ONLY.test(mine) && DATE_TIME.test(server)) return server.startsWith(mine)
     if (DATE_ONLY.test(server) && DATE_TIME.test(mine)) return mine.startsWith(server)
     return mine === server
   }
   if (Array.isArray(mine) && Array.isArray(server)) {
-    return mine.length === server.length && mine.every((value, index) => sameValue(value, server[index]))
+    return mine.length === server.length && mine.every((value, index) => sameValue(value, server[index], field))
   }
   const left = asRecord(mine)
   const right = asRecord(server)
-  if (left && right) return Object.entries(left).every(([key, value]) => sameValue(value, right[key]))
+  if (left && right) return Object.entries(left).every(([key, value]) => sameValue(value, right[key], key))
   return mine === server
 }
 
@@ -208,6 +297,6 @@ export function differingFields(
   server: Record<string, unknown>,
 ): string[] {
   return fields.filter(
-    (field) => !isServerField(field) && Object.hasOwn(mine, field) && !sameValue(mine[field], server[field]),
+    (field) => !isServerField(field) && Object.hasOwn(mine, field) && !sameValue(mine[field], server[field], field),
   )
 }

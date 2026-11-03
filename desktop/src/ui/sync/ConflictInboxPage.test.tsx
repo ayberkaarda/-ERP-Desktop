@@ -497,3 +497,30 @@ describe('a readable version conflict', () => {
     expect(names).not.toContain('Vazgeç')
   })
 })
+
+describe('a merge never sends what the card hides', () => {
+  it('a hidden conflicting field keeps the server value', async () => {
+    const conflict = updateConflict({
+      conflicting_fields: ['notes', 'fx_rate', 'subtotal_local', 'valid_until'],
+      server_data: { id: 'x', notes: 'sunucu', fx_rate: '1', subtotal_local: '5', valid_until: '2026-12-01', version: 4 },
+      local_payload: { notes: 'benim', fx_rate: '2', subtotal_local: '9', valid_until: '2026-12-01', internal_notes: 'iç' },
+    })
+    const { bridge } = await inbox([conflict])
+    await userEvent.click(within(card(conflict)).getByTestId('conflict-choice-merge'))
+    expect(decision(bridge)).toEqual([
+      { idempotency_key: conflict.idempotency_key, choice: 'merge', merged: { notes: 'benim', internal_notes: 'iç' } },
+    ])
+  })
+
+  it('with nothing shown, merge is off but keep and take stay', async () => {
+    const conflict = updateConflict({
+      conflicting_fields: ['notes', 'fx_rate'],
+      server_data: { id: 'x', notes: 'aynı', fx_rate: '1', version: 4 },
+      local_payload: { notes: 'aynı', fx_rate: '2' },
+    })
+    await inbox([conflict])
+    expect(within(card(conflict)).getByTestId('conflict-choice-merge')).toBeDisabled()
+    expect(within(card(conflict)).getByTestId('conflict-choice-keep_mine')).toBeEnabled()
+    expect(within(card(conflict)).getByTestId('conflict-choice-take_server')).toBeEnabled()
+  })
+})

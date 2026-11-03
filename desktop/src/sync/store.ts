@@ -92,6 +92,9 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
   let started = false
   let disposed = false
   let checking: Promise<string | null> | null = null
+  // A refusal heard before this store knew the socket was connected; applied
+  // when it learns that, dropped with that socket or profile.
+  let deniedEarly = false
   const unlisteners: Promise<Unlisten>[] = []
 
   const setStatus = (status: StatusDto | null) => {
@@ -115,11 +118,13 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
       .then(
         (dto) => {
           const before = state.getState().profileId
-          state.setState({
-            profileId: dto.profile_id,
-            realtime: dto.state,
-            channel: channelOf(dto.state, dto.subscribed, state.getState().channel),
-          })
+          // Another profile has its own socket: nothing of the last one carries over.
+          const switched = before !== undefined && before !== dto.profile_id
+          if (switched) deniedEarly = false
+          let channel = channelOf(dto.state, dto.subscribed, switched ? null : state.getState().channel)
+          if (channel === 'waiting' && deniedEarly) channel = 'denied'
+          if (dto.state === 'connected') deniedEarly = false
+          state.setState({ profileId: dto.profile_id, realtime: dto.state, channel })
           // Another profile: its engine (or the lack of one) replaces the last
           // profile's status. The first read is already paired with one.
           if (before !== undefined && before !== dto.profile_id && !disposed) void readStatus()
@@ -169,16 +174,28 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
         if (event.type === 'state') {
           accept(event.profile_id, () => {
             const before = state.getState()
-            // A new socket has no subscription yet.
+            // A new socket has no subscription yet, unless its refusal came first.
             const channel =
-              event.state !== 'connected' ? null : before.realtime === 'connected' ? before.channel : 'waiting'
+              event.state !== 'connected'
+                ? null
+                : before.realtime === 'connected'
+                  ? before.channel
+                  : deniedEarly
+                    ? 'denied'
+                    : 'waiting'
+            deniedEarly = false
             state.setState({ realtime: event.state, channel })
           })
         } else if (event.type === 'subscribed' || event.type === 'subscription_failed') {
           const channel: ChannelState = event.type === 'subscribed' ? 'live' : 'denied'
           accept(event.profile_id, () => {
-            if (state.getState().realtime === 'connected') state.setState({ channel })
-            else void checkProfile()
+            if (state.getState().realtime === 'connected') {
+              state.setState({ channel })
+              return
+            }
+            // Ahead of its socket's state: kept for it, and read again.
+            deniedEarly = channel === 'denied'
+            void checkProfile()
           })
         }
       })),

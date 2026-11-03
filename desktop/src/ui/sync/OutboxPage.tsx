@@ -3,7 +3,7 @@
 // conflict is resolved in the Conflict Inbox.
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useSyncExternalStore } from 'react'
 import { Link, useNavigate } from 'react-router'
 
 import type { OutboxEntryDto } from '../../bridge/generated/OutboxEntryDto'
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDateTime, useIntlLocale } from '@/lib/datetime'
 import type { HttpClient, Notify } from '@/platform/types'
+import { useCompanyStore } from '@/stores/company'
 
 const STATES = ['pending', 'in_flight', 'conflict', 'rejected', 'quarantined'] as const
 const OPS = ['create', 'update', 'delete', 'action'] as const
@@ -34,19 +35,28 @@ function isOneOf<T extends string>(list: readonly T[], value: string): value is 
   return (list as readonly string[]).includes(value)
 }
 
+const RECORD_KEY = ['desktop-sync', 'record'] as const
+
+interface RecordScope {
+  profileId: string | null | undefined
+  companyId: string | null
+}
+
 /**
  * The record a row is about: the label in the draft itself, else the row as
  * this device reads it (the mirror answers offline), else a short id.
  */
-function RecordName({ entry, http }: { entry: OutboxEntryDto; http: HttpClient }) {
+function RecordName({ entry, http, scope }: { entry: OutboxEntryDto; http: HttpClient; scope: RecordScope }) {
   const text = useDesktopText()
   const unnumbered = text.td('sync.outbox.unnumbered')
   const own = recordLabel(entry.resource, entry.payload, unnumbered)
   const lookup = useQuery({
-    queryKey: ['desktop-sync', 'record', entry.resource, entry.id],
+    queryKey: [...RECORD_KEY, scope.profileId, scope.companyId, entry.resource, entry.id],
     queryFn: async ({ signal }) =>
       (await http.get<{ data?: unknown } | undefined>(`/${entry.resource}/${entry.id}`, { signal })) ?? null,
-    enabled: own === null && !entry.resource.includes('.'),
+    // A create is not on the server yet, and a nested resource has no path of
+    // its own: neither is asked for.
+    enabled: own === null && entry.op !== 'create' && !entry.resource.includes('.') && !!scope.profileId,
     retry: false,
     staleTime: 60_000,
   })
@@ -100,6 +110,8 @@ function Outbox({ bridge, http, notify }: { bridge: SyncBridge; http: HttpClient
   const navigate = useNavigate()
   const client = useQueryClient()
   const store = useMemo(() => syncStoreFor(bridge), [bridge])
+  const profileId = useSyncExternalStore(store.subscribe, () => store.getState().profileId)
+  const companyId = useCompanyStore((state) => state.activeCompanyId)
   const list = useQuery({
     queryKey: OUTBOX_KEY,
     queryFn: () => call<OutboxEntryDto[]>(bridge.invoke, 'outbox_list'),
@@ -114,6 +126,14 @@ function Outbox({ bridge, http, notify }: { bridge: SyncBridge; http: HttpClient
       }),
     [store, client],
   )
+
+  // Labels read for another profile or company never show here.
+  useEffect(() => {
+    client.removeQueries({
+      queryKey: RECORD_KEY,
+      predicate: (query) => query.queryKey[2] !== profileId || query.queryKey[3] !== companyId,
+    })
+  }, [client, profileId, companyId])
 
   const run = async (command: 'outbox_retry' | 'outbox_discard', key: string) => {
     try {
@@ -154,7 +174,7 @@ function Outbox({ bridge, http, notify }: { bridge: SyncBridge; http: HttpClient
           return (
             <tr key={key} data-testid={`outbox-row-${key}`} className="border-t border-border">
               <td className="py-2">
-                <RecordName entry={entry} http={http} />
+                <RecordName entry={entry} http={http} scope={{ profileId, companyId }} />
               </td>
               <td>{entry.action ? `${op} · ${entry.action}` : op}</td>
               <td>

@@ -73,6 +73,13 @@ describe('fields of a version conflict', () => {
     expect(differingFields(fields, mine, server)).toEqual(['notes'])
   })
 
+  it('never asks about a field the draft did not send or the server owns', () => {
+    const fields = ['due_date', 'party_name', 'subtotal_local', 'fx_rate', 'status', 'notes']
+    const server = { due_date: '2026-12-01', party_name: 'Eski', subtotal_local: '1.00', fx_rate: '1', status: 'sent', notes: 'b' }
+    const mine = { party_name: 'Yeni', subtotal_local: '2.00', fx_rate: '2', status: 'draft', notes: 'a' }
+    expect(differingFields(fields, mine, server)).toEqual(['notes'])
+  })
+
   it('changed lines are one row', () => {
     const server = { lines: [{ id: 'l1', item_id: 'i1', quantity: '2.000' }] }
     const mine = { lines: [{ item_id: 'i1', quantity: 3 }] }
@@ -86,5 +93,38 @@ describe('fields of a version conflict', () => {
     expect(sameValue(null, '')).toBe(true)
     expect(sameValue('a', 'b')).toBe(false)
     expect(sameValue(true, false)).toBe(false)
+  })
+})
+
+describe('labels of real editable fields', () => {
+  it('are Turkish on a Turkish screen, server error paths included', async () => {
+    const tr = await text()
+    const names = [
+      'legal_name', 'type', 'country', 'default_currency_code', 'risk_limit', 'risk_currency_code', 'tags',
+      'due_date', 'cost_center_id', 'project_id', 'requested_delivery_date',
+    ].map((field) => fieldName(tr, field))
+    expect(names).toEqual([
+      'Ticari unvan', 'Tür', 'Ülke', 'Varsayılan para birimi', 'Risk limiti', 'Risk para birimi',
+      'Etiketler', 'Vade tarihi', 'Masraf merkezi', 'Proje', 'İstenen teslim tarihi',
+    ])
+    expect(fieldName(tr, 'lines.0.quantity')).toBe('Satır 1 · Miktar')
+    expect(fieldName(tr, 'lines.2.serial_numbers.0')).toBe('Satır 3 · Seri numaraları')
+    expect(fieldName(tr, 'tags.1')).toBe('Etiketler')
+    expect(fieldName(tr, 'billing_address.city')).toBe('Fatura adresi · City')
+    expect(fieldName(await text('de'), 'lines.0.unit_price')).toBe('Position 1 · Einzelpreis')
+  })
+})
+
+describe('text that looks like a number', () => {
+  it('keeps its leading zeros', () => {
+    const mine = { phone: '05321234567', tax_number: '0123456789', code: '001' }
+    const server = { phone: '5321234567', tax_number: '123456789', code: '1' }
+    expect(differingFields(['phone', 'tax_number', 'code'], mine, server)).toEqual(['phone', 'tax_number', 'code'])
+  })
+
+  it('decimal fields still compare by value, lines included', () => {
+    const mine = { risk_limit: '1000', lines: [{ quantity: '2', unit_price: '10.5' }] }
+    const server = { risk_limit: '1000.00', lines: [{ id: 'l', quantity: '2.000', unit_price: '10.50' }] }
+    expect(differingFields(['risk_limit', 'lines'], mine, server)).toEqual([])
   })
 })

@@ -237,7 +237,8 @@ impl Outbox {
             }
             for entry in &mut entries {
                 if let Some(json) = rejections.get(&entry.mutation.idempotency_key.to_string()) {
-                    entry.rejection = Some(serde_json::from_str(json)?);
+                    // A body this version cannot read only costs the field messages.
+                    entry.rejection = serde_json::from_str(json).ok();
                 }
             }
             Ok(entries)

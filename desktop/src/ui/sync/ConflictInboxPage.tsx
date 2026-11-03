@@ -95,6 +95,7 @@ function useResolver(bridge: SyncBridge, store: SyncStore, notify: Notify): Reso
 function FieldCompare({
   conflict,
   fields,
+  shown,
   server,
   picks,
   onPick,
@@ -102,6 +103,7 @@ function FieldCompare({
 }: {
   conflict: ConflictDto
   fields: readonly string[]
+  shown: readonly string[]
   server: Record<string, unknown>
   picks: Record<string, FieldPick>
   onPick: (field: string, pick: FieldPick) => void
@@ -109,9 +111,6 @@ function FieldCompare({
 }) {
   const text = useDesktopText()
   if (fields.length === 0) return <p>{text.td('sync.conflict.noFields')}</p>
-  // Only what the draft changed and the server has otherwise: equal values,
-  // server-computed fields and fields the draft never sent are no choice.
-  const shown = differingFields(fields, conflict.local_payload, server)
   if (shown.length === 0) return <p data-testid="conflict-no-differences">{text.td('sync.conflict.noDifferences')}</p>
   return (
     <table className="w-full text-sm" data-testid="conflict-fields">
@@ -283,7 +282,18 @@ function ModelBody({
   const candidates = model.code === 'DUPLICATE_RECORD' ? model.candidates : []
   const [candidate, setCandidate] = useState<string | undefined>(candidates[0])
   const [busy, setBusy] = useState(false)
-  const merged = mergedPayload(conflict, picks)
+  // Only what the draft changed and the server has otherwise is asked about:
+  // equal values, server-computed fields and fields the draft never sent are
+  // no choice. A conflicting field the user does not see keeps the server's
+  // value, so a merge never sends a draft value nobody looked at.
+  const fields = model.code === 'VERSION_CONFLICT' ? model.fields : []
+  const server = model.code === 'VERSION_CONFLICT' ? model.server : {}
+  const shown = differingFields(fields, conflict.local_payload, server)
+  const hidden = Object.fromEntries(
+    fields.filter((field) => !shown.includes(field)).map((field): [string, FieldPick] => [field, 'server']),
+  )
+  const merged = mergedPayload(conflict, { ...hidden, ...picks })
+  const mergeOff = shown.length === 0 || Object.keys(merged).length === 0
 
   const decide = async (choice: ConflictChoice) => {
     setBusy(true)
@@ -301,8 +311,9 @@ function ModelBody({
       {model.code === 'VERSION_CONFLICT' ? (
         <FieldCompare
           conflict={conflict}
-          fields={model.fields}
-          server={model.server}
+          fields={fields}
+          shown={shown}
+          server={server}
           picks={picks}
           canMerge={canMerge}
           onPick={(field, pick) => {
@@ -310,7 +321,7 @@ function ModelBody({
           }}
         />
       ) : null}
-      {canMerge && Object.keys(merged).length === 0 ? (
+      {canMerge && shown.length > 0 && Object.keys(merged).length === 0 ? (
         <p className="text-sm text-muted-foreground">{text.td('sync.conflict.mergeEmpty')}</p>
       ) : null}
 
@@ -339,7 +350,7 @@ function ModelBody({
         choices={model.choices}
         disabled={(choice) =>
           busy ||
-          (choice === 'merge' && Object.keys(merged).length === 0) ||
+          (choice === 'merge' && mergeOff) ||
           (choice === 'use_existing' && candidate === undefined)
         }
         onChoose={decide}

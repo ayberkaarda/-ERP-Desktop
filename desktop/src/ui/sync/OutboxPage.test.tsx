@@ -250,6 +250,27 @@ describe('readable outbox rows', () => {
     expect(within(row('k2')).getByRole('link', { name: 'Kaydı aç' })).toHaveAttribute('href', '/parties/p2/edit')
   })
 
+  it('asks this device only for rows the draft does not name, never for nested resources', async () => {
+    const get = vi.fn(() => Promise.resolve(undefined))
+    await render(
+      [
+        entry('k1', 'pending', { resource: 'parties', id: 'p1', payload: { name: 'Adlı Cari' } }),
+        entry('k2', 'pending', { resource: 'items.variants', op: 'update', id: 'v1', payload: { sku: 'x' } }),
+      ],
+      get,
+    )
+    await act(flush)
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it('a rejected update without an edit page says re-enter, with no link', async () => {
+    await render([
+      entry('k1', 'rejected', { resource: 'stock-documents', op: 'update', id: 's1', payload: { notes: 'x' }, last_error: 'VALIDATION_ERROR' }),
+    ])
+    expect(within(row('k1')).queryByRole('link', { name: 'Kaydı aç' })).toBeNull()
+    expect(within(row('k1')).getByTestId('outbox-rejection')).toHaveTextContent('vazgeçin ve kaydı doğru bilgilerle yeniden girin')
+  })
+
   it('the discard dialog has no two buttons with the same name', async () => {
     await render([entry('k1', 'rejected', { last_error: 'VALIDATION_ERROR' })])
     await userEvent.click(within(row('k1')).getByRole('button', { name: 'Değişiklikten vazgeç' }))
@@ -258,5 +279,46 @@ describe('readable outbox rows', () => {
     expect(names).toEqual(expect.arrayContaining(['Değişikliği tut', 'Değişiklikten vazgeç']))
     expect(new Set(names).size).toBe(names.length)
     expect(names).not.toContain('Vazgeç')
+  })
+})
+
+describe('record label lookups', () => {
+  it('a create row is not asked for: it is not on the server yet', async () => {
+    const get = vi.fn(() => Promise.resolve(undefined))
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: 'p', state: 'idle' }),
+        sync_status: () => ({}),
+        outbox_list: () => [entry('k1', 'pending', { op: 'create', payload: { notes: 'x' } })],
+      },
+    })
+    await renderSync(<OutboxPage />, { bridge, http: { get: get as unknown as HttpClient['get'] } })
+    await screen.findByTestId('outbox-table')
+    await act(flush)
+    expect(get).not.toHaveBeenCalled()
+    expect(within(row('k1')).getByTestId('outbox-record')).toHaveTextContent('(numarasız)')
+  })
+
+  it('labels read for one profile are dropped when another becomes active', async () => {
+    let active = 'p1'
+    const get = vi.fn(() => Promise.resolve({ data: { name: `Cari ${active}` } }))
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: active, state: 'idle' }),
+        sync_status: () => ({}),
+        outbox_list: () => [entry('k1', 'pending', { resource: 'parties', op: 'update', id: 'same', payload: { notes: 'x' } })],
+      },
+    })
+    const { client } = await renderSync(<OutboxPage />, { bridge, http: { get: get as unknown as HttpClient['get'] } })
+    await screen.findByTestId('outbox-table')
+    expect(await within(row('k1')).findByText('Cari p1')).toBeInTheDocument()
+    active = 'p2'
+    await act(async () => {
+      bridge.emitRealtime({ type: 'state', profile_id: 'p2', state: 'idle' })
+      await flush()
+    })
+    expect(await within(row('k1')).findByText('Cari p2')).toBeInTheDocument()
+    const keys = client.getQueryCache().findAll({ queryKey: ['desktop-sync', 'record'] }).map((q) => q.queryKey[2])
+    expect(keys).toEqual(['p2'])
   })
 })
