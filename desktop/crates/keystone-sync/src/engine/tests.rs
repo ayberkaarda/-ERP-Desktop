@@ -965,3 +965,75 @@ async fn the_pass_count_moves_after_each_outcome() {
     assert_eq!(*passes.borrow_and_update(), 2);
     assert_eq!(f.engine.status().state, super::SyncState::Idle);
 }
+
+/// From `Failed`, a pass shows as syncing from its start: only `Offline`
+/// waits for the first answer.
+#[tokio::test]
+async fn a_pass_after_a_failure_shows_syncing_from_its_start() {
+    use super::SyncState::Syncing;
+    let f = fixture();
+    f.engine
+        .status
+        .send_modify(|s| s.state = super::SyncState::Failed("SERVER_ERROR"));
+    *f.engine.api.watched.lock().unwrap() = Some(f.engine.subscribe());
+    f.engine.run_once(Trigger::Timer).await.unwrap();
+    assert_eq!(
+        *f.engine.api.seen.lock().unwrap(),
+        [("manifest", Syncing), ("pull", Syncing)]
+    );
+}
+
+/// A waiter woken by the pass count reads the pass's outcome, not the
+/// state before it.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_pass_count_wakes_a_waiter_after_the_outcome() {
+    use super::SyncState::{Idle, Offline};
+    let f = fixture();
+    f.engine.api.unreachable.store(true, Ordering::SeqCst);
+    let _ = f.engine.run_once(Trigger::Startup).await;
+    assert_eq!(f.engine.status().state, Offline);
+    f.engine.api.unreachable.store(false, Ordering::SeqCst);
+    let mut passes = f.engine.subscribe_passes();
+    passes.borrow_and_update();
+    let engine = f.engine.clone();
+    let waiter = tokio::spawn(async move {
+        passes.changed().await.unwrap();
+        engine.status().state
+    });
+    tokio::task::yield_now().await;
+    f.engine.run_once(Trigger::Probe).await.unwrap();
+    assert_eq!(waiter.await.unwrap(), Idle);
+}
+
+/// While a pass runs, it is counted as started but not as finished; when
+/// it ends, the finished number is its own.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_running_pass_is_started_but_not_finished() {
+    let f = fixture();
+    f.engine.run_once(Trigger::Startup).await.unwrap();
+    assert_eq!(
+        (
+            f.engine.passes_started(),
+            *f.engine.subscribe_passes().borrow()
+        ),
+        (1, 1)
+    );
+    let seen: Arc<Mutex<Option<(u64, u64)>>> = Arc::default();
+    let (engine, record) = (Arc::downgrade(&f.engine), seen.clone());
+    f.engine.set_hook(move |point| {
+        if point == Hook::GateDecided {
+            return;
+        }
+        if let Some(engine) = engine.upgrade()
+            && record.lock().unwrap().is_none()
+        {
+            *record.lock().unwrap() =
+                Some((engine.passes_started(), *engine.subscribe_passes().borrow()));
+        }
+    });
+    f.engine.api.unreachable.store(true, Ordering::SeqCst);
+    let _ = f.engine.run_once(Trigger::Manual).await;
+    // Inside the second pass (its failure being kept): started 2, finished 1.
+    assert_eq!(*seen.lock().unwrap(), Some((2, 1)));
+    assert_eq!(*f.engine.subscribe_passes().borrow(), 2);
+}

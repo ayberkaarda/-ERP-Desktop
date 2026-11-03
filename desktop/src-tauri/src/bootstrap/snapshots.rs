@@ -74,10 +74,14 @@ pub(super) fn period(manifest: &str) -> Option<Duration> {
 pub(super) enum Round {
     /// Done until the next period.
     Done,
-    /// The server refused the sign-in or account (`PASSWORD_CHANGE_REQUIRED`,
-    /// `COMPANY_FORBIDDEN`, `USER_DEACTIVATED`, `UNAUTHENTICATED`): asking
-    /// again gets the same answer. Not tried again until [`Refresh::ready`]
-    /// says so (another sign-in; a company change starts a new loop).
+    /// The proxy refused the call for the sign-in or account: the error it
+    /// gives for a 401 (after one refresh) and for `UNAUTHENTICATED`,
+    /// `USER_DEACTIVATED`, `PASSWORD_CHANGE_REQUIRED` and the two-factor
+    /// codes. Asking again gets the same answer: not tried again until
+    /// [`Refresh::ready`] says so (another sign-in). Every other answer,
+    /// `COMPANY_FORBIDDEN`, other 403s, 429 and 5xx included, comes back as
+    /// an answer and ends the round as [`Round::Done`]: asked again at the
+    /// next period (a company change starts a new loop).
     Refused,
     /// A failure that may pass (no connection, a lost answer, a sign-in
     /// not verified yet): tried again after a growing delay
@@ -542,6 +546,78 @@ mod tests {
         run.move_status();
         settle().await;
         assert_eq!(run.rounds(), 2);
+    }
+
+    struct AlwaysAgain {
+        at: std::sync::Mutex<Vec<Instant>>,
+    }
+
+    impl Refresh for Arc<AlwaysAgain> {
+        fn ready(&self) -> Boxed<'_, bool> {
+            Box::pin(async { true })
+        }
+
+        fn round<'a>(&'a self, _: &'a watch::Receiver<bool>) -> Boxed<'a, Round> {
+            Box::pin(async move {
+                self.at.lock().unwrap().push(Instant::now());
+                Round::Again
+            })
+        }
+    }
+
+    /// The first retry of 24 loops lands within 0.8..1.2 s (jitter), some
+    /// above 1 s and some below: the delays are spread, not all the same.
+    #[tokio::test(start_paused = true)]
+    async fn retries_are_spread_by_jitter() {
+        let mut loops = Vec::new();
+        let mut keep = Vec::new();
+        for _ in 0..24 {
+            let fake = Arc::new(AlwaysAgain {
+                at: std::sync::Mutex::default(),
+            });
+            let (status, status_rx) = watch::channel(SyncStatus::default());
+            let (stop, stop_rx) = watch::channel(false);
+            tokio::spawn(refresh_loop(fake.clone(), PERIOD, status_rx, stop_rx));
+            keep.push((status, stop));
+            loops.push(fake);
+        }
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let delays: Vec<u128> = loops
+            .iter()
+            .map(|fake| {
+                let at = fake.at.lock().unwrap();
+                (at[1] - at[0]).as_millis()
+            })
+            .collect();
+        assert!(
+            delays.iter().all(|d| (800..=1200).contains(d)),
+            "{delays:?}"
+        );
+        assert!(delays.iter().any(|d| *d > 1000), "{delays:?}");
+        assert!(delays.iter().any(|d| *d < 1000), "{delays:?}");
+    }
+
+    /// Four failures in a row, then a time the round could not run (not
+    /// ready): the next failures start again from about 1 s.
+    #[tokio::test(start_paused = true)]
+    async fn a_round_that_could_not_run_resets_the_backoff() {
+        let run = start_loop(true);
+        run.fake.answer(Round::Again);
+        // Rounds at 0, ~1, ~3, ~7 s: four failures (the paused clock moves
+        // from timer to timer while the test sleeps).
+        tokio::time::sleep(Duration::from_millis(9500)).await;
+        assert_eq!(run.rounds(), 4);
+        // The fifth try (~15 s) finds it not ready.
+        run.fake.ready.store(false, Ordering::SeqCst);
+        tokio::time::sleep(Duration::from_secs(20)).await;
+        assert_eq!(run.rounds(), 4);
+        // Ready again on status news: it runs and fails; the retry is ~1 s later.
+        run.fake.ready.store(true, Ordering::SeqCst);
+        run.move_status();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert_eq!(run.rounds(), 5);
+        tokio::time::sleep(Duration::from_millis(1300)).await;
+        assert_eq!(run.rounds(), 6);
     }
 
     #[test]

@@ -58,7 +58,10 @@ pub async fn now_and_wait(
 /// routed by it.
 ///
 /// The verdict: from `Offline`, the first sign that the server answered
-/// (the engine leaves `Offline` only then), else the state the run ended in.
+/// (the engine leaves `Offline` only then), else the state in which a pass
+/// that began after the trigger ended. A pass already running when the
+/// trigger was sent says nothing: it may have failed before the server came
+/// back, and the trigger runs another pass right after it.
 pub async fn probe(
     state: &AppState,
     connectivity: &Connectivity,
@@ -73,6 +76,7 @@ pub async fn probe(
     let mut passes = engine.subscribe_passes();
     let was_offline = status.borrow_and_update().state == SyncState::Offline;
     passes.borrow_and_update();
+    let begun_before = engine.passes_started();
     if !state.trigger(profile, trigger)? {
         return Ok(None);
     }
@@ -88,8 +92,9 @@ pub async fn probe(
                 }
                 changed = passes.changed() => {
                     changed.ok()?;
-                    passes.borrow_and_update();
-                    return Some(engine.status().state != SyncState::Offline);
+                    if *passes.borrow_and_update() > begun_before {
+                        return Some(engine.status().state != SyncState::Offline);
+                    }
                 }
             }
         }

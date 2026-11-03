@@ -27,5 +27,6 @@ raw-store = []
 keystone-sync = { path = ".", features = ["raw-store"] }
 jsonschema = { version = "0.60", default-features = false }
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util", "time"] }
+# net, io-util: the scripted raw HTTP server of the cut-connection tests.
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread", "test-util", "time"] }
 wiremock.workspace = true

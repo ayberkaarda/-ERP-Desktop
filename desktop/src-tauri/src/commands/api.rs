@@ -160,12 +160,18 @@ fn method_name(method: ProxyMethod) -> &'static str {
 }
 
 /// Answers `call`; when it was answered on this device because the profile
-/// is offline, asks the engine for a probe ([`crate::router::PROBE_INTERVAL`]
-/// apart). A
-/// request that would be refused waits for that probe's verdict
-/// ([`PROBE_WAIT`]) and, when the server answered, is decided again: the
-/// first retry after the server came back reaches it. A refusal never
-/// queued anything, so deciding again sends nothing twice.
+/// is offline, asks the engine for a probe.
+///
+/// - A local answer (a draft, a local read) only triggers it, at most once
+///   per [`crate::router::PROBE_INTERVAL`] ([`Connectivity::probe_due`]). Its
+///   verdict reaches the view through the connectivity bridge: the engine
+///   leaving `Offline`, or a pass that ends idle while the view says
+///   unreachable, counts as reachable.
+/// - A request that would be refused waits for the verdict ([`PROBE_WAIT`];
+///   its own turn, [`Connectivity::wait_due`], so a local answer just before
+///   does not take it) and, when the server answered, is decided again: the
+///   first retry after the server came back reaches it. A refusal never
+///   queued anything, so deciding again sends nothing twice.
 async fn respond(
     state: &AppState,
     connectivity: &Connectivity,
@@ -179,12 +185,13 @@ async fn respond(
     let Some(profile) = state.active_profile_id() else {
         return Ok(routed.answer);
     };
-    if !connectivity.probe_due(&profile, clock()) {
+    if !is_offline_refusal(&routed.answer) {
+        if connectivity.probe_due(&profile, clock()) {
+            let _ = state.trigger(&profile, Trigger::Probe);
+        }
         return Ok(routed.answer);
     }
-    if !is_offline_refusal(&routed.answer) {
-        // The verdict reaches the router through the connectivity bridge.
-        let _ = state.trigger(&profile, Trigger::Probe);
+    if !connectivity.wait_due(&profile, clock()) {
         return Ok(routed.answer);
     }
     let verdict =
@@ -748,5 +755,7 @@ fn is_reserved(method: ProxyMethod, path: &str) -> bool {
 
 #[cfg(test)]
 mod probe_tests;
+#[cfg(test)]
+mod probe_timing_tests;
 #[cfg(test)]
 mod tests;

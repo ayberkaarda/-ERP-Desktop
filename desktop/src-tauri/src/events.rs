@@ -68,10 +68,12 @@ impl<R: tauri::Runtime> EventSink for TauriSink<R> {
     }
 }
 
-/// The engine side of a [`connectivity_bridge`]: its status and the view
-/// it feeds.
+/// The engine side of a [`connectivity_bridge`]: its status, its finished
+/// passes ([`keystone_sync::engine::SyncEngine::subscribe_passes`]) and the
+/// view it feeds.
 pub struct EngineView {
     pub status: watch::Receiver<SyncStatus>,
+    pub passes: watch::Receiver<u64>,
     pub connectivity: Connectivity,
 }
 
@@ -83,8 +85,11 @@ pub struct EngineView {
 ///   the engine finds out at once. Without `engine`, only a return does.
 /// - With `engine`, the engine's own findings feed the view: leaving
 ///   `Offline` (the server answered it) counts as reachable, entering it as
-///   unreachable. So a request after the engine found the server again is
-///   not answered from the earlier failed request.
+///   unreachable. A pass that ends idle while the view says unreachable
+///   counts as reachable too: a request that found the server gone for a
+///   moment (the engine never went offline) does not keep the profile
+///   offline until that finding expires. So a request after the engine
+///   found the server again is not answered from the earlier failed one.
 pub async fn connectivity_bridge(
     profile_id: String,
     mut changes: broadcast::Receiver<ConnectivityChange>,
@@ -92,9 +97,13 @@ pub async fn connectivity_bridge(
     sync: Option<SyncHandle>,
     sink: Arc<dyn EventSink>,
 ) {
-    let (mut status, connectivity) = match engine {
-        Some(view) => (Some(view.status), Some(view.connectivity)),
-        None => (None, None),
+    let (mut status, mut passes, connectivity) = match engine {
+        Some(view) => (
+            Some(view.status),
+            Some(view.passes),
+            Some(view.connectivity),
+        ),
+        None => (None, None, None),
     };
     let mut engine_offline = status
         .as_mut()
@@ -134,6 +143,22 @@ pub async fn connectivity_bridge(
                             tokio::time::Instant::now().into_std(),
                         );
                     }
+                }
+            }
+            changed = async { passes.as_mut()?.changed().await.ok() }, if passes.is_some() => {
+                if changed.is_none() {
+                    passes = None;
+                    continue;
+                }
+                let idle = status
+                    .as_ref()
+                    .is_some_and(|rx| rx.borrow().state == SyncState::Idle);
+                let now = tokio::time::Instant::now().into_std();
+                if idle
+                    && let Some(connectivity) = &connectivity
+                    && !connectivity.online(&profile_id, Some(false), now)
+                {
+                    connectivity.observe(&profile_id, true, now);
                 }
             }
         }
@@ -332,6 +357,7 @@ mod tests {
             connectivity.subscribe(),
             Some(EngineView {
                 status: status_rx,
+                passes: tokio::sync::watch::channel(0).1,
                 connectivity: connectivity.clone(),
             }),
             None,

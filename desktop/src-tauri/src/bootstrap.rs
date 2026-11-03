@@ -789,6 +789,7 @@ impl Desktop {
             self.connectivity.subscribe(),
             Some(EngineView {
                 status: opened.engine.subscribe(),
+                passes: opened.engine.subscribe_passes(),
                 connectivity: self.connectivity.clone(),
             }),
             sync.clone(),

@@ -12,6 +12,8 @@ pub mod local_read;
 #[cfg(test)]
 mod local_support;
 mod local_write;
+#[cfg(test)]
+mod net_tests;
 mod query_map;
 #[cfg(test)]
 mod session_tests;
@@ -195,8 +197,9 @@ struct Seen {
     /// Profiles last announced unreachable. Any other profile was last
     /// announced reachable, or never, and counts as reachable.
     told_offline: HashSet<String>,
-    /// When a probe was last granted, per profile.
-    probed: HashMap<String, Instant>,
+    /// When a probe was last granted, per profile and kind (`true`: one a
+    /// refused request waits for).
+    probed: HashMap<(String, bool), Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -264,20 +267,33 @@ impl Connectivity {
     pub fn forget(&self, profile: &str) {
         let mut seen = self.seen();
         seen.told_offline.remove(profile);
-        seen.probed.remove(profile);
+        seen.probed.retain(|(of, _), _| of != profile);
     }
 
-    /// Whether a request answered offline for `profile` may ask the engine
-    /// for a probe now: at most once per [`PROBE_INTERVAL`]. A grant counts
-    /// from `now`.
+    /// Whether a request answered on this device while `profile` is offline
+    /// (a draft, a local read) may ask the engine for a probe now: at most
+    /// once per [`PROBE_INTERVAL`]. A grant counts from `now`.
     pub fn probe_due(&self, profile: &str, now: Instant) -> bool {
+        self.grant(profile, false, now)
+    }
+
+    /// Whether a request that would be refused offline may ask for a probe
+    /// and wait for its verdict now: at most once per [`PROBE_INTERVAL`],
+    /// counted apart from [`Connectivity::probe_due`], so a local answer
+    /// just before does not take the refused request's turn.
+    pub fn wait_due(&self, profile: &str, now: Instant) -> bool {
+        self.grant(profile, true, now)
+    }
+
+    fn grant(&self, profile: &str, waits: bool, now: Instant) -> bool {
         let mut seen = self.seen();
+        let key = (profile.to_owned(), waits);
         let due = seen
             .probed
-            .get(profile)
+            .get(&key)
             .is_none_or(|at| now.saturating_duration_since(*at) >= PROBE_INTERVAL);
         if due {
-            seen.probed.insert(profile.to_owned(), now);
+            seen.probed.insert(key, now);
         }
         due
     }
@@ -481,6 +497,24 @@ mod tests {
         // A forgotten profile starts again.
         c.forget("p2");
         assert!(c.probe_due("p2", now));
+        assert_eq!(PROBE_INTERVAL, Duration::from_secs(2));
+        assert!(!c.probe_due("p2", now + Duration::from_millis(1900)));
+    }
+
+    /// A refused request's turn is its own: a local answer just before does
+    /// not take it, and it too comes at most once per interval.
+    #[test]
+    fn a_refusal_has_its_own_probe_turn() {
+        let c = Connectivity::default();
+        let now = Instant::now();
+        assert!(c.probe_due("p1", now));
+        assert!(c.wait_due("p1", now));
+        assert!(!c.wait_due("p1", now + Duration::from_secs(1)));
+        assert!(!c.probe_due("p1", now + Duration::from_secs(1)));
+        assert!(c.wait_due("p1", now + PROBE_INTERVAL));
+        c.forget("p1");
+        assert!(c.wait_due("p1", now));
+        assert!(c.probe_due("p1", now));
     }
 
     #[test]

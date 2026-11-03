@@ -120,6 +120,23 @@ enum Transport {
     Lost(reqwest::Error),
 }
 
+impl Transport {
+    /// The one rule for every request of the client (proxy, sync calls,
+    /// meta, refresh): only a failure while the connection was being made
+    /// (DNS, TCP, the TLS handshake, the connect timeout; reqwest
+    /// `is_connect`) or while the request was being built (`is_builder`)
+    /// means it certainly did not reach the server. Everything else (the
+    /// whole-request timeout, a connection cut after writing, an answer cut
+    /// in its body) may have reached it.
+    pub(crate) fn of(error: reqwest::Error) -> Self {
+        if error.is_connect() || error.is_builder() {
+            Transport::NotSent(error)
+        } else {
+            Transport::Lost(error)
+        }
+    }
+}
+
 impl From<Transport> for SyncError {
     fn from(error: Transport) -> Self {
         match error {
@@ -827,20 +844,14 @@ async fn send(
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json"))
             .body(body);
     }
-    let response = request.send().await.map_err(|e| {
-        if e.is_connect() || e.is_builder() {
-            Transport::NotSent(e)
-        } else {
-            Transport::Lost(e)
-        }
-    })?;
+    let response = request.send().await.map_err(Transport::of)?;
     let status = response.status().as_u16();
     let retry_after = response
         .headers()
         .get(RETRY_AFTER)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| parse_retry_after(value, SystemTime::now()));
-    let body = response.bytes().await.map_err(Transport::Lost)?.to_vec();
+    let body = response.bytes().await.map_err(Transport::of)?.to_vec();
     Ok(RawResponse {
         status,
         retry_after,

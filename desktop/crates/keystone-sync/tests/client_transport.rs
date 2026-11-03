@@ -23,6 +23,12 @@ use uuid::Uuid;
 
 const CERT: &[u8] = include_bytes!("tls/selfsigned-cert.der");
 const KEY: &[u8] = include_bytes!("tls/selfsigned-key.der");
+/// Self-signed, `localhost`, valid only in 2020.
+const EXPIRED_CERT: &[u8] = include_bytes!("tls/expired-cert.der");
+const EXPIRED_KEY: &[u8] = include_bytes!("tls/expired-key.der");
+/// Self-signed, valid now, for `other.example` only.
+const WRONG_NAME_CERT: &[u8] = include_bytes!("tls/wrongname-cert.der");
+const WRONG_NAME_KEY: &[u8] = include_bytes!("tls/wrongname-key.der");
 const COMPANY: &str = "0192f5a0-0000-7000-8000-000000000001";
 const SECRET_QUERY: &str = "LEAKED-SECRET-q1";
 
@@ -37,14 +43,19 @@ fn options() -> ClientOptions {
 /// A TLS server on loopback with the self-signed certificate. It serves
 /// `connections` handshakes and stops.
 fn tls_server(connections: usize) -> u16 {
+    tls_server_with(CERT, KEY, connections)
+}
+
+/// [`tls_server`] with another certificate and key.
+fn tls_server_with(cert: &'static [u8], key: &'static [u8], connections: usize) -> u16 {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let config = rustls::ServerConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .expect("versions")
         .with_no_client_auth()
         .with_single_cert(
-            vec![CertificateDer::from(CERT.to_vec())],
-            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(KEY.to_vec())),
+            vec![CertificateDer::from(cert.to_vec())],
+            PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(key.to_vec())),
         )
         .expect("certificate");
     let config = Arc::new(config);
@@ -200,4 +211,59 @@ async fn a_refresh_refused_at_the_certificate_keeps_the_tokens() {
     let record = client.session().record().expect("record");
     let kept = record.tokens.expect("tokens kept");
     assert_eq!(kept.refresh_token.expose(), tokens().refresh_token.expose());
+}
+
+/// Every untrusted certificate is the certificate code, whatever is wrong
+/// with it and whatever the address, and the text never names the address.
+/// (Which reason is named depends on the platform verifier: Windows reports
+/// an untrusted self-signed root as `unknown issuer` before it looks at the
+/// dates or the name.)
+#[tokio::test]
+async fn expired_and_wrong_name_certificates_are_the_certificate_code() {
+    for (label, cert, key, host) in [
+        ("self-signed by address", CERT, KEY, "127.0.0.1"),
+        ("expired", EXPIRED_CERT, EXPIRED_KEY, "localhost"),
+        ("wrong name", WRONG_NAME_CERT, WRONG_NAME_KEY, "localhost"),
+    ] {
+        let port = tls_server_with(cert, key, 1);
+        let error = meta(&format!("https://{host}:{port}")).await;
+        assert!(
+            matches!(error, SyncError::CertificateInvalid(_)),
+            "{label}: {error:?}"
+        );
+        assert_eq!(error.code(), "TLS_CERTIFICATE_INVALID", "{label}");
+        let text = format!("{error} {error:?}");
+        assert!(!text.contains(host), "{label}: {text}");
+        assert!(!text.contains(&port.to_string()), "{label}: {text}");
+    }
+}
+
+/// A peer that reads the hello and answers with a fatal TLS alert.
+fn alert_peer(alert: u8) -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+    let port = listener.local_addr().expect("addr").port();
+    std::thread::spawn(move || {
+        for socket in listener.incoming().take(1) {
+            let Ok(mut socket) = socket else { continue };
+            let mut buffer = [0u8; 4096];
+            let _ = socket.read(&mut buffer);
+            let _ = socket.write_all(&[0x15, 0x03, 0x03, 0x00, 0x02, 0x02, alert]);
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    });
+    port
+}
+
+/// The server refuses the handshake with a `bad_certificate` (42) or
+/// `certificate_unknown` (46) alert: its text speaks of a certificate, but it
+/// is no verdict on the server's certificate. Told by type, it stays a
+/// connection that could not be made.
+#[tokio::test]
+async fn a_certificate_alert_from_the_server_is_not_a_certificate_verdict() {
+    for alert in [42u8, 46] {
+        let port = alert_peer(alert);
+        let error = meta(&format!("https://localhost:{port}")).await;
+        assert!(matches!(error, SyncError::NotSent(_)), "{alert}: {error:?}");
+        assert_eq!(error.code(), "NETWORK_ERROR");
+    }
 }

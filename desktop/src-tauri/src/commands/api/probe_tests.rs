@@ -324,6 +324,7 @@ async fn a_return_the_offline_engine_disagrees_with_asks_for_a_run() {
         live.connectivity.subscribe(),
         Some(crate::events::EngineView {
             status: engine.subscribe(),
+            passes: engine.subscribe_passes(),
             connectivity: live.connectivity.clone(),
         }),
         Some(live.sync.clone()),
