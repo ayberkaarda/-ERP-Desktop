@@ -37,8 +37,10 @@ import { useStockWarehouses } from '../../shared/warehouses'
 import {
   changedCounts,
   countSummary,
+  fillBlanks,
   filterLines,
   initialCounts,
+  isPendingLine,
   type Counts,
 } from '../lib/variance'
 import { AddCountLineDialog } from './AddCountLineDialog'
@@ -83,6 +85,12 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
   const dirty = changes.length > 0
   const invalid = Object.values(counts).some((v) => v === INVALID_DECIMAL)
   const summary = countSummary(base.lines, counts)
+  // Lines the server has not confirmed yet (offline adds) cannot be edited or posted with.
+  const hasPending = base.lines.some(isPendingLine)
+  const editable = countSummary(
+    base.lines.filter((l) => !isPendingLine(l)),
+    counts,
+  )
   const rows = filterLines(base.lines, counts, { q, onlyVariance, onlyUncounted })
   const changedElsewhere = document.id === base.id && document.version !== base.version
   const money = (v: string) => formatDecimalDisplay(v, { locale })
@@ -191,7 +199,7 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
    * Uncounted lines are skipped by the server.
    */
   const submitPost = async () => {
-    if (invalid || summary.counted === 0) return
+    if (invalid || hasPending || editable.counted === 0) return
     if (dirty && !canEdit) return
     const started = company
     try {
@@ -229,14 +237,7 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
     post.reset()
   }
 
-  const fillBlanks = () =>
-    setCounts((prev) => {
-      const next = { ...prev }
-      for (const l of base.lines) {
-        if ((next[l.id] ?? '') === '') next[l.id] = l.system_quantity ?? '0'
-      }
-      return next
-    })
+  const fillBlankCounts = () => setCounts((prev) => fillBlanks(base.lines, prev))
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
@@ -248,7 +249,13 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
   const busy = save.isPending || post.isPending || checking
   const disabled = !canEdit || busy
   const actionError = conflict || adding ? null : (save.error ?? post.error)
-  const uncounted = summary.total - summary.counted
+  /** Uncounted lines the user can still fill in (pending lines are not editable). */
+  const uncounted = editable.total - editable.counted
+  const postBlocked = hasPending
+    ? t('count.postPending')
+    : editable.counted === 0
+      ? t('count.postNeedsCounts')
+      : undefined
   const title = t('count.title', { number: base.number ?? t('list.unnumbered') })
   const warehouse = warehouses.data?.find((w) => w.id === base.warehouse_id)
 
@@ -325,8 +332,9 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
             {canPost && (
               <Button
                 type="button"
-                disabled={busy || invalid || summary.counted === 0 || (dirty && !canEdit)}
-                title={summary.counted === 0 ? t('count.postNeedsCounts') : undefined}
+                disabled={busy || invalid || postBlocked !== undefined || (dirty && !canEdit)}
+                title={postBlocked}
+                aria-describedby={hasPending ? 'count-post-pending' : undefined}
                 onClick={() => void submitPost()}
               >
                 {post.isPending ? (
@@ -372,7 +380,12 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
           </p>
         </div>
       </section>
-      {uncounted > 0 && summary.counted > 0 && (
+      {canPost && hasPending && (
+        <p id="count-post-pending" role="status" className="text-sm text-warning-soft-foreground">
+          {t('count.postPending')}
+        </p>
+      )}
+      {uncounted > 0 && editable.counted > 0 && (
         <p role="status" className="text-sm text-warning-soft-foreground">
           {t('count.uncountedWarning', { count: uncounted })}
         </p>
@@ -403,7 +416,13 @@ export function CountEditor({ document, onReload, onPosted }: CountEditorProps) 
           {t('count.onlyUncounted')}
         </label>
         {canEdit && uncounted > 0 && (
-          <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={fillBlanks}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled}
+            onClick={fillBlankCounts}
+          >
             <ClipboardCopy aria-hidden="true" />
             {t('count.copySystem')}
           </Button>

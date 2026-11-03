@@ -111,7 +111,8 @@
   },
   "itemCombobox": {
     "details": "Einheit: {{unit}} · Steuerschlüssel: {{tax}}",
-    "noTax": "keiner"
+    "noTax": "keiner",
+    "offlineSearch": "Offline: Nur die geladenen Artikel werden durchsucht; für Barcodes und Varianten bitte verbinden."
   },
   "attributes": {
     "empty": "Noch keine Merkmale.",
