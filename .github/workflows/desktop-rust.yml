@@ -1,6 +1,7 @@
 name: Desktop Rust
 on:
   push:
+    branches: [main]
     paths:
       - 'desktop/**'
       # The webview bundles the web app (frontend/src) and its API types.
@@ -28,11 +29,15 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/desktop-rust.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 jobs:
   rust:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: desktop
@@ -70,6 +75,7 @@ jobs:
       - run: cargo audit
   desktop-shell:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: desktop
@@ -168,6 +174,7 @@ jobs:
           grep -F 'release build refused: connect-src allows https:' refused.log
   secrets-macos:
     runs-on: macos-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: desktop
