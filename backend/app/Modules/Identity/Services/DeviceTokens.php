@@ -35,18 +35,22 @@ final class DeviceTokens
      * change, reset, deactivation or deletion that committed after the credentials were checked
      * fails the login instead of yielding a token for a credential that is already void.
      *
+     * `$checkedVersion` is the auth_version read together with the password hash that was
+     * verified; later steps (2FA) must not move it. It defaults to `$checked->auth_version`.
+     *
      * @return array{token: string, expires_at: string, refresh_token: string, refresh_expires_at: string}
      *
      * @throws ApiException
      */
-    public function issue(User $checked, Request $request, string $name, string $fingerprint): array
+    public function issue(User $checked, Request $request, string $name, string $fingerprint, ?int $checkedVersion = null): array
     {
         $hash = hash('sha256', $fingerprint);
+        $checkedVersion ??= $checked->auth_version;
 
-        return DB::transaction(function () use ($checked, $request, $name, $hash): array {
+        return DB::transaction(function () use ($checked, $checkedVersion, $request, $name, $hash): array {
             $user = User::query()->whereKey($checked->id)->lockForUpdate()->first();
 
-            if (! $user instanceof User || $user->auth_version !== $checked->auth_version) {
+            if (! $user instanceof User || $user->auth_version !== $checkedVersion) {
                 throw new ApiException(ErrorCode::Unauthenticated);
             }
 
@@ -136,18 +140,30 @@ final class DeviceTokens
      */
     public function signOut(User $user, PersonalAccessToken $token): void
     {
-        $deviceId = $token->getAttribute('device_id');
+        $deviceId = $this->deviceIdOf($user, $token);
 
-        if (! is_string($deviceId) || $deviceId === '') {
-            // Tokens minted before device ids were stored on them.
-            $deviceId = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->value('id');
-        }
-
-        if (is_string($deviceId)) {
+        if ($deviceId !== null) {
             $this->revokeById($user, $deviceId);
         }
 
         $token->delete();
+    }
+
+    /**
+     * The device a token was minted for: the stable id it carries, or for tokens minted before
+     * device ids were stored on them, the device that currently points at the token.
+     */
+    public function deviceIdOf(User $user, PersonalAccessToken $token): ?string
+    {
+        $deviceId = $token->getAttribute('device_id');
+
+        if (is_string($deviceId) && $deviceId !== '') {
+            return $deviceId;
+        }
+
+        $legacy = UserDevice::query()->where('user_id', $user->id)->where('token_id', (string) $token->getKey())->value('id');
+
+        return is_string($legacy) ? $legacy : null;
     }
 
     private function revokeById(User $user, string $deviceId): void
@@ -167,10 +183,10 @@ final class DeviceTokens
      *
      * @return array{token: string, expires_at: string, refresh_token: string, refresh_expires_at: string}|null
      */
-    public function reissue(User $user, UserDevice $device): ?array
+    public function reissue(User $user, string $deviceId): ?array
     {
-        return DB::transaction(function () use ($user, $device): ?array {
-            $locked = UserDevice::query()->whereKey($device->id)->lockForUpdate()->first();
+        return DB::transaction(function () use ($user, $deviceId): ?array {
+            $locked = UserDevice::query()->whereKey($deviceId)->where('user_id', $user->id)->lockForUpdate()->first();
 
             if (! $locked instanceof UserDevice) {
                 return null;
