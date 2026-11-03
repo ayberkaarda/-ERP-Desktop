@@ -1,0 +1,617 @@
+{
+  "description": "List requests the web frontend sends to the mirrored list endpoints (contracts/offline-manifest.json query). expect: local = every sort/filter is declared in query; online_only = at least one param is in query.online_only and the rest are declared; server_rejects = the server refuses it (422). @uuid stands for any uuid. Update this file with the web code; OfflineManifestQueryTest checks it against the manifest, the server and the frontend source. other_endpoints: filters named in a file that also reads a mirrored list, but sent to an endpoint that is not a pulled list (not mirrored, or a snapshot such as /stock-balances).",
+  "queries": [
+    {
+      "resource": "parties",
+      "query": "page=1&per_page=25&sort=name",
+      "expect": "local",
+      "source": "frontend/src/features/parties/pages/PartyListPage.tsx",
+      "evidence": "sort: [{ id: 'name', desc: false }]"
+    },
+    {
+      "resource": "parties",
+      "query": "page=1&per_page=25&sort=-code,tax_number,country&q=acme",
+      "expect": "local",
+      "source": "frontend/src/features/parties/pages/PartyListPage.tsx"
+    },
+    {
+      "resource": "parties",
+      "query": "page=1&per_page=25&sort=name&filter[role]=customer&filter[is_active]=1&filter[country]=TR",
+      "expect": "local",
+      "source": "frontend/src/features/parties/pages/PartyListPage.tsx"
+    },
+    {
+      "resource": "parties",
+      "query": "page=1&per_page=25&sort=name&filter[is_active]=0",
+      "expect": "local",
+      "source": "frontend/src/features/parties/pages/PartyListPage.tsx"
+    },
+    {
+      "resource": "parties",
+      "query": "q=&per_page=20&sort=name&filter[is_active]=1&filter[role]=supplier",
+      "expect": "local",
+      "source": "frontend/src/features/parties/api/parties.ts",
+      "evidence": "sort: 'name', 'filter[is_active]': '1'"
+    },
+    {
+      "resource": "parties",
+      "query": "q=acme&per_page=20",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/api/client.ts",
+      "evidence": "params: { q, per_page: 20 }"
+    },
+    {
+      "resource": "parties",
+      "query": "q=&per_page=20",
+      "expect": "local",
+      "source": "frontend/src/features/accounting/journal/api/client.ts"
+    },
+    {
+      "resource": "items",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/pages/ItemListPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "items",
+      "query": "page=1&per_page=25&sort=-name&q=wid&filter[type]=stock&filter[tracking]=lot&filter[is_active]=false",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/pages/ItemListPage.tsx"
+    },
+    {
+      "resource": "items",
+      "query": "page=1&per_page=25&sort=code&filter[category]=@uuid",
+      "expect": "online_only",
+      "source": "frontend/src/features/catalog/pages/ItemListPage.tsx"
+    },
+    {
+      "resource": "items",
+      "query": "page=1&per_page=20&q=wid&filter[is_active]=true&filter[type]=stock",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/components/ItemCombobox.tsx",
+      "evidence": "filters.is_active = 'true'"
+    },
+    {
+      "resource": "items",
+      "query": "q=8690000000001&filter[is_active]=true&per_page=10",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "evidence": "params: { q, 'filter[is_active]': 'true', per_page: 10 }"
+    },
+    {
+      "resource": "items",
+      "query": "filter[id]=@uuid,@uuid&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "evidence": "'filter[id]': chunk.join(',')"
+    },
+    {
+      "resource": "items",
+      "query": "filter[id]=@uuid,@uuid&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/sales/shared/lib/labels.ts",
+      "evidence": "'filter[id]': chunk.join(',')"
+    },
+    {
+      "resource": "items",
+      "query": "filter[id]=@uuid&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/sales/invoices/kit/normalize.ts",
+      "evidence": "'filter[id]': chunk.join(',')"
+    },
+    {
+      "resource": "item-categories",
+      "query": "sort=code&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/hooks/queries.ts",
+      "evidence": "categoriesApi.all({ sort: 'code' }, signal)"
+    },
+    {
+      "resource": "item-categories",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/sales/reports/components/CategorySelect.tsx"
+    },
+    {
+      "resource": "units",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/pages/UnitsPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "units",
+      "query": "page=1&per_page=25&sort=-name&q=pc&filter[is_active]=true",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/pages/UnitsPage.tsx"
+    },
+    {
+      "resource": "units",
+      "query": "sort=code&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "evidence": "fetchAll<UnitRow>('/units', { sort: 'code' }, signal)"
+    },
+    {
+      "resource": "units",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/sales/shared/api.ts"
+    },
+    {
+      "resource": "unit-conversions",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/hooks/queries.ts"
+    },
+    {
+      "resource": "price-lists",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/pages/PriceListListPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "price-lists",
+      "query": "page=1&per_page=25&sort=name,-currency_code,valid_from&q=std&filter[tax_inclusive]=true&filter[is_active]=false",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/pages/PriceListListPage.tsx"
+    },
+    {
+      "resource": "currencies",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/CurrenciesPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "currencies",
+      "query": "page=1&per_page=25&sort=-name&q=lira",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/CurrenciesPage.tsx"
+    },
+    {
+      "resource": "currencies",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/api/resources.ts"
+    },
+    {
+      "resource": "exchange-rates",
+      "query": "page=1&per_page=25&sort=-rate_date",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/ExchangeRatesPage.tsx",
+      "evidence": "{ sort: [{ id: 'rate_date', desc: true }] }"
+    },
+    {
+      "resource": "exchange-rates",
+      "query": "page=1&per_page=25&sort=currency_code,rate_date&filter[source]=manual&filter[currency_code]=USD&filter[rate_date]=2027-06-10",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/ExchangeRatesPage.tsx"
+    },
+    {
+      "resource": "tax-codes",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/TaxCodesPage.tsx"
+    },
+    {
+      "resource": "tax-codes",
+      "query": "filter[is_active]=1&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/hooks/useReference.ts",
+      "evidence": "params['filter[is_active]'] = '1'"
+    },
+    {
+      "resource": "tax-codes",
+      "query": "filter[type]=vat&filter[is_active]=1&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/hooks/useReference.ts",
+      "evidence": "params['filter[type]'] = options.type"
+    },
+    {
+      "resource": "tax-codes",
+      "query": "q=&per_page=20&filter[is_active]=true",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/api/client.ts",
+      "evidence": "params: { q, per_page: 20, 'filter[is_active]': 'true' }"
+    },
+    {
+      "resource": "payment-terms",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/PaymentTermsPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "payment-terms",
+      "query": "page=1&per_page=25&sort=-name&q=net&filter[is_active]=0",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/PaymentTermsPage.tsx"
+    },
+    {
+      "resource": "payment-terms",
+      "query": "filter[is_active]=1&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/hooks/useReference.ts",
+      "evidence": "paymentTerms.useAll(options.includeInactive ? undefined : { 'filter[is_active]': '1' })"
+    },
+    {
+      "resource": "warehouses",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/WarehousesPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "warehouses",
+      "query": "page=1&per_page=25&sort=-name&q=main&filter[is_active]=1",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/WarehousesPage.tsx"
+    },
+    {
+      "resource": "warehouses",
+      "query": "filter[is_active]=1&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/hooks/useReference.ts",
+      "evidence": "warehouses.useAll(options.includeInactive ? undefined : { 'filter[is_active]': '1' })"
+    },
+    {
+      "resource": "warehouses",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/sales/reports/lib/labels.ts"
+    },
+    {
+      "resource": "warehouses.locations",
+      "query": "sort=code&page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/shared/warehouses.ts",
+      "evidence": "params: { sort: 'code', page, per_page: 100 }"
+    },
+    {
+      "resource": "warehouses.locations",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/api/resources.ts"
+    },
+    {
+      "resource": "cost-centers",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/reference/hooks/useReference.ts"
+    },
+    {
+      "resource": "cost-centers",
+      "query": "q=&per_page=20",
+      "expect": "local",
+      "source": "frontend/src/features/accounting/journal/api/client.ts"
+    },
+    {
+      "resource": "projects",
+      "query": "page=1&per_page=25&sort=code",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/ProjectsPage.tsx",
+      "evidence": "{ sort: [{ id: 'code', desc: false }] }"
+    },
+    {
+      "resource": "projects",
+      "query": "page=1&per_page=25&sort=-name&q=alpha&filter[status]=active",
+      "expect": "local",
+      "source": "frontend/src/features/reference/pages/ProjectsPage.tsx"
+    },
+    {
+      "resource": "projects",
+      "query": "q=&per_page=20",
+      "expect": "local",
+      "source": "frontend/src/features/accounting/journal/api/client.ts"
+    },
+    {
+      "resource": "items.variants",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/api/client.ts"
+    },
+    {
+      "resource": "items.barcodes",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/api/client.ts"
+    },
+    {
+      "resource": "items.barcodes",
+      "query": "filter[barcode]=8690000000001&page=1&per_page=100",
+      "expect": "server_rejects",
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "evidence": "{ 'filter[barcode]': scanned }"
+    },
+    {
+      "resource": "price-lists.lines",
+      "query": "page=1&per_page=100",
+      "expect": "local",
+      "source": "frontend/src/features/catalog/api/client.ts"
+    },
+    {
+      "resource": "sales-quotes",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/sales/quotes/pages/QuoteListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "sales-quotes",
+      "query": "page=1&per_page=25&sort=number,-party_name,total&q=Q1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/sales/quotes/pages/QuoteListPage.tsx"
+    },
+    {
+      "resource": "sales-orders",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/sales/orders/pages/OrderListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "sales-orders",
+      "query": "page=1&per_page=25&sort=number,-party_name,total&q=Q1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/sales/orders/pages/OrderListPage.tsx"
+    },
+    {
+      "resource": "sales-deliveries",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/sales/deliveries/pages/DeliveryListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "sales-deliveries",
+      "query": "page=1&per_page=25&sort=number,-document_date&q=Q1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/sales/deliveries/pages/DeliveryListPage.tsx"
+    },
+    {
+      "resource": "sales-invoices",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/sales/invoices/pages/InvoiceListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "sales-invoices",
+      "query": "page=1&per_page=25&sort=number,-due_date,total&q=Q1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/sales/invoices/pages/InvoiceListPage.tsx"
+    },
+    {
+      "resource": "sales-returns",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/sales/returns/pages/ReturnListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "sales-returns",
+      "query": "page=1&per_page=25&sort=-number,document_date&q=Q1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/sales/returns/pages/ReturnListPage.tsx"
+    },
+    {
+      "resource": "sales-quotes",
+      "query": "page=1&per_page=25&sort=total_local,-status,due_date,created_at",
+      "expect": "local",
+      "source": "frontend/src/features/sales/shared/lib/listFilters.ts"
+    },
+    {
+      "resource": "sales-orders",
+      "query": "page=1&per_page=25&sort=total_local,-status,due_date,created_at",
+      "expect": "local",
+      "source": "frontend/src/features/sales/shared/lib/listFilters.ts"
+    },
+    {
+      "resource": "sales-invoices",
+      "query": "page=1&per_page=25&sort=-document_date&filter[invoice_type]=return",
+      "expect": "local",
+      "source": "frontend/src/features/sales/invoices/pages/InvoiceListPage.tsx"
+    },
+    {
+      "resource": "sales-invoices",
+      "query": "page=1&per_page=25&sort=-document_date&filter[open]=1",
+      "expect": "online_only",
+      "source": "frontend/src/features/sales/invoices/pages/InvoiceListPage.tsx",
+      "evidence": "filters.change('open', e.target.checked ? '1' : '')"
+    },
+    {
+      "resource": "purchase-requests",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/requests/pages/RequestListPage.tsx",
+      "evidence": "{ sort: [{ id: 'document_date', desc: true }] }"
+    },
+    {
+      "resource": "purchase-requests",
+      "query": "page=1&per_page=25&sort=number,-needed_by,estimated_total&filter[status]=draft&q=P1&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/requests/pages/RequestListPage.tsx"
+    },
+    {
+      "resource": "purchase-requests",
+      "query": "page=1&per_page=25&sort=-document_date&filter[supplier]=@uuid",
+      "expect": "online_only",
+      "source": "frontend/src/features/purchasing/shared/components/ListFilters.tsx"
+    },
+    {
+      "resource": "purchase-rfqs",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/rfqs/pages/RfqListPage.tsx",
+      "evidence": "{ sort: [{ id: 'document_date', desc: true }] }"
+    },
+    {
+      "resource": "purchase-rfqs",
+      "query": "page=1&per_page=25&sort=number,-response_due&filter[status]=draft&q=P1&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/rfqs/pages/RfqListPage.tsx"
+    },
+    {
+      "resource": "purchase-rfqs",
+      "query": "page=1&per_page=25&sort=-document_date&filter[supplier]=@uuid",
+      "expect": "online_only",
+      "source": "frontend/src/features/purchasing/shared/components/ListFilters.tsx"
+    },
+    {
+      "resource": "purchase-orders",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/orders/pages/OrderListPage.tsx",
+      "evidence": "{ sort: [{ id: 'document_date', desc: true }] }"
+    },
+    {
+      "resource": "purchase-orders",
+      "query": "page=1&per_page=25&sort=number,-party_name,total&filter[status]=draft&q=P1&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/orders/pages/OrderListPage.tsx"
+    },
+    {
+      "resource": "purchase-orders",
+      "query": "page=1&per_page=25&sort=-document_date&filter[supplier]=@uuid",
+      "expect": "online_only",
+      "source": "frontend/src/features/purchasing/shared/components/ListFilters.tsx"
+    },
+    {
+      "resource": "purchase-requests",
+      "query": "page=1&per_page=25&sort=status,-created_at",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/shared/lib/listFilters.ts"
+    },
+    {
+      "resource": "purchase-rfqs",
+      "query": "page=1&per_page=25&sort=status,-created_at",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/shared/lib/listFilters.ts"
+    },
+    {
+      "resource": "purchase-orders",
+      "query": "page=1&per_page=25&sort=total_local,-status,due_date,created_at",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/shared/lib/listFilters.ts"
+    },
+    {
+      "resource": "purchase-orders",
+      "query": "page=1&per_page=25&sort=-document_date&filter[status]=draft",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/rfqs/components/AwardDialog.tsx",
+      "evidence": "filter[status]"
+    },
+    {
+      "resource": "purchase-receipts",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/receipts/pages/ReceiptListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "purchase-receipts",
+      "query": "page=1&per_page=25&sort=number,-party_name,status&q=P1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/receipts/pages/ReceiptListPage.tsx"
+    },
+    {
+      "resource": "purchase-invoices",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/invoices/pages/InvoiceListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "purchase-invoices",
+      "query": "page=1&per_page=25&sort=number,-due_date,party_name,total,status&q=P1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/invoices/pages/InvoiceListPage.tsx"
+    },
+    {
+      "resource": "purchase-returns",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/returns/pages/ReturnListPage.tsx",
+      "evidence": "sort: [{ id: 'document_date', desc: true }]"
+    },
+    {
+      "resource": "purchase-returns",
+      "query": "page=1&per_page=25&sort=number,-party_name,total,status&q=P1&filter[status]=draft&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[party_id]=@uuid&filter[item_id]=@uuid&filter[number]=0001",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/returns/pages/ReturnListPage.tsx"
+    },
+    {
+      "resource": "purchase-invoices",
+      "query": "page=1&per_page=25&sort=-document_date&filter[invoice_type]=return&filter[match_status]=matched",
+      "expect": "local",
+      "source": "frontend/src/features/purchasing/invoices/pages/InvoiceListPage.tsx"
+    },
+    {
+      "resource": "purchase-invoices",
+      "query": "page=1&per_page=25&sort=-document_date&filter[open]=1",
+      "expect": "online_only",
+      "source": "frontend/src/features/purchasing/invoices/pages/InvoiceListPage.tsx",
+      "evidence": "filters.change('open', e.target.checked ? '1' : '')"
+    },
+    {
+      "resource": "purchase-invoices",
+      "query": "q=&page=1&per_page=25",
+      "expect": "local",
+      "source": "frontend/src/features/edocuments/api.ts"
+    },
+    {
+      "resource": "stock-documents",
+      "query": "page=1&per_page=25&sort=-document_date",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/documents/pages/StockDocumentListPage.tsx",
+      "evidence": "{ sort: [{ id: 'document_date', desc: true }] }"
+    },
+    {
+      "resource": "stock-documents",
+      "query": "page=1&per_page=25&sort=-document_date&filter[doc_type]=count",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/counts/pages/CountListPage.tsx"
+    },
+    {
+      "resource": "stock-documents",
+      "query": "page=1&per_page=25&sort=number,-document_date&q=S1&filter[doc_type]=receipt&filter[status]=posted&filter[date_from]=2027-01-01&filter[date_to]=2027-12-31&filter[warehouse_id]=@uuid&filter[item_id]=@uuid",
+      "expect": "local",
+      "source": "frontend/src/features/inventory/documents/pages/StockDocumentListPage.tsx"
+    }
+  ],
+  "other_endpoints": [
+    {
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "filter": "with_stock",
+      "endpoint": "/stock-lots"
+    },
+    {
+      "source": "frontend/src/features/inventory/documents/api/client.ts",
+      "filter": "item_id",
+      "endpoint": "/stock-lots"
+    },
+    {
+      "source": "frontend/src/features/parties/api/parties.ts",
+      "filter": "subject_type",
+      "endpoint": "/logs/audit"
+    },
+    {
+      "source": "frontend/src/features/parties/api/parties.ts",
+      "filter": "subject_id",
+      "endpoint": "/logs/audit"
+    },
+    {
+      "source": "frontend/src/features/sales/deliveries/api.ts",
+      "filter": "item_id",
+      "endpoint": "/stock-balances"
+    },
+    {
+      "source": "frontend/src/features/sales/deliveries/api.ts",
+      "filter": "warehouse_id",
+      "endpoint": "/stock-balances"
+    }
+  ]
+}
