@@ -111,8 +111,7 @@ describe('conflict inbox from the contract fixtures', () => {
     const { bridge } = await inbox([locked], 'discard')
     await userEvent.click(within(card(locked)).getByTestId('conflict-choice-discard'))
     const dialog = await screen.findByRole('alertdialog')
-    // The web dialog's own cancel label (its namespace is not loaded here).
-    await userEvent.click(within(dialog).getByRole('button', { name: 'confirm.cancel' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Değişikliğimi tut' }))
     await act(flush)
     expect(bridge.callsOf('conflicts_resolve')).toHaveLength(0)
     expect(card(locked)).toBeInTheDocument()
@@ -412,5 +411,89 @@ describe('conflict inbox edges', () => {
     expect(bridge.callsOf('conflicts_list')).toHaveLength(lists)
     expect(bridge.callsOf('sync_status')).toHaveLength(statuses)
     expect(card(conflict)).toBeInTheDocument()
+  })
+})
+
+describe('a readable version conflict', () => {
+  // Round 1: only notes changed on both sides, but the server listed 18 fields.
+  const noisy = () =>
+    updateConflict({
+      message: 'Kayıt başka biri tarafından değiştirildi. Yenileyip tekrar deneyin.',
+      conflicting_fields: [
+        'notes', 'party_name', 'party_tax_number', 'party_tax_office', 'subtotal', 'subtotal_local',
+        'valid_until', 'lines', 'payment_term_id',
+      ],
+      server_data: {
+        id: 'x',
+        number: null,
+        party_name: 'Ankara Gıda Ltd.',
+        party_tax_number: '1234511110',
+        party_tax_office: 'Ankara',
+        notes: 'Teslimat perşembe',
+        valid_until: '2026-12-02T00:00:00Z',
+        subtotal: '200.00',
+        lines: [{ id: 'l1', item_id: 'i1', quantity: '2.000' }],
+        payment_term_id: 'pt',
+        version: 4,
+      },
+      local_payload: {
+        notes: 'Teslimat cuma günü yapılacak',
+        valid_until: '2026-12-02',
+        lines: [{ item_id: 'i1', quantity: 2 }],
+        payment_term_id: 'pt',
+      },
+    })
+
+  it('asks only about the field that really differs, with its label', async () => {
+    const conflict = noisy()
+    await inbox([conflict])
+    const rows = within(card(conflict)).getAllByTestId(/^conflict-field-/)
+    expect(rows.map((row) => row.dataset.testid)).toEqual(['conflict-field-notes'])
+    expect(rows[0]).toHaveTextContent('Notlar')
+    expect(rows[0]).toHaveTextContent('Teslimat cuma günü yapılacak')
+    expect(rows[0]).toHaveTextContent('Teslimat perşembe')
+  })
+
+  it('names the record and explains the conflict in the inbox words', async () => {
+    const conflict = noisy()
+    await inbox([conflict])
+    expect(within(card(conflict)).getByRole('heading')).toHaveTextContent('Satış teklifi · (numarasız) · Ankara Gıda Ltd.')
+    expect(card(conflict)).not.toHaveTextContent(conflict.id)
+    expect(card(conflict)).toHaveTextContent('Bu kayıt siz çevrimdışıyken sunucuda da değişti. Hangi değerin kalacağını seçin.')
+    expect(card(conflict)).not.toHaveTextContent('Yenileyip tekrar deneyin')
+  })
+
+  it('changed lines are one row that says so, not raw JSON', async () => {
+    const conflict = updateConflict({
+      conflicting_fields: ['lines'],
+      server_data: { id: 'x', lines: [{ id: 'l1', quantity: '2' }, { id: 'l2', quantity: '1' }], version: 4 },
+      local_payload: { lines: [{ quantity: 3 }] },
+    })
+    await inbox([conflict])
+    const lines = within(card(conflict)).getByTestId('conflict-field-lines')
+    expect(lines).toHaveTextContent('Satırlar değişti')
+    expect(lines).toHaveTextContent('Satır sayısı: 1')
+    expect(lines).toHaveTextContent('Satır sayısı: 2')
+    expect(lines).not.toHaveTextContent('quantity')
+  })
+
+  it('says so when nothing editable differs', async () => {
+    const conflict = updateConflict({
+      conflicting_fields: ['notes', 'party_name'],
+      server_data: { id: 'x', notes: 'aynı', party_name: 'Acme', version: 4 },
+      local_payload: { notes: 'aynı' },
+    })
+    await inbox([conflict])
+    expect(within(card(conflict)).getByTestId('conflict-no-differences')).toBeInTheDocument()
+  })
+
+  it('the discard dialog keeps or drops the change, no two buttons alike', async () => {
+    const locked = fixtureConflict('DOCUMENT_LOCKED')
+    await inbox([locked])
+    await userEvent.click(within(card(locked)).getByTestId('conflict-choice-discard'))
+    const dialog = await screen.findByRole('alertdialog')
+    const names = within(dialog).getAllByRole('button').map((button) => button.textContent)
+    expect(names).toEqual(expect.arrayContaining(['Değişikliğimi tut', 'Değişikliğimden vazgeç']))
+    expect(names).not.toContain('Vazgeç')
   })
 })

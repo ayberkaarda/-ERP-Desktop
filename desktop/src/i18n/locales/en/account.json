@@ -104,7 +104,21 @@
       "body": "The profiles.json file in the app data folder could not be read.",
       "bodyAt": "This profile file could not be read:",
       "notOverwritten": "The file was left as it is and not overwritten. Fix or move the file, then restart the app.",
-      "detail": "Details: {{message}}"
+      "detail": "Details: {{message}}",
+      "reason": {
+        "invalid": "The file is not a profile file this version can read (damaged or in another format).",
+        "version": "The file was written by a version this app does not know.",
+        "encode": "The profile file could not be prepared.",
+        "read": "The file could not be read ({{cause}}).",
+        "write": "The file could not be written ({{cause}}).",
+        "replace": "The file could not be replaced ({{cause}}).",
+        "directory": "The folder of the file could not be created ({{cause}})."
+      },
+      "cause": {
+        "permission": "permission denied",
+        "notFound": "not found",
+        "other": "system error: {{kind}}"
+      }
     },
     "failed": {
       "title": "The profile could not be opened",

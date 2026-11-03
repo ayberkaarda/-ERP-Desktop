@@ -12,7 +12,9 @@
     "idle": "Canlı bağlantı bekliyor",
     "connecting": "Canlı bağlantı kuruluyor",
     "connected": "Canlı bağlantı açık",
-    "unavailable": "Canlı bağlantı kurulamadı"
+    "unavailable": "Canlı bağlantı kurulamadı",
+    "channelDenied": "Bağlantı açık, ancak kanal aboneliği reddedildi. Bildirimler kısa aralıklarla yoklanıyor.",
+    "channelWaiting": "Bağlantı açık, canlı kanal henüz yok. Bildirimler kısa aralıklarla yoklanıyor."
   },
   "badge": {
     "status": "Eşitleme durumu: {{state}}",
@@ -41,7 +43,7 @@
     "occurredAt": "Zaman",
     "actions": "Eylemler",
     "retry": "Yeniden dene",
-    "discard": "Vazgeç",
+    "discard": "Değişiklikten vazgeç",
     "discardTitle": "Değişiklikten vazgeçilsin mi?",
     "discardDescription": "Bu değişiklik bu cihazdan silinir ve sunucuya gönderilmez. Ona bağlı değişiklikler de gönderilemez.",
     "retried": "Değişiklik yeniden gönderilecek.",
@@ -60,14 +62,20 @@
       "conflict": "Çakışma",
       "rejected": "Reddedildi",
       "quarantined": "Karantinada"
-    }
+    },
+    "keep": "Değişikliği tut",
+    "unnumbered": "(numarasız)",
+    "rejectedHint": "Sunucu bu değişikliği kabul etmedi; bilgiler düzeltilmeden yeniden denemek aynı sonucu verir.",
+    "rejectedEdit": "Kaydı açıp düzeltin, sonra bu değişiklikten vazgeçin.",
+    "rejectedDiscard": "Bu değişiklikten vazgeçin ve kaydı doğru bilgilerle yeniden girin.",
+    "openRecord": "Kaydı aç"
   },
   "conflict": {
     "title": "Çakışma kutusu",
     "description": "Çevrimdışıyken yapılan ve sunucudaki kayıtla çakışan değişiklikler.",
     "empty": "Açık çakışma yok.",
     "loadFailed": "Liste okunamadı: {{error}}",
-    "record": "{{resource}} · {{id}}",
+    "record": "{{resource}} · {{label}}",
     "detectedAt": "Bulunma zamanı: {{time}}",
     "field": "Alan",
     "mine": "Benim değerim",
@@ -104,7 +112,16 @@
     "discardDescription": "Değişikliğiniz bu cihazdan silinir ve sunucuya hiç gönderilmez; bu geri alınamaz. Ona bağlı değişiklikler de gönderilemez.",
     "discardDraft": "Kayıt yalnızca bu cihazda var; o da silinir.",
     "refusedHint": "Yeniden eşitleyin; sorun sürerse uygulamayı güncelleyin.",
-    "resync": "Yeniden eşitle"
+    "resync": "Yeniden eşitle",
+    "keepChange": "Değişikliğimi tut",
+    "explain": {
+      "VERSION_CONFLICT": "Bu kayıt siz çevrimdışıyken sunucuda da değişti. Hangi değerin kalacağını seçin."
+    },
+    "noDifferences": "Sizin değerlerinizle sunucudakiler arasında düzenlenebilir bir fark yok.",
+    "linesChanged": "Satırlar değişti",
+    "linesCount": "Satır sayısı: {{count}}",
+    "yes": "Evet",
+    "no": "Hayır"
   },
   "freshness": {
     "label": "Bu cihazdaki kopya gösteriliyor.",
@@ -119,5 +136,46 @@
   "refusal": {
     "offline": "Bu işlem çevrimdışıyken yapılamaz; bağlantı gelince yeniden deneyin.",
     "manifest": "Çevrimdışı yazma kapalı: uygulamayı güncelleyin."
+  },
+  "resource": {
+    "parties": "Cari",
+    "items": "Stok kartı",
+    "items_variants": "Varyant",
+    "items_barcodes": "Barkod",
+    "price_lists": "Fiyat listesi",
+    "price_lists_lines": "Fiyat listesi satırı",
+    "sales_quotes": "Satış teklifi",
+    "sales_orders": "Satış siparişi",
+    "stock_documents": "Stok belgesi",
+    "purchase_requests": "Satın alma talebi"
+  },
+  "field": {
+    "name": "Ad",
+    "code": "Kod",
+    "notes": "Notlar",
+    "internal_notes": "İç notlar",
+    "description": "Açıklama",
+    "tax_number": "Vergi numarası",
+    "tax_office": "Vergi dairesi",
+    "email": "E-posta",
+    "phone": "Telefon",
+    "address": "Adres",
+    "billing_address": "Fatura adresi",
+    "shipping_address": "Teslimat adresi",
+    "party_id": "Cari",
+    "document_date": "Belge tarihi",
+    "valid_until": "Geçerlilik tarihi",
+    "delivery_date": "Teslim tarihi",
+    "payment_term_id": "Ödeme vadesi",
+    "warehouse_id": "Depo",
+    "price_list_id": "Fiyat listesi",
+    "currency": "Para birimi",
+    "currency_code": "Para birimi",
+    "reference": "Referans",
+    "is_active": "Etkin",
+    "roles": "Roller",
+    "unit_id": "Birim",
+    "category_id": "Kategori",
+    "lines": "Satırlar"
   }
 }

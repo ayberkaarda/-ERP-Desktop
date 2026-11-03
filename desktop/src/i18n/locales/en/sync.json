@@ -12,7 +12,9 @@
     "idle": "Live connection waiting",
     "connecting": "Live connection starting",
     "connected": "Live connection on",
-    "unavailable": "Live connection unavailable"
+    "unavailable": "Live connection unavailable",
+    "channelDenied": "Connected, but the channel subscription was refused. Notifications are polled at short intervals.",
+    "channelWaiting": "Connected, no live channel yet. Notifications are polled at short intervals."
   },
   "badge": {
     "status": "Sync state: {{state}}",
@@ -41,7 +43,7 @@
     "occurredAt": "Time",
     "actions": "Actions",
     "retry": "Retry",
-    "discard": "Discard",
+    "discard": "Discard change",
     "discardTitle": "Discard this change?",
     "discardDescription": "The change is removed from this device and never sent. Changes that depend on it cannot be sent either.",
     "retried": "The change will be sent again.",
@@ -60,14 +62,20 @@
       "conflict": "Conflict",
       "rejected": "Rejected",
       "quarantined": "Quarantined"
-    }
+    },
+    "keep": "Keep change",
+    "unnumbered": "(no number)",
+    "rejectedHint": "The server did not accept this change; retrying without fixing the data gives the same result.",
+    "rejectedEdit": "Open the record and fix it, then discard this change.",
+    "rejectedDiscard": "Discard this change and enter the record again with correct data.",
+    "openRecord": "Open the record"
   },
   "conflict": {
     "title": "Conflict inbox",
     "description": "Changes made offline that clash with the record on the server.",
     "empty": "No open conflicts.",
     "loadFailed": "The list could not be read: {{error}}",
-    "record": "{{resource}} · {{id}}",
+    "record": "{{resource}} · {{label}}",
     "detectedAt": "Found at: {{time}}",
     "field": "Field",
     "mine": "My value",
@@ -104,7 +112,16 @@
     "discardDescription": "Your change is deleted from this device and never sent to the server; this cannot be undone. Changes that depend on it cannot be sent either.",
     "discardDraft": "The record exists only on this device and is deleted too.",
     "refusedHint": "Sync again; if it stays, update the app.",
-    "resync": "Sync again"
+    "resync": "Sync again",
+    "keepChange": "Keep my change",
+    "explain": {
+      "VERSION_CONFLICT": "This record also changed on the server while you were offline. Choose which value stays."
+    },
+    "noDifferences": "There is no editable difference between your values and the server's.",
+    "linesChanged": "Lines changed",
+    "linesCount": "Lines: {{count}}",
+    "yes": "Yes",
+    "no": "No"
   },
   "freshness": {
     "label": "Showing the copy on this device.",
@@ -119,5 +136,46 @@
   "refusal": {
     "offline": "This cannot be done offline; try again once the connection is back.",
     "manifest": "Offline writing is off: update the app."
+  },
+  "resource": {
+    "parties": "Party",
+    "items": "Item",
+    "items_variants": "Variant",
+    "items_barcodes": "Barcode",
+    "price_lists": "Price list",
+    "price_lists_lines": "Price list line",
+    "sales_quotes": "Sales quote",
+    "sales_orders": "Sales order",
+    "stock_documents": "Stock document",
+    "purchase_requests": "Purchase request"
+  },
+  "field": {
+    "name": "Name",
+    "code": "Code",
+    "notes": "Notes",
+    "internal_notes": "Internal notes",
+    "description": "Description",
+    "tax_number": "Tax number",
+    "tax_office": "Tax office",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "billing_address": "Billing address",
+    "shipping_address": "Shipping address",
+    "party_id": "Party",
+    "document_date": "Document date",
+    "valid_until": "Valid until",
+    "delivery_date": "Delivery date",
+    "payment_term_id": "Payment term",
+    "warehouse_id": "Warehouse",
+    "price_list_id": "Price list",
+    "currency": "Currency",
+    "currency_code": "Currency",
+    "reference": "Reference",
+    "is_active": "Active",
+    "roles": "Roles",
+    "unit_id": "Unit",
+    "category_id": "Category",
+    "lines": "Lines"
   }
 }

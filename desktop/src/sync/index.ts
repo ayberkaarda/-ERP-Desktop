@@ -19,6 +19,7 @@ export {
 } from './refusals'
 export {
   createSyncStore,
+  type ChannelState,
   syncStoreFor,
   type ResourcesChange,
   type SyncBridge,

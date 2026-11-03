@@ -12,7 +12,9 @@
     "idle": "Connexion en direct en attente",
     "connecting": "Connexion en direct en cours",
     "connected": "Connexion en direct active",
-    "unavailable": "Connexion en direct indisponible"
+    "unavailable": "Connexion en direct indisponible",
+    "channelDenied": "Connecté, mais l'abonnement au canal a été refusé. Les notifications sont interrogées à intervalles courts.",
+    "channelWaiting": "Connecté, pas encore de canal en direct. Les notifications sont interrogées à intervalles courts."
   },
   "badge": {
     "status": "État de synchronisation : {{state}}",
@@ -41,7 +43,7 @@
     "occurredAt": "Heure",
     "actions": "Actions",
     "retry": "Réessayer",
-    "discard": "Abandonner",
+    "discard": "Abandonner la modification",
     "discardTitle": "Abandonner cette modification ?",
     "discardDescription": "La modification est retirée de cet appareil et ne sera jamais envoyée. Les modifications qui en dépendent ne pourront pas non plus être envoyées.",
     "retried": "La modification sera renvoyée.",
@@ -60,14 +62,20 @@
       "conflict": "Conflit",
       "rejected": "Rejetée",
       "quarantined": "En quarantaine"
-    }
+    },
+    "keep": "Conserver la modification",
+    "unnumbered": "(sans numéro)",
+    "rejectedHint": "Le serveur n'a pas accepté cette modification ; réessayer sans corriger les données donne le même résultat.",
+    "rejectedEdit": "Ouvrez l'enregistrement et corrigez-le, puis abandonnez cette modification.",
+    "rejectedDiscard": "Abandonnez cette modification et saisissez à nouveau l'enregistrement avec des données correctes.",
+    "openRecord": "Ouvrir l'enregistrement"
   },
   "conflict": {
     "title": "Boîte des conflits",
     "description": "Modifications faites hors ligne qui entrent en conflit avec l'enregistrement du serveur.",
     "empty": "Aucun conflit ouvert.",
     "loadFailed": "La liste n'a pas pu être lue : {{error}}",
-    "record": "{{resource}} · {{id}}",
+    "record": "{{resource}} · {{label}}",
     "detectedAt": "Détecté le : {{time}}",
     "field": "Champ",
     "mine": "Ma valeur",
@@ -104,7 +112,16 @@
     "discardDescription": "Votre modification est supprimée de cet appareil et ne sera jamais envoyée au serveur ; c'est irréversible. Les modifications qui en dépendent ne pourront pas non plus être envoyées.",
     "discardDraft": "L'enregistrement n'existe que sur cet appareil et est également supprimé.",
     "refusedHint": "Synchronisez à nouveau ; si cela persiste, mettez l'application à jour.",
-    "resync": "Synchroniser à nouveau"
+    "resync": "Synchroniser à nouveau",
+    "keepChange": "Conserver ma modification",
+    "explain": {
+      "VERSION_CONFLICT": "Cet enregistrement a aussi changé sur le serveur pendant que vous étiez hors ligne. Choisissez la valeur à conserver."
+    },
+    "noDifferences": "Il n'y a aucune différence modifiable entre vos valeurs et celles du serveur.",
+    "linesChanged": "Lignes modifiées",
+    "linesCount": "Lignes : {{count}}",
+    "yes": "Oui",
+    "no": "Non"
   },
   "freshness": {
     "label": "Copie de cet appareil affichée.",
@@ -119,5 +136,46 @@
   "refusal": {
     "offline": "Impossible hors ligne ; réessayez quand la connexion sera revenue.",
     "manifest": "Écriture hors ligne désactivée : mettez l'application à jour."
+  },
+  "resource": {
+    "parties": "Tiers",
+    "items": "Article",
+    "items_variants": "Variante",
+    "items_barcodes": "Code-barres",
+    "price_lists": "Liste de prix",
+    "price_lists_lines": "Ligne de liste de prix",
+    "sales_quotes": "Devis",
+    "sales_orders": "Commande client",
+    "stock_documents": "Document de stock",
+    "purchase_requests": "Demande d'achat"
+  },
+  "field": {
+    "name": "Nom",
+    "code": "Code",
+    "notes": "Notes",
+    "internal_notes": "Notes internes",
+    "description": "Description",
+    "tax_number": "Numéro fiscal",
+    "tax_office": "Centre des impôts",
+    "email": "E-mail",
+    "phone": "Téléphone",
+    "address": "Adresse",
+    "billing_address": "Adresse de facturation",
+    "shipping_address": "Adresse de livraison",
+    "party_id": "Tiers",
+    "document_date": "Date du document",
+    "valid_until": "Valable jusqu'au",
+    "delivery_date": "Date de livraison",
+    "payment_term_id": "Condition de paiement",
+    "warehouse_id": "Entrepôt",
+    "price_list_id": "Liste de prix",
+    "currency": "Devise",
+    "currency_code": "Devise",
+    "reference": "Référence",
+    "is_active": "Actif",
+    "roles": "Rôles",
+    "unit_id": "Unité",
+    "category_id": "Catégorie",
+    "lines": "Lignes"
   }
 }

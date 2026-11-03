@@ -374,10 +374,18 @@ async fn a_rejection_stays_with_the_key_until_a_retry_or_a_discard() {
         (rejection.message.as_str(), stored_keys(&env)),
         ("taken", 1)
     );
-    let entry = outbox_list(&env.store)[0].mutation.idempotency_key;
+    let listed = &outbox_list(&env.store)[0];
+    // The outbox entry carries the field messages for the user-facing queue.
+    let fields = listed.rejection.as_ref().and_then(|e| e.fields.clone());
+    assert_eq!(
+        fields.and_then(|f| f.get("name").cloned()),
+        Some(vec!["taken".to_owned()])
+    );
+    let entry = listed.mutation.idempotency_key;
 
     env.engine.retry(entry).unwrap();
     assert_eq!(record().unwrap().rejection, None);
+    assert_eq!(outbox_list(&env.store)[0].rejection, None);
 
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert!(record().unwrap().rejection.is_some());

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 
+import type { RealtimeStateDto } from '../../bridge/generated/RealtimeStateDto'
 import { toCommandError } from '../../bridge/invoke'
 import {
   createDesktopText,
@@ -16,6 +17,8 @@ import {
   syncStoreFor,
   useDesktopText,
   watchOfflineRefusals,
+  type ChannelState,
+  type DesktopText,
   type SyncBridge,
   type SyncStore,
 } from '../../sync'
@@ -65,6 +68,16 @@ function useRemaining(retryAfter: number | null | undefined, since: number): num
     }
   }, [counting, since])
   return remaining
+}
+
+/**
+ * A connected socket is live only once the server accepted the user channel;
+ * until then (or when it refused it) notifications come by polling.
+ */
+function realtimeText(text: DesktopText, realtime: RealtimeStateDto, channel: ChannelState | null): string {
+  if (realtime === 'connected' && channel === 'denied') return text.td('sync.realtime.channelDenied')
+  if (realtime === 'connected' && channel === 'waiting') return text.td('sync.realtime.channelWaiting')
+  return text.td(`sync.realtime.${realtime}`)
 }
 
 function useSnapshot(store: SyncStore) {
@@ -134,7 +147,11 @@ function SyncBadges({ bridge, notify }: { bridge: SyncBridge; notify: Notify }) 
           {status.error_code ? (
             <p data-testid="sync-last-error">{text.td('sync.badge.lastError', { error: text.error(status.error_code) })}</p>
           ) : null}
-          {snapshot.realtime ? <p className="text-muted-foreground">{text.td(`sync.realtime.${snapshot.realtime}`)}</p> : null}
+          {snapshot.realtime ? (
+            <p className="text-muted-foreground" data-testid="sync-realtime">
+              {realtimeText(text, snapshot.realtime, snapshot.channel)}
+            </p>
+          ) : null}
           <Button size="sm" variant="secondary" disabled={busy} data-testid="sync-now" onClick={() => void syncNow()}>
             {text.td('sync.badge.syncNow')}
           </Button>

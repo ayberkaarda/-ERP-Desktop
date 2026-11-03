@@ -14,6 +14,7 @@ import { useTd } from '../../i18n'
 import { errorText } from './errors'
 import { ErrorLine, GateFrame } from './GateFrame'
 import { KEPT, withPendingWork } from './pending'
+import { profileFileDetail } from './profileFileDetail'
 import { ProfilesPage } from './ProfilesPage'
 import { useAccount } from './services'
 import { useProfiles } from './useProfiles'
@@ -179,7 +180,9 @@ export function ProfilesFileRecovery({ message, path }: { message: string; path?
         )}
         <p className="text-sm text-muted-foreground">{td('account.recovery.file.notOverwritten')}</p>
         {message ? (
-          <p className="font-mono text-xs text-subtle-foreground">{td('account.recovery.file.detail', { message })}</p>
+          <p className="text-xs text-subtle-foreground" data-testid="profiles-file-detail">
+            {td('account.recovery.file.detail', { message: profileFileDetail(td, message) })}
+          </p>
         ) : null}
       </div>
     </GateFrame>

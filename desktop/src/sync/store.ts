@@ -22,9 +22,17 @@ export interface SyncSnapshot {
   /** `null` while the active profile has no engine (no company, no local store). */
   status: StatusDto | null
   realtime: RealtimeStateDto | null
+  /**
+   * The user channel on a connected socket: `live` once the server accepted
+   * it, `denied` when it refused it, `waiting` while neither is known;
+   * `null` while the socket is not connected.
+   */
+  channel: ChannelState | null
   /** Clock time the status arrived; `retry_after` counts from here. */
   statusAt: number
 }
+
+export type ChannelState = 'live' | 'denied' | 'waiting'
 
 export interface ResourcesChange {
   resources: string[]
@@ -42,6 +50,17 @@ export interface SyncStore {
   /** Reads `sync_status` again (after an outbox or conflict command). */
   refreshStatus(): Promise<void>
   onResourcesChanged(listener: (change: ResourcesChange) => void): () => void
+}
+
+/** The channel state a `realtime_status` answer shows (a refusal is kept). */
+function channelOf(
+  realtime: RealtimeStateDto,
+  subscribed: readonly string[] | undefined,
+  before: ChannelState | null,
+): ChannelState | null {
+  if (realtime !== 'connected') return null
+  if (Array.isArray(subscribed) && subscribed.length > 0) return 'live'
+  return before === 'denied' ? 'denied' : 'waiting'
 }
 
 const shared = new WeakMap<SyncBridge, SyncStore>()
@@ -64,6 +83,7 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
     profileId: undefined,
     status: null,
     realtime: null,
+    channel: null,
     statusAt: 0,
   }))
   const changeListeners = new Set<(change: ResourcesChange) => void>()
@@ -95,7 +115,11 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
       .then(
         (dto) => {
           const before = state.getState().profileId
-          state.setState({ profileId: dto.profile_id, realtime: dto.state })
+          state.setState({
+            profileId: dto.profile_id,
+            realtime: dto.state,
+            channel: channelOf(dto.state, dto.subscribed, state.getState().channel),
+          })
           // Another profile: its engine (or the lack of one) replaces the last
           // profile's status. The first read is already paired with one.
           if (before !== undefined && before !== dto.profile_id && !disposed) void readStatus()
@@ -142,10 +166,21 @@ export function createSyncStore(bridge: SyncBridge, options: { now?: () => numbe
         }
       })),
       kept(listenRealtime(listen, (event) => {
-        if (event.type !== 'state') return
-        accept(event.profile_id, () => {
-          state.setState({ realtime: event.state })
-        })
+        if (event.type === 'state') {
+          accept(event.profile_id, () => {
+            const before = state.getState()
+            // A new socket has no subscription yet.
+            const channel =
+              event.state !== 'connected' ? null : before.realtime === 'connected' ? before.channel : 'waiting'
+            state.setState({ realtime: event.state, channel })
+          })
+        } else if (event.type === 'subscribed' || event.type === 'subscription_failed') {
+          const channel: ChannelState = event.type === 'subscribed' ? 'live' : 'denied'
+          accept(event.profile_id, () => {
+            if (state.getState().realtime === 'connected') state.setState({ channel })
+            else void checkProfile()
+          })
+        }
       })),
     )
     void checkProfile()

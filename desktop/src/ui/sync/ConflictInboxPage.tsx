@@ -17,12 +17,14 @@ import {
   mergedPayload,
   syncStoreFor,
   useDesktopText,
+  type DesktopText,
   type FieldPick,
   type SyncBridge,
   type SyncStore,
 } from '../../sync'
 import { conflictModel, RESOLUTION_TABLE, type ConflictChoice, type ConflictModel } from '../../wire'
 import { useSyncDeps } from './context'
+import { differingFields, fieldName, recordLabel, resourceName, shortId } from './labels'
 import { CONFLICTS_KEY, OUTBOX_KEY } from './paths'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { EmptyState } from '@/components/shared/EmptyState'
@@ -39,9 +41,22 @@ function isOneOf<T extends string>(list: readonly T[], value: string): value is 
   return (list as readonly string[]).includes(value)
 }
 
-function show(value: unknown): string {
-  if (value === undefined || value === null) return '—'
-  return typeof value === 'string' ? value : JSON.stringify(value)
+function show(text: DesktopText, field: string, value: unknown): string {
+  if (value === undefined || value === null || value === '') return '—'
+  if (field === 'lines' && Array.isArray(value)) return text.td('sync.conflict.linesCount', { count: value.length })
+  if (typeof value === 'boolean') return text.td(value ? 'sync.conflict.yes' : 'sync.conflict.no')
+  if (Array.isArray(value) && value.every((item) => typeof item === 'string')) return value.join(', ')
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : JSON.stringify(value)
+}
+
+/** "Sales quote · QUO-1 · Acme", from the server row first, then the draft. */
+function cardTitle(text: DesktopText, conflict: ConflictDto): string {
+  const unnumbered = text.td('sync.outbox.unnumbered')
+  const label =
+    recordLabel(conflict.resource, conflict.server_data, unnumbered) ??
+    recordLabel(conflict.resource, conflict.local_payload, unnumbered) ??
+    shortId(conflict.id)
+  return text.td('sync.conflict.record', { resource: resourceName(text, conflict.resource), label })
 }
 
 interface Resolver {
@@ -94,6 +109,10 @@ function FieldCompare({
 }) {
   const text = useDesktopText()
   if (fields.length === 0) return <p>{text.td('sync.conflict.noFields')}</p>
+  // Only what the draft changed and the server has otherwise: equal values,
+  // server-computed fields and fields the draft never sent are no choice.
+  const shown = differingFields(fields, conflict.local_payload, server)
+  if (shown.length === 0) return <p data-testid="conflict-no-differences">{text.td('sync.conflict.noDifferences')}</p>
   return (
     <table className="w-full text-sm" data-testid="conflict-fields">
       <thead className="text-left text-muted-foreground">
@@ -105,11 +124,13 @@ function FieldCompare({
         </tr>
       </thead>
       <tbody>
-        {fields.map((field) => (
+        {shown.map((field) => (
           <tr key={field} data-testid={`conflict-field-${field}`}>
-            <td className="font-mono text-xs">{field}</td>
-            <td>{show(conflict.local_payload[field])}</td>
-            <td>{show(server[field])}</td>
+            <td className="font-medium">
+              {field === 'lines' ? text.td('sync.conflict.linesChanged') : fieldName(text, field)}
+            </td>
+            <td>{show(text, field, conflict.local_payload[field])}</td>
+            <td>{show(text, field, server[field])}</td>
             {canMerge ? (
               <td className="space-x-2 whitespace-nowrap">
                 {(['mine', 'server'] as const).map((pick) => (
@@ -152,11 +173,19 @@ function CardHeader({ conflict }: { conflict: ConflictDto }) {
   const locale = useIntlLocale()
   return (
     <header className="space-y-0.5">
-      <h2 className="font-medium">{text.td('sync.conflict.record', { resource: conflict.resource, id: conflict.id })}</h2>
-      <p className="text-sm">
-        {isOneOf(CODES, conflict.code) ? text.td(`sync.conflict.code.${conflict.code}`) : conflict.code}
-      </p>
-      {conflict.message ? <p className="text-sm text-muted-foreground">{conflict.message}</p> : null}
+      <h2 className="font-medium">{cardTitle(text, conflict)}</h2>
+      {/* A version conflict's server message is written for an online form
+          ("refresh and try again"): the inbox explains it in its own words. */}
+      {conflict.code === 'VERSION_CONFLICT' ? (
+        <p className="text-sm">{text.td('sync.conflict.explain.VERSION_CONFLICT')}</p>
+      ) : (
+        <>
+          <p className="text-sm">
+            {isOneOf(CODES, conflict.code) ? text.td(`sync.conflict.code.${conflict.code}`) : conflict.code}
+          </p>
+          {conflict.message ? <p className="text-sm text-muted-foreground">{conflict.message}</p> : null}
+        </>
+      )}
       <p className="text-xs text-muted-foreground">
         {text.td('sync.conflict.detectedAt', { time: formatDateTime(conflict.detected_at, locale) })}
       </p>
@@ -190,6 +219,7 @@ function DiscardButton({
         conflict.local_op === 'create' ? `${description} ${text.td('sync.conflict.discardDraft')}` : description
       }
       confirmLabel={label}
+      cancelLabel={text.td('sync.conflict.keepChange')}
       onConfirm={onDiscard}
     />
   )
@@ -388,7 +418,7 @@ function ConflictCard({
     <article
       className="space-y-3 rounded-md border border-border p-4"
       data-testid={`conflict-${conflict.idempotency_key}`}
-      aria-label={text.td('sync.conflict.record', { resource: conflict.resource, id: conflict.id })}
+      aria-label={cardTitle(text, conflict)}
     >
       <CardHeader conflict={conflict} />
       {result.ok ? (
