@@ -8,6 +8,7 @@ use App\Modules\Reference\Models\PaymentTerm;
 use App\Modules\Reference\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Actors;
 use Tests\Support\Catalog\Catalog;
@@ -228,6 +229,8 @@ function oqpWorld(): object
     $p = PurchKit::world();
     $p->user = Actors::user(array_values(array_unique([...$permissions, ...PurchKit::ALL])));
     PlannerStatistics::refresh(PlannerStatistics::PERMISSION_TABLES);
+    // The planner now counts the user's grants instead of taking the table for one row.
+    expect((float) DB::selectOne("select reltuples from pg_class where oid = 'role_has_permissions'::regclass")->reltuples)->toBeGreaterThan(1.0);
 
     foreach ([
         ['2027-06-02', null, '9.5', 'Çay talebi'], ['2027-06-02', '2027-06-30', '100', 'cam'], ['2027-06-03', '2027-06-04', '1000.25', 'İzmir'],

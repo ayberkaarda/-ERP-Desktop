@@ -26,12 +26,19 @@ final class PlannerStatistics
     public const array PERMISSION_TABLES = ['model_has_roles', 'roles', 'role_has_permissions', 'permissions'];
 
     /**
-     * @param  list<string>  $tables  none: every table of the database
+     * @param  list<string>  $tables  none: every table of the public schema
      */
     public static function refresh(array $tables = []): void
     {
+        // A bare ANALYZE would also lock the system catalogs, the shared ones included
+        // (pg_authid, pg_database, ...), until the test ends: lanes running side by side on one
+        // server would then wait on each other.
+        if ($tables === []) {
+            $tables = DB::table('pg_tables')->where('schemaname', 'public')->orderBy('tablename')->pluck('tablename')->map(static fn (mixed $name): string => (string) $name)->all();
+        }
+
         $grammar = DB::connection()->getQueryGrammar();
 
-        DB::statement(rtrim('ANALYZE '.implode(', ', array_map(static fn (string $table): string => $grammar->wrapTable($table), $tables))));
+        DB::statement('ANALYZE '.implode(', ', array_map(static fn (string $table): string => $grammar->wrapTable($table), $tables)));
     }
 }
