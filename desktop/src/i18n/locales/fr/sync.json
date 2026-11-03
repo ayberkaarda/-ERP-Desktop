@@ -100,6 +100,9 @@
     },
     "refused": "Ce conflit ne peut pas être résolu dans cette version ({{detail}}).",
     "refusedDiscard": "Vous pouvez abandonner votre modification.",
+    "discardTitle": "Abandonner votre modification ?",
+    "discardDescription": "Votre modification est supprimée de cet appareil et ne sera jamais envoyée au serveur ; c'est irréversible. Les modifications qui en dépendent ne pourront pas non plus être envoyées.",
+    "discardDraft": "L'enregistrement n'existe que sur cet appareil et est également supprimé.",
     "refusedHint": "Synchronisez à nouveau ; si cela persiste, mettez l'application à jour.",
     "resync": "Synchroniser à nouveau"
   },

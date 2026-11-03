@@ -485,3 +485,29 @@ fn new_draft_rebinds_children_and_waits_for_ack() {
     assert_eq!(batch[0].parent_id, Some(new_id));
     assert_eq!(batch[0].payload["parent_id"], new_id.to_string());
 }
+
+#[test]
+fn use_existing_keeps_the_base_version_of_moved_writes() {
+    let (_dir, _store, q, inbox, m) = setup(ConflictCode::DuplicateRecord);
+    let candidate = inbox.list().unwrap()[0]
+        .conflict
+        .candidates
+        .as_ref()
+        .unwrap()[0];
+    let later = q
+        .enqueue(draft(MutationOp::Update, m.id, json!({"notes": "later"})))
+        .unwrap();
+    inbox
+        .resolve_use_existing(m.idempotency_key, candidate)
+        .unwrap();
+    let moved = q
+        .list()
+        .unwrap()
+        .into_iter()
+        .find(|e| e.mutation.idempotency_key == later)
+        .unwrap()
+        .mutation;
+    assert_eq!(moved.id, candidate);
+    // The candidate is an existing server row: its own history decides.
+    assert_eq!(moved.base_version, Some(2));
+}
