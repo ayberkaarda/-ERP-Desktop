@@ -166,9 +166,6 @@ impl ConflictStore {
                             .map_err(|_| invalid("invalid reserved draft id"))?,
                         None => Uuid::now_v7(),
                     };
-                    draft.op = MutationOp::Create;
-                    draft.action = None;
-                    draft.base_version = None;
                     // Preserve server fields absent from a partial local update.
                     let mut payload = record
                         .conflict
@@ -176,7 +173,24 @@ impl ConflictStore {
                         .as_ref()
                         .map(|r| r.fields.clone())
                         .unwrap_or_default();
-                    payload.extend(draft.payload);
+                    match (local.op, local.action.as_deref()) {
+                        // A create takes no `counts`/`add`: the counted
+                        // quantities go onto the copied lines instead.
+                        (MutationOp::Action, Some(COUNTS_ACTION)) => {
+                            if !apply_counts(&mut payload, &draft.payload) {
+                                return Err(invalid(
+                                    "a counted line is not on the server document",
+                                ));
+                            }
+                        }
+                        (MutationOp::Action, _) => {
+                            return Err(invalid("this action cannot become a new draft"));
+                        }
+                        _ => payload.extend(draft.payload),
+                    }
+                    draft.op = MutationOp::Create;
+                    draft.action = None;
+                    draft.base_version = None;
                     for field in [
                         "id",
                         "version",
@@ -238,7 +252,60 @@ pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
     Ok(tx.execute("DELETE FROM conflict_records", [])?)
 }
 
-pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &Mutation) -> Result<()> {
+/// The offline action of count documents (`StockDocumentSyncWriter::action`).
+const COUNTS_ACTION: &str = "counts";
+
+/// The version the server gives a record it creates (`HasVersion` starts
+/// every row at 1); the local router bases edits of a draft on it too.
+const CREATED_VERSION: u64 = 1;
+
+/// Applies a `counts` action body (`counts: [{line_id, counted_quantity}]`,
+/// `add: [line]`) to a document body's `lines`, the shape a create takes:
+/// counted quantities go onto the line with that `id`, added lines are
+/// appended (the server merges them by balance key, as `counts` does).
+/// False, leaving `payload` untouched, when a counted line is not there or
+/// the body has another shape.
+fn apply_counts(payload: &mut Map<String, Value>, action: &Map<String, Value>) -> bool {
+    let mut lines = match payload.get("lines") {
+        Some(Value::Array(lines)) => lines.clone(),
+        None | Some(Value::Null) => Vec::new(),
+        Some(_) => return false,
+    };
+    if action.keys().any(|k| k != "counts" && k != "add") {
+        return false;
+    }
+    if let Some(counts) = action.get("counts") {
+        let Some(counts) = counts.as_array() else {
+            return false;
+        };
+        for count in counts {
+            let (Some(line_id), Some(quantity)) = (
+                count.get("line_id").and_then(Value::as_str),
+                count.get("counted_quantity"),
+            ) else {
+                return false;
+            };
+            let Some(line) = lines
+                .iter_mut()
+                .filter_map(Value::as_object_mut)
+                .find(|line| line.get("id").and_then(Value::as_str) == Some(line_id))
+            else {
+                return false;
+            };
+            line.insert("counted_quantity".into(), quantity.clone());
+        }
+    }
+    if let Some(add) = action.get("add") {
+        let Some(add) = add.as_array() else {
+            return false;
+        };
+        lines.extend(add.iter().cloned());
+    }
+    payload.insert("lines".into(), Value::Array(lines));
+    true
+}
+
+pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &mut Mutation) -> Result<()> {
     let old: Option<String> = tx
         .query_row(
             "SELECT key FROM conflict_draft_resolutions WHERE id=?1",
@@ -255,16 +322,100 @@ pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &Mutation) -> Resul
         {
             return Err(invalid("invalid new draft target"));
         }
+        let folded = fold_counts(tx, key, &record, mutation)?;
         release_edges_to(
             tx,
             key,
             Some((record.id, mutation.id)),
             Some(mutation.idempotency_key),
         )?;
+        for entry in folded {
+            retire_folded(tx, entry, mutation.idempotency_key)?;
+        }
         cancel(tx, key, true)?;
         tx.execute("DELETE FROM conflict_records WHERE key=?1", [old])?;
     }
     Ok(())
+}
+
+/// Later unsent `counts` of the locked document name its line ids, which the
+/// new document will not have: they go into the create, in order. One that
+/// does not fit stays queued (and is rebased like any other write).
+fn fold_counts(
+    tx: &Transaction<'_>,
+    key: Uuid,
+    record: &ConflictRecord,
+    mutation: &mut Mutation,
+) -> Result<Vec<Mutation>> {
+    let mut folded = Vec::new();
+    for entry in crate::outbox::load(tx)? {
+        let later = entry.mutation;
+        if entry.sent
+            || entry.state != crate::outbox::OutboxState::Pending
+            || later.resource != record.resource
+            || later.id != record.id
+            || later.parent_id.is_some()
+            || later.resolution.is_some()
+            || later.op != MutationOp::Action
+            || later.action.as_deref() != Some(COUNTS_ACTION)
+            || !apply_counts(&mut mutation.payload, &later.payload)
+        {
+            continue;
+        }
+        let mut edges = mutation.depends_on.take().unwrap_or_default();
+        edges.extend(later.depends_on.iter().flatten().filter(|dep| {
+            **dep != key && !folded.iter().any(|f: &Mutation| f.idempotency_key == **dep)
+        }));
+        edges.sort();
+        edges.dedup();
+        if edges.len() > 50 {
+            return Err(invalid("too many dependencies"));
+        }
+        mutation.depends_on = (!edges.is_empty()).then_some(edges);
+        folded.push(later);
+    }
+    Ok(folded)
+}
+
+/// A folded entry is done as part of the create: its request keys answer
+/// with the create and its dependants wait for the create.
+fn retire_folded(tx: &Transaction<'_>, folded: Mutation, create: Uuid) -> Result<()> {
+    let old = folded.idempotency_key;
+    tx.execute(
+        "UPDATE outbox_request_keys SET entry_key=?1 WHERE entry_key=?2",
+        params![create.to_string(), old.to_string()],
+    )?;
+    tx.execute(
+        "INSERT INTO outbox_key_remaps(old_key,new_key) VALUES (?1,?2)",
+        params![old.to_string(), create.to_string()],
+    )?;
+    for entry in crate::outbox::load(tx)? {
+        if entry.sent || entry.state != crate::outbox::OutboxState::Pending {
+            continue;
+        }
+        let mut mutation = entry.mutation;
+        let Some(edges) = &mut mutation.depends_on else {
+            continue;
+        };
+        if !edges.contains(&old) {
+            continue;
+        }
+        for edge in edges.iter_mut() {
+            if *edge == old {
+                *edge = create;
+            }
+        }
+        edges.sort();
+        edges.dedup();
+        tx.execute(
+            "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
+            params![
+                serde_json::to_string(&mutation)?,
+                mutation.idempotency_key.to_string()
+            ],
+        )?;
+    }
+    cancel(tx, old, true)
 }
 
 // Sent bodies remain immutable; all unsent identity references follow replacements.
@@ -272,6 +423,10 @@ fn release_edges(tx: &Transaction<'_>, key: Uuid, replacement: Option<(Uuid, Uui
     release_edges_to(tx, key, replacement, None)
 }
 
+/// With a `prerequisite` (save as new draft) the replacement is a create
+/// queued now: writes moved onto it are rebased on the version it will get,
+/// as the old document's version is ahead of it (SYNC_BASE_VERSION_AHEAD).
+/// Without one (use existing) the replacement's own history decides.
 fn release_edges_to(
     tx: &Transaction<'_>,
     key: Uuid,
@@ -328,6 +483,9 @@ fn release_edges_to(
         if let Some((old, new)) = replacement {
             if mutation.id == old {
                 mutation.id = new;
+                if prerequisite.is_some() && mutation.op != MutationOp::Create {
+                    mutation.base_version = Some(CREATED_VERSION);
+                }
             }
             if mutation.parent_id == Some(old) {
                 mutation.parent_id = Some(new);

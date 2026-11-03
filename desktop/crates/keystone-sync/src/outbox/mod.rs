@@ -559,7 +559,7 @@ fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOut
         }
     }
     let key = Uuid::now_v7();
-    let mutation = Mutation {
+    let mut mutation = Mutation {
         idempotency_key: key,
         op: draft.op,
         action: draft.action,
@@ -622,7 +622,8 @@ fn enqueue_on(tx: &Transaction<'_>, mut draft: NewMutation) -> Result<EnqueueOut
             [resolution.resolves.to_string()],
         )?;
     }
-    crate::conflicts::complete_draft(tx, &mutation)?;
+    // May fold the old document's pending count entries into this create.
+    crate::conflicts::complete_draft(tx, &mut mutation)?;
     tx.execute(
         "INSERT INTO outbox_entries(key,mutation,state) VALUES (?1,?2,'pending')",
         params![key.to_string(), serde_json::to_string(&mutation)?],

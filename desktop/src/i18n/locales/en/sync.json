@@ -100,6 +100,9 @@
     },
     "refused": "This conflict cannot be resolved in this version ({{detail}}).",
     "refusedDiscard": "You can discard your change.",
+    "discardTitle": "Discard your change?",
+    "discardDescription": "Your change is deleted from this device and never sent to the server; this cannot be undone. Changes that depend on it cannot be sent either.",
+    "discardDraft": "The record exists only on this device and is deleted too.",
     "refusedHint": "Sync again; if it stays, update the app.",
     "resync": "Sync again"
   },
