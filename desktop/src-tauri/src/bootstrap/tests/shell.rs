@@ -638,9 +638,8 @@ async fn passes_done(fx: &Fx, number: u64) -> u64 {
 }
 
 /// Waits until no pass of the active engine is running, so every pass from
-/// now on starts with the mocks mounted so far (a pass already running
-/// could still end idle: a return of the server). Returns the passes
-/// started so far.
+/// now on starts with the mocks mounted so far and the next one to finish
+/// is the run a finding asks for. Returns the passes started so far.
 async fn engine_settled(fx: &Fx) -> u64 {
     let mut started = fx.state.engine().unwrap().passes_started();
     loop {
