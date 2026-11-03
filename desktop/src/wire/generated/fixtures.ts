@@ -1461,6 +1461,171 @@ export const INVALID_FIXTURES: Readonly<Record<string, unknown>> = {
       }
     ]
   },
+  'invalid/offline-manifest.query-contains-on-uuid.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            },
+            "x": {
+              "match": "contains",
+              "type": "uuid"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-default-sort-with-semicolon.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ],
+          "default_sort": [
+            "-code; drop"
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
   'invalid/offline-manifest.query-element-field-with-eq.json': {
     "manifest_version": 3,
     "sync_schema_version": 1,
@@ -1507,6 +1672,322 @@ export const INVALID_FIXTURES: Readonly<Record<string, unknown>> = {
       }
     ]
   },
+  'invalid/offline-manifest.query-empty-search-fields.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": []
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-field-dotted-path.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text",
+              "field": "roles.0"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-filter-name-with-space.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            },
+            "is active": {
+              "match": "eq",
+              "type": "bool"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-max-values-zero.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 0
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
   'invalid/offline-manifest.query-on-snapshot.json': {
     "manifest_version": 3,
     "sync_schema_version": 1,
@@ -1534,6 +2015,85 @@ export const INVALID_FIXTURES: Readonly<Record<string, unknown>> = {
               "type": "text"
             }
           }
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-online-only-free-text-param.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[x]' or 1=1",
+              "reason": "r"
+            }
+          ]
         }
       }
     ],
@@ -1638,6 +2198,244 @@ export const INVALID_FIXTURES: Readonly<Record<string, unknown>> = {
       }
     ]
   },
+  'invalid/offline-manifest.query-search-field-json-path.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "$.name"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-sort-name-with-injection.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            },
+            "a') OR 1=1 --": {
+              "type": "text"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-sort-spec-unknown-key.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text",
+              "collate": "C"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
   'invalid/offline-manifest.query-sort-without-type.json': {
     "manifest_version": 3,
     "sync_schema_version": 1,
@@ -1667,6 +2465,168 @@ export const INVALID_FIXTURES: Readonly<Record<string, unknown>> = {
               "field": "name"
             }
           }
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-unknown-key.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ],
+          "extra": true
+        }
+      }
+    ],
+    "online_only": [
+      {
+        "action": "decideApproval",
+        "i18n_key": "desktop.onlineOnly.decideApproval",
+        "category": "approve",
+        "routes": [
+          "POST /api/v1/approvals/{id}/decisions"
+        ]
+      }
+    ]
+  },
+  'invalid/offline-manifest.query-uppercase-name.json': {
+    "manifest_version": 3,
+    "sync_schema_version": 1,
+    "api_prefix": "/api/v1",
+    "defaults": {
+      "recent_window_days": 30,
+      "snapshot_refresh_minutes": 15
+    },
+    "resources": [
+      {
+        "resource": "parties",
+        "module": "Parties",
+        "scope": "company",
+        "path": "/api/v1/parties",
+        "detail_path": "/api/v1/parties/{id}",
+        "api_resource": "App\\Modules\\Parties\\Http\\Resources\\PartyResource",
+        "requires": {
+          "all_of": [
+            "parties.view"
+          ]
+        },
+        "read": "local-first",
+        "source": "pull",
+        "query": {
+          "sort": {
+            "code": {
+              "type": "text"
+            },
+            "name": {
+              "type": "text"
+            },
+            "created_at": {
+              "type": "datetime"
+            },
+            "Name": {
+              "type": "text"
+            }
+          },
+          "filters": {
+            "is_active": {
+              "match": "eq",
+              "type": "bool"
+            },
+            "id": {
+              "match": "eq",
+              "type": "uuid",
+              "max_values": 100
+            },
+            "role": {
+              "field": "roles",
+              "match": "any_of",
+              "type": "string"
+            }
+          },
+          "search": {
+            "fields": [
+              "name",
+              "legal_name",
+              "code",
+              "tax_number"
+            ]
+          },
+          "online_only": [
+            {
+              "param": "filter[category]",
+              "reason": "Alt kategoriler sunucuda ağaçtan hesaplanır."
+            }
+          ]
         }
       }
     ],
@@ -1926,11 +2886,23 @@ export const FIXTURE_SCHEMAS: Readonly<Record<string, string>> = {
   'invalid/offline-manifest.field-merge-without-derived-fields.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.global-scope-without-activation.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.query-bool-any-of.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-contains-on-uuid.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-default-sort-with-semicolon.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.query-element-field-with-eq.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-empty-search-fields.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-field-dotted-path.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-filter-name-with-space.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-max-values-zero.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.query-on-snapshot.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-online-only-free-text-param.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.query-online-only-without-reason.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.query-range-on-string.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-search-field-json-path.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-sort-name-with-injection.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-sort-spec-unknown-key.json': '../offline-manifest.schema.json',
   'invalid/offline-manifest.query-sort-without-type.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-unknown-key.json': '../offline-manifest.schema.json',
+  'invalid/offline-manifest.query-uppercase-name.json': '../offline-manifest.schema.json',
   'invalid/pull.request.cursor-without-gen.json': 'pull.request.schema.json',
   'invalid/pull.request.numeric-txid.json': 'pull.request.schema.json',
   'invalid/pull.response.reset-without-reason.json': 'pull.response.schema.json',
