@@ -443,9 +443,50 @@ describe('desktop http: session failures', () => {
     expect(await pending).toMatchObject({ code: STALE_REQUEST })
     expect(s.failures).toEqual([])
   })
+
+  it.each([
+    ['company switch', (s: ReturnType<typeof setup>) => (s.context.company = 'c2')],
+    ['new sign-in', (s: ReturnType<typeof setup>) => (s.context.generation = 2)],
+  ])('a write prepared across a %s is not sent', async (_, change) => {
+    const bytes = deferred<ArrayBuffer>()
+    const read = vi.spyOn(Blob.prototype, 'arrayBuffer').mockImplementation(() => bytes.promise)
+    try {
+      const s = setup()
+      const form = new FormData()
+      form.append('file', new File([new Uint8Array([1, 2])], 'a.pdf', { type: 'application/pdf' }))
+      const pending = s.http.post('/attachments', form).catch((e: unknown) => e)
+      await flush()
+      expect(read).toHaveBeenCalled()
+      change(s)
+      bytes.resolve(new Uint8Array([1, 2]).buffer)
+      expect(await pending).toMatchObject({ code: STALE_REQUEST })
+      expect(s.sent()).toEqual([])
+    } finally {
+      read.mockRestore()
+    }
+  })
 })
 
 describe('desktop http: cancel', () => {
+  it('aborting while a file is read sends nothing', async () => {
+    const bytes = deferred<ArrayBuffer>()
+    const read = vi.spyOn(Blob.prototype, 'arrayBuffer').mockImplementation(() => bytes.promise)
+    try {
+      const s = setup()
+      const controller = new AbortController()
+      const form = new FormData()
+      form.append('file', new File([new Uint8Array([1])], 'a.pdf'))
+      const pending = s.http.post('/attachments', form, { signal: controller.signal }).catch((e: unknown) => e)
+      await flush()
+      controller.abort()
+      bytes.resolve(new Uint8Array([1]).buffer)
+      expect(await pending).toMatchObject({ code: 'NETWORK_ERROR', message: 'canceled' })
+      expect(s.sent()).toEqual([])
+    } finally {
+      read.mockRestore()
+    }
+  })
+
   it('an aborted signal sends nothing', async () => {
     const s = setup()
     const controller = new AbortController()

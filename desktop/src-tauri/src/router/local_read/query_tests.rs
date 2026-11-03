@@ -283,7 +283,19 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
         let request = Value::Array(query.iter().map(|(n, v)| json!([n, v])).collect());
         let answer = fx.call(get(&list_path(resource, parent), request)).await;
         assert_eq!(answer.source, ResponseSource::Local, "{label}");
-        match entry["expect"].as_str().unwrap() {
+        // `q` where the server also searches what the rows do not carry
+        // (item barcodes, variant SKUs) is the server's; the web fixture
+        // still counts it local.
+        let searched = query.iter().any(|(n, v)| n == "q" && !v.trim().is_empty());
+        let server_also = query_map::spec_of(&name(resource))
+            .and_then(|spec| spec.query.as_ref())
+            .and_then(|query| query.search.as_ref())
+            .is_some_and(|search| search.server_also.is_some());
+        let expect = match entry["expect"].as_str().unwrap() {
+            "local" if searched && server_also => "online_only",
+            other => other,
+        };
+        match expect {
             "local" => {
                 assert_eq!(answer.status, 200, "{label} {:?}", answer.json());
                 counts[0] += 1;
@@ -312,7 +324,7 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
             other => panic!("{other}"),
         }
     }
-    assert_eq!(counts, [83, 6, 1]);
+    assert_eq!(counts, [80, 9, 1]);
     assert_eq!(fx.server.received_requests().await.unwrap().len(), 2);
 }
 
@@ -410,6 +422,53 @@ async fn online_an_online_only_filter_goes_to_the_server() {
     let local = fx.call(get(ITEMS, pairs(&[("sort", "-code")]))).await;
     assert_eq!(local.source, ResponseSource::Local);
     assert_eq!(fx.received(ITEMS).await, 1);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_item_search_is_the_servers_because_it_also_finds_barcodes() {
+    let (item, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt"}));
+    let (_, barcode) = with_id(
+        2,
+        json!({"item_id": item, "barcode": "8690000000001", "is_primary": true}),
+    );
+    let fx = fixture(vec![
+        ("items", vec![bolt]),
+        ("items.barcodes", vec![barcode]),
+    ])
+    .await;
+    Mock::given(method("GET"))
+        .and(path(ITEMS))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": [{"id": item}] })))
+        .mount(&fx.server)
+        .await;
+
+    // Online: the server answers, with the item its barcode finds.
+    let online = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
+    assert_eq!(online.source, ResponseSource::Network);
+    assert_eq!(fx.received(ITEMS).await, 1);
+
+    // Offline: refused with the reason, not an empty list.
+    fx.go_offline();
+    let answer = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
+    assert_eq!(answer.status, 503);
+    assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
+    let offline = offline_of(&answer);
+    assert_eq!(offline["unsupported_filters"], json!(["q"]));
+    assert_eq!(offline["online_only"][0]["param"], "q");
+    assert!(
+        offline["online_only"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("items.barcodes")
+    );
+
+    // A blank `q` is no search; other lists still search here.
+    let blank = fx.call(get(ITEMS, pairs(&[("q", " ")]))).await;
+    assert_eq!(blank.status, 200);
+    assert_eq!(
+        fx.call(get(PARTIES, pairs(&[("q", "x")]))).await.status,
+        200
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -991,6 +991,50 @@ async fn a_sign_in_during_the_call_sends_it_once_more() {
     assert_eq!(answer.status, 200);
 }
 
+/// A write is not sent again under a sign-in that landed meanwhile: the new
+/// sign-in (maybe another user) did not make it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_during_a_write_does_not_send_it_again() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/parties"))
+        .and(header("authorization", bearer(1).as_str()))
+        .respond_with(
+            ResponseTemplate::new(401)
+                .set_body_json(json!({ "errors": { "message": "x", "code": "UNAUTHENTICATED" } }))
+                .set_delay(Duration::from_millis(500)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/parties"))
+        .and(header("authorization", bearer(2).as_str()))
+        .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "data": {} })))
+        .mount(&server)
+        .await;
+    let fx = Arc::new(fixture(&server.uri()));
+
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move {
+            fx.call(json!({ "method": "POST", "path": "/api/v1/parties",
+                "body": { "kind": "json", "value": { "name": "Acme" } } }))
+                .await
+        })
+    };
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    fx.client.session().sign_in(&tokens(2)).await.unwrap();
+
+    let error = call.await.unwrap().unwrap_err();
+    assert_eq!(error.code, "UNAUTHENTICATED");
+    let sent = server.received_requests().await.unwrap();
+    let posts = sent
+        .iter()
+        .filter(|r| r.url.path() == "/api/v1/parties")
+        .count();
+    assert_eq!(posts, 1);
+}
+
 /// Without a new sign-in a second 401 stays the answer: no extra send.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_rejected_session_is_not_retried() {

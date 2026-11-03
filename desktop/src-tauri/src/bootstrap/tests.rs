@@ -813,6 +813,38 @@ async fn removing_a_profile_with_unsent_work_needs_force() {
     assert_eq!(fx.raw(&profile.id), None);
 }
 
+/// A local write that holds the engine across the unsent-work check and
+/// queues while the profile closes: nothing is deleted, the profile opens
+/// again and the answer names the work.
+#[tokio::test(flavor = "multi_thread")]
+async fn work_queued_while_the_profile_closes_stops_the_removal() {
+    let server = server(&[(COMPANY, "Acme")]).await;
+    let fx = fx();
+    let profile = synced(&fx, &server).await;
+    let in_flight = fx.state.engine().unwrap();
+
+    let (removed, ()) = tokio::join!(
+        fx.desktop.remove(&fx.state, &profile.id, false),
+        async move {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            in_flight.enqueue(draft()).unwrap();
+            drop(in_flight);
+        }
+    );
+
+    assert_eq!(removed.unwrap_err().code, codes::PROFILE_HAS_PENDING_WORK);
+    assert!(fx.raw(&profile.id).is_some());
+    assert!(fx.desktop.profile_dir(&profile.id).join(DB_FILE).exists());
+    assert_eq!(
+        fx.state.active_profile_id().as_deref(),
+        Some(profile.id.as_str())
+    );
+    assert_eq!(
+        fx.state.engine().unwrap().refresh_status().unwrap().pending,
+        1
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn an_inactive_profile_with_unsent_work_needs_force_too() {
     let a = server(&[(COMPANY, "Acme")]).await;

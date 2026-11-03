@@ -973,13 +973,7 @@ impl Desktop {
     /// rejected or quarantined, and open conflicts. None without an engine.
     async fn unsent_work(&self, state: &AppState) -> CommandResult<(usize, usize)> {
         match state.engine() {
-            Ok(engine) => {
-                let status = blocking(move || Ok(engine.refresh_status()?)).await?;
-                Ok((
-                    status.pending + status.rejected + status.quarantined,
-                    status.conflicts,
-                ))
-            }
+            Ok(engine) => work_of(engine).await,
             Err(_) => Ok((0, 0)),
         }
     }
@@ -1026,6 +1020,18 @@ impl Desktop {
                 }
             }
             return Err(busy);
+        }
+        // A local write that held the engine across the first count may
+        // have queued work since; no client is left to queue more.
+        if active && !force {
+            let (outbox, conflicts) = self.pending_work_of(id).await;
+            if outbox + conflicts > 0 {
+                let profile = self.profile(id).await?;
+                if let Err(error) = self.start(state, running, &profile).await {
+                    log::warn!("profile not reopened: {}", error.code);
+                }
+                return Err(pending_work(outbox, conflicts));
+            }
         }
         let tokens = self.tokens.clone();
         let db_keys = self.db_keys.clone();
@@ -1132,10 +1138,31 @@ impl Desktop {
                 ..profile.clone()
             };
             drop(self.client(&candidate)?);
+            let engine = state.engine().ok();
+            self.stop(state, &mut running).await;
+            // A local write that held the engine across the first count may
+            // have queued work since: the old company opens again.
+            if !force && let Some(engine) = engine {
+                let refused = match work_of(engine).await {
+                    Ok((0, 0)) => None,
+                    Ok((outbox, conflicts)) => Some(pending_work(outbox, conflicts)),
+                    Err(error) => Some(error),
+                };
+                if let Some(refused) = refused {
+                    self.start(state, &mut running, &profile).await?;
+                    return Err(refused);
+                }
+            }
             let registry = self.profiles_blocking();
             let changed_id = id.to_owned();
-            profile = blocking(move || registry.set_company(&changed_id, company)).await?;
-            self.stop(state, &mut running).await;
+            let changed = blocking(move || registry.set_company(&changed_id, company)).await;
+            profile = match changed {
+                Ok(changed) => changed,
+                Err(error) => {
+                    self.start(state, &mut running, &profile).await?;
+                    return Err(error);
+                }
+            };
             self.start(state, &mut running, &profile).await?;
         } else {
             state.trigger(id, Trigger::Manual)?;
@@ -1247,6 +1274,16 @@ fn no_profile() -> CommandError {
         crate::commands::codes::NO_ACTIVE_PROFILE,
         "no server profile is selected",
     )
+}
+
+/// Unsent work of `engine`: outbox entries waiting, rejected or
+/// quarantined, and open conflicts.
+async fn work_of(engine: Arc<Engine>) -> CommandResult<(usize, usize)> {
+    let status = blocking(move || Ok(engine.refresh_status()?)).await?;
+    Ok((
+        status.pending + status.rejected + status.quarantined,
+        status.conflicts,
+    ))
 }
 
 fn pending_work(outbox: usize, conflicts: usize) -> CommandError {

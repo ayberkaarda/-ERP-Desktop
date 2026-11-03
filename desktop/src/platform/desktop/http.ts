@@ -282,6 +282,11 @@ export function createDesktopHttp(options: DesktopHttpOptions): HttpClient {
     const signedInAgain = () => deps.getSessionGeneration() !== generation
     const isStale = () => deps.getCompanyId() !== company || signedInAgain()
     const { request, key } = await buildRequest(method, url, body, o, deps.getLocale())
+    // Reading a file can take long: the shell sends with the client active
+    // now, so a request prepared for another company or sign-in (a write
+    // too) must not leave.
+    if (o.signal?.aborted) throw canceled()
+    if (isStale()) throw stale()
 
     let response: ApiResponse
     try {
