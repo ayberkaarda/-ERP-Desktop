@@ -35,6 +35,24 @@ describe('profiles file screen with a path', () => {
     expect(screen.getByText(/Ayrıntı: not valid JSON/)).toBeInTheDocument()
   })
 
+  it('says what the shell detail means in the user language, keeping the path', async () => {
+    renderGate(fileState(FILE, 'the profile file is not valid JSON of this version'))
+    expect(await screen.findByTestId('profiles-file-path')).toHaveTextContent(FILE)
+    const detail = screen.getByTestId('profiles-file-detail')
+    expect(detail).toHaveTextContent('Ayrıntı: Dosya bu sürümün okuyabildiği bir profil dosyası değil')
+    expect(detail).not.toHaveTextContent('not valid JSON')
+  })
+
+  it.each([
+    ['the profile file has an unknown version', 'tanımadığı bir sürümle yazılmış'],
+    ['cannot read the profile file: permission denied', 'Dosya okunamadı (erişim izni yok).'],
+    ['cannot replace the profile file: storage full', 'Dosya değiştirilemedi (sistem hatası: storage full).'],
+    ['cannot create the directory of the profile file: entity not found', 'klasörü oluşturulamadı (bulunamadı)'],
+  ])('translates "%s"', async (message, expected) => {
+    renderGate(fileState(FILE, message))
+    expect(await screen.findByTestId('profiles-file-detail')).toHaveTextContent(expected)
+  })
+
   it('shows the path even when the shell sent no message', async () => {
     renderGate(fileState(FILE, ''))
     expect(await screen.findByTestId('profiles-file-path')).toHaveTextContent(FILE)

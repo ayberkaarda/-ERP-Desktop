@@ -104,7 +104,21 @@
       "body": "Die Datei profiles.json im App-Datenordner konnte nicht gelesen werden.",
       "bodyAt": "Diese Profildatei konnte nicht gelesen werden:",
       "notOverwritten": "Die Datei wurde unverändert gelassen und nicht überschrieben. Korrigieren oder verschieben Sie die Datei und starten Sie die App neu.",
-      "detail": "Details: {{message}}"
+      "detail": "Details: {{message}}",
+      "reason": {
+        "invalid": "Die Datei ist keine Profildatei, die diese Version lesen kann (beschädigt oder in einem anderen Format).",
+        "version": "Die Datei wurde von einer Version geschrieben, die diese App nicht kennt.",
+        "encode": "Die Profildatei konnte nicht erstellt werden.",
+        "read": "Die Datei konnte nicht gelesen werden ({{cause}}).",
+        "write": "Die Datei konnte nicht geschrieben werden ({{cause}}).",
+        "replace": "Die Datei konnte nicht ersetzt werden ({{cause}}).",
+        "directory": "Der Ordner der Datei konnte nicht erstellt werden ({{cause}})."
+      },
+      "cause": {
+        "permission": "Zugriff verweigert",
+        "notFound": "nicht gefunden",
+        "other": "Systemfehler: {{kind}}"
+      }
     },
     "failed": {
       "title": "Das Profil konnte nicht geöffnet werden",

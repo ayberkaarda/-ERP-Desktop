@@ -104,7 +104,21 @@
       "body": "Le fichier profiles.json du dossier de données de l'application n'a pas pu être lu.",
       "bodyAt": "Ce fichier de profils n'a pas pu être lu :",
       "notOverwritten": "Le fichier a été laissé tel quel, sans être écrasé. Corrigez ou déplacez le fichier, puis redémarrez l'application.",
-      "detail": "Détails : {{message}}"
+      "detail": "Détails : {{message}}",
+      "reason": {
+        "invalid": "Le fichier n'est pas un fichier de profils lisible par cette version (endommagé ou dans un autre format).",
+        "version": "Le fichier a été écrit par une version que cette application ne connaît pas.",
+        "encode": "Le fichier de profils n'a pas pu être préparé.",
+        "read": "Le fichier n'a pas pu être lu ({{cause}}).",
+        "write": "Le fichier n'a pas pu être écrit ({{cause}}).",
+        "replace": "Le fichier n'a pas pu être remplacé ({{cause}}).",
+        "directory": "Le dossier du fichier n'a pas pu être créé ({{cause}})."
+      },
+      "cause": {
+        "permission": "accès refusé",
+        "notFound": "introuvable",
+        "other": "erreur système : {{kind}}"
+      }
     },
     "failed": {
       "title": "Le profil n'a pas pu être ouvert",

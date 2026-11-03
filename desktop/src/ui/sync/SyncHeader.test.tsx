@@ -31,7 +31,7 @@ function status(overrides: Partial<StatusDto> = {}): StatusDto {
 function bridgeWith(initial: StatusDto) {
   return createFakeBridge({
     commands: {
-      realtime_status: () => ({ profile_id: P1, state: 'connected' }),
+      realtime_status: () => ({ profile_id: P1, state: 'connected', subscribed: ['private-user.u1'] }),
       sync_status: () => initial,
       sync_now: () => undefined,
     },
@@ -422,5 +422,118 @@ describe('freshness strip box', () => {
     expect(head?.nextElementSibling?.tagName).toBe('DIV')
     await userEvent.click(screen.getByText('off'))
     expect(head?.nextElementSibling?.tagName).toBe('BUTTON')
+  })
+})
+
+describe('realtime channel in the status details', () => {
+  async function details(subscribed: string[]) {
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: P1, state: 'connected', subscribed }),
+        sync_status: () => status(),
+      },
+    })
+    await renderSync(<SyncHeader />, { bridge })
+    await act(flush)
+    await userEvent.click(screen.getByTestId('sync-status'))
+    await screen.findByTestId('sync-status-details')
+    return bridge
+  }
+
+  const line = () => screen.getByTestId('sync-realtime')
+
+  it('is live only with an accepted channel', async () => {
+    await details(['private-user.u1'])
+    expect(line()).toHaveTextContent('Canlı bağlantı açık')
+  })
+
+  it('a refused subscription is not called live', async () => {
+    const bridge = await details([])
+    expect(line()).not.toHaveTextContent('Canlı bağlantı açık')
+    await act(async () => {
+      bridge.emitRealtime({ type: 'subscription_failed', profile_id: P1, channel: 'private-user.u1' })
+      await flush()
+    })
+    expect(line()).toHaveTextContent('Bağlantı açık, ancak kanal aboneliği reddedildi. Bildirimler kısa aralıklarla yoklanıyor.')
+  })
+
+  it('a socket without a channel yet says notifications are polled, then live once subscribed', async () => {
+    const bridge = await details([])
+    expect(line()).toHaveTextContent('Bağlantı açık, canlı kanal henüz yok')
+    await act(async () => {
+      bridge.emitRealtime({ type: 'subscribed', profile_id: P1, channel: 'private-user.u1' })
+      await flush()
+    })
+    expect(line()).toHaveTextContent('Canlı bağlantı açık')
+  })
+
+  it('a refusal survives a fresh read of the realtime state', async () => {
+    const bridge = await details([])
+    await act(async () => {
+      bridge.emitRealtime({ type: 'subscription_failed', profile_id: P1, channel: 'private-user.u1' })
+      await flush()
+      // An event of another profile makes the store read realtime_status again.
+      bridge.emitEngine({ type: 'status', profile_id: 'someone-else', status: status() })
+      await flush()
+    })
+    expect(line()).toHaveTextContent('kanal aboneliği reddedildi')
+  })
+
+  it('a new socket forgets the last channel', async () => {
+    const bridge = await details(['private-user.u1'])
+    await act(async () => {
+      bridge.emitRealtime({ type: 'state', profile_id: P1, state: 'connecting' })
+      bridge.emitRealtime({ type: 'state', profile_id: P1, state: 'connected' })
+      await flush()
+    })
+    expect(line()).toHaveTextContent('Bağlantı açık, canlı kanal henüz yok')
+  })
+})
+
+describe('realtime channel across profiles and event order', () => {
+  it('a refusal of one profile is not carried to the next', async () => {
+    let active = P1
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: active, state: 'connected', subscribed: [] }),
+        sync_status: () => status(),
+      },
+    })
+    await renderSync(<SyncHeader />, { bridge })
+    await act(flush)
+    await act(async () => {
+      bridge.emitRealtime({ type: 'subscription_failed', profile_id: P1, channel: 'private-user.u1' })
+      await flush()
+    })
+    active = 'profile-2'
+    await act(async () => {
+      bridge.emitEngine({ type: 'status', profile_id: 'profile-2', status: status() })
+      await flush()
+    })
+    await userEvent.click(screen.getByTestId('sync-status'))
+    await screen.findByTestId('sync-status-details')
+    expect(screen.getByTestId('sync-realtime')).toHaveTextContent('canlı kanal henüz yok')
+  })
+
+  it('a refusal heard before the connected state is kept for it', async () => {
+    let realtime = 'connecting'
+    const bridge = createFakeBridge({
+      commands: {
+        realtime_status: () => ({ profile_id: P1, state: realtime, subscribed: [] }),
+        sync_status: () => status(),
+      },
+    })
+    await renderSync(<SyncHeader />, { bridge })
+    await act(flush)
+    await act(async () => {
+      bridge.emitRealtime({ type: 'subscription_failed', profile_id: P1, channel: 'private-user.u1' })
+      await flush()
+      realtime = 'connected'
+      bridge.emitRealtime({ type: 'state', profile_id: P1, state: 'connected' })
+      await flush()
+    })
+    await userEvent.click(screen.getByTestId('sync-status'))
+    await screen.findByTestId('sync-status-details')
+    expect(screen.getByTestId('sync-realtime')).toHaveTextContent('kanal aboneliği reddedildi')
   })
 })

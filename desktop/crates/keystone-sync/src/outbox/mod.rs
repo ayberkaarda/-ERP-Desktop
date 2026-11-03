@@ -89,6 +89,10 @@ pub struct OutboxEntry {
     pub state: OutboxState,
     pub attempts: u32,
     pub last_error: Option<String>,
+    /// The error body of the last rejection (with its field messages), kept
+    /// when the draft came with a request key; `None` after a retry. Filled
+    /// by the user-facing list only.
+    pub rejection: Option<ApiError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -215,10 +219,29 @@ impl Outbox {
     }
 
     /// Includes rejected and quarantined entries for the user-facing queue.
+    /// A rejected entry carries the error body its request key kept.
     pub(crate) fn list(&self) -> Result<Vec<OutboxEntry>> {
         self.store.read(|conn| {
             ensure_unsealed(conn)?;
-            load(conn)
+            let mut entries = load(conn)?;
+            let mut stmt = conn.prepare(
+                "SELECT entry_key, rejection FROM outbox_request_keys
+                 WHERE rejection IS NOT NULL ORDER BY created_at",
+            )?;
+            let rows =
+                stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+            let mut rejections = std::collections::HashMap::new();
+            for row in rows {
+                let (key, rejection) = row?;
+                rejections.insert(key, rejection);
+            }
+            for entry in &mut entries {
+                if let Some(json) = rejections.get(&entry.mutation.idempotency_key.to_string()) {
+                    // A body this version cannot read only costs the field messages.
+                    entry.rejection = serde_json::from_str(json).ok();
+                }
+            }
+            Ok(entries)
         })
     }
 }
@@ -344,6 +367,7 @@ pub(crate) fn load(conn: &Connection) -> Result<Vec<OutboxEntry>> {
             state,
             attempts,
             last_error,
+            rejection: None,
         });
     }
     Ok(entries)

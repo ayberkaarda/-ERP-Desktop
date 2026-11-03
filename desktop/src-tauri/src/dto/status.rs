@@ -2,6 +2,8 @@
 //! sees them (`sync_status`, `outbox_list`, `conflicts_list`, and the
 //! `status` payload of `engine-event`).
 
+use std::collections::BTreeMap;
+
 use keystone_sync::conflicts::ConflictRecord;
 use keystone_sync::engine::{SyncState, SyncStatus};
 use keystone_sync::outbox::{OutboxEntry, OutboxState};
@@ -80,6 +82,10 @@ pub struct OutboxEntryDto {
     pub attempts: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+    /// Field messages of the server's rejection (`errors.fields`), by field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "Record<string, Array<string>>")]
+    pub rejected_fields: Option<BTreeMap<String, Vec<String>>>,
     pub occurred_at: String,
     #[ts(type = "Record<string, unknown>")]
     pub payload: Map<String, Value>,
@@ -105,6 +111,11 @@ impl From<&OutboxEntry> for OutboxEntryDto {
             .to_owned(),
             attempts: entry.attempts,
             last_error: entry.last_error.clone(),
+            rejected_fields: entry
+                .rejection
+                .as_ref()
+                .and_then(|error| error.fields.clone())
+                .filter(|fields| !fields.is_empty()),
             occurred_at: m.occurred_at.0.clone(),
             payload: m.payload.clone(),
         }
@@ -258,5 +269,37 @@ mod tests {
         };
         let json = serde_json::to_value(&dto).unwrap();
         assert_eq!(json.get("server_data"), Some(&Value::Null), "{json}");
+    }
+
+    #[test]
+    fn a_rejected_entry_sends_its_field_messages() {
+        let mutation: keystone_sync::wire::Mutation = serde_json::from_value(serde_json::json!({
+            "idempotency_key": Uuid::nil(), "resource": "parties", "id": Uuid::nil(),
+            "op": "create", "base_version": null, "payload": {"name": "A"},
+            "changed_fields": ["name"], "occurred_at": "2026-11-02T10:00:00Z"
+        }))
+        .unwrap();
+        let error: keystone_sync::wire::ApiError = serde_json::from_value(serde_json::json!({
+            "message": "invalid", "code": "VALIDATION_ERROR",
+            "fields": {"tax_number": ["already used"]}
+        }))
+        .unwrap();
+        let mut entry = OutboxEntry {
+            sent: true,
+            seq: 1,
+            mutation,
+            state: OutboxState::Rejected,
+            attempts: 1,
+            last_error: Some("VALIDATION_ERROR".into()),
+            rejection: Some(error),
+        };
+        let json = serde_json::to_value(OutboxEntryDto::from(&entry)).unwrap();
+        assert_eq!(
+            json["rejected_fields"],
+            serde_json::json!({"tax_number": ["already used"]})
+        );
+        entry.rejection = None;
+        let json = serde_json::to_value(OutboxEntryDto::from(&entry)).unwrap();
+        assert!(json.get("rejected_fields").is_none(), "{json}");
     }
 }

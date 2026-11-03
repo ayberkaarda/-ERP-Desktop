@@ -104,7 +104,21 @@
       "body": "Uygulama veri klasöründeki profiles.json dosyası okunamadı.",
       "bodyAt": "Şu profil dosyası okunamadı:",
       "notOverwritten": "Dosya olduğu gibi bırakıldı, üzerine yazılmadı. Dosyayı düzeltin ya da taşıyın, sonra uygulamayı yeniden başlatın.",
-      "detail": "Ayrıntı: {{message}}"
+      "detail": "Ayrıntı: {{message}}",
+      "reason": {
+        "invalid": "Dosya bu sürümün okuyabildiği bir profil dosyası değil (bozuk ya da başka bir biçimde).",
+        "version": "Dosya bu uygulamanın tanımadığı bir sürümle yazılmış.",
+        "encode": "Profil dosyası hazırlanamadı.",
+        "read": "Dosya okunamadı ({{cause}}).",
+        "write": "Dosya yazılamadı ({{cause}}).",
+        "replace": "Dosya değiştirilemedi ({{cause}}).",
+        "directory": "Dosyanın klasörü oluşturulamadı ({{cause}})."
+      },
+      "cause": {
+        "permission": "erişim izni yok",
+        "notFound": "bulunamadı",
+        "other": "sistem hatası: {{kind}}"
+      }
     },
     "failed": {
       "title": "Profil açılamadı",

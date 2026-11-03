@@ -15,4 +15,8 @@ op: string, action?: string | null,
 /**
  * `pending`, `in_flight`, `conflict`, `rejected` or `quarantined`.
  */
-state: string, attempts: number, last_error?: string | null, occurred_at: string, payload: Record<string, unknown>, };
+state: string, attempts: number, last_error?: string | null, 
+/**
+ * Field messages of the server's rejection (`errors.fields`), by field.
+ */
+rejected_fields?: Record<string, Array<string>>, occurred_at: string, payload: Record<string, unknown>, };

@@ -374,10 +374,18 @@ async fn a_rejection_stays_with_the_key_until_a_retry_or_a_discard() {
         (rejection.message.as_str(), stored_keys(&env)),
         ("taken", 1)
     );
-    let entry = outbox_list(&env.store)[0].mutation.idempotency_key;
+    let listed = &outbox_list(&env.store)[0];
+    // The outbox entry carries the field messages for the user-facing queue.
+    let fields = listed.rejection.as_ref().and_then(|e| e.fields.clone());
+    assert_eq!(
+        fields.and_then(|f| f.get("name").cloned()),
+        Some(vec!["taken".to_owned()])
+    );
+    let entry = listed.mutation.idempotency_key;
 
     env.engine.retry(entry).unwrap();
     assert_eq!(record().unwrap().rejection, None);
+    assert_eq!(outbox_list(&env.store)[0].rejection, None);
 
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert!(record().unwrap().rejection.is_some());
@@ -406,6 +414,43 @@ async fn an_expired_key_is_gone_for_reads_before_any_write() {
         .unwrap();
 
     assert_eq!(env.engine.request_record(&key("old")).unwrap(), None);
+}
+
+#[tokio::test]
+async fn an_unreadable_rejection_body_costs_only_its_field_messages() {
+    let env = env().await;
+    verified(&env).await;
+    env.engine
+        .enqueue_keyed(create(Uuid::now_v7()), &key("bad"))
+        .unwrap();
+    env.engine
+        .enqueue_keyed(create(Uuid::now_v7()), &key("good"))
+        .unwrap();
+    env.store
+        .write(|tx| {
+            tx.execute(
+                "UPDATE outbox_request_keys SET rejection = 'not json' WHERE key = 'bad'",
+                [],
+            )?;
+            tx.execute(
+                "UPDATE outbox_request_keys
+                 SET rejection = '{\"message\":\"m\",\"code\":\"VALIDATION_ERROR\",\"fields\":{\"name\":[\"taken\"]}}'
+                 WHERE key = 'good'",
+                [],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+    let entries = outbox_list(&env.store);
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].rejection, None);
+    assert!(
+        entries[1]
+            .rejection
+            .as_ref()
+            .is_some_and(|e| e.fields.is_some())
+    );
 }
 
 #[test]
