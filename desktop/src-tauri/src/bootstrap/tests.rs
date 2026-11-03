@@ -1205,6 +1205,8 @@ async fn a_new_user_reads_nothing_of_the_previous_one_before_a_run() {
     assert_eq!(rows(&fx), 1);
     let engine = fx.state.engine().unwrap();
     assert!(engine.snapshot(&parties()).is_ok());
+    // A held engine is a request still running: the switch would wait.
+    drop(engine);
 
     let login = fx.login().await.unwrap();
     assert!(login.company_required);
@@ -1305,3 +1307,91 @@ async fn native_two_profiles_switch_on_the_credential_manager() {
 mod offline_session;
 mod realtime;
 mod shell;
+
+/// Two companies, the profile opened in the first.
+async fn in_first_company(fx: &Fx, server: &MockServer) -> ProfileDto {
+    let profile = fx.add(server).await;
+    fx.desktop.select(&fx.state, &profile.id).await.unwrap();
+    fx.login().await.unwrap();
+    fx.desktop
+        .select_company(&fx.state, COMPANY.parse().unwrap(), false)
+        .await
+        .unwrap();
+    let id = profile.id.clone();
+    fx.events
+        .wait_for(|e| {
+            matches!(e, EngineEvent::ResourcesChanged { profile_id, resources, .. }
+                if *profile_id == id && resources.iter().any(|r| r == "parties"))
+        })
+        .await;
+    profile
+}
+
+/// A local write that holds the engine across the unsent-work check and
+/// queues while the company changes: the old company opens again and the
+/// answer names the work.
+#[tokio::test(flavor = "multi_thread")]
+async fn work_queued_while_the_company_changes_keeps_the_old_company() {
+    let server = server(&[(COMPANY, "Acme"), (COMPANY_2, "Beta")]).await;
+    let fx = fx();
+    let profile = in_first_company(&fx, &server).await;
+    let in_flight = fx.state.engine().unwrap();
+
+    let (changed, ()) = tokio::join!(
+        fx.desktop
+            .select_company(&fx.state, COMPANY_2.parse().unwrap(), false),
+        async {
+            // Queues as soon as the profile closes, before it opens again.
+            while fx.state.engine().is_ok() {
+                tokio::task::yield_now().await;
+            }
+            in_flight.enqueue(draft()).unwrap();
+            drop(in_flight);
+        }
+    );
+
+    assert_eq!(changed.unwrap_err().code, codes::PROFILE_HAS_PENDING_WORK);
+    assert_eq!(
+        fx.desktop.registry().get(&profile.id).unwrap().company_id,
+        Some(COMPANY.parse().unwrap())
+    );
+    assert_eq!(
+        fx.state.engine().unwrap().refresh_status().unwrap().pending,
+        1
+    );
+}
+
+/// Residual race (bug demo): a write that holds the engine longer than the
+/// switch lands in the outbox of the new company.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_slow_write_across_a_company_change_is_refused() {
+    let server = server(&[(COMPANY, "Acme"), (COMPANY_2, "Beta")]).await;
+    let fx = fx();
+    let profile = in_first_company(&fx, &server).await;
+    let in_flight = fx.state.engine().unwrap();
+
+    let (changed, ()) = tokio::join!(
+        fx.desktop
+            .select_company(&fx.state, COMPANY_2.parse().unwrap(), false),
+        async {
+            while fx.state.engine().is_ok() {
+                tokio::task::yield_now().await;
+            }
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            in_flight.enqueue(draft()).unwrap();
+            drop(in_flight);
+        }
+    );
+
+    // The switch waits for the write, then refuses: the old company's
+    // draft must not go out under the new one.
+    assert_eq!(changed.unwrap_err().code, codes::PROFILE_HAS_PENDING_WORK);
+    assert_eq!(
+        fx.desktop.registry().get(&profile.id).unwrap().company_id,
+        Some(COMPANY.parse().unwrap())
+    );
+    assert_eq!(
+        fx.state.engine().unwrap().refresh_status().unwrap().pending,
+        1
+    );
+}

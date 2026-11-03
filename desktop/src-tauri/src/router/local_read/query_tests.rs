@@ -813,3 +813,25 @@ async fn no_sort_is_the_default_order_and_a_blank_sort_is_refused() {
         );
     }
 }
+
+/// A blank `q` searches nothing: refused for another parameter, the answer
+/// does not name it as needing the server.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_blank_item_search_is_not_named_online_only() {
+    let (_, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt"}));
+    let fx = fixture(vec![("items", vec![bolt])]).await;
+    fx.go_offline();
+
+    let answer = fx
+        .call(get(ITEMS, pairs(&[("q", "  "), ("filter[category]", "x")])))
+        .await;
+    assert_eq!(answer.status, 503);
+    let offline = offline_of(&answer);
+    let named: Vec<&str> = offline["online_only"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|o| o["param"].as_str().unwrap())
+        .collect();
+    assert_eq!(named, ["filter[category]"]);
+}

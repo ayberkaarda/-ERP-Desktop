@@ -1235,3 +1235,44 @@ fn a_refused_certificate_has_its_own_code() {
     let network = CommandError::from(SyncError::NotSent("connection refused".into()));
     assert_eq!(network.code, "NETWORK_ERROR");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_sign_in_during_a_delete_does_not_send_it_again() {
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/parties/1"))
+        .and(header("authorization", bearer(1).as_str()))
+        .respond_with(
+            ResponseTemplate::new(401)
+                .set_body_json(json!({ "errors": { "message": "x", "code": "UNAUTHENTICATED" } }))
+                .set_delay(Duration::from_millis(500)),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path("/api/v1/parties/1"))
+        .and(header("authorization", bearer(2).as_str()))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&server)
+        .await;
+    let fx = Arc::new(fixture(&server.uri()));
+
+    let call = {
+        let fx = fx.clone();
+        tokio::spawn(async move {
+            fx.call(json!({ "method": "DELETE", "path": "/api/v1/parties/1" }))
+                .await
+        })
+    };
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    fx.client.session().sign_in(&tokens(2)).await.unwrap();
+
+    assert_eq!(call.await.unwrap().unwrap_err().code, "UNAUTHENTICATED");
+    let sent = server.received_requests().await.unwrap();
+    assert_eq!(
+        sent.iter()
+            .filter(|r| r.url.path() == "/api/v1/parties/1")
+            .count(),
+        1
+    );
+}

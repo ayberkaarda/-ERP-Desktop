@@ -114,6 +114,8 @@ async fn a_company_switch_leaves_no_answer_of_the_old_company() {
     .await;
     me_of(&fx.state, &fx.desktop).await.unwrap();
     assert!(engine.session_copy().unwrap().is_some());
+    // A held engine is a request still running: the switch would wait.
+    drop(engine);
 
     fx.desktop
         .select_company(&fx.state, COMPANY_2.parse().unwrap(), true)
