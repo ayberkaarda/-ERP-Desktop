@@ -267,6 +267,7 @@ jobs:
         run: |
           $env:KEYSTONE_DEV_ALLOW_HTTP = '1'
           $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+          $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP wv2-data
           $p = Start-Process -FilePath $env:E2E_APP_BIN -PassThru -RedirectStandardOutput app.out -RedirectStandardError app.err
           Start-Sleep -Seconds 20
           Write-Host "exited: $($p.HasExited) code: $(if ($p.HasExited) { $p.ExitCode })"
