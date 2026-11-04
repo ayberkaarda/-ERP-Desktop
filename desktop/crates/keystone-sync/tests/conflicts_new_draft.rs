@@ -478,8 +478,62 @@ fn an_add_with_no_quantity_keeps_the_count_of_its_line() {
     assert_eq!(lines[1]["counted_quantity"], "7");
 }
 
+/// Marks `key` as sent once and left in `state` (raw: the queue itself
+/// never sends a later write of a row whose earlier write is in conflict).
+fn mark_sent(f: &Fixture, key: Uuid, state: &str) {
+    f.q.store()
+        .write(|tx| {
+            tx.execute(
+                "UPDATE outbox_entries SET sent=1, state=?2 WHERE key=?1",
+                [key.to_string(), state.to_owned()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+}
+
 #[test]
-fn a_count_sent_before_is_not_folded() {
+fn a_count_sent_before_refuses_the_new_draft_atomically() {
+    for state in ["pending", "in_flight", "quarantined", "rejected"] {
+        let doc = Uuid::now_v7();
+        let f = locked_counts(doc);
+        let later = later_counts(
+            doc,
+            json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]}),
+        );
+        let later = f.q.enqueue(later).unwrap();
+        // Sent once: the server may hold it under its key already (applied)
+        // or not. Folded it could count twice; left on the locked document
+        // it would be locked again once this conflict settles and could
+        // become a second new document. Only its answer decides.
+        mark_sent(&f, later, state);
+        let draft = new_draft(&f);
+        let new_id = draft.id;
+        assert!(f.q.enqueue(draft).is_err(), "{state}");
+        assert_eq!(f.inbox.count().unwrap(), 1, "{state}");
+        let kept = entry(&f, later).unwrap();
+        assert_eq!((kept.id, kept.base_version), (doc, Some(7)), "{state}");
+        let entries = f.q.list().unwrap();
+        assert_eq!(entries.len(), 2, "{state}");
+        assert!(entries.iter().all(|e| e.mutation.id != new_id), "{state}");
+        let remaps: i64 = f
+            .q
+            .store()
+            .read(|c| Ok(c.query_row("SELECT count(*) FROM outbox_id_remaps", [], |r| r.get(0))?))
+            .unwrap();
+        assert_eq!(remaps, 0, "{state}");
+        // Discard is still offered.
+        assert_eq!(
+            f.inbox
+                .resolve(f.sent.idempotency_key, ConflictChoice::Discard)
+                .unwrap(),
+            ResolutionAction::Discard
+        );
+    }
+}
+
+#[test]
+fn a_later_count_is_not_sent_while_the_document_is_in_conflict() {
     let doc = Uuid::now_v7();
     let f = locked_counts(doc);
     let later = later_counts(
@@ -487,23 +541,21 @@ fn a_count_sent_before_is_not_folded() {
         json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]}),
     );
     let later = f.q.enqueue(later).unwrap();
-    // Sent once and requeued: the server may hold it under its key already,
-    // so its body is never changed or merged into another write.
-    f.q.store()
-        .write(|tx| {
-            tx.execute(
-                "UPDATE outbox_entries SET sent=1 WHERE key=?1",
-                [later.to_string()],
-            )?;
-            Ok(())
-        })
+    f.q.requeue_in_flight().unwrap();
+    // The conflict is an implicit prerequisite of the later count: it stays
+    // unsent, so saving as a new draft folds it.
+    assert!(f.q.next_batch(10).unwrap().is_empty());
+    let listed = f.q.list().unwrap();
+    let queued = listed
+        .iter()
+        .find(|e| e.mutation.idempotency_key == later)
         .unwrap();
+    assert!(!queued.sent);
     let create = f.q.enqueue(new_draft(&f)).unwrap();
-    let kept = entry(&f, later).unwrap();
-    assert_eq!((kept.id, kept.base_version), (doc, Some(7)));
+    assert!(entry(&f, later).is_none());
     assert_eq!(
         entry(&f, create).unwrap().payload["lines"][1]["counted_quantity"],
-        Value::Null
+        "9"
     );
 }
 
