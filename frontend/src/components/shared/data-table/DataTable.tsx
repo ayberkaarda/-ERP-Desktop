@@ -75,7 +75,7 @@ export interface DataTableProps<T> {
   searchable?: boolean
   /**
    * The rows answer the search only partly (an offline answer from a local copy, see
-   * `isPartialSearch`): a notice says matches may be missing.
+   * `isPartialSearch`): a notice, announced as a polite live status, says matches may be missing.
    */
   partialSearch?: boolean
   /** Extra toolbar controls (custom filters, export). */
@@ -429,7 +429,8 @@ export function DataTable<T>({
       {showPartial && (
         <p
           id={partialId}
-          role="note"
+          role="status"
+          aria-live="polite"
           data-testid="partial-search"
           className="border-b border-border bg-warning-soft px-3 py-2 text-sm text-warning-soft-foreground"
         >

@@ -34,7 +34,11 @@ describe('DataTable partial search', () => {
 
   it('says the rows of a partial search may be incomplete, and describes the grid with it', () => {
     table({ partialSearch: true })
-    expect(screen.getByRole('note')).toHaveTextContent(NOTICE)
+    const notice = screen.getByTestId('partial-search')
+    expect(notice).toHaveTextContent(NOTICE)
+    // Announced when it appears, without moving focus.
+    expect(notice).toHaveAttribute('role', 'status')
+    expect(notice).toHaveAttribute('aria-live', 'polite')
     expect(screen.getByRole('grid', { name: 'Ürünler' })).toHaveAccessibleDescription(
       expect.stringContaining(NOTICE),
     )
@@ -43,13 +47,13 @@ describe('DataTable partial search', () => {
 
   it('keeps the notice over an empty partial answer', () => {
     table({ partialSearch: true, data: [] })
-    expect(screen.getByRole('note')).toHaveTextContent(NOTICE)
+    expect(screen.getByTestId('partial-search')).toHaveTextContent(NOTICE)
     expect(screen.getByText('Kayıt bulunamadı')).toBeInTheDocument()
   })
 
   it('shows nothing without the marker (the web never sets it)', () => {
     table({})
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('partial-search')).not.toBeInTheDocument()
     expect(screen.getByRole('grid', { name: 'Ürünler' })).not.toHaveAccessibleDescription(
       expect.stringContaining(NOTICE),
     )
@@ -57,7 +61,7 @@ describe('DataTable partial search', () => {
 
   it('leaves a failed load to the error state', () => {
     table({ partialSearch: true, error: true })
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('partial-search')).not.toBeInTheDocument()
     expect(screen.getByRole('alert')).toHaveTextContent('Liste yüklenemedi')
   })
 })
