@@ -30,3 +30,11 @@ Webview'ın `fetch`, XHR, WebSocket, EventSource ve dış görsel istekleri CSP 
 `http://localhost` sunucusuna bağlanmak için debug derlemede `KEYSTONE_DEV_ALLOW_HTTP=1` verilir. Release derleme bu değişkenle reddedilir.
 
 Yeni bir izin ya da ağ kaynağı `tauri.conf.json` ve `capabilities/default.json` içine elle eklenmez: release kapısı (`src-tauri/src/build_guard.rs`) ve yapılandırma testleri (`src-tauri/src/lib.rs`) bilinçli güncelleme ister.
+
+### İmzasız kurulum paketi
+
+Kurulum paketleri **imzasızdır**: kod imzalama, noter onayı (notarization) ve otomatik güncelleme yoktur; bu bir portfolyo projesidir. Windows SmartScreen ve macOS Gatekeeper uyarı verir, paketi elle onaylamak gerekir.
+
+- CI: GitHub Actions'ta "Desktop Bundle" iş akışı elle (`workflow_dispatch`) ya da `desktop-v*` etiketinde çalışır. Windows, Linux ve macOS paketlerini `keystone-desktop-unsigned-<os>` adlı iş akışı çıktısı (artifact) olarak yükler; release ya da etiket oluşturmaz.
+- Yerelde: `npm ci` (depo kökü), sonra `desktop/` içinde `npm run tauri -- build`. Paketler `target/release/bundle/` altına çıkar.
+- CI matrisi: `Desktop Rust` iş akışı Rust testlerini ve kabuk derlemesini Windows ve macOS'ta da koşar (`rust-os`, `shell-os`); Linux işleri (`rust`, `desktop-shell`) adlarıyla aynı kaldı.
