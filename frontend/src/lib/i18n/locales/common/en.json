@@ -61,7 +61,9 @@
     "filterAll": "All",
     "clearFilters": "Clear filters",
     "resizeColumn": "{{column}} column width",
-    "keyboardHint": "Use the arrow keys to move between rows; Enter opens, Space selects."
+    "keyboardHint": "Use the arrow keys to move between rows; Enter opens, Space selects.",
+    "draft": "Not sent",
+    "draftHint": "This row has a change made on this device that has not been sent to the server yet."
   },
   "form": {
     "errorSummaryTitle": "The record could not be saved",

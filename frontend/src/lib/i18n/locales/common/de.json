@@ -61,7 +61,9 @@
     "filterAll": "Alle",
     "clearFilters": "Filter zurücksetzen",
     "resizeColumn": "Breite der Spalte {{column}}",
-    "keyboardHint": "Mit den Pfeiltasten zwischen Zeilen wechseln; Enter öffnet, Leertaste wählt aus."
+    "keyboardHint": "Mit den Pfeiltasten zwischen Zeilen wechseln; Enter öffnet, Leertaste wählt aus.",
+    "draft": "Nicht gesendet",
+    "draftHint": "Diese Zeile enthält eine auf diesem Gerät vorgenommene Änderung, die noch nicht an den Server gesendet wurde."
   },
   "form": {
     "errorSummaryTitle": "Der Datensatz konnte nicht gespeichert werden",
