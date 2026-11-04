@@ -1,5 +1,5 @@
 // Scenarios 1 to 5 of desktop/PLAN.md B8, one app run in order: sign-in and
-// first pull, offline drafts (order, stock count; the manifest has no expense draft), push, a conflict with a web change, and the
+// first pull, offline drafts (order, stock count, purchase request, new customer), push, a conflict with a web change, and the
 // online-only button while offline. The network cut is a TCP proxy between the
 // app and the Laravel server; the web side is the REST API of the same server.
 import assert from 'node:assert/strict'
@@ -58,7 +58,7 @@ describe('desktop e2e: sign-in, offline drafts, sync', () => {
     })
   })
 
-  it('2. a cut network: order and stock count are drafted offline', STEP, async () => {
+  it('2. a cut network: order, stock count, purchase request and customer are drafted offline', STEP, async () => {
     await app.proxy.cut()
     await app.waitForState('offline')
     const { state, session } = app
@@ -89,10 +89,35 @@ describe('desktop e2e: sign-in, offline drafts, sync', () => {
     assert.ok([201, 202].includes(count.status), `count draft: ${count.status} ${JSON.stringify(count.json)}`)
     drafts.count = count.json.data.id
 
+    // PLAN says "expense": the manifest has no expense resource (treasury payments are
+    // online-only), so the closest offline spend document is the purchase request.
+    const request = await session.api('POST', '/api/v1/purchase-requests', {
+      headers: [['Idempotency-Key', crypto.randomUUID()]],
+      body: {
+        document_date: TODAY,
+        notes: 'offline purchase request',
+        lines: [{ item_id: state.item_id, quantity: '3', estimated_price: '12.50' }],
+      },
+    })
+    assert.equal(request.source, 'local')
+    assert.ok([201, 202].includes(request.status), `request draft: ${request.status} ${JSON.stringify(request.json)}`)
+    drafts.request = request.json.data.id
+
+    // The name must not resemble any existing party: the server runs the same trigram
+    // duplicate search as GET /parties/duplicates on every offline create and answers
+    // DUPLICATE_RECORD (a conflict) for a similar name such as "E2E Customer 2".
+    const party = await session.api('POST', '/api/v1/parties', {
+      headers: [['Idempotency-Key', crypto.randomUUID()]],
+      body: { name: 'Zephyr Holdings', type: 'company', roles: ['customer'], country: 'TR' },
+    })
+    assert.equal(party.source, 'local')
+    assert.ok([201, 202].includes(party.status), `party draft: ${party.status} ${JSON.stringify(party.json)}`)
+    drafts.party = party.json.data.id
+
     const outbox = await session.invoke('outbox_list')
     const queued = outbox.map((entry) => entry.id)
     for (const id of Object.values(drafts)) assert.ok(queued.includes(id), `outbox holds ${id}`)
-    assert.ok((await app.status()).pending >= 2)
+    assert.ok((await app.status()).pending >= 4)
   })
 
   it('3. the network is back: the drafts are pushed and the server has them', STEP, async () => {
@@ -128,6 +153,12 @@ ${await report()}`
     assert.equal(order.json.data.notes, 'offline order')
     const count = await web('GET', `/stock-documents/${drafts.count}`)
     assert.equal(count.status, 200, JSON.stringify(count.json))
+    const request = await web('GET', `/purchase-requests/${drafts.request}`)
+    assert.equal(request.status, 200, JSON.stringify(request.json))
+    assert.equal(request.json.data.notes, 'offline purchase request')
+    const party = await web('GET', `/parties/${drafts.party}`)
+    assert.equal(party.status, 200, JSON.stringify(party.json))
+    assert.equal(party.json.data.name, 'Zephyr Holdings')
     assert.equal((await app.status()).conflicts, 0)
   })
 
