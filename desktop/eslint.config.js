@@ -99,7 +99,7 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   {
-    files: ['scripts/**/*.mjs', 'eslint.config.js'],
+    files: ['scripts/**/*.mjs', 'e2e/**/*.mjs', 'eslint.config.js'],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
   },

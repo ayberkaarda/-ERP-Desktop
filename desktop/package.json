@@ -16,7 +16,8 @@
     "test": "vitest run",
     "i18n:check": "node scripts/check-desktop-i18n.mjs",
     "wire:ts": "sh scripts/check-wire-ts.sh",
-    "wire:gen": "node scripts/gen-wire-ts.mjs"
+    "wire:gen": "node scripts/gen-wire-ts.mjs",
+    "e2e": "node --test --test-concurrency=1 \"e2e/*.e2e.mjs\""
   },
   "dependencies": {
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
