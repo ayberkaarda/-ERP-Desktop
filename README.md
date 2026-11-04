@@ -23,22 +23,22 @@ The following screens use synthetic demonstration data.
 
 A Tauri 2 desktop client (Rust shell with the shared React frontend) lives in [desktop/](desktop/README.md). You connect it to a Keystone server through a server profile and sign in with that server's device tokens, which are kept in the operating system credential store rather than in the webview. An encrypted local store (SQLCipher) mirrors the data the server's offline manifest declares, so reads work offline and changes queue in an outbox until the server is reachable. Conflicts land in an inbox where you keep your value, take the server's, or merge. Notifications arrive over the server's WebSocket channel, and the security page lists signed-in devices and can sign them out remotely. See the [desktop architecture](desktop/docs/ARCHITECTURE.md). The screens below use synthetic demonstration data.
 
-![Desktop app: server profile and sign-in](desktop/docs/screenshots/01-profile-login.png)
+![Desktop app: server profile and sign-in](desktop/docs/screenshots/en/01-profile-login.png)
 *Server profile and sign-in.*
 
-![Desktop app: dashboard with demonstration data](desktop/docs/screenshots/02-dashboard.png)
+![Desktop app: dashboard with demonstration data](desktop/docs/screenshots/en/02-dashboard.png)
 *Dashboard.*
 
-![Desktop app: offline mode with queued changes](desktop/docs/screenshots/03-offline-outbox.png)
+![Desktop app: offline mode with queued changes](desktop/docs/screenshots/en/03-offline-outbox.png)
 *Offline mode with queued changes in the outbox.*
 
-![Desktop app: conflict inbox](desktop/docs/screenshots/04-conflict-inbox.png)
+![Desktop app: conflict inbox](desktop/docs/screenshots/en/04-conflict-inbox.png)
 *Conflict inbox: choosing which value wins.*
 
-![Desktop app: security page with signed-in devices](desktop/docs/screenshots/05-security-devices.png)
+![Desktop app: security page with signed-in devices](desktop/docs/screenshots/en/05-security-devices.png)
 *Security page with signed-in desktop devices.*
 
-![Desktop app: recovery screen](desktop/docs/screenshots/06-profile-recovery.png)
+![Desktop app: recovery screen](desktop/docs/screenshots/en/06-profile-recovery.png)
 *Recovery screen when the profile file cannot be read.*
 
 ## Implemented scope

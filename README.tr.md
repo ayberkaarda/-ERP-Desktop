@@ -23,22 +23,22 @@ Aşağıdaki ekranlarda sentetik demo verileri kullanılmıştır.
 
 [desktop/](desktop/README.md) altında Tauri 2 tabanlı bir masaüstü istemcisi bulunur (Rust kabuğu ve ortak React frontend). Bir sunucu profiliyle Keystone sunucusuna bağlanılır; giriş, sunucunun cihaz tokenlarıyla yapılır ve tokenlar webview'da değil, işletim sisteminin kimlik bilgisi deposunda tutulur. Şifreli yerel depo (SQLCipher), sunucunun çevrimdışı manifestinde bildirilen veriyi yansıtır; böylece okumalar çevrimdışı çalışır, değişiklikler sunucuya ulaşılana kadar giden kutusunda (outbox) bekler. Çakışmalar, kendi değerini tutma, sunucununkini alma ya da birleştirme seçenekleriyle bir gelen kutusuna düşer. Bildirimler sunucunun WebSocket kanalından gelir; güvenlik sayfası oturum açmış cihazları listeler ve uzaktan oturum kapatabilir. Ayrıntı: [masaüstü mimarisi](desktop/docs/ARCHITECTURE.md). Aşağıdaki ekranlar sentetik gösterim verisi kullanır.
 
-![Masaüstü uygulaması: sunucu profili ve giriş](desktop/docs/screenshots/01-profile-login.png)
+![Masaüstü uygulaması: sunucu profili ve giriş](desktop/docs/screenshots/tr/01-profile-login.png)
 *Sunucu profili ve giriş.*
 
-![Masaüstü uygulaması: gösterim verisiyle panel](desktop/docs/screenshots/02-dashboard.png)
+![Masaüstü uygulaması: gösterim verisiyle panel](desktop/docs/screenshots/tr/02-dashboard.png)
 *Panel.*
 
-![Masaüstü uygulaması: bekleyen değişikliklerle çevrimdışı mod](desktop/docs/screenshots/03-offline-outbox.png)
+![Masaüstü uygulaması: bekleyen değişikliklerle çevrimdışı mod](desktop/docs/screenshots/tr/03-offline-outbox.png)
 *Çevrimdışı mod; bekleyen değişiklikler giden kutusunda.*
 
-![Masaüstü uygulaması: çakışma gelen kutusu](desktop/docs/screenshots/04-conflict-inbox.png)
+![Masaüstü uygulaması: çakışma gelen kutusu](desktop/docs/screenshots/tr/04-conflict-inbox.png)
 *Çakışma gelen kutusu: hangi değerin geçerli olacağı seçilir.*
 
-![Masaüstü uygulaması: oturum açmış cihazlarla güvenlik sayfası](desktop/docs/screenshots/05-security-devices.png)
+![Masaüstü uygulaması: oturum açmış cihazlarla güvenlik sayfası](desktop/docs/screenshots/tr/05-security-devices.png)
 *Oturum açmış masaüstü cihazlarını gösteren güvenlik sayfası.*
 
-![Masaüstü uygulaması: kurtarma ekranı](desktop/docs/screenshots/06-profile-recovery.png)
+![Masaüstü uygulaması: kurtarma ekranı](desktop/docs/screenshots/tr/06-profile-recovery.png)
 *Profil dosyası okunamadığında açılan kurtarma ekranı.*
 
 ## Uygulanan kapsam
