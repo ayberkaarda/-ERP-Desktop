@@ -1,7 +1,7 @@
 // The server side of a scenario run: the Laravel server (a real one, on the
 // database the workflow seeded), a TCP proxy in front of it that the desktop
 // profile points at (cutting it is the network cut), and the seeded state.
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import net from 'node:net'
 import { resolve } from 'node:path'
@@ -12,6 +12,22 @@ export const SERVER_PORT = Number(process.env.E2E_SERVER_PORT ?? 8000)
 export const PROXY_PORT = Number(process.env.E2E_PROXY_PORT ?? 8001)
 export const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`
 export const PROXY_URL = `http://127.0.0.1:${PROXY_PORT}`
+
+export const WINDOWS = process.platform === 'win32'
+
+/** Kills a child and everything it started: a process group on POSIX, `taskkill /T` on Windows. */
+export function killTree(child) {
+  if (child.pid === undefined) return
+  if (WINDOWS) {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+    return
+  }
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch {
+    // already gone
+  }
+}
 
 export function requiredEnv(name) {
   const value = process.env[name]
@@ -36,7 +52,7 @@ export async function startServer() {
   const backend = resolve(requiredEnv('E2E_BACKEND_DIR'))
   const child = spawn('php', ['artisan', 'serve', '--no-reload', '--host=127.0.0.1', `--port=${SERVER_PORT}`], {
     cwd: backend,
-    detached: true,
+    detached: !WINDOWS,
     stdio: ['ignore', 'inherit', 'inherit'],
     env: { ...process.env, PHP_CLI_SERVER_WORKERS: '4' },
   })
@@ -46,11 +62,7 @@ export async function startServer() {
   })
   return {
     async stop() {
-      try {
-        process.kill(-child.pid, 'SIGKILL')
-      } catch {
-        // already gone
-      }
+      killTree(child)
       // Wait until the port is free, so the next start cannot meet "address in use".
       await waitFor(() => portFree(), { timeout: 15_000, interval: 100, message: `port ${SERVER_PORT} to be free` })
     },
