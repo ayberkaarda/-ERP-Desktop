@@ -126,6 +126,7 @@
     }
   },
   "signOutNotice": {
+    "waiting": "Abmeldung läuft, Antwort des Servers wird abgewartet …",
     "body": "Sie sind auf diesem Gerät abgemeldet, aber die Serversitzung konnte nicht beendet werden. Melden Sie dieses Gerät auf der Sicherheitsseite ab.",
     "openSecurity": "Sicherheitsseite öffnen",
     "dismiss": "Schließen"

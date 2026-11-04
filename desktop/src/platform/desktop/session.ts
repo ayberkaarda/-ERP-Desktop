@@ -49,6 +49,11 @@ export interface DesktopSession extends PlatformSession {
   passwordChange: 'external'
   /** Called after every completed sign-out (local sign-out is always done by then). */
   onSignedOut(listener: (outcome: SignedOut) => void): () => void
+  /**
+   * True while the shell works on a sign-out (it waits up to a few seconds for
+   * the server to end the sign-in), false when that is over, however it ended.
+   */
+  onSigningOut(listener: (busy: boolean) => void): () => void
 }
 
 export function createDesktopSession(options: {
@@ -60,6 +65,17 @@ export function createDesktopSession(options: {
 }): DesktopSession {
   const { invoke, onChanged } = options
   const signedOut = new Set<(outcome: SignedOut) => void>()
+  const signingOut = new Set<(busy: boolean) => void>()
+
+  function announceBusy(busy: boolean): void {
+    for (const listener of [...signingOut]) {
+      try {
+        listener(busy)
+      } catch {
+        // ignored: listeners only show progress
+      }
+    }
+  }
 
   async function counts(): Promise<{ outbox: number | undefined; conflicts: number | undefined }> {
     try {
@@ -79,10 +95,13 @@ export function createDesktopSession(options: {
   }
 
   async function signOut(force: boolean): Promise<SignOutDto> {
+    announceBusy(true)
     try {
       return await call<SignOutDto>(invoke, 'auth_sign_out', { force })
     } catch (reason) {
       throw commandToApiError(toCommandError(reason))
+    } finally {
+      announceBusy(false)
     }
   }
 
@@ -116,6 +135,12 @@ export function createDesktopSession(options: {
         } catch {
           // ignored: listeners only show the outcome
         }
+      }
+    },
+    onSigningOut: (listener) => {
+      signingOut.add(listener)
+      return () => {
+        signingOut.delete(listener)
       }
     },
     onSignedOut: (listener) => {

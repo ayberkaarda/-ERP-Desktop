@@ -126,6 +126,7 @@
     }
   },
   "signOutNotice": {
+    "waiting": "Çıkış yapılıyor, sunucunun yanıtı bekleniyor…",
     "body": "Bu cihazda çıkış yapıldı, ancak sunucudaki oturum kapatılamadı. Güvenlik sayfasından bu cihazın oturumunu kapatın.",
     "openSecurity": "Güvenlik sayfasını aç",
     "dismiss": "Kapat"
