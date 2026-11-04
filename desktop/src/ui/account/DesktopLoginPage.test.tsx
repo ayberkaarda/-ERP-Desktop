@@ -40,6 +40,17 @@ describe('DesktopLoginPage', () => {
     expect(useCompanyStore.getState().activeCompanyId).toBe('c1')
   })
 
+  it('does not activate a company the web session does not list', async () => {
+    const h = harness({ auth_login: () => loginDto({ profile: { ...PROFILE, company_id: 'zzz' } }) })
+    const { router } = renderApp(h, '/login')
+    await signIn()
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe('/')
+    })
+    // The memberships of /auth/me decide; the first one stays active.
+    expect(useCompanyStore.getState().activeCompanyId).toBe('c1')
+  })
+
   it('does not follow a redirect outside the app', async () => {
     const { router } = renderApp(harness({ auth_login: () => loginDto() }), '/login', { from: '//evil.test' })
     await signIn()

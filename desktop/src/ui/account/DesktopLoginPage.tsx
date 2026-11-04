@@ -72,7 +72,7 @@ function LoginSteps() {
       return
     }
     const company = login.profile.company_id
-    if (company) useCompanyStore.setState({ activeCompanyId: company })
+    if (company) useCompanyStore.getState().setActiveCompany(company)
     const mustChange = user.mustChangePassword || login.user.must_change_password
     await navigate(mustChange ? PASSWORD_CHANGE_PATH : from, { replace: true })
   }

@@ -10,6 +10,7 @@ import { vi } from 'vitest'
 import { Providers } from '@/app/providers'
 import { safeRedirect } from '@/features/auth/session'
 import i18n from '@/lib/i18n'
+import { useCompanyStore } from '@/stores/company'
 import { createDesktopPlatform, type DesktopPlatform } from '../../platform'
 import type { LoginDto } from '../../bridge/generated/LoginDto'
 import type { ProfileDto } from '../../bridge/generated/ProfileDto'
@@ -117,7 +118,14 @@ export function harness(commands: Record<string, CommandHandler> = {}): Harness 
     notify: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
   })
   const session = {
-    load: vi.fn(() => Promise.resolve<SessionUser | null>(USER)),
+    // The real load stores the memberships of /auth/me.
+    load: vi.fn(() => {
+      useCompanyStore.getState().setCompanies([
+        { id: 'c1', name: 'Ana Şirket', roleNames: [] },
+        { id: 'c2', name: 'Şube', roleNames: [] },
+      ])
+      return Promise.resolve<SessionUser | null>(USER)
+    }),
     end: vi.fn(),
     signOut: vi.fn(() => platform.session.logout()),
     safeRedirect: vi.fn(safeRedirect),

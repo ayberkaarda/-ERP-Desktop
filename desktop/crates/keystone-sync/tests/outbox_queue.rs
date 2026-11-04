@@ -538,3 +538,40 @@ fn rejected_entry_retry_preserves_body_and_discard_blocks_children() {
     );
     assert!(q.next_batch(10).unwrap().is_empty());
 }
+
+/// The server keeps results for 7 days and rejects a `depends_on` it does not
+/// know, so a prerequisite applied longer ago is not named any more; a
+/// recent one still is.
+#[test]
+fn depends_on_older_than_the_server_retention_is_dropped() {
+    for (age, kept) in [("-8 days", false), ("-6 days", true)] {
+        let (_dir, store, q) = setup();
+        let parent = q
+            .enqueue(draft(MutationOp::Create, Uuid::now_v7(), json!({})))
+            .unwrap();
+        let mut child = draft(MutationOp::Create, Uuid::now_v7(), json!({}));
+        child.depends_on = vec![parent];
+        let child_key = q.enqueue(child).unwrap();
+        let m = q.next_batch(1).unwrap().remove(0);
+        q.record_results(&[result(&m, PushStatus::Applied)])
+            .unwrap();
+        store
+            .write(|tx| {
+                tx.execute(
+                    "UPDATE outbox_settled
+                     SET settled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1)",
+                    [age],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let sent = q.next_batch(10).unwrap().remove(0);
+
+        assert_eq!(sent.idempotency_key, child_key);
+        assert_eq!(sent.depends_on, kept.then(|| vec![parent]), "{age}");
+        // The queued entry itself is unchanged.
+        let listed = q.list().unwrap();
+        assert_eq!(listed[0].mutation.depends_on, Some(vec![parent]));
+    }
+}
