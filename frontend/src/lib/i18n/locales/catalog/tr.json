@@ -111,8 +111,7 @@
   },
   "itemCombobox": {
     "details": "Birim: {{unit}} · Vergi kodu: {{tax}}",
-    "noTax": "yok",
-    "offlineSearch": "Çevrimdışı: yalnızca yüklü ürünler aranıyor; barkod ve varyant için bağlanın."
+    "noTax": "yok"
   },
   "attributes": {
     "empty": "Henüz özellik yok.",

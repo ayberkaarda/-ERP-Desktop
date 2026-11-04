@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/shared/PageHeader'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Can } from '@/lib/permissions'
+import { isPartialSearch } from '@/lib/sync/partialSearch'
 import { SavedFiltersMenu } from '../components/SavedFiltersMenu'
 import { useCategories, useItemList, useUnits } from '../hooks/queries'
 import { detectBarcodeType } from '../lib/barcode'
@@ -155,6 +156,7 @@ export function ItemListPage() {
         total={list.data?.meta.pagination.total ?? 0}
         loading={list.isPending}
         error={list.isError}
+        partialSearch={isPartialSearch(list.data)}
         onRetry={() => void list.refetch()}
         query={query}
         onQueryChange={setQuery}

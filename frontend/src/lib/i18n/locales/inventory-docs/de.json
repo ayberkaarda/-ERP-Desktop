@@ -126,7 +126,8 @@
     "notFound": "Kein Artikel für {{code}} gefunden.",
     "added": "{{item}} hinzugefügt.",
     "incremented": "Menge von {{item}} erhöht.",
-    "failed": "Der Barcode konnte nicht gesucht werden."
+    "failed": "Der Barcode konnte nicht gesucht werden.",
+    "offline": "Offline: {{code}} ist in der lokalen Kopie keine Artikelnummer; Barcodes werden nur mit Verbindung gesucht."
   },
   "totals": {
     "lines": "{{count}} Positionen",

@@ -1,4 +1,5 @@
 import { toListParams, type ListQueryState } from '@/components/shared/data-table'
+import { isPartialSearch } from '@/lib/sync/partialSearch'
 import { ApiError, platform, withIdempotency } from '@/platform'
 import type {
   ApiStockDocument,
@@ -25,6 +26,11 @@ const seg = (id: string) => encodeURIComponent(id)
 export type Params = Record<string, string | number>
 
 export const LIMIT_EXCEEDED = 'LIMIT_EXCEEDED'
+/**
+ * A scan resolved against a partial search (an offline answer from a local copy, which holds no
+ * barcodes): finding nothing does not mean the barcode is unknown.
+ */
+export const BARCODE_OFFLINE = 'BARCODE_OFFLINE'
 
 /** Every page of a list (100 per page); more than `maxPages` pages throws LIMIT_EXCEEDED. */
 export async function fetchAll<T>(
@@ -231,13 +237,12 @@ export const lookupsApi = {
     )
     return pages.flat()
   },
+  /** The whole answer: an offline one may be a partial search (`isPartialSearch`). */
   searchItems: (q: string, signal?: AbortSignal) =>
-    http()
-      .get<Paginated<ItemRef>>('/items', {
-        params: { q, 'filter[is_active]': 'true', per_page: 10 },
-        signal,
-      })
-      .then((r) => r.data),
+    http().get<Paginated<ItemRef>>('/items', {
+      params: { q, 'filter[is_active]': 'true', per_page: 10 },
+      signal,
+    }),
   /** GET /stock-lots/{id} (inventory.stock.view). */
   lot: (id: string, signal?: AbortSignal) =>
     http()
@@ -280,12 +285,22 @@ export const lookupsApi = {
   },
   /**
    * Resolves a scanned code: the item search matches barcodes, codes and SKUs; an exact barcode
-   * of one of the hits wins (with the unit it is printed for), then an exact item code.
+   * of one of the hits wins (with the unit it is printed for), then an exact item code. A partial
+   * search (offline, from a local copy without barcodes) can only match the item code: without
+   * one it throws BARCODE_OFFLINE instead of saying the barcode is unknown.
    */
   resolveBarcode: async (code: string, signal?: AbortSignal): Promise<BarcodeHit | null> => {
     const scanned = code.trim()
     if (!scanned) return null
-    const hits = await lookupsApi.searchItems(scanned, signal)
+    const res = await lookupsApi.searchItems(scanned, signal)
+    const hits = res.data
+    const byCode = hits.find(
+      (i) => i.code.toLocaleLowerCase('tr') === scanned.toLocaleLowerCase('tr'),
+    )
+    if (isPartialSearch(res)) {
+      if (byCode) return { item: byCode, unitId: byCode.base_unit_id }
+      throw new ApiError(0, BARCODE_OFFLINE, 'Barcodes are searched only online.')
+    }
     for (const item of hits.slice(0, 5)) {
       const barcodes = await fetchAll<BarcodeRow>(
         `/items/${seg(item.id)}/barcodes`,
@@ -295,9 +310,6 @@ export const lookupsApi = {
       const exact = barcodes.find((b) => b.barcode === scanned)
       if (exact) return { item, unitId: exact.unit_id }
     }
-    const byCode = hits.find(
-      (i) => i.code.toLocaleLowerCase('tr') === scanned.toLocaleLowerCase('tr'),
-    )
     return byCode ? { item: byCode, unitId: byCode.base_unit_id } : null
   },
 }

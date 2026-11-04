@@ -111,8 +111,7 @@
   },
   "itemCombobox": {
     "details": "Unit: {{unit}} · Tax code: {{tax}}",
-    "noTax": "none",
-    "offlineSearch": "Offline: only the loaded items are searched; connect to search barcodes and variants."
+    "noTax": "none"
   },
   "attributes": {
     "empty": "No attributes yet.",
