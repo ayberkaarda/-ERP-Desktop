@@ -73,7 +73,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
-            webkit2gtk-driver xvfb dbus gnome-keyring libsecret-tools
+            webkitgtk-webdriver xvfb dbus gnome-keyring libsecret-tools
+      - name: Put WebKitWebDriver on PATH
+        run: |
+          driver=$(dpkg -L webkitgtk-webdriver | grep -m1 "/WebKitWebDriver$")
+          echo "WebKitWebDriver at $driver"
+          command -v WebKitWebDriver || sudo ln -s "$driver" /usr/local/bin/WebKitWebDriver
       - name: Install toolchain from rust-toolchain.toml
         working-directory: desktop
         run: rustup toolchain install
