@@ -3,8 +3,8 @@ name: Desktop E2E
 # real Laravel + Postgres server started in the job. Scenarios: desktop/PLAN.md B8.
 # Path-filtered, so this check must NOT be a required status check (a PR that touches
 # none of the paths would wait for it forever).
-# Linux only: the Windows driver (msedgedriver matched to the runner's WebView2) is
-# version-fragile on hosted runners, so it is not run here.
+# Windows: the same suite through tauri-driver + msedgedriver matched to the runner's
+# WebView2 (job e2e-windows), with Laravel and a PostgreSQL 18 cluster started on the runner.
 on:
   push:
     branches: [main]
@@ -136,6 +136,180 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-e2e-logs
+          path: e2e-logs
+          retention-days: 3
+          if-no-files-found: ignore
+
+  e2e-windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    # EXPERIMENTAL, NON-BLOCKING (continue-on-error). Everything up to the app build works on
+    # hosted Windows (PostgreSQL 18 from the EDB zip, PHP + Laravel, tauri-driver, msedgedriver
+    # matching WebView2 156). It fails at "session not created: DevToolsActivePort file doesn't
+    # exist": WebView2 156 started by the app does not honour the remote-debugging port that
+    # msedgedriver requests through WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (the browser command
+    # line shows only the arguments wry sets itself). Making it pass needs an app-side change
+    # (a test-only additional-browser-args hook on the main window), outside this PR.
+    continue-on-error: true
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5433
+      DB_DATABASE: keystone_test
+      DB_USERNAME: keystone
+      DB_PASSWORD: keystone
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: log
+      MAIL_MAILER: log
+      ADMIN_EMAIL: e2e.root@example.test
+      ADMIN_PASSWORD: E2e-root-correct-horse-battery-9
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      # The backend needs PostgreSQL 18 (uuidv7()); the runner image ships an older one.
+      # The EDB binaries archive is unpacked and a throwaway cluster started on 5433.
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        id: pg-cache
+        with:
+          path: C:\pg18
+          key: postgres-18.0-1-windows-x64
+      - name: Download PostgreSQL 18 binaries
+        if: steps.pg-cache.outputs.cache-hit != 'true'
+        run: |
+          Invoke-WebRequest -UseBasicParsing -Uri https://get.enterprisedb.com/postgresql/postgresql-18.0-1-windows-x64-binaries.zip -OutFile $env:RUNNER_TEMP\pg.zip
+          Expand-Archive $env:RUNNER_TEMP\pg.zip -DestinationPath C:\pg18-unpack
+          Move-Item C:\pg18-unpack\pgsql C:\pg18
+      - name: Start PostgreSQL
+        run: |
+          & C:\pg18\bin\initdb.exe -D C:\pgdata -U keystone -E UTF8 --locale=C --auth=trust
+          if ($LASTEXITCODE -ne 0) { throw "initdb failed" }
+          & C:\pg18\bin\pg_ctl.exe start -D C:\pgdata -o "-p 5433 -c listen_addresses=127.0.0.1" -l C:\pgdata\server.log -w
+          if ($LASTEXITCODE -ne 0) { Get-Content C:\pgdata\server.log; throw "pg_ctl start failed" }
+          & C:\pg18\bin\createdb.exe -h 127.0.0.1 -p 5433 -U keystone keystone_test
+          if ($LASTEXITCODE -ne 0) { throw "createdb failed" }
+      - name: Install toolchain from rust-toolchain.toml
+        working-directory: desktop
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop
+          key: e2e-windows
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        id: driver-cache
+        with:
+          path: ~/.cargo/bin/tauri-driver.exe
+          key: tauri-driver-2.1.0-${{ runner.os }}
+      - name: Install tauri-driver
+        if: steps.driver-cache.outputs.cache-hit != 'true'
+        run: cargo install tauri-driver --locked --version 2.1.0
+      # msedgedriver must match the WebView2 runtime the app will load (the Evergreen
+      # runtime, normally the same build as the preinstalled Edge).
+      - name: Install msedgedriver matching WebView2
+        run: |
+          $clients = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients'
+          $guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $webview = (Get-ItemProperty "$clients\$guid" -ErrorAction SilentlyContinue).pv
+          if (-not $webview) {
+            Write-Host "WebView2 runtime not found, installing the Evergreen runtime"
+            Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $env:RUNNER_TEMP\wv2.exe
+            Start-Process $env:RUNNER_TEMP\wv2.exe -ArgumentList '/silent','/install' -Wait
+            $webview = (Get-ItemProperty "$clients\$guid").pv
+          }
+          Write-Host "WebView2 runtime $webview"
+          $dir = Join-Path $env:RUNNER_TEMP edgedriver
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP edgedriver.zip
+          try {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://msedgedriver.microsoft.com/$webview/edgedriver_win64.zip" -OutFile $zip
+          } catch {
+            # No exact build: the latest driver of the same major version.
+            $major = $webview.Split('.')[0]
+            $latest = (Invoke-WebRequest -UseBasicParsing -Uri "https://msedgedriver.microsoft.com/LATEST_RELEASE_${major}_WINDOWS").Content
+            $latest = ($latest -replace '[^0-9.]', '')
+            Write-Host "driver $webview not published, using $latest"
+            Invoke-WebRequest -UseBasicParsing -Uri "https://msedgedriver.microsoft.com/$latest/edgedriver_win64.zip" -OutFile $zip
+          }
+          Expand-Archive $zip -DestinationPath $dir -Force
+          & "$dir\msedgedriver.exe" --version
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          extensions: pgsql, pdo_pgsql, mbstring, intl, fileinfo, openssl, curl, gd, zip, bcmath, sockets, xml, dom, simplexml, xmlreader, xmlwriter, ctype, iconv, sodium
+          coverage: none
+      - run: npm ci
+      - name: Prepare the server (migrate, seed, demo data)
+        working-directory: backend
+        run: |
+          composer install --no-interaction --prefer-dist --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item .env.example .env
+          php artisan key:generate --force
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          php artisan migrate --force --seed
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          composer openapi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $env:E2E_BACKEND_DIR = $PWD.Path
+          $env:E2E_STATE = "$env:RUNNER_TEMP\e2e-state.json"
+          php ..\desktop\e2e\seed\seed.php
+      - run: npm run gen:api --workspace frontend
+      - name: Build the desktop app (debug profile, no bundle)
+        working-directory: desktop
+        run: npm run tauri -- build --debug --no-bundle
+      - name: Diagnose a bare app launch (stderr, exit code, devtools port)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          $env:KEYSTONE_DEV_ALLOW_HTTP = '1'
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+          $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP wv2-data
+          $p = Start-Process -FilePath $env:E2E_APP_BIN -PassThru -RedirectStandardOutput app.out -RedirectStandardError app.err
+          Start-Sleep -Seconds 20
+          Write-Host "exited: $($p.HasExited) code: $(if ($p.HasExited) { $p.ExitCode })"
+          try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9222/json/version).Content } catch { Write-Host "devtools: $_" }
+          Write-Host "--- stdout"; Get-Content app.out -ErrorAction SilentlyContinue
+          Write-Host "--- stderr"; Get-Content app.err -ErrorAction SilentlyContinue
+          Write-Host "--- policies"
+          foreach ($k in 'HKLM:SOFTWAREPoliciesMicrosoftEdge','HKLM:SOFTWAREPoliciesMicrosoftEdgeWebView','HKCU:SOFTWAREPoliciesMicrosoftEdge') { if (Test-Path $k) { Write-Host $k; Get-ItemProperty $k | Format-List | Out-String | Write-Host } }
+          Write-Host "--- webview2 command lines"
+          Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Select-Object -First 2 | ForEach-Object { Write-Host $_.CommandLine }
+          Write-Host "--- listening"
+          netstat -ano | Select-String LISTENING | Select-String '127.0.0.1|[::1]' | ForEach-Object { Write-Host $_.Line }
+          Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Measure-Object | ForEach-Object { Write-Host "webview2 processes: $($_.Count)" }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        env:
+          E2E_APP_BIN: ${{ github.workspace }}\desktop\target\debug\keystone-desktop.exe
+      - name: Run the scenarios
+        working-directory: desktop
+        timeout-minutes: 8
+        run: node --test --test-concurrency=1 --test-reporter=tap --test-force-exit --test-timeout=420000 "e2e/*.e2e.mjs"
+        env:
+          E2E_BACKEND_DIR: ${{ github.workspace }}\backend
+          E2E_STATE: ${{ runner.temp }}\e2e-state.json
+          E2E_APP_BIN: ${{ github.workspace }}\desktop\target\debug\keystone-desktop.exe
+      - name: Collect the logs
+        if: failure()
+        run: |
+          New-Item -ItemType Directory -Force e2e-logs | Out-Null
+          Copy-Item backend\storage\logs\*.log e2e-logs -ErrorAction SilentlyContinue
+          Copy-Item C:\pgdata\server.log e2e-logs -ErrorAction SilentlyContinue
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-e2e-windows-logs
           path: e2e-logs
           retention-days: 3
           if-no-files-found: ignore
