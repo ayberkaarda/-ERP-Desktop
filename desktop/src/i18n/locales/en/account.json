@@ -126,6 +126,7 @@
     }
   },
   "signOutNotice": {
+    "waiting": "Signing out, waiting for the server…",
     "body": "You are signed out on this device, but the server session could not be ended. Sign this device out from the security page.",
     "openSecurity": "Open the security page",
     "dismiss": "Dismiss"

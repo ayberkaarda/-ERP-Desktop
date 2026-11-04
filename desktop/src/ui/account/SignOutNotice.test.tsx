@@ -2,7 +2,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { fail, type CommandHandler } from '../../test/fakeBridge'
+import { deferred, fail, type CommandHandler } from '../../test/fakeBridge'
 import { harness, renderApp, renderGate, useTurkish } from './testing'
 
 beforeEach(useTurkish)
@@ -131,5 +131,23 @@ describe('SignOutNotice', () => {
     })
     expect(router.state.location.pathname).toBe('/password/change')
     expect(screen.queryByTestId('sign-out-notice')).not.toBeInTheDocument()
+  })
+})
+
+describe('SignOutNotice while the server is slow', () => {
+  it('says it is waiting only when the sign-out takes a moment', async () => {
+    const gate = deferred<unknown>()
+    const h = harness({ auth_sign_out: () => gate.promise })
+    renderGate(h)
+    await screen.findByText('web app')
+    const pending = h.platform.session.logout()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(screen.queryByTestId('sign-out-waiting')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('sign-out-waiting')).toHaveTextContent('Çıkış yapılıyor')
+    gate.resolve({ status: 'done', server_revoked: true })
+    await act(() => pending)
+    await waitFor(() => {
+      expect(screen.queryByTestId('sign-out-waiting')).not.toBeInTheDocument()
+    })
   })
 })

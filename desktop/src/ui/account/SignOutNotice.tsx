@@ -15,21 +15,52 @@ import { ErrorLine } from './GateFrame'
 import type { AccountServices } from './services'
 
 const TARGET: ExternalTarget = 'security'
+const WAIT_NOTICE_MS = 700
 
 export function SignOutNotice({ services }: { services: AccountServices }) {
   const td = useTd()
   const [shown, setShown] = useState(false)
   const [failure, setFailure] = useState<{ reason: unknown } | null>(null)
+  const [waiting, setWaiting] = useState(false)
 
   useEffect(() => {
     const session = services.platform?.session
     if (!session) return undefined
-    return session.onSignedOut(({ serverRevoked }) => {
+    const offSignedOut = session.onSignedOut(({ serverRevoked }) => {
       setFailure(null)
       setShown(!serverRevoked)
     })
+    // The shell may wait a few seconds for the server: say so, but only when
+    // it is not instant, so a quick sign-out does not flash a message.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const offSigningOut = session.onSigningOut((busy) => {
+      clearTimeout(timer)
+      if (busy) {
+        timer = setTimeout(() => {
+          setWaiting(true)
+        }, WAIT_NOTICE_MS)
+      } else {
+        setWaiting(false)
+      }
+    })
+    return () => {
+      clearTimeout(timer)
+      offSignedOut()
+      offSigningOut()
+    }
   }, [services])
 
+  if (waiting) {
+    return (
+      <div
+        role="status"
+        data-testid="sign-out-waiting"
+        className="fixed inset-x-4 bottom-4 z-50 mx-auto max-w-lg rounded-md border border-border bg-background p-4 text-sm shadow-lg"
+      >
+        {td('account.signOutNotice.waiting')}
+      </div>
+    )
+  }
   if (!shown) return null
 
   async function openSecurity() {
