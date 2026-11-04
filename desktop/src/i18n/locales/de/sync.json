@@ -64,7 +64,7 @@
       "quarantined": "In Quarantäne"
     },
     "keep": "Änderung behalten",
-    "unnumbered": "(ohne Nummer)",
+    "unnumbered": "ohne Nummer",
     "rejectedHint": "Der Server hat diese Änderung nicht angenommen; ein erneuter Versuch ohne Korrektur führt zum selben Ergebnis.",
     "rejectedEdit": "Öffnen und korrigieren Sie den Datensatz, dann verwerfen Sie diese Änderung.",
     "rejectedDiscard": "Verwerfen Sie diese Änderung und erfassen Sie den Datensatz mit korrekten Angaben neu.",

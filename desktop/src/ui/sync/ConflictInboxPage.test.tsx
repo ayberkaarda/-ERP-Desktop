@@ -200,7 +200,7 @@ describe('version conflict of an update', () => {
     const notes = within(card(conflict)).getByTestId('conflict-field-notes')
     expect(notes).toHaveTextContent('yerel not')
     expect(notes).toHaveTextContent('sunucu notu')
-    expect(within(card(conflict)).getByTestId('conflict-field-valid_until')).toHaveTextContent('2026-12-01')
+    expect(within(card(conflict)).getByTestId('conflict-field-valid_until')).toHaveTextContent('01.12.2026')
     expect(shownChoices(conflict)).toEqual(['keep_mine', 'take_server', 'merge'])
   })
 
@@ -457,7 +457,7 @@ describe('a readable version conflict', () => {
   it('names the record and explains the conflict in the inbox words', async () => {
     const conflict = noisy()
     await inbox([conflict])
-    expect(within(card(conflict)).getByRole('heading')).toHaveTextContent('Satış teklifi · (numarasız) · Ankara Gıda Ltd.')
+    expect(within(card(conflict)).getByRole('heading')).toHaveTextContent('Satış teklifi · numarasız · Ankara Gıda Ltd.')
     expect(card(conflict)).not.toHaveTextContent(conflict.id)
     expect(card(conflict)).toHaveTextContent('Bu kayıt siz çevrimdışıyken sunucuda da değişti. Hangi değerin kalacağını seçin.')
     expect(card(conflict)).not.toHaveTextContent('Yenileyip tekrar deneyin')
@@ -524,3 +524,4 @@ describe('a merge never sends what the card hides', () => {
     expect(within(card(conflict)).getByTestId('conflict-choice-take_server')).toBeEnabled()
   })
 })
+

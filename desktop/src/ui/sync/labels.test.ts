@@ -14,13 +14,13 @@ async function text(language = 'tr') {
 
 describe('record labels', () => {
   it('a party or an item is named by its name', () => {
-    expect(recordLabel('parties', { name: ' Ankara Gıda Ltd. ', code: 'P1' }, '(numarasız)')).toBe('Ankara Gıda Ltd.')
+    expect(recordLabel('parties', { name: ' Ankara Gıda Ltd. ', code: 'P1' }, 'numarasız')).toBe('Ankara Gıda Ltd.')
   })
 
   it('a document is its number with the party, or unnumbered with the party', () => {
-    expect(recordLabel('sales-quotes', { number: 'QUO-1', party_name: 'Acme' }, '(numarasız)')).toBe('QUO-1 · Acme')
-    expect(recordLabel('sales-quotes', { number: null, party_name: 'Acme' }, '(numarasız)')).toBe('(numarasız) · Acme')
-    expect(recordLabel('sales-orders', { party: { name: 'Beta' } }, '(numarasız)')).toBe('(numarasız) · Beta')
+    expect(recordLabel('sales-quotes', { number: 'QUO-1', party_name: 'Acme' }, 'numarasız')).toBe('QUO-1 · Acme')
+    expect(recordLabel('sales-quotes', { number: null, party_name: 'Acme' }, 'numarasız')).toBe('numarasız · Acme')
+    expect(recordLabel('sales-orders', { party: { name: 'Beta' } }, 'numarasız')).toBe('numarasız · Beta')
   })
 
   it('falls back to the code, else to nothing', () => {

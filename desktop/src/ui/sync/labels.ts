@@ -1,5 +1,5 @@
 // Readable names for the sync screens: a resource's localized name, a
-// record's label (name, or document number / "(unnumbered)" with the party,
+// record's label (name, or document number / "unnumbered" with the party,
 // as the web lists show them), a field's localized label and the fields of a
 // version conflict worth asking about.
 
@@ -210,7 +210,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 /**
  * A record's label from a row or a draft payload: its name, else its document
- * number (or "(unnumbered)" for a document) with the party, else its code.
+ * number (or "unnumbered" for a document) with the party, else its code.
  * `null` when the row says nothing a person would recognise.
  */
 export function recordLabel(
