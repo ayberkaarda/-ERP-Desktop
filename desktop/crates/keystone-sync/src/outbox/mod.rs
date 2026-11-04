@@ -51,8 +51,10 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     CREATE INDEX outbox_request_keys_entry ON outbox_request_keys(entry_key);",
 }, Migration {
     id: 103, module: "outbox", name: "settled_at",
-    // NULL (rows from before this migration) counts as recent.
-    sql: "ALTER TABLE outbox_settled ADD COLUMN settled_at TEXT;",
+    // Rows from before this migration get the migration time, so their edges
+    // expire within the retention window too.
+    sql: "ALTER TABLE outbox_settled ADD COLUMN settled_at TEXT;
+    UPDATE outbox_settled SET settled_at = strftime('%Y-%m-%dT%H:%M:%fZ','now');",
 }];
 
 /// How long a request key answers repeats: the server's
@@ -304,6 +306,12 @@ fn find_request(conn: &Connection, key: &RequestKey) -> Result<Option<RequestRec
             .map(|error| serde_json::from_str(&error))
             .transpose()?,
     }))
+}
+
+/// An edge is dropped one day before the server forgets the key: `settled_at`
+/// is taken after the server stored the result, and clocks differ.
+fn edge_expiry() -> String {
+    format!("-{} days", REQUEST_KEY_RETENTION_DAYS - 1)
 }
 
 fn retention_limit() -> String {
@@ -698,7 +706,7 @@ impl OutboxQueue for Outbox {
                 "SELECT key FROM outbox_settled WHERE success=1 AND settled_at IS NOT NULL
                  AND settled_at < strftime('%Y-%m-%dT%H:%M:%fZ','now',?1)",
             )?;
-            for key in stmt.query_map([retention_limit()], |r| r.get::<_, String>(0))? {
+            for key in stmt.query_map([edge_expiry()], |r| r.get::<_, String>(0))? {
                 let key = Uuid::parse_str(&key?).map_err(|_| invalid("invalid settled key"))?;
                 expired.insert(key);
             }

@@ -544,7 +544,11 @@ fn rejected_entry_retry_preserves_body_and_discard_blocks_children() {
 /// recent one still is.
 #[test]
 fn depends_on_older_than_the_server_retention_is_dropped() {
-    for (age, kept) in [("-8 days", false), ("-6 days", true)] {
+    for (age, kept) in [
+        ("-8 days", false),
+        ("-145 hours", false),
+        ("-143 hours", true),
+    ] {
         let (_dir, store, q) = setup();
         let parent = q
             .enqueue(draft(MutationOp::Create, Uuid::now_v7(), json!({})))
@@ -574,4 +578,37 @@ fn depends_on_older_than_the_server_retention_is_dropped() {
         let listed = q.list().unwrap();
         assert_eq!(listed[0].mutation.depends_on, Some(vec![parent]));
     }
+}
+
+/// Rows settled before migration 103 have no time; the migration stamps them
+/// so their edges expire too.
+#[test]
+fn settled_rows_from_before_the_migration_get_a_time() {
+    use keystone_sync::store::{Migration, migrations};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("old.db");
+    let key = DbKey::from_bytes([3; 32]);
+    let full = migrations::registry();
+    let before: Vec<&Migration> = full.iter().copied().filter(|m| m.id != 103).collect();
+    assert_eq!(full.len(), before.len() + 1);
+    {
+        let store = Store::open_with_migrations(&path, &key, &before).unwrap();
+        store
+            .write(|tx| {
+                tx.execute("INSERT INTO outbox_settled(key,success) VALUES ('k',1)", [])?;
+                Ok(())
+            })
+            .unwrap();
+    }
+    let store = Store::open(&path, &key).unwrap();
+    let stamped: bool = store
+        .read(|c| {
+            Ok(c.query_row(
+                "SELECT settled_at IS NOT NULL FROM outbox_settled WHERE key='k'",
+                [],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap();
+    assert!(stamped);
 }
