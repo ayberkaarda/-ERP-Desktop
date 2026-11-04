@@ -21,6 +21,7 @@ import {
   type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -29,6 +30,7 @@ import { EmptyState } from '../EmptyState'
 import { DataTablePagination } from './DataTablePagination'
 import { DataTableToolbar } from './DataTableToolbar'
 import { updateListQuery, type ListQueryState } from './listQuery'
+import { useDraftRows } from './useDraftRows'
 import { useSavedView } from './useSavedView'
 
 declare module '@tanstack/react-table' {
@@ -88,6 +90,8 @@ function resolve<S>(updater: Updater<S>, prev: S): S {
   return typeof updater === 'function' ? (updater as (old: S) => S)(prev) : updater
 }
 
+const SELECT_COLUMN = '__select'
+
 const ALIGN = { left: 'text-left', right: 'text-right', center: 'text-center' } as const
 
 export function DataTable<T>({
@@ -120,6 +124,7 @@ export function DataTable<T>({
   const scrollRef = useRef<HTMLDivElement>(null)
   const focusPending = useRef(false)
   const hintId = useId()
+  const drafts = useDraftRows()
 
   // A new result set (search/filters) invalidates the selection; paging keeps it.
   const scope = JSON.stringify([query.filters, query.q])
@@ -132,7 +137,7 @@ export function DataTable<T>({
   const allColumns = useMemo<DataTableColumn<T>[]>(() => {
     if (!selectable) return columns
     const select: DataTableColumn<T> = {
-      id: '__select',
+      id: SELECT_COLUMN,
       size: 40,
       minSize: 40,
       enableHiding: false,
@@ -336,43 +341,61 @@ export function DataTable<T>({
   } else {
     body = (
       <>
-        {visible.map(({ row, index, gap }) => (
-          <Fragment key={row.id}>
-            {gap > 0 && (
-              <tr aria-hidden="true">
-                <td colSpan={columnCount} style={{ height: gap, padding: 0 }} />
-              </tr>
-            )}
-            <tr
-              data-row-index={index}
-              tabIndex={index === active ? 0 : -1}
-              aria-rowindex={rowOffset + index + 2}
-              aria-selected={selectable ? row.getIsSelected() : undefined}
-              onClick={(e) => onRowClick(e, index)}
-              onFocus={() => setActiveIndex(index)}
-              className={cn(
-                'group outline-none',
-                onRowActivate && 'cursor-pointer',
-                row.getIsSelected() ? 'bg-primary-soft/60' : 'hover:bg-surface-sunken',
-                'focus-visible:bg-primary-soft/40 focus-visible:shadow-[inset_2px_0_0_var(--color-ring)]',
+        {visible.map(({ row, index, gap }) => {
+          const cells = row.getVisibleCells()
+          // A row with an unsent change is marked in its first data cell (not the checkbox).
+          const marked = drafts.has(row.id)
+            ? cells.find((cell) => cell.column.id !== SELECT_COLUMN)
+            : undefined
+          return (
+            <Fragment key={row.id}>
+              {gap > 0 && (
+                <tr aria-hidden="true">
+                  <td colSpan={columnCount} style={{ height: gap, padding: 0 }} />
+                </tr>
               )}
-              style={{ height: rowHeight }}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <td
-                  key={cell.id}
-                  className={cn(
-                    'truncate border-b border-border px-3',
-                    ALIGN[cell.column.columnDef.meta?.align ?? 'left'],
-                  )}
-                  style={fixedLayout ? { width: cell.column.getSize() } : undefined}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          </Fragment>
-        ))}
+              <tr
+                data-row-index={index}
+                tabIndex={index === active ? 0 : -1}
+                aria-rowindex={rowOffset + index + 2}
+                aria-selected={selectable ? row.getIsSelected() : undefined}
+                data-draft={marked ? true : undefined}
+                onClick={(e) => onRowClick(e, index)}
+                onFocus={() => setActiveIndex(index)}
+                className={cn(
+                  'group outline-none',
+                  onRowActivate && 'cursor-pointer',
+                  row.getIsSelected() ? 'bg-primary-soft/60' : 'hover:bg-surface-sunken',
+                  'focus-visible:bg-primary-soft/40 focus-visible:shadow-[inset_2px_0_0_var(--color-ring)]',
+                )}
+                style={{ height: rowHeight }}
+              >
+                {cells.map((cell) => (
+                  <td
+                    key={cell.id}
+                    className={cn(
+                      'truncate border-b border-border px-3',
+                      ALIGN[cell.column.columnDef.meta?.align ?? 'left'],
+                    )}
+                    style={fixedLayout ? { width: cell.column.getSize() } : undefined}
+                  >
+                    {cell === marked && (
+                      <Badge
+                        tone="warning"
+                        data-testid="row-draft"
+                        title={t('dataTable.draftHint')}
+                        className="mr-1.5 align-middle"
+                      >
+                        {t('dataTable.draft')}
+                      </Badge>
+                    )}
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            </Fragment>
+          )
+        })}
         {padBottom > 0 && (
           <tr aria-hidden="true">
             <td colSpan={columnCount} style={{ height: padBottom, padding: 0 }} />

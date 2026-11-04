@@ -21,6 +21,11 @@ export interface AppExtensions {
   HeaderExtras?: ComponentType
   /** Availability of a server-only action; absent means always available. */
   useOnlineOnly?: (action: string) => OnlineOnlyState
+  /**
+   * Ids of list rows shown with a change made on this device and not sent yet; list tables mark
+   * those rows. Absent means no row is ever marked.
+   */
+  useDraftRows?: () => ReadonlySet<string>
 }
 
 export const appExtensions: AppExtensions = { routes: [], publicRoutes: [] }
