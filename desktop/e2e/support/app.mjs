@@ -31,6 +31,8 @@ export async function launch() {
     XDG_DATA_HOME: join(dataDir, 'data'),
     XDG_CACHE_HOME: join(dataDir, 'cache'),
     KEYSTONE_DEV_ALLOW_HTTP: '1',
+    // Chromium ignores remote debugging on the default profile folder, and WebDriver needs it.
+    ...(process.platform === 'win32' ? { WEBVIEW2_USER_DATA_FOLDER: join(dataDir, 'webview2') } : {}),
   })
   let session
   try {
