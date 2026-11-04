@@ -106,11 +106,31 @@ describe('desktop e2e: sign-in, offline drafts, sync', () => {
   it('3. the network is back: the drafts are pushed and the server has them', STEP, async () => {
     await app.proxy.restore()
     await app.waitForState('idle')
-    await waitFor(async () => (await app.session.invoke('outbox_list')).length === 0, {
-      timeout: 90_000,
-      interval: 1_000,
-      message: 'the outbox to drain',
+    const report = async () =>
+      JSON.stringify({
+        status: await app.status(),
+        outbox: (await app.session.invoke('outbox_list')).map(({ resource, op, state, attempts, last_error, rejected_fields }) => ({
+          resource,
+          op,
+          state,
+          attempts,
+          last_error,
+          rejected_fields,
+        })),
+      })
+    const settled = await waitFor(
+      async () => {
+        const entries = await app.session.invoke('outbox_list')
+        return entries.every((entry) => entry.state !== 'pending' && entry.state !== 'in_flight')
+      },
+      { timeout: 90_000, interval: 1_000, message: 'the outbox to be pushed' },
+    ).catch(async (error) => {
+      error.message += `
+${await report()}`
+      throw error
     })
+    assert.ok(settled)
+    assert.deepEqual((await app.session.invoke('outbox_list')).length, 0, await report())
     const order = await web('GET', `/sales-orders/${drafts.order}`)
     assert.equal(order.status, 200, JSON.stringify(order.json))
     assert.equal(order.json.data.notes, 'offline order')

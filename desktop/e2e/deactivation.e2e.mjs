@@ -36,8 +36,13 @@ describe('desktop e2e: deactivated user', () => {
     })
 
     // No local copy is served any more.
-    const answer = await session.api('GET', '/api/v1/parties')
-    const served = answer.status === 200 && JSON.stringify(answer.json).includes(state.party.name)
-    assert.equal(served, false, `local data still served: ${answer.status} ${JSON.stringify(answer.json).slice(0, 200)}`)
+    const served = await session.api('GET', '/api/v1/parties').then(
+      (answer) => answer.status === 200 && JSON.stringify(answer.json).includes(state.party.name),
+      (error) => {
+        assert.match(error.code ?? '', /UNAUTHENTICATED|USER_DEACTIVATED|OFFLINE_UNAVAILABLE/)
+        return false
+      },
+    )
+    assert.equal(served, false, 'local data is still served')
   })
 })
