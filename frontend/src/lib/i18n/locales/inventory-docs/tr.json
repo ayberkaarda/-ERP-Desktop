@@ -126,7 +126,8 @@
     "notFound": "{{code}} için stok kartı bulunamadı.",
     "added": "{{item}} eklendi.",
     "incremented": "{{item}} miktarı artırıldı.",
-    "failed": "Barkod aranamadı."
+    "failed": "Barkod aranamadı.",
+    "offline": "Çevrimdışı: {{code}} yerel kopyada stok kodu olarak bulunamadı; barkodlar yalnızca bağlantı varken aranır."
   },
   "totals": {
     "lines": "{{count}} satır",

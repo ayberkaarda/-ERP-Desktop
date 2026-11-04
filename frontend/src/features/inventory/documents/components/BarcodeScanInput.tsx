@@ -3,8 +3,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { FieldShell } from '@/components/shared/form'
 import { Input } from '@/components/ui/input'
-import { platform } from '@/platform'
-import { lookupsApi, type BarcodeHit } from '../api/client'
+import { isApiError, platform } from '@/platform'
+import { BARCODE_OFFLINE, lookupsApi, type BarcodeHit } from '../api/client'
 
 interface BarcodeScanInputProps {
   onHit: (hit: BarcodeHit) => void
@@ -32,8 +32,13 @@ export function BarcodeScanInput({ onHit, disabled = false }: BarcodeScanInputPr
       } else {
         platform.notify.warning(t('scan.notFound', { code: scanned }))
       }
-    } catch {
-      platform.notify.error(t('scan.failed'))
+    } catch (error) {
+      // Offline only the local copy is searched, and it holds no barcodes: not "not found".
+      if (isApiError(error) && error.code === BARCODE_OFFLINE) {
+        platform.notify.warning(t('scan.offline', { code: scanned }))
+      } else {
+        platform.notify.error(t('scan.failed'))
+      }
     } finally {
       setBusy(false)
     }

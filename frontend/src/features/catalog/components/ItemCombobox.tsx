@@ -8,8 +8,7 @@ import {
   type FieldControlProps,
   type LoadedOptions,
 } from '@/components/shared/form'
-import { useIntlLocale } from '@/lib/datetime/locale'
-import { isApiError } from '@/platform'
+import { isPartialSearch } from '@/lib/sync/partialSearch'
 import { itemsApi } from '../api/client'
 import { catalogKeys } from '../api/keys'
 import { useUnits } from '../hooks/queries'
@@ -32,43 +31,15 @@ export interface ItemComboboxProps extends Partial<FieldControlProps> {
   'aria-label'?: string
 }
 
-/**
- * A runtime with an offline mode refuses a search it cannot answer completely (items are also
- * found by barcode and variant SKU, which only the server has): 503 OFFLINE_UNAVAILABLE.
- */
-function isOfflineUnavailable(error: unknown) {
-  return isApiError(error) && error.status === 503 && error.code === 'OFFLINE_UNAVAILABLE'
-}
-
-/** How long the unfiltered page stands in for the server search before it is read again. */
-const OFFLINE_LIST_STALE_MS = 60_000
-
-/**
- * `promise`, or the abort reason as soon as `signal` aborts. The shared page read itself goes
- * on (other pickers may wait for it); only this caller stops waiting.
- */
-function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) return Promise.reject(signal.reason as Error)
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(signal.reason as Error)
-    signal.addEventListener('abort', onAbort, { once: true })
-    promise
-      .finally(() => {
-        signal.removeEventListener('abort', onAbort)
-      })
-      .then(resolve, reject)
-  })
-}
-
 function baseUnitCode(item: Item, units: readonly Unit[]) {
   return item.base_unit?.code ?? units.find((u) => u.id === item.base_unit_id)?.code ?? '—'
 }
 
 /**
  * Async item picker for documents and price lists. Searches code, name, SKU and barcode
- * (server `q`); each option shows the base unit and the default tax code id. When that search
- * is not available offline, the rows of the unfiltered page are searched by code and name
- * instead, with a notice that says so.
+ * (server `q`); each option shows the base unit and the default tax code id. Offline, a runtime
+ * with a local copy searches code and name only and marks its answer as partial
+ * (`isPartialSearch`): the options then come with a notice that matches may be missing.
  */
 export function ItemCombobox({
   value,
@@ -79,9 +50,9 @@ export function ItemCombobox({
   ...props
 }: ItemComboboxProps) {
   const { t } = useTranslation('catalog')
+  const { t: tCommon } = useTranslation('common')
   const { data: units = [] } = useUnits()
   const queryClient = useQueryClient()
-  const locale = useIntlLocale()
   // Rows of the latest search: a pick returns exactly the record the user saw.
   const lastResults = useRef(new Map<string, Item>())
   // A picked row seeds the detail cache, so labelling it needs no extra request.
@@ -110,49 +81,13 @@ export function ItemCombobox({
     if (!includeInactive) filters.is_active = 'true'
     if (type) filters.type = type
     // Spaces alone are no search: such a text lists like an empty box.
-    const search = q.trim()
-    const query = { ...DEFAULT_LIST_QUERY, perPage: 20, q: search, filters }
-    // The same page without the text: what an empty box lists.
-    const unfiltered = { ...query, q: '' }
-    const unfilteredKey = catalogKeys.itemList(unfiltered)
-    let rows: Item[]
-    let notice: string | undefined
-    try {
-      const res = await itemsApi.list(query, signal)
-      rows = res.data
-      // Kept only for the offline fallback below.
-      if (!search) queryClient.setQueryData(unfilteredKey, res)
-    } catch (error) {
-      if (!search || !isOfflineUnavailable(error)) throw error
-      // Offline the text search is refused, the unfiltered page is still answered. Searching
-      // only its rows is a partial answer, so the notice says so.
-      // Known limit: while a cached page is fresh, a 503 OFFLINE_UNAVAILABLE caused by another
-      // param (e.g. `filter[type]`) is also answered from that page under the same notice.
-      const page = await abortable(
-        queryClient.query({
-          queryKey: unfilteredKey,
-          queryFn: ({ signal: s }) => itemsApi.list(unfiltered, s),
-          staleTime: OFFLINE_LIST_STALE_MS,
-          // A refusal now is answered with the load error; the next keystroke tries again.
-          retry: false,
-        }),
-        signal,
-      ).catch((reason: unknown) => {
-        throw signal.aborted ? reason : error
-      })
-      const needle = search.toLocaleLowerCase(locale)
-      rows = page.data.filter(
-        (item) =>
-          item.code.toLocaleLowerCase(locale).includes(needle) ||
-          item.name.toLocaleLowerCase(locale).includes(needle),
-      )
-      notice = t('itemCombobox.offlineSearch')
-    }
+    const query = { ...DEFAULT_LIST_QUERY, perPage: 20, q: q.trim(), filters }
+    const res = await itemsApi.list(query, signal)
     // A superseded search must not replace the rows of the newer one: a pick reads them.
     signal.throwIfAborted()
-    lastResults.current = new Map(rows.map((item) => [item.id, item]))
-    const options = rows.map(toOption)
-    return notice ? { options, notice } : options
+    lastResults.current = new Map(res.data.map((item) => [item.id, item]))
+    const options = res.data.map(toOption)
+    return isPartialSearch(res) ? { options, notice: tCommon('states.partialSearch') } : options
   }
 
   return (
