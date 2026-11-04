@@ -42,6 +42,7 @@ export function fakeOfflineMeta() {
   const listeners = new Set<(path: string) => void>()
   const value: OfflineMetaSource = {
     get: (path) => entries.get(path),
+    paths: () => [...entries.keys()],
     subscribe: (listener) => {
       listeners.add(listener)
       return () => {

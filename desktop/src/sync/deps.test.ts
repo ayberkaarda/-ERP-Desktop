@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { flush } from '../test/fakeBridge'
 import { createFreshnessTracker } from './freshness'
+import { pageScope } from './pageResources'
 import { syncDepsOf } from './deps'
 import { createSyncStore } from './store'
 import type { Platform } from '@/platform/types'
@@ -99,6 +100,7 @@ describe('syncDepsOf', () => {
     if (!deps.offlineMeta) throw new Error('no offline meta')
     const tracker = createFreshnessTracker(deps.offlineMeta)
     const stop = tracker.start()
+    tracker.show(pageScope('/parties'))
     await platform.http.get('/parties')
     expect(tracker.current()).toMatchObject({ stale: true, partial: false })
     stop()

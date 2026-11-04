@@ -13,6 +13,8 @@ export interface OfflineMeta {
 export interface OfflineMetaStore {
   /** Meta of the last local answer of `path` (API-relative, no query: `/parties`). */
   get(path: string): OfflineMeta | undefined
+  /** The paths that have a meta now. */
+  paths(): string[]
   /** `undefined` forgets the path (a network answer came). */
   record(path: string, meta: OfflineMeta | undefined): void
   clear(): void
@@ -33,6 +35,7 @@ export function createOfflineMetaStore(): OfflineMetaStore {
   }
   return {
     get: (path) => entries.get(path),
+    paths: () => [...entries.keys()],
     record: (path, meta) => {
       if (meta === undefined) {
         if (entries.delete(path)) changed([path])
