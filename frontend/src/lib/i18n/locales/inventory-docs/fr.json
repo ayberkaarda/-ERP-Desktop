@@ -126,7 +126,8 @@
     "notFound": "Aucun article trouvé pour {{code}}.",
     "added": "{{item}} ajouté.",
     "incremented": "Quantité de {{item}} augmentée.",
-    "failed": "Le code-barres n'a pas pu être recherché."
+    "failed": "Le code-barres n'a pas pu être recherché.",
+    "offline": "Hors ligne : {{code}} n’est pas un code article de la copie locale ; les codes-barres ne sont recherchés qu’en ligne."
   },
   "totals": {
     "lines": "{{count}} lignes",

@@ -111,8 +111,7 @@
   },
   "itemCombobox": {
     "details": "Unité : {{unit}} · Code de taxe : {{tax}}",
-    "noTax": "aucun",
-    "offlineSearch": "Hors ligne : seuls les articles chargés sont recherchés ; connectez-vous pour les codes-barres et les variantes."
+    "noTax": "aucun"
   },
   "attributes": {
     "empty": "Aucun attribut pour l’instant.",

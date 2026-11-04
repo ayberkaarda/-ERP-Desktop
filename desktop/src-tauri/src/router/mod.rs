@@ -84,6 +84,12 @@ pub enum LocalOutcome {
     /// A local answer in the Laravel envelope (data, draft or a refusal
     /// such as `DOCUMENT_LOCKED`), see [`envelope`].
     Answer(ApiResponseDto),
+    /// A local list answer that may miss rows the server would give: `q`
+    /// searched on a resource whose server also searches what the rows do
+    /// not carry (`search.server_also`), marked
+    /// `meta.offline.search_partial`. Online, the request goes to the server;
+    /// this answer stands in only offline or when the server is not reached.
+    PartialSearch(ApiResponseDto),
     /// The local copy cannot answer this request (a filter it does not
     /// index, a snapshot that was never fetched). Online, the request goes
     /// to the server; offline, it is `OFFLINE_UNAVAILABLE` with these

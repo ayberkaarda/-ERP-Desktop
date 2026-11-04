@@ -11,6 +11,14 @@ export interface OfflineMeta {
   /** Of a list page: ids of its rows that carry a queued draft, in page order. */
   draft_ids?: string[]
   unsupported_filters?: string[]
+  /** Sort, filter and search names the local answer applied, in request order. */
+  applied_filters?: string[]
+  /**
+   * Only `true` when present: `q` was searched in the local copy of a resource the server also
+   * searches elsewhere (item barcodes, variant SKUs), so matches may be missing. The web reads it
+   * from the body (`isPartialSearch`); not `partial`, which is the copy still downloading.
+   */
+  search_partial?: true
 }
 
 export interface OfflineMetaStore {

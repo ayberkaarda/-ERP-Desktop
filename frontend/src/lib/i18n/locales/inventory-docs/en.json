@@ -126,7 +126,8 @@
     "notFound": "No item found for {{code}}.",
     "added": "{{item}} added.",
     "incremented": "{{item}} quantity increased.",
-    "failed": "The barcode could not be looked up."
+    "failed": "The barcode could not be looked up.",
+    "offline": "Offline: {{code}} is not an item code in the local copy; barcodes are searched only when connected."
   },
   "totals": {
     "lines": "{{count}} lines",
