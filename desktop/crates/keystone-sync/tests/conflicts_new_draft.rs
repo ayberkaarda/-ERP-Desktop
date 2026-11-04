@@ -136,6 +136,10 @@ fn counts_become_the_lines_of_the_new_draft() {
     assert_eq!(lines[2], added);
     assert_eq!(draft.payload["doc_type"], "count");
     assert!(!draft.payload.contains_key("status"));
+    // The copy keeps the document's lines as its scope: no new snapshot of
+    // the whole warehouse on the server.
+    assert_eq!(draft.payload["freeze"], false);
+    assert!(!draft.payload.contains_key("item_ids"));
 
     let key = f.q.enqueue(draft).unwrap();
     assert_eq!(f.inbox.count().unwrap(), 0);
@@ -176,6 +180,38 @@ fn counts_of_a_line_the_server_lacks_are_refused_not_dropped() {
             .unwrap(),
         ResolutionAction::Discard
     );
+}
+
+#[test]
+fn an_update_of_a_count_keeps_its_scope_in_the_new_draft() {
+    let doc = Uuid::now_v7();
+    let f = locked(write(
+        MutationOp::Update,
+        None,
+        doc,
+        json!({"notes": "mine"}),
+    ));
+    let draft = new_draft(&f);
+    assert_eq!(draft.payload["freeze"], false);
+    assert_eq!(draft.payload["notes"], "mine");
+    assert_eq!(draft.payload["lines"].as_array().unwrap().len(), 2);
+    let key = f.q.enqueue(draft).unwrap();
+    let batch = f.q.next_batch(10).unwrap();
+    assert_eq!(batch[0].idempotency_key, key);
+    assert_eq!(batch[0].payload["freeze"], false);
+}
+
+#[test]
+fn only_a_count_document_copy_carries_freeze() {
+    let mut first = write(
+        MutationOp::Update,
+        None,
+        Uuid::now_v7(),
+        json!({"notes": "mine"}),
+    );
+    first.resource = ResourceName("sales-orders".into());
+    let f = locked(first);
+    assert!(!new_draft(&f).payload.contains_key("freeze"));
 }
 
 #[test]
