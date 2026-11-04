@@ -61,7 +61,9 @@
     "filterAll": "Tümü",
     "clearFilters": "Filtreleri temizle",
     "resizeColumn": "{{column}} sütun genişliği",
-    "keyboardHint": "Ok tuşlarıyla satırlar arasında gezinin; Enter açar, Boşluk seçer."
+    "keyboardHint": "Ok tuşlarıyla satırlar arasında gezinin; Enter açar, Boşluk seçer.",
+    "draft": "Gönderilmedi",
+    "draftHint": "Bu satırda bu cihazda yapılmış, sunucuya henüz gönderilmemiş bir değişiklik var."
   },
   "form": {
     "errorSummaryTitle": "Kayıt tamamlanamadı",
