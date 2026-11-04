@@ -1,5 +1,7 @@
 # Keystone masaüstü mimarisi (D3)
 
+İlgili: [THREAT-MODEL.md](THREAT-MODEL.md) (tehdit modeli, ayrıca [THREAT-MODEL.tr.md](THREAT-MODEL.tr.md)) ve [PERFORMANCE.md](PERFORMANCE.md) ([PERFORMANCE.tr.md](PERFORMANCE.tr.md)).
+
 Bu not D3 sonundaki Tauri kabuğunu anlatır: webview'ın ne yapabildiği, isteklerin nerede cevaplandığı, sırların nerede durduğu ve bilinen sınırlar. Planın kendisi `desktop/PLAN.md`, sunucu sözleşmesi `docs/SYNC-PROTOCOL.md` ve `contracts/` altındadır.
 
 ## Katmanlar
