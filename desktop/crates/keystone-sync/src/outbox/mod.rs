@@ -765,6 +765,7 @@ impl OutboxQueue for Outbox {
                 match result.status {
                     PushStatus::Applied | PushStatus::Duplicate => {
                         cancel(tx, result.idempotency_key, true)?;
+                        rebase_successors(tx, &entry.mutation, result.version)?;
                         outcome.applied += 1;
                         outcome.results.push(result.clone());
                     }
@@ -866,6 +867,64 @@ impl OutboxQueue for Outbox {
             )? as usize)
         })
     }
+}
+
+/// Writes of a row queued on the version an applied write was based on were
+/// made on top of that write (the user saw it laid over the row), so they
+/// are based on the version it produced, when the answer proves no one
+/// else wrote in between: the new version is the base plus one. Otherwise
+/// (merged over a newer row, no version) they keep their base and the
+/// server still sees every foreign change since; a conflict is never hidden.
+/// Moved writes of a new draft are all based on its created version and
+/// chain this way.
+///
+/// Assumes one writer per queue: `version == base + 1` proves no one else
+/// wrote in between, not that a successor was authored on top of this
+/// write. That follows from the queue: it holds this device's writes in
+/// the order they were made, each made with the earlier ones laid over the
+/// row, so every same-base successor (not only the next) moves on, and the
+/// next answer moves them on again.
+///
+/// Not rebased, on purpose:
+/// - a sent body (requeued after a send): it is immutable, the server may
+///   hold it under its key already;
+/// - resolutions, and successors of a conflict, rejection or quarantine:
+///   no `applied` answer here. After `keep_mine` the resolution is based on
+///   the conflict's `server_version`, so the successors' older base no
+///   longer matches and they meet the foreign versions in between (a stale
+///   base, possibly a conflict the user decides; never a hidden one);
+/// - a `duplicate` answer is the stored result: right while the server
+///   keeps the key. After the retention (`REQUEST_KEY_RETENTION_DAYS`) a
+///   resend runs again and its version is not base + 1 unless nothing else
+///   moved, so nothing is rebased wrongly; that expiry limit predates this.
+fn rebase_successors(tx: &Transaction<'_>, applied: &Mutation, version: Option<u64>) -> Result<()> {
+    let Some(base) = applied.base_version else {
+        return Ok(());
+    };
+    if applied.op == MutationOp::Delete || version != base.checked_add(1) {
+        return Ok(());
+    }
+    for entry in load(tx)? {
+        let mut mutation = entry.mutation;
+        if entry.sent
+            || entry.state != OutboxState::Pending
+            || mutation.resource != applied.resource
+            || mutation.id != applied.id
+            || mutation.resolution.is_some()
+            || mutation.base_version != Some(base)
+        {
+            continue;
+        }
+        mutation.base_version = version;
+        tx.execute(
+            "UPDATE outbox_entries SET mutation=?1 WHERE key=?2",
+            params![
+                serde_json::to_string(&mutation)?,
+                mutation.idempotency_key.to_string()
+            ],
+        )?;
+    }
+    Ok(())
 }
 
 pub fn changed_fields(op: MutationOp, payload: &Map<String, Value>) -> Vec<String> {
