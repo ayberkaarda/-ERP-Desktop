@@ -274,8 +274,11 @@ fn apply_next(f: &Fixture, version: u64) -> Mutation {
     sent
 }
 
-/// Locked document with an update, a count and two more writes queued
-/// later on it: the count keeps them from coalescing.
+/// Locked document with an update, a count and `last` queued later on it.
+/// The count was queued between the two writes, so `last` did not coalesce
+/// into the update when it was enqueued; saving as a new draft then folds
+/// the count into the create and moves the update and `last`, two writes,
+/// onto the new document.
 fn moved_chain(last: NewMutation) -> (Fixture, Uuid, Uuid, Uuid) {
     let doc = last.id;
     let f = locked_counts(doc);

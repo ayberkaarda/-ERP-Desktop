@@ -876,7 +876,27 @@ impl OutboxQueue for Outbox {
 /// (merged over a newer row, no version) they keep their base and the
 /// server still sees every foreign change since; a conflict is never hidden.
 /// Moved writes of a new draft are all based on its created version and
-/// chain this way. Only unsent bodies change; resolutions keep theirs.
+/// chain this way.
+///
+/// Assumes one writer per queue: `version == base + 1` proves no one else
+/// wrote in between, not that a successor was authored on top of this
+/// write. That follows from the queue: it holds this device's writes in
+/// the order they were made, each made with the earlier ones laid over the
+/// row, so every same-base successor (not only the next) moves on, and the
+/// next answer moves them on again.
+///
+/// Not rebased, on purpose:
+/// - a sent body (requeued after a send): it is immutable, the server may
+///   hold it under its key already;
+/// - resolutions, and successors of a conflict, rejection or quarantine:
+///   no `applied` answer here. After `keep_mine` the resolution is based on
+///   the conflict's `server_version`, so the successors' older base no
+///   longer matches and they meet the foreign versions in between (a stale
+///   base, possibly a conflict the user decides; never a hidden one);
+/// - a `duplicate` answer is the stored result: right while the server
+///   keeps the key. After the retention (`REQUEST_KEY_RETENTION_DAYS`) a
+///   resend runs again and its version is not base + 1 unless nothing else
+///   moved, so nothing is rebased wrongly; that expiry limit predates this.
 fn rebase_successors(tx: &Transaction<'_>, applied: &Mutation, version: Option<u64>) -> Result<()> {
     let Some(base) = applied.base_version else {
         return Ok(());

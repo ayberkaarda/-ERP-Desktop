@@ -679,3 +679,144 @@ fn a_write_based_on_another_version_is_not_rebased() {
         (stale, Some(2))
     );
 }
+
+fn approve(id: Uuid, note: &str) -> NewMutation {
+    let mut action = draft(MutationOp::Action, id, json!({ "note": note }));
+    action.action = Some("approve".into());
+    action
+}
+
+fn base_of(q: &Outbox, key: Uuid) -> Option<u64> {
+    q.list()
+        .unwrap()
+        .into_iter()
+        .find(|e| e.mutation.idempotency_key == key)
+        .unwrap()
+        .mutation
+        .base_version
+}
+
+#[test]
+fn every_same_base_successor_moves_on_and_chains_again() {
+    // One writer: both actions were made after the update, with it laid over
+    // the row. Both move on to 4; the second moves on again after the first.
+    let (_dir, _store, q) = setup();
+    let id = Uuid::now_v7();
+    q.enqueue(draft(MutationOp::Update, id, json!({"notes": "a"})))
+        .unwrap();
+    let second = q.enqueue(approve(id, "x")).unwrap();
+    let third = q.enqueue(approve(id, "y")).unwrap();
+    answer_next(&q, 4, false);
+    assert_eq!(
+        (base_of(&q, second), base_of(&q, third)),
+        (Some(4), Some(4))
+    );
+    answer_next(&q, 5, false);
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (third, Some(5))
+    );
+}
+
+#[test]
+fn a_duplicate_answer_rebases_from_the_stored_version() {
+    // While the server keeps the key, the replay is the first result: 3 + 1.
+    let (_dir, _store, q) = setup();
+    let (_, action) = update_then_action(&q);
+    let batch = q.next_batch(10).unwrap();
+    q.record_results(&[result(&batch[0], PushStatus::Duplicate)])
+        .unwrap();
+    assert_eq!(base_of(&q, action), Some(4));
+}
+
+#[test]
+fn successors_of_a_rejected_or_quarantined_write_keep_their_base() {
+    let (_dir, _store, q) = setup();
+    let (_, action) = update_then_action(&q);
+    let batch = q.next_batch(10).unwrap();
+    let mut rejected = result(&batch[0], PushStatus::Rejected);
+    rejected.version = None;
+    rejected.data = None;
+    rejected.error = Some(ApiError {
+        message: "no".into(),
+        code: ErrorCode::ValidationError,
+        fields: None,
+    });
+    q.record_results(&[rejected]).unwrap();
+    assert_eq!(base_of(&q, action), Some(3));
+
+    let (_dir, _store, q) = setup();
+    let (_, action) = update_then_action(&q);
+    for _ in 0..MAX_ATTEMPTS {
+        let batch = q.next_batch(10).unwrap();
+        q.transient_failure(batch[0].idempotency_key).unwrap();
+    }
+    assert_eq!(base_of(&q, action), Some(3));
+}
+
+#[test]
+fn successors_of_a_conflict_keep_their_base_after_keep_mine() {
+    // Limitation pinned: the resolution is based on the server's version 6,
+    // the action still on 3, so it meets the foreign versions 4 and 5 (a
+    // conflict the user decides, never a hidden one).
+    let (_dir, store, q) = setup();
+    let (update, action) = update_then_action(&q);
+    let m = q.next_batch(10).unwrap().remove(0);
+    let mut r = result(&m, PushStatus::Conflict);
+    r.version = None;
+    r.data = None;
+    r.conflict = Some(Conflict {
+        code: ConflictCode::VersionConflict,
+        message: None,
+        base_version: Some(3),
+        server_version: Some(6),
+        conflicting_fields: vec!["notes".into()],
+        server_data: Some(ResourceRow {
+            id: m.id,
+            version: Some(6),
+            fields: json!({"notes": "server"}).as_object().unwrap().clone(),
+        }),
+        candidates: None,
+        choices: allowed_choices(ConflictCode::VersionConflict).to_vec(),
+    });
+    q.record_results(&[r]).unwrap();
+    assert_eq!(base_of(&q, action), Some(3));
+    let inbox = ConflictStore::new(store);
+    let keystone_sync::conflicts::ResolutionAction::Enqueue(resolution) =
+        inbox.resolve(update, ConflictChoice::KeepMine).unwrap()
+    else {
+        panic!("keep_mine enqueues");
+    };
+    q.enqueue(resolution).unwrap();
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(batch[0].base_version, Some(6));
+    let mut applied = result(&batch[0], PushStatus::Applied);
+    applied.version = Some(7);
+    q.record_results(&[applied]).unwrap();
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (action, Some(3))
+    );
+}
+
+#[test]
+fn a_requeued_sent_successor_keeps_its_body() {
+    // Sent bodies are immutable: the server may hold it under its key.
+    // (The queue does not send a successor before its predecessor settles;
+    // the state is written raw.)
+    let (_dir, store, q) = setup();
+    let (_, action) = update_then_action(&q);
+    store
+        .write(|tx| {
+            tx.execute(
+                "UPDATE outbox_entries SET sent=1 WHERE key=?1",
+                [action.to_string()],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+    answer_next(&q, 4, false);
+    assert_eq!(base_of(&q, action), Some(3));
+}
