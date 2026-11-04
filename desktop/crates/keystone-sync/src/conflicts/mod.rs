@@ -385,6 +385,14 @@ pub(crate) fn complete_draft(tx: &Transaction<'_>, mutation: &mut Mutation) -> R
 /// refuses the whole choice, as for the conflicted write itself: queued on
 /// the new id it would only be rejected, and the count lost. Discard stays.
 /// The prerequisites a folded count brings must be live, as on enqueue.
+///
+/// A count of the document that was sent already refuses the choice too.
+/// The server may hold it under its key (applied) or not (its answer was
+/// lost), and only that answer tells: folded, it could be counted twice;
+/// left on the locked document, it would come back `DOCUMENT_LOCKED` once
+/// this conflict settles and could become a second new document. The queue
+/// never sends a later write of a row while an earlier one stands in
+/// conflict, so this guards a state the scheduler does not produce.
 fn fold_counts(
     tx: &Transaction<'_>,
     key: Uuid,
@@ -395,8 +403,7 @@ fn fold_counts(
     let mut folded: Vec<Mutation> = Vec::new();
     for entry in &all {
         let later = &entry.mutation;
-        if entry.sent
-            || entry.state != crate::outbox::OutboxState::Pending
+        if later.idempotency_key == key
             || later.resource != record.resource
             || later.id != record.id
             || later.parent_id.is_some()
@@ -405,6 +412,11 @@ fn fold_counts(
             || later.action.as_deref() != Some(COUNTS_ACTION)
         {
             continue;
+        }
+        if entry.sent || entry.state != crate::outbox::OutboxState::Pending {
+            return Err(invalid(
+                "a count of this document was sent already; its answer decides",
+            ));
         }
         if entry.last_error.as_deref() == Some("SYNC_DEPENDENCY_FAILED") {
             return Err(invalid(
