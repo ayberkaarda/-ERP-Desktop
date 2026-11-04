@@ -13,6 +13,11 @@
 //! rows through the engine: queued drafts of a resource never downloaded,
 //! which count as partial.
 //!
+//! A list searched (`q`) on a resource whose server also searches what the
+//! rows do not carry is [`LocalOutcome::PartialSearch`], marked
+//! `meta.offline.search_partial`: offline it is the answer, online the
+//! server's is.
+//!
 //! Snapshots are the whole answers of a `source: snapshot` resource:
 //! [`save_snapshot`] keeps a successful one, [`is_whole_answer`] tells which
 //! requests give one. A snapshot that holds fewer rows than a request asks
@@ -188,7 +193,19 @@ fn list(engine: &Engine, read: &Read<'_>, call: &ApiCall) -> CommandResult<Local
     let rows = page.rows.iter().map(row_json).collect::<Result<_, _>>()?;
     let per_page = u64::from(mapped.per_page);
     let body = envelope::paginated(rows, mapped.page, per_page, page.total);
-    answer(body, read, pending, page.drafts, mapped.applied)
+    let offline = OfflineMeta {
+        pending,
+        draft_ids: page.drafts,
+        applied_filters: mapped.applied,
+        search_partial: mapped.search_partial,
+        ..offline_meta(read)?
+    };
+    let answer = envelope::local(200, envelope::with_offline(body, &offline));
+    Ok(if offline.search_partial {
+        LocalOutcome::PartialSearch(answer)
+    } else {
+        LocalOutcome::Answer(answer)
+    })
 }
 
 fn item(engine: &Engine, read: &Read<'_>, id: Uuid, call: &ApiCall) -> CommandResult<LocalOutcome> {
@@ -215,7 +232,14 @@ fn item(engine: &Engine, read: &Read<'_>, id: Uuid, call: &ApiCall) -> CommandRe
     match found {
         Some(local) => {
             let body = envelope::success(row_json(&local.row)?, Map::new());
-            answer(body, read, local.draft, Vec::new(), Vec::new())
+            let offline = OfflineMeta {
+                pending: local.draft,
+                ..offline_meta(read)?
+            };
+            Ok(LocalOutcome::Answer(envelope::local(
+                200,
+                envelope::with_offline(body, &offline),
+            )))
         }
         None if local_write::deleted_here(engine, read.resource, id)? => Ok(not_found()),
         // Not on this device says nothing about the server: the copy is
@@ -225,32 +249,21 @@ fn item(engine: &Engine, read: &Read<'_>, id: Uuid, call: &ApiCall) -> CommandRe
     }
 }
 
-/// `draft_ids`: of a list page, its rows that carry a queued draft (an item
-/// answer has `pending` alone).
-fn answer(
-    body: Value,
-    read: &Read<'_>,
-    pending: bool,
-    draft_ids: Vec<Uuid>,
-    applied_filters: Vec<String>,
-) -> CommandResult<LocalOutcome> {
+/// The freshness of the copy `read` answers from: since when, still
+/// downloading, shown in place of the server. A list adds its drafts
+/// (`draft_ids`: its rows that carry a queued draft) and what it applied;
+/// an item answer has `pending` alone.
+fn offline_meta(read: &Read<'_>) -> CommandResult<OfflineMeta> {
     let as_of = match read.store {
         Some(store) => store.resource_state(read.resource)?.map(|s| s.synced_at),
         None => None,
     };
-    let offline = OfflineMeta {
+    Ok(OfflineMeta {
         as_of,
         partial: read.partial,
         stale: read.stale,
-        pending,
-        draft_ids,
-        applied_filters,
         ..OfflineMeta::default()
-    };
-    Ok(LocalOutcome::Answer(envelope::local(
-        200,
-        envelope::with_offline(body, &offline),
-    )))
+    })
 }
 
 /// What the engine shows of a resource the store has no copy of: a stored

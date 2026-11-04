@@ -330,6 +330,19 @@ async fn respond_once(
         Decision::Refuse(refusal) => Ok(answered(refuse(refusal, Vec::new()))),
         Decision::Local { plan, else_online } => match run.local(plan, call).await? {
             LocalOutcome::Answer(answer) => Ok(answered(answer)),
+            // Online the server answers a search the local copy can answer
+            // only partly; the partial answer stands in when it is not
+            // reached, as the local copy of an online-first read does.
+            LocalOutcome::PartialSearch(partial) if else_online => {
+                match run.online(call, None, Keep::NOTHING).await {
+                    Ok(answer) => Ok(answered(answer)),
+                    Err(Unanswered { error, .. }) if error.code == NETWORK_ERROR => {
+                        Ok(answered(partial))
+                    }
+                    Err(Unanswered { error, .. }) => Err(error),
+                }
+            }
+            LocalOutcome::PartialSearch(answer) => Ok(answered(answer)),
             LocalOutcome::Unsupported { .. } if else_online => {
                 Ok(answered(run.online(call, None, Keep::NOTHING).await?))
             }
@@ -375,7 +388,9 @@ async fn respond_once(
                         plan: plan @ LocalPlan::Write { .. },
                         ..
                     } => match run.local(plan, call).await? {
-                        LocalOutcome::Answer(answer) => Ok(Routed::offline(answer)),
+                        LocalOutcome::Answer(answer) | LocalOutcome::PartialSearch(answer) => {
+                            Ok(Routed::offline(answer))
+                        }
                         LocalOutcome::Unsupported { .. } => Err(error),
                     },
                     _ => Err(error),
@@ -383,7 +398,9 @@ async fn respond_once(
             }
             Err(Unanswered { error, .. }) if error.code == NETWORK_ERROR => match fallback {
                 Some(plan) => match run.local(plan, call).await? {
-                    LocalOutcome::Answer(answer) => Ok(answered(answer)),
+                    LocalOutcome::Answer(answer) | LocalOutcome::PartialSearch(answer) => {
+                        Ok(answered(answer))
+                    }
                     LocalOutcome::Unsupported { .. } => Err(error),
                 },
                 // The server went away before the engine noticed (a reload
