@@ -274,7 +274,7 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
     let fx = fixture(vec![]).await;
     fx.go_offline();
     let parent = Uuid::now_v7();
-    let mut counts = [0usize; 3];
+    let mut counts = [0usize; 4];
 
     for entry in queries {
         let resource = entry["resource"].as_str().unwrap();
@@ -286,7 +286,16 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
         match entry["expect"].as_str().unwrap() {
             "local" => {
                 assert_eq!(answer.status, 200, "{label} {:?}", answer.json());
+                assert!(offline_of(&answer)["search_partial"].is_null(), "{label}");
                 counts[0] += 1;
+            }
+            "local_partial" => {
+                assert_eq!(answer.status, 200, "{label} {:?}", answer.json());
+                let offline = offline_of(&answer);
+                assert_eq!(offline["search_partial"], true, "{label}");
+                let applied = offline["applied_filters"].as_array().unwrap();
+                assert!(applied.iter().any(|name| name == "q"), "{label}");
+                counts[3] += 1;
             }
             "online_only" => {
                 assert_eq!(answer.status, 503, "{label}");
@@ -312,7 +321,7 @@ async fn every_known_web_request_is_answered_as_the_web_fixture_classifies_it() 
             other => panic!("{other}"),
         }
     }
-    assert_eq!(counts, [80, 9, 1]);
+    assert_eq!(counts, [80, 7, 1, 3]);
     assert_eq!(fx.server.received_requests().await.unwrap().len(), 2);
 }
 
@@ -413,14 +422,15 @@ async fn online_an_online_only_filter_goes_to_the_server() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_item_search_is_the_servers_because_it_also_finds_barcodes() {
-    let (item, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt"}));
+async fn an_item_search_is_the_servers_online_and_partial_offline() {
+    let (item, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt M8"}));
+    let (_, nut) = with_id(3, json!({"code": "NUT", "name": "Nut"}));
     let (_, barcode) = with_id(
         2,
         json!({"item_id": item, "barcode": "8690000000001", "is_primary": true}),
     );
     let fx = fixture(vec![
-        ("items", vec![bolt]),
+        ("items", vec![bolt, nut]),
         ("items.barcodes", vec![barcode]),
     ])
     .await;
@@ -430,33 +440,112 @@ async fn an_item_search_is_the_servers_because_it_also_finds_barcodes() {
         .mount(&fx.server)
         .await;
 
-    // Online: the server answers, with the item its barcode finds.
+    // Online: the server answers, with the item its barcode finds; local-first
+    // as items are, a partial local answer does not stand in for it.
     let online = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
     assert_eq!(online.source, ResponseSource::Network);
     assert_eq!(fx.received(ITEMS).await, 1);
 
-    // Offline: refused with the reason, not an empty list.
+    // Offline: the local matches on code and name, marked as partial.
     fx.go_offline();
-    let answer = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
-    assert_eq!(answer.status, 503);
-    assert_eq!(code(&answer), "OFFLINE_UNAVAILABLE");
+    let answer = fx
+        .call(get(
+            ITEMS,
+            pairs(&[
+                ("q", " bol "),
+                ("filter[is_active]", ""),
+                ("per_page", "20"),
+            ]),
+        ))
+        .await;
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert_eq!(ids(&answer), [item]);
     let offline = offline_of(&answer);
-    assert_eq!(offline["unsupported_filters"], json!(["q"]));
-    assert_eq!(offline["online_only"][0]["param"], "q");
-    assert!(
-        offline["online_only"][0]["reason"]
-            .as_str()
-            .unwrap()
-            .contains("items.barcodes")
-    );
+    assert_eq!(offline["search_partial"], true);
+    assert_eq!(offline["applied_filters"], json!(["q"]));
+    assert_eq!(offline["partial"], false);
+    assert!(offline["unsupported_filters"].is_null());
+    assert!(offline["online_only"].is_null());
+    assert_eq!(fx.received(ITEMS).await, 1);
 
-    // A blank `q` is no search; other lists still search here.
+    // A barcode is not in the row: an empty page, still marked, not "no such item".
+    let by_barcode = fx.call(get(ITEMS, pairs(&[("q", "8690000000001")]))).await;
+    assert_eq!(by_barcode.status, 200);
+    assert!(ids(&by_barcode).is_empty());
+    assert_eq!(offline_of(&by_barcode)["search_partial"], true);
+
+    // A blank `q` is no search, and a whole list is not marked; other lists
+    // search everything the server does.
     let blank = fx.call(get(ITEMS, pairs(&[("q", " ")]))).await;
     assert_eq!(blank.status, 200);
-    assert_eq!(
-        fx.call(get(PARTIES, pairs(&[("q", "x")]))).await.status,
-        200
+    assert_eq!(ids(&blank).len(), 2);
+    assert!(offline_of(&blank)["search_partial"].is_null());
+    let parties = fx.call(get(PARTIES, pairs(&[("q", "x")]))).await;
+    assert_eq!(parties.status, 200);
+    assert!(offline_of(&parties)["search_partial"].is_null());
+
+    // Another parameter the copy cannot apply still refuses it, without `q`.
+    let category = Uuid::now_v7().to_string();
+    let refused = fx
+        .call(get(
+            ITEMS,
+            pairs(&[("q", "bol"), ("filter[category]", &category)]),
+        ))
+        .await;
+    assert_eq!(refused.status, 503);
+    assert_eq!(code(&refused), "OFFLINE_UNAVAILABLE");
+    let offline = offline_of(&refused);
+    assert_eq!(offline["unsupported_filters"], json!(["filter[category]"]));
+    assert_eq!(offline["online_only"].as_array().unwrap().len(), 1);
+    assert_eq!(offline["online_only"][0]["param"], "filter[category]");
+}
+
+/// `meta.offline` of a partial item search, as the webview reads it
+/// (`src/platform/desktop/localPartialSearch.test.ts` checks the web side
+/// against the same file); `as_of` is left out, it is the time of the copy.
+const PARTIAL_SEARCH_FIXTURE: &str =
+    include_str!("../../../../src/platform/desktop/localPartialSearch.json");
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_webview_fixture_is_the_meta_of_a_partial_search() {
+    let (_, bolt) = with_id(
+        1,
+        json!({"code": "BOLT", "name": "Bolt", "is_active": true}),
     );
+    let fx = fixture(vec![("items", vec![bolt])]).await;
+    fx.go_offline();
+    let answer = fx
+        .call(get(
+            ITEMS,
+            pairs(&[("q", "bolt"), ("filter[is_active]", "true")]),
+        ))
+        .await;
+    let mut offline = offline_of(&answer).clone();
+    offline.as_object_mut().unwrap().remove("as_of");
+    let fixture: Value = serde_json::from_str(PARTIAL_SEARCH_FIXTURE).unwrap();
+    assert_eq!(
+        fixture,
+        offline,
+        "update the fixture to:\n{}",
+        serde_json::to_string_pretty(&offline).unwrap()
+    );
+}
+
+/// Seen online, but the server cannot be reached: the partial local answer
+/// stands in, as the local copy of an online-first read does.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_item_search_falls_back_to_the_partial_answer_when_the_server_is_gone() {
+    let (item, bolt) = with_id(1, json!({"code": "BOLT", "name": "Bolt"}));
+    let fx = fixture(vec![("items", vec![bolt])]).await;
+    fx.go_online();
+    fx.lose_server();
+
+    let answer = fx.call(get(ITEMS, pairs(&[("q", "bolt")]))).await;
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert_eq!(ids(&answer), [item]);
+    assert_eq!(offline_of(&answer)["search_partial"], true);
 }
 
 #[tokio::test(flavor = "multi_thread")]

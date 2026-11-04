@@ -16,8 +16,10 @@
 //! - `filter[<name>]`: a declared filter, its value checked by type (`bool`
 //!   takes `1`/`true`/`0`/`false`, `date` takes `YYYY-MM-DD`, `uuid` a uuid,
 //!   `max_values`); [`invalid_values`] gives the reasons of refused values.
-//! - `q`: substring over `search.fields` when declared; refused when the
-//!   server also searches what the rows do not carry (`search.server_also`).
+//! - `q`: substring over `search.fields` when declared. When the server
+//!   also searches what the rows do not carry (`search.server_also`), the
+//!   search is applied all the same and the list is marked
+//!   [`MappedList::search_partial`]: answered offline only, and so labelled.
 //! - `online_only` names are refused like unknown ones; [`online_only`]
 //!   gives their reasons.
 //!
@@ -54,6 +56,9 @@ pub struct MappedList {
     pub per_page: u32,
     /// Sort, filter and search names applied here, in request order.
     pub applied: Vec<String>,
+    /// `q` was applied on a resource whose server also searches what the
+    /// rows do not carry: the rows may be fewer than the server's.
+    pub search_partial: bool,
 }
 
 /// Spec of `resource` in the compiled offline manifest.
@@ -91,6 +96,7 @@ pub fn list_query(
         page: 1,
         per_page: DEFAULT_PER_PAGE,
         applied: Vec::new(),
+        search_partial: false,
     };
     let mut sorted = false;
     let mut unsupported: Vec<String> = Vec::new();
@@ -116,15 +122,15 @@ pub fn list_query(
                     let text = value.trim();
                     match declared.and_then(|q| q.search.as_ref()) {
                         _ if text.is_empty() => true,
-                        // The server also searches what the rows do not
-                        // carry (item barcodes and variant SKUs): an empty
-                        // local answer would look like "no such item".
-                        Some(search) if search.server_also.is_some() => false,
                         Some(search) => {
                             mapped.query.text = Some(TextSearch {
                                 fields: search.fields.clone(),
                                 text: text.to_owned(),
                             });
+                            // The server also searches what the rows do not
+                            // carry (item barcodes and variant SKUs): the
+                            // local matches are a subset, and say so.
+                            mapped.search_partial = search.server_also.is_some();
                             true
                         }
                         None => {
@@ -398,30 +404,10 @@ pub fn invalid_values(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<I
 }
 
 /// The `online_only` entries of `spec` that `params` use: `filter[x]` with a
-/// value, or a `sort` naming `x` (`sort=x`). Manifest order; then `q` with a
-/// value when the server searches more than the rows carry
-/// (`search.server_also`, its text the reason).
+/// value, or a `sort` naming `x` (`sort=x`), in manifest order. A `q` on a
+/// resource with `search.server_also` is not one: it is answered here, as a
+/// partial search ([`MappedList::search_partial`]).
 pub fn online_only(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<OnlineOnly> {
-    let mut found = declared_online_only(spec, params);
-    let server_also = spec
-        .query
-        .as_ref()
-        .and_then(|query| query.search.as_ref())
-        .and_then(|search| search.server_also.as_ref());
-    if let Some(reason) = server_also
-        && params
-            .iter()
-            .any(|(name, value)| name == "q" && !value.trim().is_empty())
-    {
-        found.push(OnlineOnly {
-            param: "q".to_owned(),
-            reason: reason.clone(),
-        });
-    }
-    found
-}
-
-fn declared_online_only(spec: &ResourceSpec, params: &[(String, String)]) -> Vec<OnlineOnly> {
     let Some(query) = &spec.query else {
         return Vec::new();
     };
@@ -549,6 +535,40 @@ mod tests {
         let list = list_query(&windowed(), &params(&[("q", "acme")])).unwrap();
         assert_eq!(list.query.search.as_deref(), Some("acme"));
         assert_eq!(list.query.text, None);
+    }
+
+    /// Items are also found by barcode and variant SKU on the server: the
+    /// local search runs over code and name and is marked partial.
+    #[test]
+    fn a_search_the_server_also_runs_elsewhere_is_partial() {
+        let items = spec_of(&name("items")).unwrap();
+        let request = params(&[("q", " wid "), ("filter[is_active]", "true")]);
+        let list = list_query(items, &request).unwrap();
+        let text = list.query.text.as_ref().unwrap();
+        assert_eq!(text.text, "wid");
+        assert_eq!(text.fields, ["code", "name"]);
+        assert!(list.search_partial);
+        assert_eq!(list.applied, ["q", "filter[is_active]"]);
+        assert!(online_only(items, &request).is_empty());
+        // No text, no search: nothing partial.
+        let blank = list_query(items, &params(&[("q", "  ")])).unwrap();
+        assert!(!blank.search_partial);
+        assert_eq!(blank.query.text, None);
+        // A search over everything the server searches is whole.
+        assert!(!mapped(&[("q", "acme")]).search_partial);
+        let parties = list_query(parties(), &params(&[("q", "acme")])).unwrap();
+        assert!(!parties.search_partial);
+        // Another parameter still decides a refusal, and `q` is not named.
+        let category = params(&[("q", "wid"), ("filter[category]", "x")]);
+        assert_eq!(
+            list_query(items, &category).unwrap_err(),
+            ["filter[category]"]
+        );
+        let named: Vec<String> = online_only(items, &category)
+            .into_iter()
+            .map(|entry| entry.param)
+            .collect();
+        assert_eq!(named, ["filter[category]"]);
     }
 
     #[test]

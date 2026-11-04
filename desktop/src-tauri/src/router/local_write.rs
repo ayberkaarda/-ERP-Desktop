@@ -86,7 +86,7 @@ pub fn replay(engine: &Engine, call: &ApiCall) -> CommandResult<Option<ApiRespon
         Ok(Some(record)) => repeat_outcome(repeat_answer(engine, &record)),
         Ok(None) => Ok(None),
         Err(error) if error.code() == "IDEMPOTENCY_KEY_REUSED" => match refusal(error)? {
-            LocalOutcome::Answer(answer) => Ok(Some(answer)),
+            LocalOutcome::Answer(answer) | LocalOutcome::PartialSearch(answer) => Ok(Some(answer)),
             LocalOutcome::Unsupported { .. } => Ok(None),
         },
         Err(error) => open(Err(error)),

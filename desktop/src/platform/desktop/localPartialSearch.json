@@ -1,0 +1,6 @@
+{
+  "partial": false,
+  "stale": false,
+  "applied_filters": ["q", "filter[is_active]"],
+  "search_partial": true
+}

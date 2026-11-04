@@ -7,7 +7,8 @@
 //! - error: `{"errors": {"message", "code", "fields"?}}`
 //!
 //! Local answers add `meta.offline` ([`OfflineMeta`]); the server never
-//! sends that key.
+//! sends that key. Its fields are listed in the web repository's
+//! docs/SYNC-PROTOCOL.md ("Yerel yanıtın `meta.offline` alanı").
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
@@ -93,6 +94,12 @@ pub struct OfflineMeta {
     /// (`sort`, `filter[x]`, `q`), in request order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub applied_filters: Vec<String>,
+    /// `q` was searched here on a resource whose server also searches what
+    /// the rows do not carry (`search.server_also`): matches may be missing.
+    /// Not `partial`, which is about the copy still downloading. Sent only
+    /// when true.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub search_partial: bool,
 }
 
 /// Adds `meta.offline` to an envelope (success or error), keeping any
@@ -274,6 +281,28 @@ mod tests {
                 "unsupported_filters": ["filter[city]"]
             })
         );
+    }
+
+    #[test]
+    fn a_partial_search_is_named_only_when_it_is_one() {
+        let body = paginated(Vec::new(), 1, 25, 0);
+        let marked = with_offline(
+            body.clone(),
+            &OfflineMeta {
+                search_partial: true,
+                applied_filters: vec!["q".into()],
+                ..OfflineMeta::default()
+            },
+        );
+        assert_eq!(
+            marked["meta"]["offline"],
+            json!({
+                "partial": false, "stale": false,
+                "applied_filters": ["q"], "search_partial": true
+            })
+        );
+        let plain = with_offline(body, &OfflineMeta::default());
+        assert!(plain["meta"]["offline"].get("search_partial").is_none());
     }
 
     #[test]
