@@ -109,10 +109,14 @@ jobs:
         working-directory: backend
         run: |
           composer install --no-interaction --prefer-dist
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           cp .env.example .env
           php artisan key:generate --force
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           php artisan migrate --force --seed
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           composer openapi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           E2E_BACKEND_DIR="$PWD" E2E_STATE="$RUNNER_TEMP/e2e-state.json" php ../desktop/e2e/seed/seed.php
       - run: npm run gen:api --workspace frontend
       - name: Build the desktop app (debug profile, no bundle)
@@ -239,17 +243,21 @@ jobs:
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: '8.4'
-          extensions: pgsql, pdo_pgsql, mbstring, intl, fileinfo, openssl, curl
+          extensions: pgsql, pdo_pgsql, mbstring, intl, fileinfo, openssl, curl, gd, zip, bcmath, sockets, xml, dom, simplexml, xmlreader, xmlwriter, ctype, iconv, sodium
           coverage: none
       - run: npm ci
       - name: Prepare the server (migrate, seed, demo data)
         working-directory: backend
         run: |
           composer install --no-interaction --prefer-dist --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-posix
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           Copy-Item .env.example .env
           php artisan key:generate --force
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           php artisan migrate --force --seed
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           composer openapi
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           $env:E2E_BACKEND_DIR = $PWD.Path
           $env:E2E_STATE = "$env:RUNNER_TEMP\e2e-state.json"
           php ..\desktop\e2e\seed\seed.php
