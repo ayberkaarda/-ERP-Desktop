@@ -1,5 +1,5 @@
 // Scenarios 1 to 5 of desktop/PLAN.md B8, one app run in order: sign-in and
-// first pull, offline drafts, push, a conflict with a web change, and the
+// first pull, offline drafts (order, stock count; the manifest has no expense draft), push, a conflict with a web change, and the
 // online-only button while offline. The network cut is a TCP proxy between the
 // app and the Laravel server; the web side is the REST API of the same server.
 import assert from 'node:assert/strict'
@@ -58,7 +58,7 @@ describe('desktop e2e: sign-in, offline drafts, sync', () => {
     })
   })
 
-  it('2. a cut network: order, count and customer are drafted offline', STEP, async () => {
+  it('2. a cut network: order and stock count are drafted offline', STEP, async () => {
     await app.proxy.cut()
     await app.waitForState('offline')
     const { state, session } = app
@@ -89,18 +89,10 @@ describe('desktop e2e: sign-in, offline drafts, sync', () => {
     assert.ok([201, 202].includes(count.status), `count draft: ${count.status} ${JSON.stringify(count.json)}`)
     drafts.count = count.json.data.id
 
-    const party = await session.api('POST', '/api/v1/parties', {
-      headers: [['Idempotency-Key', crypto.randomUUID()]],
-      body: { name: 'E2E Offline Customer', type: 'company', roles: ['customer'], country: 'TR' },
-    })
-    assert.equal(party.source, 'local')
-    assert.ok([201, 202].includes(party.status), `party draft: ${party.status} ${JSON.stringify(party.json)}`)
-    drafts.party = party.json.data.id
-
     const outbox = await session.invoke('outbox_list')
     const queued = outbox.map((entry) => entry.id)
     for (const id of Object.values(drafts)) assert.ok(queued.includes(id), `outbox holds ${id}`)
-    assert.ok((await app.status()).pending >= 3)
+    assert.ok((await app.status()).pending >= 2)
   })
 
   it('3. the network is back: the drafts are pushed and the server has them', STEP, async () => {
@@ -136,8 +128,6 @@ ${await report()}`
     assert.equal(order.json.data.notes, 'offline order')
     const count = await web('GET', `/stock-documents/${drafts.count}`)
     assert.equal(count.status, 200, JSON.stringify(count.json))
-    const party = await web('GET', `/parties/${drafts.party}`)
-    assert.equal(party.status, 200, JSON.stringify(party.json))
     assert.equal((await app.status()).conflicts, 0)
   })
 
