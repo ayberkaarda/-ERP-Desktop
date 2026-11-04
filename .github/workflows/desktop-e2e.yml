@@ -109,14 +109,10 @@ jobs:
         working-directory: backend
         run: |
           composer install --no-interaction --prefer-dist
-          if ($LASTEXITCODE -ne 0) { exit 1 }
           cp .env.example .env
           php artisan key:generate --force
-          if ($LASTEXITCODE -ne 0) { exit 1 }
           php artisan migrate --force --seed
-          if ($LASTEXITCODE -ne 0) { exit 1 }
           composer openapi
-          if ($LASTEXITCODE -ne 0) { exit 1 }
           E2E_BACKEND_DIR="$PWD" E2E_STATE="$RUNNER_TEMP/e2e-state.json" php ../desktop/e2e/seed/seed.php
       - run: npm run gen:api --workspace frontend
       - name: Build the desktop app (debug profile, no bundle)
