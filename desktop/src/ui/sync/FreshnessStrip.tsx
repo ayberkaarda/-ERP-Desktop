@@ -1,12 +1,13 @@
 // Thin strip under the header while the page on screen shows data answered on
 // this device: stale, as-of time, partial copy, filters the copy cannot apply.
+// Only the API answers the route shows count (sync/pageResources).
 // It is rendered from HeaderExtras into a box placed right after the <header>.
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 
-import { createFreshnessTracker, useDesktopText, type Freshness, type OfflineMetaSource } from '../../sync'
+import { createFreshnessTracker, pageScope, useDesktopText, type Freshness, type OfflineMetaSource } from '../../sync'
 import { formatDateTime, useIntlLocale } from '@/lib/datetime'
 
 function hasNews(f: Freshness | null): f is Freshness {
@@ -22,9 +23,9 @@ export function FreshnessStrip({ source }: { source: OfflineMetaSource }) {
 
   useEffect(() => tracker.start(), [tracker])
 
-  // A new page: what the last one was answered with is no longer on screen.
+  // Only the answers of what this page shows describe it (sync/pageResources).
   useEffect(() => {
-    tracker.reset()
+    tracker.show(pageScope(pathname))
   }, [tracker, pathname])
 
   // The strip goes into a box right after the header (this component sits inside it).

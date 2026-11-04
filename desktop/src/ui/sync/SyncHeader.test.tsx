@@ -284,7 +284,7 @@ describe('freshness strip', () => {
   it('names the as-of time', async () => {
     const { meta } = await strip()
     act(() => {
-      meta.record('/stock-balances', { stale: false, partial: false, as_of: '2026-11-02T07:30:00Z' })
+      meta.record('/parties', { stale: false, partial: false, as_of: '2026-11-02T07:30:00Z' })
     })
     expect(screen.getByTestId('sync-freshness-as-of')).toHaveTextContent('02.11.2026 10:30 itibarıyla.')
   })
@@ -292,7 +292,7 @@ describe('freshness strip', () => {
   it('says the local copy is partial', async () => {
     const { meta } = await strip()
     act(() => {
-      meta.record('/sales-quotes', { stale: false, partial: true })
+      meta.record('/parties', { stale: false, partial: true })
     })
     expect(screen.getByTestId('sync-freshness-partial')).toHaveTextContent('Yerel kopya eksik.')
   })
@@ -314,15 +314,40 @@ describe('freshness strip', () => {
     })
     expect(screen.getByTestId('sync-freshness')).toBeInTheDocument()
     act(() => {
-      go('/items')
+      go('/catalog/items')
     })
-    expect(screen.getByTestId('location')).toHaveTextContent('/items')
+    expect(screen.getByTestId('location')).toHaveTextContent('/catalog/items')
     expect(screen.queryByTestId('sync-freshness')).toBeNull()
     act(() => {
       meta.record('/items', { stale: false, partial: true })
     })
     expect(screen.getByTestId('sync-freshness-partial')).toBeInTheDocument()
     expect(screen.queryByTestId('sync-freshness-stale')).toBeNull()
+  })
+
+  it('answers the page does not show leave it unlabelled', async () => {
+    const { meta } = await strip()
+    act(() => {
+      meta.record('/auth/me', { stale: true, partial: false })
+      meta.record('/items', { stale: false, partial: true })
+      meta.record('/parties/p-1', { stale: true, partial: false })
+    })
+    expect(screen.queryByTestId('sync-freshness')).toBeNull()
+  })
+
+  it('a page shown from the cache keeps the label of its local answer', async () => {
+    const { meta, go } = await strip()
+    act(() => {
+      meta.record('/parties', { stale: true, partial: false })
+    })
+    act(() => {
+      go('/sales/quotes')
+    })
+    expect(screen.queryByTestId('sync-freshness')).toBeNull()
+    act(() => {
+      go('/parties')
+    })
+    expect(screen.getByTestId('sync-freshness-stale')).toBeInTheDocument()
   })
 })
 

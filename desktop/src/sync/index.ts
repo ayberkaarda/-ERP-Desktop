@@ -9,6 +9,7 @@ export {
   type OfflineMetaSource,
 } from './freshness'
 export { invalidateChanged } from './invalidation'
+export { NO_PAGE, PAGE_RESOURCES, pageScope, type PageScope } from './pageResources'
 export { useOnlineOnlyState } from './onlineOnly'
 export {
   offlineRefusalOf,
