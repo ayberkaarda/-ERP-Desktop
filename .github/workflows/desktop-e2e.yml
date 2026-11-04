@@ -261,6 +261,23 @@ jobs:
       - name: Build the desktop app (debug profile, no bundle)
         working-directory: desktop
         run: npm run tauri -- build --debug --no-bundle
+      - name: Diagnose a bare app launch (stderr, exit code, devtools port)
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          $env:KEYSTONE_DEV_ALLOW_HTTP = '1'
+          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+          $p = Start-Process -FilePath $env:E2E_APP_BIN -PassThru -RedirectStandardOutput app.out -RedirectStandardError app.err
+          Start-Sleep -Seconds 20
+          Write-Host "exited: $($p.HasExited) code: $(if ($p.HasExited) { $p.ExitCode })"
+          try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9222/json/version).Content } catch { Write-Host "devtools: $_" }
+          Write-Host "--- stdout"; Get-Content app.out -ErrorAction SilentlyContinue
+          Write-Host "--- stderr"; Get-Content app.err -ErrorAction SilentlyContinue
+          Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Measure-Object | ForEach-Object { Write-Host "webview2 processes: $($_.Count)" }
+          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+          Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+        env:
+          E2E_APP_BIN: ${{ github.workspace }}\desktop\target\debug\keystone-desktop.exe
       - name: Run the scenarios
         working-directory: desktop
         timeout-minutes: 12
