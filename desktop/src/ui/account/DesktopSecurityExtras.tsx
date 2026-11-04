@@ -16,6 +16,7 @@ import { call } from '../../bridge/invoke'
 import { useTd } from '../../i18n'
 import { errorText } from './errors'
 import { ErrorLine } from './GateFrame'
+import { osName } from './osName'
 import { useOptionalAccount, type AccountContextValue } from './services'
 import { useAppInfo } from './useProfiles'
 
@@ -173,7 +174,7 @@ function SecurityExtras({ account }: { account: AccountContextValue }) {
                 <dt className="text-muted-foreground">{td('account.security.schema')}</dt>
                 <dd>{info.sync_schema_version}</dd>
                 <dt className="text-muted-foreground">{td('account.security.os')}</dt>
-                <dd>{info.os}</dd>
+                <dd>{osName(info.os)}</dd>
                 <dt className="text-muted-foreground">{td('account.security.build')}</dt>
                 <dd>{info.debug ? td('account.security.debug') : td('account.security.release')}</dd>
               </dl>

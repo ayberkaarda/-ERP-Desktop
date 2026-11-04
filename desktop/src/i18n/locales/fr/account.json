@@ -126,6 +126,7 @@
     }
   },
   "signOutNotice": {
+    "waiting": "Déconnexion en cours, en attente du serveur…",
     "body": "Vous êtes déconnecté sur cet appareil, mais la session sur le serveur n’a pas pu être fermée. Déconnectez cet appareil depuis la page de sécurité.",
     "openSecurity": "Ouvrir la page de sécurité",
     "dismiss": "Fermer"

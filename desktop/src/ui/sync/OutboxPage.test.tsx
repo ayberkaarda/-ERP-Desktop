@@ -212,7 +212,7 @@ describe('readable outbox rows', () => {
   it('reads the record from this device when the draft does not name it', async () => {
     const get = vi.fn(() => Promise.resolve({ data: { number: null, party_name: 'Ankara Gıda Ltd.' } }))
     await render([entry('k1', 'pending', { op: 'update', id: 'q1', payload: { notes: 'cuma' } })], get)
-    expect(await within(row('k1')).findByText('(numarasız) · Ankara Gıda Ltd.')).toBeInTheDocument()
+    expect(await within(row('k1')).findByText('numarasız · Ankara Gıda Ltd.')).toBeInTheDocument()
     expect(row('k1')).toHaveTextContent('Satış teklifi')
     expect(get).toHaveBeenCalledWith('/sales-quotes/q1', expect.anything())
   })
@@ -296,7 +296,7 @@ describe('record label lookups', () => {
     await screen.findByTestId('outbox-table')
     await act(flush)
     expect(get).not.toHaveBeenCalled()
-    expect(within(row('k1')).getByTestId('outbox-record')).toHaveTextContent('(numarasız)')
+    expect(within(row('k1')).getByTestId('outbox-record')).toHaveTextContent('numarasız')
   })
 
   it('labels read for one profile are dropped when another becomes active', async () => {

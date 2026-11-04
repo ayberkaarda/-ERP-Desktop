@@ -82,7 +82,7 @@ describe('DesktopSecurityExtras', () => {
       expect(about).toHaveTextContent('0.1.0')
     })
     expect(about).toHaveTextContent('Eşitleme şeması1')
-    expect(about).toHaveTextContent('windows')
+    expect(about).toHaveTextContent('Windows')
     expect(about).toHaveTextContent('Geliştirme')
   })
 
@@ -91,3 +91,4 @@ describe('DesktopSecurityExtras', () => {
     expect(await screen.findByRole('link', { name: 'Sunucu profilleri' })).toHaveAttribute('href', '/setup')
   })
 })
+

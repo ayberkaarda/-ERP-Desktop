@@ -228,3 +228,30 @@ describe('desktop session', () => {
     expect(s.steps).toEqual(['ask logout 1/0'])
   })
 })
+
+describe('desktop session sign-out progress', () => {
+  it('tells listeners while the shell works on the sign-out, whatever the result', async () => {
+    const gate = deferred<unknown>()
+    const s = setup({ auth_sign_out: () => gate.promise })
+    s.session.onSigningOut((busy) => s.steps.push(`busy ${String(busy)}`))
+    const done = s.session.logout()
+    await flush()
+    expect(s.steps).toEqual(['busy true'])
+    gate.resolve({ status: 'done', server_revoked: true })
+    await done
+    expect(s.steps).toEqual(['busy true', 'busy false', 'changed'])
+
+    const failing = setup({ auth_sign_out: () => fail('SYSTEM') })
+    failing.session.onSigningOut((busy) => failing.steps.push(`busy ${String(busy)}`))
+    await expect(failing.session.logout()).rejects.toBeInstanceOf(ApiError)
+    expect(failing.steps).toEqual(['busy true', 'busy false'])
+  })
+
+  it('stops telling a listener that left', async () => {
+    const s = setup({ auth_sign_out: () => ({ status: 'done', server_revoked: true }) })
+    const seen = vi.fn()
+    s.session.onSigningOut(seen)()
+    await s.session.logout()
+    expect(seen).not.toHaveBeenCalled()
+  })
+})

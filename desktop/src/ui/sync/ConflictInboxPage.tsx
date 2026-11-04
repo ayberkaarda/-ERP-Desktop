@@ -24,6 +24,7 @@ import {
 } from '../../sync'
 import { conflictModel, RESOLUTION_TABLE, type ConflictChoice, type ConflictModel } from '../../wire'
 import { useSyncDeps } from './context'
+import { localisedDate } from './dates'
 import { differingFields, fieldName, recordLabel, resourceName, shortId } from './labels'
 import { CONFLICTS_KEY, OUTBOX_KEY } from './paths'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
@@ -41,8 +42,9 @@ function isOneOf<T extends string>(list: readonly T[], value: string): value is 
   return (list as readonly string[]).includes(value)
 }
 
-function show(text: DesktopText, field: string, value: unknown): string {
+function show(text: DesktopText, locale: string, field: string, value: unknown): string {
   if (value === undefined || value === null || value === '') return '—'
+  if (typeof value === 'string') return localisedDate(value, locale)
   if (field === 'lines' && Array.isArray(value)) return text.td('sync.conflict.linesCount', { count: value.length })
   if (typeof value === 'boolean') return text.td(value ? 'sync.conflict.yes' : 'sync.conflict.no')
   if (Array.isArray(value) && value.every((item) => typeof item === 'string')) return value.join(', ')
@@ -110,6 +112,7 @@ function FieldCompare({
   canMerge: boolean
 }) {
   const text = useDesktopText()
+  const locale = useIntlLocale()
   if (fields.length === 0) return <p>{text.td('sync.conflict.noFields')}</p>
   if (shown.length === 0) return <p data-testid="conflict-no-differences">{text.td('sync.conflict.noDifferences')}</p>
   return (
@@ -128,8 +131,8 @@ function FieldCompare({
             <td className="font-medium">
               {field === 'lines' ? text.td('sync.conflict.linesChanged') : fieldName(text, field)}
             </td>
-            <td>{show(text, field, conflict.local_payload[field])}</td>
-            <td>{show(text, field, server[field])}</td>
+            <td>{show(text, locale, field, conflict.local_payload[field])}</td>
+            <td>{show(text, locale, field, server[field])}</td>
             {canMerge ? (
               <td className="space-x-2 whitespace-nowrap">
                 {(['mine', 'server'] as const).map((pick) => (

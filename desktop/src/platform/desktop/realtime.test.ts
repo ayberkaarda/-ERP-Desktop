@@ -113,7 +113,7 @@ describe('desktop realtime', () => {
     expect(l.statuses).toEqual(['error'])
     const late = listener(s.realtime, 'user.u1', '.notification.created')
     await flush()
-    expect(late.statuses).toEqual([])
+    expect(late.statuses).toEqual(['error'])
   })
 
   it('reports subscribed once the server accepted the channel, and again after each reconnect', async () => {
@@ -172,7 +172,20 @@ describe('desktop realtime', () => {
     s.bridge.emitRealtime(refused())
     const late = listener(s.realtime, 'user.u1', '.notification.created')
     await flush()
+    expect(late.statuses).toEqual(['error'])
+  })
+
+  it('a refusal is forgotten with its socket: a listener of the next one waits for the server', async () => {
+    const s = await setup(() => ({ profile_id: 'p1', state: 'connecting' }))
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
+    s.bridge.emitRealtime(refused())
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connecting' })
+    s.bridge.emitRealtime({ type: 'state', profile_id: 'p1', state: 'connected' })
+    const late = listener(s.realtime, 'user.u1', '.notification.created')
+    await flush()
     expect(late.statuses).toEqual([])
+    s.bridge.emitRealtime(subscribed())
+    expect(late.statuses).toEqual(['subscribed'])
   })
 
   it('a disposed realtime reports no subscription', async () => {
