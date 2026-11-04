@@ -16,7 +16,8 @@
 //! - Identity: exhausted authentication closes local reads while retaining data.
 //!   Company access loss and current-generation deactivation remove the mirror
 //!   and seal pending work (deactivation deletes the outbox and conflicts too).
-//!   The same identity can reopen sealed work after verification;
+//!   Sealed work (company access loss only) can be reopened by the same
+//!   identity after verification;
 //!   a different identity wipes it before pushing. Deactivation clears tokens
 //!   only for the marked generation (see [`crate::client::HttpClient`]).
 //! - Sign-in generation: a run belongs to the generation

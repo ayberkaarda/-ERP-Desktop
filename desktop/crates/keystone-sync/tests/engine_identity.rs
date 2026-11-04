@@ -224,7 +224,7 @@ async fn deactivation_of_the_current_generation_wipes_the_mirror_and_deletes_uns
     // verifies again (`client_findings::c4_deactivation_deletes_unsent_work_even_for_the_same_user`).
     assert_eq!(local_rows(&env), 0);
     // Sealed at the outbox layer too: a raw outbox neither lists nor selects
-    // it; the entry itself is still in the database.
+    // anything (the deactivation already deleted the rows).
     let raw = keystone_sync::outbox::Outbox::new(env.store.clone());
     assert!(matches!(
         raw.list(),
@@ -251,7 +251,7 @@ async fn deactivation_of_the_current_generation_wipes_the_mirror_and_deletes_uns
     }
     assert!(wiped.contains(&name("parties")));
 
-    // Another user signs in: the sealed work is deleted before any push.
+    // Another user signs in: nothing is left to push.
     sign_in_as(&env.tokens, 2).await;
     env.engine.run_once(Trigger::Manual).await.unwrap();
     assert_eq!(hits(&env.server, PUSH).await, 0);
