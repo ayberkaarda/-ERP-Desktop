@@ -353,3 +353,15 @@ fn table_names_are_one_to_one() {
     assert_eq!(search(&store, "a.b", "iki"), [2]);
     assert!(search(&store, "a.b", "bir").is_empty());
 }
+
+/// Deleted pages are overwritten with zeros (deactivation wipe, sign-out).
+/// The pragma is per connection and only the writer deletes.
+#[test]
+fn the_writer_connection_overwrites_deleted_content() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(dir.path().join("secure.db"), &key()).unwrap();
+    let on: i64 = store
+        .write(|tx| Ok(tx.query_row("PRAGMA secure_delete", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(on, 1);
+}

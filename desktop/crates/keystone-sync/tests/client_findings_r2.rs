@@ -475,6 +475,12 @@ async fn r2_sealed_outbox_is_not_readable_or_sendable_through_a_raw_outbox() {
     );
 
     let raw = Outbox::new(env.store.clone());
+    // Deactivation deletes the work; the raw outbox has nothing to hand out.
+    let stored: i64 = env
+        .store
+        .read(|c| Ok(c.query_row("SELECT count(*) FROM outbox_entries", [], |r| r.get(0))?))
+        .unwrap();
+    assert_eq!(stored, 0, "deactivation must delete the outbox rows");
     let listed = raw.list();
     assert!(
         !matches!(&listed, Ok(entries) if !entries.is_empty()),

@@ -1,7 +1,7 @@
 //! Identity loss: `UNAUTHENTICATED` keeps the outbox and continues for the
 //! same user; another user wipes local data before anything is pushed;
 //! `USER_DEACTIVATED` of the current sign-in generation wipes the mirror and
-//! seals unsent work (another user then deletes it),
+//! deletes unsent work and conflicts too (company access loss only seals),
 //! a stale one nothing; sign-out with pending work needs `force`.
 
 mod engine_support;
@@ -168,7 +168,7 @@ async fn another_user_signing_in_wipes_local_data_before_pushing() {
 }
 
 #[tokio::test]
-async fn deactivation_of_the_current_generation_wipes_the_mirror_and_seals_unsent_work() {
+async fn deactivation_of_the_current_generation_wipes_the_mirror_and_deletes_unsent_work() {
     let env = env().await;
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
@@ -219,9 +219,9 @@ async fn deactivation_of_the_current_generation_wipes_the_mirror_and_seals_unsen
 
     let error = env.engine.run_once(Trigger::Timer).await.unwrap_err();
     assert_eq!(error.code(), "USER_DEACTIVATED");
-    // The mirror goes; unsent work and the open conflict are sealed: kept,
-    // but neither readable nor sendable until the same user verifies again
-    // (`client_findings::c4_deactivation_keeps_unsent_work_for_the_same_user`).
+    // The mirror, unsent work and the open conflict all go (a deactivated
+    // user keeps no local data); the store stays sealed until the same user
+    // verifies again (`client_findings::c4_deactivation_deletes_unsent_work_even_for_the_same_user`).
     assert_eq!(local_rows(&env), 0);
     // Sealed at the outbox layer too: a raw outbox neither lists nor selects
     // it; the entry itself is still in the database.
@@ -238,8 +238,8 @@ async fn deactivation_of_the_current_generation_wipes_the_mirror_and_seals_unsen
         .store
         .read(|c| Ok(c.query_row("SELECT count(*) FROM outbox_entries", [], |r| r.get(0))?))
         .unwrap();
-    assert_eq!(stored, 1);
-    assert_eq!(inbox(&env.store).count().unwrap(), 1);
+    assert_eq!(stored, 0, "deactivation deletes unsent work");
+    assert_eq!(inbox(&env.store).count().unwrap(), 0);
     assert!(env.engine.outbox_entries().is_err());
     assert!(env.engine.conflict_records().is_err());
     let record = env.tokens.load_record(PROFILE).unwrap();

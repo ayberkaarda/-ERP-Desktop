@@ -63,7 +63,7 @@ Artık: XSS kayıtlı her komutu oturum açmış kullanıcı olarak çağırabil
 - `Secret` düşerken sıfırlanır ve `<redacted>` yazdırır (`auth/mod.rs`); anahtarlık kaydı sabit bir `Zeroizing` tampona serileştirilir (`tokens.rs` `Bounded`).
 - Çıkış önce token neslini iptal eder, sonra kopyayı, outbox'ı, çakışmaları ve motor durumunu tek işlemde siler (`engine/mod.rs` `finish_sign_out`, `engine/local.rs` `wipe`); yarım kalan çıkış sürer ve erişimi kapalı tutar. `profile_remove` token'ları, DB anahtarını ve profil klasörünü siler (`bootstrap.rs`: `tokens.remove_profile`, `db_keys.remove`, `remove_dir_all`; aktif profilde gönderilmemiş outbox ya da çakışma işi varken zorlanmadıkça reddeder).
 
-Artık: kilidi açık, oturumu açık bir cihaz hırsıza kullanıcıyla aynı erişimi verir, çünkü anahtarlık OS kullanıcısına açılır. Kopya boşta kalma, zamanlayıcı ya da ekran kilidiyle silinmez. `profiles.json` düz metindir (sunucu adresi, şirket id). Silinen SQLite sayfaları güvenle üzerine yazılmaz (`secure_delete` pragması ayarlı değil; arama ile doğrulandı). Webview'ın kendi depolama klasörü (WebView2 kullanıcı verisi) denetlenmedi.
+Artık: kilidi açık, oturumu açık bir cihaz hırsıza kullanıcıyla aynı erişimi verir, çünkü anahtarlık OS kullanıcısına açılır. Kopya boşta kalma, zamanlayıcı ya da ekran kilidiyle silinmez. `profiles.json` düz metindir (sunucu adresi, şirket id). Silinen satırlar veritabanı dosyasında sıfırlanır (yazıcıda `PRAGMA secure_delete = ON`); ancak veritabanı zaten diskte şifrelidir ve eski kopyalar bir sonraki checkpoint'e kadar WAL dosyasında, dosya sisteminin boşalan bloklarında ve SSD aşınma dağıtımında kalabilir; bu adli silme değildir. Webview'ın kendi depolama klasörü (WebView2 kullanıcı verisi) denetlenmedi.
 
 ### S4. Token tekrarı ya da token çalınması
 
@@ -80,11 +80,11 @@ Artık: 60 dakikalık süre dolmadan çalınmış erişim token'ı herhangi bir 
 
 Önlemler (doğrulandı):
 - `AccessRevoker::revokeAll` cihaz satırlarını ve token'ları siler ve `SessionRevoked` yayınlar (`backend/app/Modules/Identity/Services/AccessRevoker.php`). İstemci `.session.revoked` olayını realtime soketinden alır ve yalnız o neslin token'larını unutur (`src-tauri/src/realtime.rs`, ARCHITECTURE "Olaylar"). Pasifleştirilmiş kullanıcının yenilemesi reddedilir (`DeviceTokens::rotate` `'deactivated'` döner).
-- İstemci `USER_DEACTIVATED`'i bitiren bir cevap sayar: yerel depoyu mühürler ve nesli, sonraki bir girişi koruyan karşılaştırmalı yazmayla pasif işaretler (`engine/mod.rs` 1215 civarı, `auth/mod.rs` `deactivate`). Mühürleme kopyayı, snapshot'ları ve saklı `/auth/me` cevabını siler; aynı kimlik yeniden doğrulanana kadar okuma ve yazmayı kapatır (`engine/local.rs` `seal`). Şirket erişimi kaybı (`COMPANY_FORBIDDEN`) aynı şekilde mühürler.
+- İstemci `USER_DEACTIVATED`'i bitiren bir cevap sayar: yerel depoyu mühürler ve nesli, sonraki bir girişi koruyan karşılaştırmalı yazmayla pasif işaretler (`engine/mod.rs` 1215 civarı, `auth/mod.rs` `deactivate`). Pasifleştirmede mühür kopyayı, snapshot'ları, saklı `/auth/me` cevabını, outbox'ı ve çakışma kayıtlarını tek işlemde siler (`engine/local.rs` `seal(store, drop_work = true)`); gönderilmemiş taslaklar tasarım gereği kaybolur, çünkü kullanıcı pasifleştirilmiştir. Depo, aynı kimlik yeniden doğrulanana kadar kapalı kalır. Şirket erişimi kaybı (`COMPANY_FORBIDDEN`) kopyayı siler ama outbox ve çakışmaları yalnız mühürler (`drop_work = false`): kullanıcı hâlâ aktiftir ve erişimi geri alabilir. Yazıcı bağlantı `PRAGMA secure_delete = ON` ayarlar (`store/mod.rs`); silinen satırlar veritabanı dosyasında sıfırlanır.
 - Yerel veri başka kullanıcı ya da şirkete aitse kopya push'tan önce silinir (`engine/pass.rs`).
 - `auth_devices_list` ve `auth_devices_revoke` kullanıcının diğer cihazları iptal etmesini sağlar.
 
-Artık: bunların hepsi istemcinin sunucuyla konuşmasını gerektirir. Çevrimdışı cihaz, sunucuya ulaşana kadar verisini ve token'ını tutar. Mühür kopyayı siler ama **outbox ve çakışma kayıtlarını tutar** (mühürlü; aynı kimlik yeniden doğrulanana kadar arayüze açılmaz) (`seal` yorumu: "retaining sealed outbox and conflict records"); şifreli veritabanında kalırlar. `.session.revoked` olayı token'ları düşürür ama tek başına yerel veriyi silmez (ARCHITECTURE); silme sonraki koşuda olur. Profil değişimiyle 3 sn içinde kesilen revoke, token'ı sonraki 401'e kadar bırakabilir (ARCHITECTURE "Takip listesi", "Kesilen revoke").
+Artık: bunların hepsi istemcinin sunucuyla konuşmasını gerektirir. Çevrimdışı cihaz, sunucuya ulaşana kadar verisini ve token'ını tutar. Yalnız şirket erişimi kaybı mühürü outbox ve çakışma kayıtlarını hâlâ tutar (mühürlü; aynı kimlik yeniden doğrulanana kadar açılmaz). `.session.revoked` olayı token'ları düşürür ama tek başına yerel veriyi silmez (ARCHITECTURE); silme sonraki koşuda olur. Profil değişimiyle 3 sn içinde kesilen revoke, token'ı sonraki 401'e kadar bırakabilir (ARCHITECTURE "Takip listesi", "Kesilen revoke").
 
 ### S6. Kurcalanmış derleme (güncelleyici yok)
 
@@ -132,10 +132,10 @@ Artık: bkz. S2. Komut başına yetkilendirme ya da kullanıcı onayı yoktur; `
 2. Çalınan dizüstünde açık oturum: boşta kilit yok, uygulamayı açmak için yeniden kimlik doğrulama yok.
 3. Çalınan erişim token'ı 60 dakikaya kadar geçerlidir; cihaza bağlı değildir.
 4. Sertifika sabitleme yok; kullanıcının ya da kurumun kurduğu kök CA TLS'i araya girerek okuyabilir.
-5. Çevrimdışı iptal boşluğu: pasifleştirilmiş ya da iptal edilmiş cihaz, sunucuya ulaşana kadar verisini ve token'ını tutar. Mühürlü outbox ve çakışmalar pasifleştirme mühründen sonra da kalır.
+5. Çevrimdışı iptal boşluğu: pasifleştirilmiş ya da iptal edilmiş cihaz, sunucuya ulaşana kadar verisini ve token'ını tutar. Pasifleştirme mühürü outbox ve çakışmaları kopyayla birlikte siler; yalnız şirket erişimi kaybı mühürü onları mühürlü tutar.
 6. XSS, kayıtlı tüm komutlar üzerindeki kullanıcı yetkisini korur (ağ yok, token okuma yok, ama yıkıcı komutlara ulaşılır).
 7. Kod imzalama, güncelleme kanalı ve tekrarlanabilir derleme yok: ikili bütünlüğü doğrulanamaz.
-8. `profiles.json` düz metin; SQLite boş sayfaları güvenle silinmez; WebView2'nin kendi kullanıcı verisi klasörü denetlenmedi.
+8. `profiles.json` düz metin; silinen satırların eski kopyaları `secure_delete`'e rağmen WAL'da, dosya sistemi bloklarında ve SSD eşlemesinde kalabilir; WebView2'nin kendi kullanıcı verisi klasörü denetlenmedi.
 9. Bellek: sıfırlama Rust'taki anahtar ve token tamponlarını kapsar, ama çalışan sürecin hata ayıklayıcı ya da çökme dökümü sırları okuyabilir; bellek takasa karşı kilitlenmez.
 10. `ARCHITECTURE.md` "Takip listesi"nden açık kalanlar (kesilen revoke; giriş sonrası webview'da token yokluğu yalnız elle ölçülecek).
 

@@ -443,10 +443,16 @@ pub(super) fn close(store: &Store) -> Result<()> {
     })
 }
 
-/// Removes server data (the kept `GET /auth/me` answer too) and seals work
-/// until the same identity is verified again.
-pub(super) fn seal(store: &Store) -> Result<Vec<ResourceName>> {
+/// Removes server data (the kept `GET /auth/me` answer too). With
+/// `drop_work` (a deactivated user) the outbox and conflict records go too;
+/// without it (company access loss) they are sealed until the same identity
+/// is verified again.
+pub(super) fn seal(store: &Store, drop_work: bool) -> Result<Vec<ResourceName>> {
     store.write(|tx| {
+        if drop_work {
+            crate::outbox::clear_on(tx)?;
+            crate::conflicts::clear_on(tx)?;
+        }
         tx.execute(
             "INSERT OR REPLACE INTO engine_meta (key, value) VALUES (?1, '1')",
             [crate::outbox::WORK_SEALED],

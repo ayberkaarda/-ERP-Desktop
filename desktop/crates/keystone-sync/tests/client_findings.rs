@@ -425,9 +425,11 @@ async fn c3_a_transient_request_failure_quarantines_only_the_failing_mutation() 
 
 /// Deactivated (403 `USER_DEACTIVATED` for the current sign-in; the same
 /// mark a sign-in attempt while deactivated sets), then reactivated and
-/// signed in again as the same user: the unsent offline work is still sent.
+/// signed in again as the same user: the unsent offline work was deleted by
+/// the deactivation and is not sent (by design: a deactivated user's local
+/// data is removed).
 #[tokio::test]
-async fn c4_deactivation_keeps_unsent_work_for_the_same_user() {
+async fn c4_deactivation_deletes_unsent_work_even_for_the_same_user() {
     let env = env().await;
     let calls = Arc::new(AtomicUsize::new(0));
     let seen = calls.clone();
@@ -476,9 +478,10 @@ async fn c4_deactivation_keeps_unsent_work_for_the_same_user() {
         .flat_map(|b| b["mutations"].as_array().cloned().unwrap_or_default())
         .collect();
     assert!(
-        pushed.iter().any(|m| m["id"] == json!(id.to_string())),
-        "C4: the offline create made before the deactivation must still be sent, pushed {pushed:?}"
+        pushed.iter().all(|m| m["id"] != json!(id.to_string())),
+        "C4: the draft of a deactivated user must not be sent, pushed {pushed:?}"
     );
+    assert!(e.outbox_entries().unwrap().is_empty());
 }
 
 /// `save_as_new_draft` on a locked sales document: the create payload must
