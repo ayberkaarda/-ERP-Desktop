@@ -64,7 +64,7 @@
       "quarantined": "Karantinada"
     },
     "keep": "Değişikliği tut",
-    "unnumbered": "(numarasız)",
+    "unnumbered": "numarasız",
     "rejectedHint": "Sunucu bu değişikliği kabul etmedi; bilgiler düzeltilmeden yeniden denemek aynı sonucu verir.",
     "rejectedEdit": "Kaydı açıp düzeltin, sonra bu değişiklikten vazgeçin.",
     "rejectedDiscard": "Bu değişiklikten vazgeçin ve kaydı doğru bilgilerle yeniden girin.",

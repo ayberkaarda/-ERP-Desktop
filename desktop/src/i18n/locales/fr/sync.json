@@ -64,7 +64,7 @@
       "quarantined": "En quarantaine"
     },
     "keep": "Conserver la modification",
-    "unnumbered": "(sans numéro)",
+    "unnumbered": "sans numéro",
     "rejectedHint": "Le serveur n'a pas accepté cette modification ; réessayer sans corriger les données donne le même résultat.",
     "rejectedEdit": "Ouvrez l'enregistrement et corrigez-le, puis abandonnez cette modification.",
     "rejectedDiscard": "Abandonnez cette modification et saisissez à nouveau l'enregistrement avec des données correctes.",

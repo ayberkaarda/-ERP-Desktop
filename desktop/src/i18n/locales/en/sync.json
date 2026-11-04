@@ -64,7 +64,7 @@
       "quarantined": "Quarantined"
     },
     "keep": "Keep change",
-    "unnumbered": "(no number)",
+    "unnumbered": "no number",
     "rejectedHint": "The server did not accept this change; retrying without fixing the data gives the same result.",
     "rejectedEdit": "Open the record and fix it, then discard this change.",
     "rejectedDiscard": "Discard this change and enter the record again with correct data.",
