@@ -145,6 +145,14 @@ jobs:
       - name: Wire TypeScript matches contracts/
         run: sh scripts/check-wire-ts.sh
       - run: npm run build
+      # The other operating systems reuse this bundle: they have no Postgres/PHP to generate the API types.
+      - name: Upload the built web bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-dist
+          path: desktop/dist
+          retention-days: 1
+          if-no-files-found: error
       - name: The built bundle carries no web transport
         run: |
           # axios (CSRF round trip), laravel-echo (auth endpoint, wsHost), pusher-js.
@@ -190,3 +198,60 @@ jobs:
           key: secrets-macos
       # Compiles the apple-native-keyring-store (Keychain) path of keystone-secrets.
       - run: cargo check -p keystone-secrets --all-targets --locked
+  # Windows and macOS counterparts of `rust` and `desktop-shell` (those two stay
+  # Linux-only so their required check names do not change). New check names:
+  # `rust-os (windows-latest)`, `rust-os (macos-latest)`, `shell-os (...)`.
+  rust-os:
+    name: rust-os (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop
+          key: os-${{ matrix.os }}
+      - run: cargo clippy --workspace --exclude keystone-desktop --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --exclude keystone-desktop --locked
+      - run: cargo test --release -p keystone-realtime --lib --locked
+  shell-os:
+    name: shell-os (${{ matrix.os }})
+    needs: desktop-shell
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: desktop
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop
+          key: shell-${{ matrix.os }}
+      - name: Download the web bundle built on Linux
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: desktop-dist
+          path: desktop/dist
+      - run: cargo clippy -p keystone-desktop --all-targets --locked -- -D warnings
+      - run: cargo test -p keystone-desktop --locked
+      - run: cargo check --release -p keystone-desktop --locked
