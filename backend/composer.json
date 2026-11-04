@@ -6,7 +6,7 @@
     "keywords": [
         "erp"
     ],
-    "license": "MIT",
+    "license": "proprietary",
     "require": {
         "php": "^8.4",
         "bacon/bacon-qr-code": "^3.1",
