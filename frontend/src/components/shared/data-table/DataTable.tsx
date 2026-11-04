@@ -73,6 +73,11 @@ export interface DataTableProps<T> {
   bulkActions?: (context: BulkActionContext) => ReactNode
   onRowActivate?: (row: T) => void
   searchable?: boolean
+  /**
+   * The rows answer the search only partly (an offline answer from a local copy, see
+   * `isPartialSearch`): a notice says matches may be missing.
+   */
+  partialSearch?: boolean
   /** Extra toolbar controls (custom filters, export). */
   toolbar?: ReactNode
   emptyState?: ReactNode
@@ -110,6 +115,7 @@ export function DataTable<T>({
   bulkActions,
   onRowActivate,
   searchable = true,
+  partialSearch = false,
   toolbar,
   emptyState,
   enableColumnResizing = false,
@@ -124,6 +130,8 @@ export function DataTable<T>({
   const scrollRef = useRef<HTMLDivElement>(null)
   const focusPending = useRef(false)
   const hintId = useId()
+  const partialId = useId()
+  const showPartial = partialSearch && !error
   const drafts = useDraftRows()
 
   // A new result set (search/filters) invalidates the selection; paging keeps it.
@@ -418,6 +426,16 @@ export function DataTable<T>({
       >
         {toolbar}
       </DataTableToolbar>
+      {showPartial && (
+        <p
+          id={partialId}
+          role="note"
+          data-testid="partial-search"
+          className="border-b border-border bg-warning-soft px-3 py-2 text-sm text-warning-soft-foreground"
+        >
+          {t('states.partialSearch')}
+        </p>
+      )}
       {selectable && selectedIds.length > 0 && (
         <div
           role="region"
@@ -442,7 +460,7 @@ export function DataTable<T>({
           aria-rowcount={total + 1}
           aria-multiselectable={selectable || undefined}
           aria-busy={loading}
-          aria-describedby={hintId}
+          aria-describedby={showPartial ? `${partialId} ${hintId}` : hintId}
           className={cn(
             'w-full border-separate border-spacing-0 text-table',
             loading && !showSkeleton && 'opacity-60 transition-opacity',

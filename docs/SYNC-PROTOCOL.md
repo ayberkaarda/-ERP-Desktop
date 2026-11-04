@@ -375,17 +375,17 @@ Masaüstü bir liste isteğini (`GET <path>?page&per_page&sort&filter[...]&q`) y
 | `sort.<ad>` | `sort=<ad>` / `sort=-<ad>` yerelde uygulanır. `field` satırdaki alan (yoksa ad), `type` karşılaştırma kuralı: `text`, `date`, `datetime`, `decimal`, `integer`, `bool`. Virgüllü çok anahtarlı sıralamanın her parçası bildirilmiş olmalıdır. |
 | `default_sort` | `sort` parametresi hiç yokken sunucunun sırası (belgelerde `-document_date,-created_at`). Bildirilmemişse bu durumda yalnız `id` artan. Boş `sort=` ayrı bir durumdur: sunucu 422 verir, masaüstü de reddeder. |
 | `filters.<ad>` | `filter[<ad>]` yerelde uygulanır. `match`: `eq` (tek değer veya virgüllü liste = herhangi biri), `any_of` (satırdaki dizi, değerlerden birini içerir; `element_field` ile nesne dizisinin bir alanı, ör. `lines[].item_id`), `gte` / `lte` (dahil uç; `filter[date_from]` / `filter[date_to]`), `contains` (harf duyarsız alt dize; `filter[number]`). `type`: `string`, `uuid`, `bool`, `integer`, `date`. `max_values`: sunucunun kabul ettiği en çok değer. |
-| `search.fields` | `q` bu alanlarda harf duyarsız alt dize olarak aranır. `server_also`, sunucunun ayrıca aradığı ama satırda olmayan şeydir (ör. ürünlerde barkod ve varyant SKU'su); yerel arama onları bulamaz. |
+| `search.fields` | `q` bu alanlarda harf duyarsız alt dize olarak aranır. `server_also`, sunucunun ayrıca aradığı ama satırda olmayan şeydir (ör. ürünlerde barkod ve varyant SKU'su); yerel arama onları bulamaz. Böyle bir kaynakta çevrimdışı arama yanıtı kısmi olarak işaretlenir (`meta.offline.search_partial`, aşağıda). |
 | `online_only[]` | Web'in gönderdiği ama yerelde doğru uygulanamayan parametre (`filter[x]` veya `sort=x`) ve nedeni. |
 
 Kurallar:
 
 - Bildirilmeyen her `sort` alanı ve `filter[...]` (ve `online_only` içindekiler) çevrimdışıyken eskisi gibi reddedilir: `503 OFFLINE_UNAVAILABLE`, `unsupported_filters` istekteki adları sırasıyla listeler. Masaüstü tahmin etmez; filtrelenmiş gibi görünen yanlış bir liste göstermemek (D2b kararı) korunur. `query` bölümü yoksa önceki davranış geçerlidir: yalnız `window_field` üzerinde `sort`, `filter[<window_field>]`, `filter[date_from]` / `filter[date_to]`.
-- `page`, `per_page` (1..100), `q` her kaynakta geçerlidir (`search.server_also` olan kaynakta `q` hariç; aşağıdaki yerel uygulama kuralları); boş filtre değeri filtre değildir (sunucudaki gibi).
+- `page`, `per_page` (1..100), `q` her kaynakta geçerlidir (`search.server_also` olan kaynakta `q` yalnız çevrimdışıyken ve kısmi işaretiyle; aşağıdaki yerel uygulama kuralları); boş filtre değeri filtre değildir (sunucudaki gibi).
 - Sunucu arama için yalnız `q` okur. `search` adlı parametreyi tanımaz ve yok sayar (filtresiz liste döner). Masaüstü `search`'ü `q` gibi uygulamaz: sunucu gibi yok sayar ya da reddeder, filtrelenmiş bir yanıt vermez.
 - Boş `sort=` (parametre var, değer boş) sunucuda 422'dir: `ConvertEmptyStringsToNull` değeri `null` yapar, `ListQuery`'nin `string` kuralı reddeder. Masaüstü de reddeder. `default_sort` yalnız `sort` hiç yokken uygulanır.
 - Bildirilen her ad sunucunun o uçta kabul ettiği addır; aynı istek çevrimiçi 200 döner. Yerel uygulama, sunucunun aynı satırlara verdiği yanıtla aynı satırları verir. Sıra `decimal`, `date`, `datetime`, `integer`, `bool` ve `null` yerleşiminde sunucuyla birebir aynıdır, `text`te yaklaşıktır (aşağıda). `OfflineManifestQueryTest` ve `OfflineManifestQueryParityTest` bunu gerçek uçlara ve satırlara karşı denetler.
-- Web'in gerçekte gönderdiği liste istekleri `backend/tests/Fixtures/Sync/web-list-queries.json` içinde kaynak dosyalarıyla durur. Her biri ya tümüyle bildirilmiştir (`local`), ya bir `online_only` parametresi taşır, ya da sunucu onu zaten reddeder (`server_rejects`). Web'e yeni bir liste sorgusu eklenince bu dosya ve manifest birlikte güncellenir. `OfflineManifestWebQueriesTest` web kaynağını tarar; şunlar manifestte ve bu dosyada bulunmalıdır:
+- Web'in gerçekte gönderdiği liste istekleri `backend/tests/Fixtures/Sync/web-list-queries.json` içinde kaynak dosyalarıyla durur. Her biri ya tümüyle bildirilmiştir (`local`), ya tümüyle bildirilmiştir ama `server_also` olan bir kaynakta boş olmayan `q` taşır ve çevrimdışı yanıtı kısmidir (`local_partial`), ya bir `online_only` parametresi taşır, ya da sunucu onu zaten reddeder (`server_rejects`). Web'e yeni bir liste sorgusu eklenince bu dosya ve manifest birlikte güncellenir. `OfflineManifestWebQueriesTest` web kaynağını tarar; şunlar manifestte ve bu dosyada bulunmalıdır:
   - DataTable sayfalarının sıralanabilir kolonları ve kolon filtreleri (`meta.filter`; anahtar `key` ya da kolon kimliği),
   - satış, satın alma ve kit liste yardımcılarının `LIST_FILTERS`, `LIST_SORTS`, `COMMON_FILTERS` listeleri ve kit sayfalarının ek filtreleri,
   - stok belgesi `FILTERS` listesi,
@@ -406,7 +406,32 @@ Yerel uygulama kuralları:
   Bu kural Türkçe harf, büyük/küçük harf ve noktalama içeren 308 sıralama isteğinde PostgreSQL ile aynı sırayı verdi. Yine de glibc ile her girdide aynı olması garanti değildir. Sayfalar yerel sırada tutarlıdır.
 - **Filtre:** `string` tam ve harf duyarlıdır. `uuid` küçük harfe çevrilerek karşılaştırılır; uuid biçiminde olmayan değer yerelde reddedilir. `bool` yalnız `1`/`0`/`true`/`false` alır; başka değer yerelde reddedilir. `date` aralığı `YYYY-MM-DD` dizesi olarak dahil uçlarla karşılaştırılır; geçersiz tarih (ör. `#invalid-date`) yerelde reddedilir (sunucu 422 döner). `max_values` aşılırsa reddedilir.
 - **Arama:** sunucu `ILIKE '%q%'` kullanır; yerelde aynı alanlarda harf duyarsız alt dize (`%` ve `_` düz karakterdir). Türkçe büyük/küçük harf eşlemesi (`İ`/`i`, `I`/`ı`) yerelde daha geniş olabilir; bu fazladan eşleşme verir, eksik vermez.
-- **`server_also` olan arama yerelde yanıtlanmaz.** Yerel arama sunucunun bulduğu satırların bir alt kümesini veremez (eksik eşleşme yasaktır); `search.server_also` bildirilmiş kaynakta boş olmayan `q` bu yüzden `online_only` gibi işlenir: çevrimiçiyken sunucuya gider, çevrimdışıyken `503 OFFLINE_UNAVAILABLE` döner, `unsupported_filters` içinde `q` yer alır ve neden `server_also` metnidir. Boş `q` arama değildir. `web-list-queries.json` bu istekleri `online_only` sınıflar (ör. ürünlerde `q=wid`, `q=8690000000001`); `OfflineManifestQueryTest` sınıfı manifestteki `server_also`'dan türetir.
+- **`server_also` olan arama çevrimdışıyken kısmi ve işaretli yanıtlanır.** Yerel arama yalnız `search.fields` içinde arar; sunucunun ayrıca aradığını (`server_also`, ör. barkod, varyant SKU'su) bulamaz. Yanıt bu yüzden sunucunun bulacağı satırların bir alt kümesi olabilir. Eksik eşleşme yalnız şu koşullarla verilir:
+  1. Yalnız çevrimdışıyken. Çevrimiçiyken bu istek, `local-first` kaynakta da, her zaman sunucuya gider; kısmi yanıt sunucunun yanıtının yerini almaz. Sunucuya ulaşılamazsa istek çevrimdışı kuralına düşer.
+  2. Yanıt `200`'dür ve `meta.offline.search_partial: true` taşır; `applied_filters` `q`'yu içerir. İşaret yoksa yerel liste tamdır: istemci işaretsiz bir yanıtı eksiksiz sayabilir.
+  3. İsteğin diğer parametreleri yukarıdaki kurallara tabidir. Bildirilmeyen ya da `online_only` bir parametre varsa istek eskisi gibi `503 OFFLINE_UNAVAILABLE` ile reddedilir; `q` ise artık `unsupported_filters`'ta ve `meta.offline.online_only`'de yer almaz.
+
+  Boş `q` arama değildir ve işaret taşımaz. `server_also` olmayan kaynakta yerel arama tamdır ve işaret taşımaz. Arayüz işaretli yanıtı görünür bir notla gösterir ("Çevrimdışı: sonuçlar yalnızca yerel kopyadan, eksik olabilir"); işaret yokken web davranışı değişmez. `web-list-queries.json` bu istekleri `local_partial` sınıflar (ör. ürünlerde `q=wid`, `q=8690000000001`); `OfflineManifestQueryTest` sınıfı manifestteki `server_also`'dan türetir.
+
+  Karar değişikliği: önceden eksik eşleşme yasaktı ve bu istekler çevrimdışıyken `503` ile reddediliyordu. Manifest değişmedi (`manifest_version` 3 kalır); reddeden eski bir masaüstü sürümü de uyumludur. `search_partial` eklemeli bir alandır: onu tanımayan istemci yanıtı olağan bir liste olarak gösterir.
+
+### Yerel yanıtın `meta.offline` alanı
+
+Masaüstünün kendi verdiği her yanıt (veri ya da ret) `meta.offline` taşır; sunucu bu anahtarı hiç göndermez. Bir web istemcisi alanı yalnız okur, yoksa hiçbir şey göstermez.
+
+| Alan | Anlamı |
+|---|---|
+| `as_of` | Yerel kopyanın sunucuyla son eşitlendiği an (ISO 8601), biliniyorsa. |
+| `partial` | Yerel kopya henüz inmekte: satırlar kopyanın bir kısmıdır. Sorguyla ilgisi yoktur. |
+| `stale` | Gelmeyen bir sunucu yanıtının yerine gösterilen kopya: eski olabilir. |
+| `pending` | Yanıt gönderilmemiş bir taslak gösteriyor. |
+| `draft_ids` | Liste sayfasında gönderilmemiş değişiklik taşıyan satırların kimlikleri, sayfa sırasıyla. |
+| `unsupported_filters` | Ret yanıtında: yerelde uygulanamayan parametre adları, istek sırasıyla. |
+| `online_only` | `unsupported_filters` içinden manifestin sunucuya bıraktıkları, nedenleriyle (`{param, reason}`). |
+| `applied_filters` | Yanıtın yerelde uyguladığı `sort`, `filter[x]` ve `q` adları, istek sırasıyla. |
+| `search_partial` | Yalnız `true` olarak bulunur: `q`, `server_also` olan bir kaynakta yerel kopyada arandı; sunucunun bulacağı satırlardan bazıları eksik olabilir. |
+
+`partial` ile `search_partial` ayrıdır: biri kopyanın inme durumunu, öbürü aramanın kapsamını söyler; ikisi birlikte de doğru olabilir. `search_partial` bu yüzden `partial`'ın yerine kullanılmaz.
 
 ## Çevrimdışı yazma kapsamı
 

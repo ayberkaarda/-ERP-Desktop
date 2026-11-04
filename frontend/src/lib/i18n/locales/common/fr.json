@@ -16,7 +16,8 @@
     "loading": "Chargement…",
     "saving": "Enregistrement…",
     "errorTitle": "Un problème est survenu",
-    "errorBody": "Les données n’ont pas pu être chargées. Vérifiez votre connexion et réessayez."
+    "errorBody": "Les données n’ont pas pu être chargées. Vérifiez votre connexion et réessayez.",
+    "partialSearch": "Hors ligne : résultats de la copie locale uniquement, peut-être incomplets."
   },
   "validation": {
     "required": "Ce champ est obligatoire.",

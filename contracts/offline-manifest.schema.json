@@ -145,7 +145,7 @@
           "additionalProperties": { "$ref": "#/$defs/queryFilter" }
         },
         "search": {
-          "description": "q parametresinin yerelde arandığı satır alanları: sunucunun aradığı kolonlardan satırda bulunanlar. server_also: sunucunun ayrıca aradığı ama satırda olmayan şey; yerel arama onu bulamaz.",
+          "description": "q parametresinin yerelde arandığı satır alanları: sunucunun aradığı kolonlardan satırda bulunanlar. server_also: sunucunun ayrıca aradığı ama satırda olmayan şey; yerel arama onu bulamaz, bu yüzden çevrimdışı arama yanıtı meta.offline.search_partial ile kısmi işaretlenir. Bkz. docs/SYNC-PROTOCOL.md 'Çevrimdışı liste sorguları'.",
           "type": "object",
           "additionalProperties": false,
           "required": ["fields"],

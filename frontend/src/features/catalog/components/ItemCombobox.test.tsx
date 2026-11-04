@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { http, HttpResponse } from 'msw'
 import { useState } from 'react'
 import { renderRoutes } from '@/test/handlers/feaRender'
-import { ITEM_BOLT, ITEM_SERVICE, U_PCS } from '@/test/handlers/catalog'
+import { ITEM_BOLT, U_PCS } from '@/test/handlers/catalog'
 import { server } from '@/test/msw/server'
 import { setupCatalog } from '../testing'
 import type { Item } from '../types'
@@ -75,257 +75,97 @@ describe('ItemCombobox', () => {
     expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ name: 'Cıvata M8 (yeni)' }))
   })
 
-  describe('when the text search is not available offline', () => {
-    /** The desktop answer for a non-empty `q` offline; the unfiltered list still answers. */
-    function refuseTextSearch(code = 'OFFLINE_UNAVAILABLE', status = 503) {
-      const refused: string[] = []
+  describe('when the search is answered from a local copy offline', () => {
+    const NOTICE = 'Çevrimdışı: sonuçlar yalnızca yerel kopyadan, eksik olabilir.'
+
+    /**
+     * The desktop answer for a non-empty `q` offline: the local matches on code and name, marked
+     * as a partial search (barcodes and variant SKUs are not searched there).
+     */
+    function answerLocally(db: ReturnType<typeof setupCatalog>, state = { partial: true }) {
+      const asked: string[] = []
       server.use(
         http.get('*/api/v1/items', ({ request }) => {
           const q = new URL(request.url).searchParams.get('q')
-          if (!q) return undefined
-          refused.push(q)
-          return HttpResponse.json(
-            {
-              errors: { message: 'Bu istek çevrimdışıyken yanıtlanamıyor.', code },
-              meta: {
-                offline: {
-                  partial: false,
-                  stale: false,
-                  unsupported_filters: ['q'],
-                  online_only: [{ param: 'q', reason: 'Barkodlar ve varyant SKUları da aranır.' }],
-                },
+          if (!q || !state.partial) return undefined
+          asked.push(q)
+          const needle = q.toLocaleLowerCase('tr')
+          const rows = db.items.filter(
+            (i) =>
+              i.code.toLocaleLowerCase('tr').includes(needle) ||
+              i.name.toLocaleLowerCase('tr').includes(needle),
+          )
+          return HttpResponse.json({
+            data: rows,
+            meta: {
+              pagination: { current_page: 1, per_page: 20, total: rows.length, last_page: 1 },
+              offline: {
+                partial: false,
+                stale: false,
+                applied_filters: ['q', 'filter[is_active]'],
+                search_partial: true,
               },
             },
-            { status },
-          )
+          })
         }),
       )
-      return refused
+      return asked
     }
 
-    // Refused requests never reach the catalog recorder: these are the unfiltered reads.
-    const listCalls = (db: ReturnType<typeof setupCatalog>) =>
-      db.calls.filter((c) => c.path === '/items' && c.method === 'GET')
-
-    it('searches the loaded unfiltered page by code and name, with a notice', async () => {
+    it('shows the local matches with a notice that they may be incomplete', async () => {
       const db = setupCatalog()
-      const refused = refuseTextSearch()
+      const asked = answerLocally(db)
       const user = userEvent.setup()
       const onPick = vi.fn()
       renderRoutes([{ path: '/', element: <Harness onPick={onPick} /> }])
       const input = screen.getByRole('combobox', { name: 'Stok' })
-      await user.type(input, 'CIVATA')
+      await user.type(input, 'cıv')
       const option = await screen.findByRole('option', { name: /STK000001 · Cıvata M8/ })
       expect(screen.queryByRole('option', { name: /Montaj/ })).not.toBeInTheDocument()
-      expect(screen.getByRole('note')).toHaveTextContent(
-        'Çevrimdışı: yalnızca yüklü ürünler aranıyor; barkod ve varyant için bağlanın.',
-      )
+      expect(screen.getByRole('note')).toHaveTextContent(NOTICE)
+      expect(input).toHaveAccessibleDescription(NOTICE)
       expect(screen.queryByText('Seçenekler yüklenemedi')).not.toBeInTheDocument()
-      expect(refused).toContain('CIVATA')
-      // The fallback is the normal list: no text, same page size and filters.
-      const [fallback] = listCalls(db)
-      expect(fallback?.url.searchParams.has('q')).toBe(false)
-      expect(fallback?.url.searchParams.get('per_page')).toBe('20')
-      expect(fallback?.url.searchParams.get('filter[is_active]')).toBe('true')
+      expect(asked).toContain('cıv')
       await user.click(option)
       expect(onPick).toHaveBeenLastCalledWith(expect.objectContaining({ id: ITEM_BOLT }))
     })
 
-    it('matches the item code and reuses the loaded page for the next keystrokes', async () => {
+    it('says so for an empty partial answer too: a barcode may still match on the server', async () => {
       const db = setupCatalog()
-      refuseTextSearch()
+      answerLocally(db)
       const user = userEvent.setup()
       renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      const input = screen.getByRole('combobox', { name: 'Stok' })
-      await user.type(input, 'stk')
-      await screen.findByRole('option', { name: /Montaj hizmeti/ })
-      expect(screen.getByRole('option', { name: /Cıvata M8/ })).toBeInTheDocument()
-      await user.type(input, '000002')
-      await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1))
-      expect(screen.getByRole('option', { name: /Montaj hizmeti/ })).toBeInTheDocument()
-      expect(listCalls(db)).toHaveLength(1)
+      await user.type(screen.getByRole('combobox', { name: 'Stok' }), '8690000000001')
+      expect(await screen.findByRole('note')).toHaveTextContent(NOTICE)
+      expect(screen.queryByRole('option')).not.toBeInTheDocument()
     })
 
-    it('reuses the page the empty box already loaded', async () => {
+    it('drops the notice once the server answers again', async () => {
       const db = setupCatalog()
-      refuseTextSearch()
-      const user = userEvent.setup()
-      renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      const input = screen.getByRole('combobox', { name: 'Stok' })
-      await user.click(screen.getByRole('button', { name: 'Seçenekleri göster' }))
-      await screen.findByRole('option', { name: /Montaj hizmeti/ })
-      await user.type(input, 'montaj')
-      await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(1))
-      expect(screen.getByRole('option', { name: /Montaj hizmeti/ })).toBeInTheDocument()
-      expect(listCalls(db)).toHaveLength(1)
-    })
-
-    it('still shows the load error for other failures', async () => {
-      setupCatalog()
-      refuseTextSearch('SERVER_ERROR', 500)
-      const user = userEvent.setup()
-      renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      await user.type(screen.getByRole('combobox', { name: 'Stok' }), 'cıv')
-      expect(await screen.findByText('Seçenekler yüklenemedi')).toBeInTheDocument()
-      expect(screen.queryByRole('note')).not.toBeInTheDocument()
-    })
-
-    /** Fails the next `count` unfiltered reads, so nothing is cached for the fallback. */
-    function failUnfiltered() {
-      const state = { count: 0 }
-      server.use(
-        http.get('*/api/v1/items', ({ request }) => {
-          if (new URL(request.url).searchParams.get('q') || state.count <= 0) return undefined
-          state.count -= 1
-          return HttpResponse.json(
-            { errors: { message: 'x', code: 'SERVER_ERROR' } },
-            { status: 500 },
-          )
-        }),
-      )
-      return state
-    }
-
-    it('shows the load error for another 503 code', async () => {
-      setupCatalog()
-      refuseTextSearch('MAINTENANCE', 503)
-      const user = userEvent.setup()
-      renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      await user.type(screen.getByRole('combobox', { name: 'Stok' }), 'cıv')
-      expect(await screen.findByText('Seçenekler yüklenemedi')).toBeInTheDocument()
-      expect(screen.queryByRole('note')).not.toBeInTheDocument()
-    })
-
-    it('reads the unfiltered page itself, without the text, when none is cached', async () => {
-      const db = setupCatalog()
-      refuseTextSearch()
-      failUnfiltered().count = 1 // the empty box load fails: nothing seeds the cache
-      const user = userEvent.setup()
-      renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      await user.type(screen.getByRole('combobox', { name: 'Stok' }), 'CIVATA')
-      await screen.findByRole('option', { name: /STK000001 · Cıvata M8/ })
-      const calls = listCalls(db)
-      expect(calls).toHaveLength(1)
-      expect(calls[0]?.url.searchParams.has('q')).toBe(false)
-      expect(calls[0]?.url.searchParams.get('filter[is_active]')).toBe('true')
-    })
-
-    it('does not reuse the page of a picker with other filters', async () => {
-      const db = setupCatalog()
-      refuseTextSearch()
-      const failing = failUnfiltered()
-      const user = userEvent.setup()
-      renderRoutes([
-        {
-          path: '/',
-          element: (
-            <>
-              <ItemCombobox
-                aria-label="Hizmet"
-                type="service"
-                value={null}
-                onChange={() => undefined}
-              />
-              <Harness onPick={() => undefined} />
-            </>
-          ),
-        },
-      ])
-      const [openService] = screen.getAllByRole('button', { name: 'Seçenekleri göster' })
-      if (!openService) throw new Error('no toggle')
-      await user.click(openService)
-      await screen.findByRole('option', { name: /Montaj hizmeti/ })
-      failing.count = 1 // the second picker's empty box load fails
-      await user.type(screen.getByRole('combobox', { name: 'Stok' }), 'cıv')
-      await screen.findByRole('option', { name: /Cıvata M8/ })
-      const own = listCalls(db).filter((c) => !c.url.searchParams.has('filter[type]'))
-      expect(own).toHaveLength(1)
-    })
-
-    it('ignores spaces around the typed text', async () => {
-      setupCatalog()
-      refuseTextSearch()
-      const user = userEvent.setup()
-      renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      await user.type(screen.getByRole('combobox', { name: 'Stok' }), ' cıv')
-      expect(await screen.findByRole('option', { name: /Cıvata M8/ })).toBeInTheDocument()
-    })
-
-    it('lists like an empty box for spaces alone', async () => {
-      setupCatalog()
-      const refused = refuseTextSearch()
-      const user = userEvent.setup()
-      renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
-      await user.type(screen.getByRole('combobox', { name: 'Stok' }), '  ')
-      await screen.findByRole('option', { name: /Montaj hizmeti/ })
-      expect(screen.getByRole('option', { name: /Cıvata M8/ })).toBeInTheDocument()
-      expect(screen.queryByText('Seçenekler yüklenemedi')).not.toBeInTheDocument()
-      expect(screen.queryByRole('note')).not.toBeInTheDocument()
-      expect(refused).toEqual([])
-    })
-
-    it('reads the notice to the input it belongs to', async () => {
-      setupCatalog()
-      refuseTextSearch()
+      const state = { partial: true }
+      answerLocally(db, state)
       const user = userEvent.setup()
       renderRoutes([{ path: '/', element: <Harness onPick={() => undefined} /> }])
       const input = screen.getByRole('combobox', { name: 'Stok' })
       await user.type(input, 'cıv')
-      await screen.findByRole('option', { name: /Cıvata M8/ })
-      expect(input).toHaveAccessibleDescription(
-        'Çevrimdışı: yalnızca yüklü ürünler aranıyor; barkod ve varyant için bağlanın.',
-      )
-    })
-
-    it('does not let a superseded fallback replace the rows of a newer search', async () => {
-      setupCatalog()
-      const state = { offline: true }
-      let release: () => void = () => undefined
-      const gate = new Promise<void>((resolve) => {
-        release = resolve
-      })
-      server.use(
-        http.get('*/api/v1/items', async ({ request }) => {
-          if (new URL(request.url).searchParams.get('q')) {
-            if (!state.offline) return undefined
-            return HttpResponse.json(
-              { errors: { message: 'Çevrimdışı.', code: 'OFFLINE_UNAVAILABLE' } },
-              { status: 503 },
-            )
-          }
-          // Unfiltered reads are slow: the fallback for "cıv" is still waiting below.
-          await gate
-          return undefined
-        }),
-      )
-      const user = userEvent.setup()
-      const onPick = vi.fn()
-      renderRoutes([{ path: '/', element: <Harness onPick={onPick} /> }])
-      const input = screen.getByRole('combobox', { name: 'Stok' })
-      await user.type(input, 'cıv')
-      await new Promise((r) => setTimeout(r, 400))
-      // The connection is back: the next text is searched on the server.
-      state.offline = false
+      expect(await screen.findByRole('note')).toHaveTextContent(NOTICE)
+      state.partial = false
       await user.clear(input)
       await user.type(input, 'montaj')
-      const option = await screen.findByRole('option', { name: /Montaj hizmeti/ })
-      // The old fallback (rows: Cıvata only) finishes after the newer search.
-      release()
-      await new Promise((r) => setTimeout(r, 100))
-      await user.click(option)
-      expect(onPick).toHaveBeenLastCalledWith(
-        expect.objectContaining({ id: ITEM_SERVICE, base_unit_id: U_PCS }),
-      )
+      await screen.findByRole('option', { name: /Montaj hizmeti/ })
+      await waitFor(() => expect(screen.queryByRole('note')).not.toBeInTheDocument())
     })
 
-    it('shows the load error when the unfiltered list is refused too', async () => {
-      setupCatalog()
+    it('shows the load error for a refused search, without reading another list', async () => {
+      const db = setupCatalog()
       server.use(
-        http.get('*/api/v1/items', () =>
-          HttpResponse.json(
-            { errors: { message: 'Çevrimdışı.', code: 'OFFLINE_UNAVAILABLE' } },
-            { status: 503 },
-          ),
+        http.get('*/api/v1/items', ({ request }) =>
+          new URL(request.url).searchParams.get('q')
+            ? HttpResponse.json(
+                { errors: { message: 'Çevrimdışı.', code: 'OFFLINE_UNAVAILABLE' } },
+                { status: 503 },
+              )
+            : undefined,
         ),
       )
       const user = userEvent.setup()
@@ -333,6 +173,11 @@ describe('ItemCombobox', () => {
       await user.type(screen.getByRole('combobox', { name: 'Stok' }), 'cıv')
       expect(await screen.findByText('Seçenekler yüklenemedi')).toBeInTheDocument()
       expect(screen.queryByRole('note')).not.toBeInTheDocument()
+      // Only the empty box opening read the list: no fallback read without the text.
+      const unfiltered = db.calls.filter(
+        (c) => c.path === '/items' && c.method === 'GET' && !c.url.searchParams.has('q'),
+      )
+      expect(unfiltered.length).toBeLessThanOrEqual(1)
     })
   })
 

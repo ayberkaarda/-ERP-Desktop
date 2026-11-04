@@ -16,7 +16,8 @@
     "loading": "Wird geladen…",
     "saving": "Wird gespeichert…",
     "errorTitle": "Etwas ist schiefgelaufen",
-    "errorBody": "Die Daten konnten nicht geladen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut."
+    "errorBody": "Die Daten konnten nicht geladen werden. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    "partialSearch": "Offline: Ergebnisse nur aus der lokalen Kopie, möglicherweise unvollständig."
   },
   "validation": {
     "required": "Dieses Feld ist erforderlich.",
