@@ -188,7 +188,7 @@ fn list(engine: &Engine, read: &Read<'_>, call: &ApiCall) -> CommandResult<Local
     let rows = page.rows.iter().map(row_json).collect::<Result<_, _>>()?;
     let per_page = u64::from(mapped.per_page);
     let body = envelope::paginated(rows, mapped.page, per_page, page.total);
-    answer(body, read, pending, mapped.applied)
+    answer(body, read, pending, page.drafts, mapped.applied)
 }
 
 fn item(engine: &Engine, read: &Read<'_>, id: Uuid, call: &ApiCall) -> CommandResult<LocalOutcome> {
@@ -215,7 +215,7 @@ fn item(engine: &Engine, read: &Read<'_>, id: Uuid, call: &ApiCall) -> CommandRe
     match found {
         Some(local) => {
             let body = envelope::success(row_json(&local.row)?, Map::new());
-            answer(body, read, local.draft, Vec::new())
+            answer(body, read, local.draft, Vec::new(), Vec::new())
         }
         None if local_write::deleted_here(engine, read.resource, id)? => Ok(not_found()),
         // Not on this device says nothing about the server: the copy is
@@ -225,10 +225,13 @@ fn item(engine: &Engine, read: &Read<'_>, id: Uuid, call: &ApiCall) -> CommandRe
     }
 }
 
+/// `draft_ids`: of a list page, its rows that carry a queued draft (an item
+/// answer has `pending` alone).
 fn answer(
     body: Value,
     read: &Read<'_>,
     pending: bool,
+    draft_ids: Vec<Uuid>,
     applied_filters: Vec<String>,
 ) -> CommandResult<LocalOutcome> {
     let as_of = match read.store {
@@ -240,6 +243,7 @@ fn answer(
         partial: read.partial,
         stale: read.stale,
         pending,
+        draft_ids,
         applied_filters,
         ..OfflineMeta::default()
     };

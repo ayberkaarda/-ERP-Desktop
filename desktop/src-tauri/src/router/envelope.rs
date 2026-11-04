@@ -15,6 +15,7 @@ use keystone_sync::client::ProxyResponse;
 use keystone_sync::store::OnlineOnly;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
+use uuid::Uuid;
 
 use crate::dto::api::{ApiBody, ApiResponseDto, ResponseSource};
 
@@ -76,6 +77,11 @@ pub struct OfflineMeta {
     /// The answer is a queued draft, not yet sent.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub pending: bool,
+    /// Of a list page: the ids of its rows that carry a queued draft, in
+    /// page order (`pending` says only that there is one). Drafts are not
+    /// always first: with a sort they sit where the sort puts them.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub draft_ids: Vec<Uuid>,
     /// Filters of the request the local copy cannot apply.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub unsupported_filters: Vec<String>,
