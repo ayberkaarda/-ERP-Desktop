@@ -6,10 +6,12 @@ use App\Core\Http\ApiException;
 use App\Modules\Identity\Services\DeviceTokens;
 use App\Modules\Sync\Http\Middleware\LimitConcurrentPulls;
 use App\Modules\Sync\Http\Middleware\PullLease;
+use Illuminate\Database\Events\TransactionBeginning;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -179,6 +181,23 @@ it('cuts a statement at the deadline left, not at the full lease', function (): 
     throttledPull($this, $this->headers)->assertStatus(500);
 
     expect(microtime(true) - $started)->toBeLessThan(1.25);
+});
+
+it('opens the read snapshot when the time left drops a step just before it', function (): void {
+    // The lease falls more than a step behind right before SET TRANSACTION: lowering the
+    // timeout there would be a query ahead of it in the snapshot transaction.
+    $done = false;
+    Event::listen(TransactionBeginning::class, function () use (&$done): void {
+        if (! $done) {
+            $done = true;
+            usleep(250_000);
+        }
+    });
+
+    throttledPull($this, $this->headers)->assertOk();
+
+    expect($done)->toBeTrue()
+        ->and(DB::selectOne('show statement_timeout')->statement_timeout)->toBe('0');
 });
 
 it('counts the deadline from the wait for the slot and checks the setup statements too', function (): void {
