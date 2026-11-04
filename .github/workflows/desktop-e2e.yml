@@ -1,0 +1,141 @@
+name: Desktop E2E
+# The desktop app driven through tauri-driver (WebKitWebDriver under xvfb) against a
+# real Laravel + Postgres server started in the job. Scenarios: desktop/PLAN.md B8.
+# Path-filtered, so this check must NOT be a required status check (a PR that touches
+# none of the paths would wait for it forever).
+# Linux only: the Windows driver (msedgedriver matched to the runner's WebView2) is
+# version-fragile on hosted runners, so it is not run here.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/**'
+      - 'frontend/**'
+      - 'backend/**'
+      - 'contracts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop-e2e.yml'
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - 'frontend/**'
+      - 'backend/**'
+      - 'contracts/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/desktop-e2e.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+      # The backend the app talks to: no Redis, no Reverb, everything local to the job.
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5433
+      DB_DATABASE: keystone_test
+      DB_USERNAME: keystone
+      DB_PASSWORD: keystone
+      SESSION_DRIVER: file
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      BROADCAST_CONNECTION: log
+      MAIL_MAILER: log
+      ADMIN_EMAIL: e2e.root@example.test
+      ADMIN_PASSWORD: E2e-root-correct-horse-battery-9
+      # WebKitGTK under a virtual display.
+      WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+      WEBKIT_DISABLE_DMABUF_RENDERER: '1'
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: keystone_test
+          POSTGRES_USER: keystone
+          POSTGRES_PASSWORD: keystone
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U keystone -d keystone_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            webkitgtk-webdriver xvfb dbus gnome-keyring libsecret-tools
+      - name: Put WebKitWebDriver on PATH
+        run: |
+          driver=$(dpkg -L webkitgtk-webdriver | grep -m1 "/WebKitWebDriver$")
+          echo "WebKitWebDriver at $driver"
+          command -v WebKitWebDriver || sudo ln -s "$driver" /usr/local/bin/WebKitWebDriver
+      - name: Install toolchain from rust-toolchain.toml
+        working-directory: desktop
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: desktop
+          key: e2e
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        id: driver-cache
+        with:
+          path: ~/.cargo/bin/tauri-driver
+          key: tauri-driver-2.1.0-${{ runner.os }}
+      - name: Install tauri-driver
+        if: steps.driver-cache.outputs.cache-hit != 'true'
+        run: cargo install tauri-driver --locked --version 2.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.4'
+          coverage: none
+      - run: npm ci
+      - name: Prepare the server (migrate, seed, demo data)
+        working-directory: backend
+        run: |
+          composer install --no-interaction --prefer-dist
+          cp .env.example .env
+          php artisan key:generate --force
+          php artisan migrate --force --seed
+          composer openapi
+          E2E_BACKEND_DIR="$PWD" E2E_STATE="$RUNNER_TEMP/e2e-state.json" php ../desktop/e2e/seed/seed.php
+      - run: npm run gen:api --workspace frontend
+      - name: Build the desktop app (debug profile, no bundle)
+        working-directory: desktop
+        run: npm run tauri -- build --debug --no-bundle
+      - name: Run the scenarios
+        run: >-
+          xvfb-run --auto-servernum --server-args="-screen 0 1440x900x24"
+          dbus-run-session -- bash desktop/e2e/run-ci.sh
+        env:
+          E2E_BACKEND_DIR: ${{ github.workspace }}/backend
+          E2E_STATE: ${{ runner.temp }}/e2e-state.json
+          E2E_APP_BIN: ${{ github.workspace }}/desktop/target/debug/keystone-desktop
+      - name: Collect the logs
+        if: failure()
+        run: |
+          mkdir -p e2e-logs
+          cp backend/storage/logs/*.log e2e-logs/ 2>/dev/null || true
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-e2e-logs
+          path: e2e-logs
+          retention-days: 3
+          if-no-files-found: ignore
