@@ -532,6 +532,57 @@ async fn the_webview_fixture_is_the_meta_of_a_partial_search() {
     );
 }
 
+/// A partial search sorts and pages like any local list: the order and the
+/// pages are over the local matches, and so is `pagination.total`.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_partial_search_is_sorted_and_paged_over_the_local_matches() {
+    let rows: Vec<(Uuid, Value)> = [
+        (1, "BOLT-A", "Bolt A"),
+        (2, "BOLT-C", "Bolt C"),
+        (3, "NUT-1", "Nut"),
+        (4, "BOLT-B", "Bolt B"),
+        (5, "WASHER", "Washer for bolt"),
+    ]
+    .into_iter()
+    .map(|(n, code, name)| with_id(n, json!({"code": code, "name": name})))
+    .collect();
+    let id = |n: usize| rows[n - 1].0;
+    let fx = fixture(vec![(
+        "items",
+        rows.iter().map(|(_, row)| row.clone()).collect(),
+    )])
+    .await;
+    fx.go_offline();
+
+    let page = |n: &str| {
+        get(
+            ITEMS,
+            pairs(&[
+                ("q", "bolt"),
+                ("sort", "-code"),
+                ("per_page", "2"),
+                ("page", n),
+            ]),
+        )
+    };
+    let first = fx.call(page("1")).await;
+    let second = fx.call(page("2")).await;
+    let third = fx.call(page("3")).await;
+    // -code over the four matches: WASHER, BOLT-C, BOLT-B, BOLT-A.
+    assert_eq!(ids(&first), [id(5), id(2)]);
+    assert_eq!(ids(&second), [id(4), id(1)]);
+    assert!(ids(&third).is_empty());
+    for answer in [&first, &second, &third] {
+        assert_eq!(answer.status, 200);
+        let body = answer.json().unwrap();
+        assert_eq!(body["meta"]["pagination"]["total"], 4);
+        assert_eq!(body["meta"]["pagination"]["last_page"], 2);
+        let offline = &body["meta"]["offline"];
+        assert_eq!(offline["search_partial"], true);
+        assert_eq!(offline["applied_filters"], json!(["q", "sort"]));
+    }
+}
+
 /// Seen online, but the server cannot be reached: the partial local answer
 /// stands in, as the local copy of an online-first read does.
 #[tokio::test(flavor = "multi_thread")]

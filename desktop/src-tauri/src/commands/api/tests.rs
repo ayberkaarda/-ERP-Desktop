@@ -162,6 +162,8 @@ impl Fixture {
 struct FakeLocal {
     copy: LocalCopy,
     answer: Option<ApiResponseDto>,
+    /// The answer is a partial search ([`LocalOutcome::PartialSearch`]).
+    partial_search: bool,
     plans: Mutex<Vec<LocalPlan>>,
 }
 
@@ -170,6 +172,17 @@ impl FakeLocal {
         Arc::new(Self {
             copy,
             answer: answer.map(|body| envelope::local(200, body)),
+            partial_search: false,
+            plans: Mutex::default(),
+        })
+    }
+
+    /// Answers with `body` as a partial search.
+    fn partial_search(copy: LocalCopy, body: Value) -> Arc<Self> {
+        Arc::new(Self {
+            copy,
+            answer: Some(envelope::local(200, body)),
+            partial_search: true,
             plans: Mutex::default(),
         })
     }
@@ -198,6 +211,7 @@ impl LocalResolver for FakeLocal {
     ) -> CommandResult<LocalOutcome> {
         self.plans.lock().unwrap().push(plan.clone());
         Ok(match &self.answer {
+            Some(answer) if self.partial_search => LocalOutcome::PartialSearch(answer.clone()),
             Some(answer) => LocalOutcome::Answer(answer.clone()),
             None => LocalOutcome::Unsupported {
                 unsupported_filters: vec!["filter[city]".into()],
@@ -633,6 +647,7 @@ async fn an_online_first_fallback_refusal_names_the_request() {
             503,
             envelope::error("OFFLINE_UNAVAILABLE", "not on this device", None),
         )),
+        partial_search: false,
         plans: Mutex::default(),
     });
     let answer = fx
@@ -669,6 +684,7 @@ async fn a_local_answer_from_the_resolver_names_the_refused_request() {
                 None,
             ),
         )),
+        partial_search: false,
         plans: Mutex::default(),
     });
     let answer = fx
@@ -851,6 +867,53 @@ async fn online_first_falls_back_to_the_stale_local_copy_when_unreachable() {
         local.plans().as_slice(),
         [LocalPlan::Read { stale: true, .. }]
     ));
+}
+
+/// An online-first read whose local answer is a partial search: the server
+/// cannot be reached, so the partial answer stands in, marked as it came.
+#[tokio::test(flavor = "multi_thread")]
+async fn online_first_falls_back_to_a_partial_search_when_unreachable() {
+    let fx = fixture_with_engine(&dead_url().await);
+    let body = json!({ "data": ["local"], "meta": { "offline": { "search_partial": true } } });
+    let local = FakeLocal::partial_search(LocalCopy::Complete, body.clone());
+    let answer = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "GET", "path": "/api/v1/sales-deliveries", "query": [["q", "x"]] }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.source, ResponseSource::Local);
+    assert_eq!(answer.json(), Some(&body));
+    assert!(matches!(
+        local.plans().as_slice(),
+        [LocalPlan::Read { stale: true, .. }]
+    ));
+}
+
+/// Online, a server that answers wins over a partial search of a
+/// local-first list: the local answer is asked for and not used.
+#[tokio::test(flavor = "multi_thread")]
+async fn online_a_partial_search_gives_way_to_the_server() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/api/v1/parties"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(parties_page()))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let fx = fixture_with_engine(&server.uri());
+    let local = FakeLocal::partial_search(LocalCopy::Complete, json!({ "data": ["local"] }));
+    let answer = fx
+        .call_with(
+            local.clone(),
+            json!({ "method": "GET", "path": "/api/v1/parties", "query": [["q", "acme"]] }),
+        )
+        .await
+        .unwrap();
+    assert_eq!(answer.source, ResponseSource::Network);
+    assert_eq!(answer.json(), Some(&parties_page()));
+    assert_eq!(local.plans().len(), 1);
 }
 
 /// A slow answer is not a dead server: after an online-first read stops
