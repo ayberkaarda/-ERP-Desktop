@@ -612,3 +612,70 @@ fn settled_rows_from_before_the_migration_get_a_time() {
         .unwrap();
     assert!(stamped);
 }
+
+/// An update and an action of one row, both made on version 3 offline.
+fn update_then_action(q: &Outbox) -> (Uuid, Uuid) {
+    let id = Uuid::now_v7();
+    let update = q
+        .enqueue(draft(MutationOp::Update, id, json!({"notes": "a"})))
+        .unwrap();
+    let mut action = draft(MutationOp::Action, id, json!({"note": "x"}));
+    action.action = Some("approve".into());
+    let action = q.enqueue(action).unwrap();
+    (update, action)
+}
+
+fn answer_next(q: &Outbox, version: u64, merged: bool) {
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(batch.len(), 1);
+    let mut answer = result(&batch[0], PushStatus::Applied);
+    answer.version = Some(version);
+    answer.merged_fields = merged.then(|| vec!["notes".to_owned()]);
+    q.record_results(&[answer]).unwrap();
+}
+
+#[test]
+fn a_write_applied_straight_on_its_base_is_the_base_of_the_next() {
+    let (_dir, _store, q) = setup();
+    let (_, action) = update_then_action(&q);
+    // 3 + 1: no one else wrote in between; the action was made on top of
+    // the update and `exact` would refuse base 3 against it.
+    answer_next(&q, 4, false);
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (action, Some(4))
+    );
+}
+
+#[test]
+fn a_write_merged_over_a_newer_row_leaves_the_next_base_alone() {
+    let (_dir, _store, q) = setup();
+    let (_, action) = update_then_action(&q);
+    // Someone else wrote versions 4 and 5: the action still conflicts with them.
+    answer_next(&q, 6, true);
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (action, Some(3))
+    );
+}
+
+#[test]
+fn a_write_based_on_another_version_is_not_rebased() {
+    let (_dir, _store, q) = setup();
+    let id = Uuid::now_v7();
+    q.enqueue(draft(MutationOp::Update, id, json!({"notes": "a"})))
+        .unwrap();
+    // Made on a stale page (version 2): it must still meet version 3's changes.
+    let mut stale = draft(MutationOp::Action, id, json!({"note": "x"}));
+    stale.action = Some("approve".into());
+    stale.base_version = Some(2);
+    let stale = q.enqueue(stale).unwrap();
+    answer_next(&q, 4, false);
+    let batch = q.next_batch(10).unwrap();
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (stale, Some(2))
+    );
+}

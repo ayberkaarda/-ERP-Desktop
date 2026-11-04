@@ -249,6 +249,101 @@ fn later_updates_moved_onto_the_new_draft_are_based_on_its_first_version() {
     assert_eq!(batch[0].base_version, Some(1));
 }
 
+/// Answers the only mutation of the next batch `applied` at `version`.
+fn apply_next(f: &Fixture, version: u64) -> Mutation {
+    let mut batch = f.q.next_batch(10).unwrap();
+    assert_eq!(batch.len(), 1);
+    let sent = batch.remove(0);
+    f.q.record_results(&[PushResult {
+        idempotency_key: sent.idempotency_key,
+        resource: sent.resource.clone(),
+        id: sent.id,
+        status: PushStatus::Applied,
+        replayed: false,
+        version: Some(version),
+        data: Some(Some(ResourceRow {
+            id: sent.id,
+            version: Some(version),
+            fields: Map::new(),
+        })),
+        merged_fields: None,
+        conflict: None,
+        error: None,
+    }])
+    .unwrap();
+    sent
+}
+
+/// Locked document with an update, a count and two more writes queued
+/// later on it: the count keeps them from coalescing.
+fn moved_chain(last: NewMutation) -> (Fixture, Uuid, Uuid, Uuid) {
+    let doc = last.id;
+    let f = locked_counts(doc);
+    let mut first = write(MutationOp::Update, None, doc, json!({"notes": "a"}));
+    first.base_version = Some(7);
+    let first = f.q.enqueue(first).unwrap();
+    f.q.enqueue(later_counts(
+        doc,
+        json!({"counts": [{"line_id": LINE_B, "counted_quantity": "9"}]}),
+    ))
+    .unwrap();
+    let last = f.q.enqueue(last).unwrap();
+    let create = f.q.enqueue(new_draft(&f)).unwrap();
+    (f, create, first, last)
+}
+
+#[test]
+fn moved_writes_chain_on_the_versions_their_own_writes_produce() {
+    let doc = Uuid::now_v7();
+    let mut last = write(MutationOp::Update, None, doc, json!({"notes": "b"}));
+    last.base_version = Some(7);
+    let (f, create, first, last) = moved_chain(last);
+    for key in [first, last] {
+        assert_eq!(entry(&f, key).unwrap().base_version, Some(1));
+    }
+    assert_eq!(apply_next(&f, 1).idempotency_key, create);
+    assert_eq!(apply_next(&f, 2).base_version, Some(1));
+    // Based on 1 the server would compare `notes` with the device's own
+    // first update and answer VERSION_CONFLICT.
+    let sent = apply_next(&f, 3);
+    assert_eq!((sent.idempotency_key, sent.base_version), (last, Some(2)));
+}
+
+#[test]
+fn a_moved_delete_follows_the_update_before_it() {
+    let doc = Uuid::now_v7();
+    let mut last = write(MutationOp::Delete, None, doc, json!({}));
+    last.base_version = Some(7);
+    let (f, _, _, last) = moved_chain(last);
+    apply_next(&f, 1);
+    apply_next(&f, 2);
+    let batch = f.q.next_batch(10).unwrap();
+    // `exact`: base 1 would always conflict with the device's own update.
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (last, Some(2))
+    );
+}
+
+#[test]
+fn a_foreign_write_in_between_keeps_the_moved_base() {
+    let doc = Uuid::now_v7();
+    let mut last = write(MutationOp::Update, None, doc, json!({"notes": "b"}));
+    last.base_version = Some(7);
+    let (f, _, _, last) = moved_chain(last);
+    apply_next(&f, 1);
+    // Someone edited the new draft online (version 2) before the first
+    // update arrived and was merged over it: version 3 is not 1 + 1.
+    apply_next(&f, 3);
+    let batch = f.q.next_batch(10).unwrap();
+    // Still based on 1: the server compares with every change since,
+    // the foreign one included.
+    assert_eq!(
+        (batch[0].idempotency_key, batch[0].base_version),
+        (last, Some(1))
+    );
+}
+
 #[test]
 fn later_counts_fold_into_the_new_draft_and_their_dependants_follow() {
     let doc = Uuid::now_v7();

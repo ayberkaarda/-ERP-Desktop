@@ -483,6 +483,8 @@ fn release_edges(tx: &Transaction<'_>, key: Uuid, replacement: Option<(Uuid, Uui
 /// With a `prerequisite` (save as new draft) the replacement is a create
 /// queued now: writes moved onto it are rebased on the version it will get,
 /// as the old document's version is ahead of it (SYNC_BASE_VERSION_AHEAD).
+/// Each one behind another moves on to the version that one produced once
+/// its answer proves no one else wrote in between (`rebase_successors`).
 /// Without one (use existing) the replacement's own history decides.
 fn release_edges_to(
     tx: &Transaction<'_>,
