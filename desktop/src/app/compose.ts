@@ -11,6 +11,7 @@ export const SLOTS = [
   'SecurityExtras',
   'HeaderExtras',
   'useOnlineOnly',
+  'useDraftRows',
 ] as const satisfies readonly Slot[]
 
 /**
