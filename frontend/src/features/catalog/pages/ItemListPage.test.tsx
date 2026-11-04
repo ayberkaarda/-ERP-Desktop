@@ -1,5 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { http, HttpResponse } from 'msw'
+import { server } from '@/test/msw/server'
 import { renderCatalog, setupCatalog } from '../testing'
 import './ItemListPage'
 
@@ -82,5 +84,43 @@ describe('ItemListPage', () => {
     renderCatalog('/catalog/items')
     await screen.findByText('Cıvata M8')
     expect(screen.queryByRole('link', { name: 'Yeni stok kartı' })).not.toBeInTheDocument()
+  })
+
+  it('says when an offline search answered only from the local copy', async () => {
+    const db = setupCatalog()
+    const user = userEvent.setup()
+    const NOTICE = 'Çevrimdışı: sonuçlar yalnızca yerel kopyadan, eksik olabilir.'
+    // The desktop answer for a search offline: code and name matches, marked as partial.
+    server.use(
+      http.get('*/api/v1/items', ({ request }) => {
+        if (!new URL(request.url).searchParams.get('q')) return undefined
+        const rows = db.items.filter((i) => i.name.startsWith('Cıvata'))
+        return HttpResponse.json({
+          data: rows,
+          meta: {
+            pagination: { current_page: 1, per_page: 25, total: rows.length, last_page: 1 },
+            offline: { partial: false, stale: false, search_partial: true },
+          },
+        })
+      }),
+    )
+    renderCatalog('/catalog/items')
+    await screen.findByText('Montaj hizmeti')
+    // The unsearched list is complete: no notice.
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+    await user.type(screen.getByRole('searchbox', { name: 'Listede ara' }), 'cıv')
+    expect(await screen.findByRole('note')).toHaveTextContent(NOTICE)
+    await waitFor(() => expect(screen.queryByText('Montaj hizmeti')).not.toBeInTheDocument())
+    expect(screen.getByText('Cıvata M8')).toBeInTheDocument()
+  })
+
+  it('shows no notice for a search the server answered', async () => {
+    setupCatalog()
+    const user = userEvent.setup()
+    renderCatalog('/catalog/items')
+    await screen.findByText('Montaj hizmeti')
+    await user.type(screen.getByRole('searchbox', { name: 'Listede ara' }), 'cıv')
+    await waitFor(() => expect(screen.queryByText('Montaj hizmeti')).not.toBeInTheDocument())
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 })

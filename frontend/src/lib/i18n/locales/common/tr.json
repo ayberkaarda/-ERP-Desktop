@@ -16,7 +16,8 @@
     "loading": "Yükleniyor…",
     "saving": "Kaydediliyor…",
     "errorTitle": "Bir sorun oluştu",
-    "errorBody": "Veriler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin."
+    "errorBody": "Veriler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
+    "partialSearch": "Çevrimdışı: sonuçlar yalnızca yerel kopyadan, eksik olabilir."
   },
   "validation": {
     "required": "Bu alan zorunludur.",

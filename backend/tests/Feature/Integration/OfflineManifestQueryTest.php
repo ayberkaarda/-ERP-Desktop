@@ -28,7 +28,9 @@ use Tests\Support\Sales\SalesKit;
  *   in the same order as the server.
  * - The list requests the web frontend sends (tests/Fixtures/Sync/web-list-queries.json) are
  *   covered: each sort and filter is declared, or the request is marked online_only and names a
- *   declared online_only parameter or searches (`q`) a resource whose search has server_also.
+ *   declared online_only parameter. A request that searches (`q`) a resource whose search has
+ *   server_also, with everything else declared, is local_partial: offline it is answered from the
+ *   local copy and marked meta.offline.search_partial (docs/SYNC-PROTOCOL.md).
  */
 uses(RefreshDatabase::class);
 
@@ -127,9 +129,9 @@ function oqCoverage(array $query, string $name): string
 }
 
 /**
- * How the desktop treats a non-empty `q`: 'online_only' when the server also searches what is not
- * in the row (search.server_also), so a local answer would miss rows; otherwise 'local'. An empty
- * or missing `q` is no search (null).
+ * How the desktop treats a non-empty `q`: 'local_partial' when the server also searches what is
+ * not in the row (search.server_also), so the local answer may miss rows and is marked as partial;
+ * otherwise 'local'. An empty or missing `q` is no search (null).
  *
  * @param  array<string, mixed>  $query
  * @param  list<array{0: string, 1: string}>  $pairs
@@ -138,7 +140,7 @@ function oqSearchCoverage(array $query, array $pairs): ?string
 {
     foreach ($pairs as [$name, $value]) {
         if ($name === 'q' && $value !== '') {
-            return isset($query['search']['server_also']) ? 'online_only' : 'local';
+            return isset($query['search']['server_also']) ? 'local_partial' : 'local';
         }
     }
 
@@ -463,11 +465,17 @@ it('covers every list request the web sends, as the fixture classifies it', func
 
         $kinds = array_values(array_unique($coverage));
         sort($kinds);
+        // The kind that names the class, with those of $also the request carries next to it.
+        $with = static fn (string $kind, array $also): array => array_values(array_filter(
+            ['local', 'local_partial', 'online_only', 'unsupported'],
+            static fn (string $k): bool => $k === $kind || (in_array($k, $also, true) && in_array($k, $kinds, true)),
+        ));
 
         expect($kinds)->toBe(match ($known['expect']) {
             'local' => $coverage === [] ? [] : ['local'],
-            'online_only' => in_array('local', $kinds, true) ? ['local', 'online_only'] : ['online_only'],
-            'server_rejects' => in_array('local', $kinds, true) ? ['local', 'unsupported'] : ['unsupported'],
+            'local_partial' => $with('local_partial', ['local']),
+            'online_only' => $with('online_only', ['local', 'local_partial']),
+            'server_rejects' => $with('unsupported', ['local']),
         }, $label);
     }
 });

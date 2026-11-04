@@ -16,7 +16,8 @@
     "loading": "Loading…",
     "saving": "Saving…",
     "errorTitle": "Something went wrong",
-    "errorBody": "The data could not be loaded. Check your connection and try again."
+    "errorBody": "The data could not be loaded. Check your connection and try again.",
+    "partialSearch": "Offline: results from the local copy only, may be incomplete."
   },
   "validation": {
     "required": "This field is required.",
