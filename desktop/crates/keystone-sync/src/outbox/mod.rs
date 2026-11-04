@@ -49,6 +49,12 @@ pub const MIGRATIONS: &[Migration] = &[Migration {
     ) STRICT;
     CREATE INDEX outbox_request_keys_age ON outbox_request_keys(created_at);
     CREATE INDEX outbox_request_keys_entry ON outbox_request_keys(entry_key);",
+}, Migration {
+    id: 103, module: "outbox", name: "settled_at",
+    // Rows from before this migration get the migration time, so their edges
+    // expire within the retention window too.
+    sql: "ALTER TABLE outbox_settled ADD COLUMN settled_at TEXT;
+    UPDATE outbox_settled SET settled_at = strftime('%Y-%m-%dT%H:%M:%fZ','now');",
 }];
 
 /// How long a request key answers repeats: the server's
@@ -302,6 +308,12 @@ fn find_request(conn: &Connection, key: &RequestKey) -> Result<Option<RequestRec
     }))
 }
 
+/// An edge is dropped one day before the server forgets the key: `settled_at`
+/// is taken after the server stored the result, and clocks differ.
+fn edge_expiry() -> String {
+    format!("-{} days", REQUEST_KEY_RETENTION_DAYS - 1)
+}
+
 fn retention_limit() -> String {
     format!("-{REQUEST_KEY_RETENTION_DAYS} days")
 }
@@ -404,7 +416,8 @@ fn settle(tx: &Transaction<'_>, key: Uuid, success: bool) -> Result<()> {
     }
     tx.execute("DELETE FROM outbox_entries WHERE key=?1", [key.to_string()])?;
     tx.execute(
-        "INSERT OR REPLACE INTO outbox_settled(key,success) VALUES (?1,?2)",
+        "INSERT OR REPLACE INTO outbox_settled(key,success,settled_at)
+         VALUES (?1,?2,strftime('%Y-%m-%dT%H:%M:%fZ','now'))",
         params![key.to_string(), success],
     )?;
     Ok(())
@@ -685,6 +698,19 @@ impl OutboxQueue for Outbox {
                 let key = Uuid::parse_str(&key).map_err(|_| invalid("invalid settled key"))?;
                 done.insert(key);
             }
+            // The server keeps a result for `REQUEST_KEY_RETENTION_DAYS`; a
+            // `depends_on` naming an older key is rejected as unknown. Such a
+            // prerequisite was applied long ago, so the edge is dropped.
+            let mut expired = HashSet::new();
+            let mut stmt = tx.prepare(
+                "SELECT key FROM outbox_settled WHERE success=1 AND settled_at IS NOT NULL
+                 AND settled_at < strftime('%Y-%m-%dT%H:%M:%fZ','now',?1)",
+            )?;
+            for key in stmt.query_map([edge_expiry()], |r| r.get::<_, String>(0))? {
+                let key = Uuid::parse_str(&key?).map_err(|_| invalid("invalid settled key"))?;
+                expired.insert(key);
+            }
+            drop(stmt);
             let mut batch = Vec::new();
             // Emit only acknowledged prerequisites. A parent and its dependants use
             // successive batches so a conflict never leaks dependent writes to the server.
@@ -694,7 +720,14 @@ impl OutboxQueue for Outbox {
                 let deps = dependencies(entry, &all);
                 if deps.iter().all(|key| done.contains(key)) {
                     tx.execute("UPDATE outbox_entries SET state='in_flight',sent=1 WHERE key=?1", [entry.mutation.idempotency_key.to_string()])?;
-                    batch.push(entry.mutation.clone());
+                    let mut mutation = entry.mutation.clone();
+                    if let Some(edges) = &mut mutation.depends_on {
+                        edges.retain(|key| !expired.contains(key));
+                        if edges.is_empty() {
+                            mutation.depends_on = None;
+                        }
+                    }
+                    batch.push(mutation);
                 } else {
                     let mut failed = false;
                     for key in &deps {

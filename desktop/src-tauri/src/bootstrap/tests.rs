@@ -1395,3 +1395,42 @@ async fn a_slow_write_across_a_company_change_is_refused() {
         1
     );
 }
+
+/// R17: the company cannot be stored (the temp file of the profile registry
+/// is blocked by a directory) after the profile was stopped. The old company
+/// opens again, keeps running and the error names the file.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_failed_company_store_reopens_the_old_company() {
+    let server = server(&[(COMPANY, "Acme"), (COMPANY_2, "Beta")]).await;
+    let fx = fx();
+    let profile = in_first_company(&fx, &server).await;
+    let blocked = fx.desktop.registry().path().with_extension("json.tmp");
+    std::fs::create_dir_all(&blocked).unwrap();
+
+    let changed = fx
+        .desktop
+        .select_company(&fx.state, COMPANY_2.parse().unwrap(), false)
+        .await;
+
+    assert_eq!(changed.unwrap_err().code, codes::PROFILES_FILE_INVALID);
+    assert_eq!(
+        fx.desktop.registry().get(&profile.id).unwrap().company_id,
+        Some(COMPANY.parse().unwrap())
+    );
+    // The old company is open again and its loop works.
+    fx.state.engine().unwrap().refresh_status().unwrap();
+    let count = async || {
+        requests(&server, "/api/v1/sync/manifest")
+            .await
+            .iter()
+            .filter(|r| r.headers.get("x-company-id").unwrap() == COMPANY)
+            .count()
+    };
+    let before = count().await;
+    fx.state.trigger(&profile.id, Trigger::Manual).unwrap();
+    eventually(
+        "a manifest of the old company after the failure",
+        async || count().await > before,
+    )
+    .await;
+}
