@@ -75,4 +75,18 @@ jobs:
         run: php scripts/check-offline-manifest.php
       - name: Pest
         working-directory: backend
-        run: composer test
+        timeout-minutes: 45
+        run: bash scripts/ci-pest.sh
+      - name: Upload Pest diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pest-diagnostics
+          path: ${{ runner.temp }}/pest-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Process list on failure or cancel
+        if: ${{ failure() || cancelled() }}
+        run: |
+          ps -eo pid,ppid,stat,etimes,pcpu,args --forest | cut -c1-250
+          PGPASSWORD=keystone psql -h 127.0.0.1 -p 5433 -U keystone -d keystone_test -c "select pid, state, wait_event, now()-query_start as age, left(query,200) from pg_stat_activity where datname='keystone_test'" || true
