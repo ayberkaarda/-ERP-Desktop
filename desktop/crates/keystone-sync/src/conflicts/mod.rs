@@ -202,6 +202,17 @@ impl ConflictStore {
                     ] {
                         payload.remove(field);
                     }
+                    if is_count_document(&draft.resource, &payload) {
+                        // The copy keeps the scope of the document: its lines,
+                        // no more. A create snapshots the whole warehouse
+                        // unless `freeze` is false (`StockDocuments::insert`),
+                        // which would widen a narrowed count (`item_ids`) or
+                        // one of hand-added lines and can exceed the line
+                        // limit. The server takes system quantities when it
+                        // adds the lines, so they are current either way.
+                        payload.insert("freeze".into(), Value::Bool(false));
+                        payload.remove("item_ids");
+                    }
 
                     draft.payload = payload;
                     tx.execute(
@@ -254,6 +265,12 @@ pub(crate) fn clear_on(tx: &Connection) -> Result<usize> {
 
 /// The offline action of count documents (`StockDocumentSyncWriter::action`).
 pub(crate) const COUNTS_ACTION: &str = "counts";
+
+/// A count document body (`doc_type: count` of `stock-documents`).
+fn is_count_document(resource: &ResourceName, payload: &Map<String, Value>) -> bool {
+    resource.as_str() == "stock-documents"
+        && payload.get("doc_type").and_then(Value::as_str) == Some("count")
+}
 
 /// The version the server gives a record it creates (`HasVersion` starts
 /// every row at 1); the local router bases edits of a draft on it too.
