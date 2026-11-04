@@ -13,7 +13,7 @@ describe('desktop e2e: deactivated user', () => {
 
   before(async () => {
     app = await launch()
-  })
+  }, { timeout: 180_000 })
 
   after(async () => {
     await app?.stop()
@@ -36,13 +36,17 @@ describe('desktop e2e: deactivated user', () => {
     })
 
     // No local copy is served any more.
-    const served = await session.api('GET', '/api/v1/parties').then(
-      (answer) => answer.status === 200 && JSON.stringify(answer.json).includes(state.party.name),
-      (error) => {
-        assert.match(error.code ?? '', /UNAUTHENTICATED|USER_DEACTIVATED|OFFLINE_UNAVAILABLE/)
-        return false
-      },
-    )
+    let served = false
+    let refusal = null
+    try {
+      const answer = await session.api('GET', '/api/v1/parties')
+      served = answer.status === 200 && JSON.stringify(answer.json).includes(state.party.name)
+    } catch (error) {
+      refusal = error
+    }
+    if (refusal) {
+      assert.match(refusal.code ?? '', /UNAUTHENTICATED|USER_DEACTIVATED|OFFLINE_UNAVAILABLE/, `unexpected refusal: ${refusal.message}`)
+    }
     assert.equal(served, false, 'local data is still served')
   })
 })

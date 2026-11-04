@@ -5,7 +5,6 @@ import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import net from 'node:net'
 import { resolve } from 'node:path'
-import { setTimeout as sleep } from 'node:timers/promises'
 
 import { waitFor } from './webdriver.mjs'
 
@@ -22,6 +21,14 @@ export function requiredEnv(name) {
 
 export function loadState() {
   return JSON.parse(readFileSync(requiredEnv('E2E_STATE'), 'utf8'))
+}
+
+function portFree() {
+  return new Promise((done) => {
+    const probe = net.createServer()
+    probe.once('error', () => done(false))
+    probe.listen(SERVER_PORT, '127.0.0.1', () => probe.close(() => done(true)))
+  })
 }
 
 /** `php artisan serve` on the seeded database, killed as a process group. */
@@ -44,7 +51,8 @@ export async function startServer() {
       } catch {
         // already gone
       }
-      await sleep(300)
+      // Wait until the port is free, so the next start cannot meet "address in use".
+      await waitFor(() => portFree(), { timeout: 15_000, interval: 100, message: `port ${SERVER_PORT} to be free` })
     },
   }
 }

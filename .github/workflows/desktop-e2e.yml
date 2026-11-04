@@ -1,6 +1,8 @@
 name: Desktop E2E
 # The desktop app driven through tauri-driver (WebKitWebDriver under xvfb) against a
 # real Laravel + Postgres server started in the job. Scenarios: desktop/PLAN.md B8.
+# Path-filtered, so this check must NOT be a required status check (a PR that touches
+# none of the paths would wait for it forever).
 # Linux only: the Windows driver (msedgedriver matched to the runner's WebView2) is
 # version-fragile on hosted runners, so it is not run here.
 on:
@@ -86,14 +88,14 @@ jobs:
         with:
           workspaces: desktop
           key: e2e
-      - uses: actions/cache@v4
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         id: driver-cache
         with:
           path: ~/.cargo/bin/tauri-driver
-          key: tauri-driver-v2-${{ runner.os }}
+          key: tauri-driver-2.1.0-${{ runner.os }}
       - name: Install tauri-driver
         if: steps.driver-cache.outputs.cache-hit != 'true'
-        run: cargo install tauri-driver --locked
+        run: cargo install tauri-driver --locked --version 2.1.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
@@ -124,3 +126,16 @@ jobs:
           E2E_BACKEND_DIR: ${{ github.workspace }}/backend
           E2E_STATE: ${{ runner.temp }}/e2e-state.json
           E2E_APP_BIN: ${{ github.workspace }}/desktop/target/debug/keystone-desktop
+      - name: Collect the logs
+        if: failure()
+        run: |
+          mkdir -p e2e-logs
+          cp backend/storage/logs/*.log e2e-logs/ 2>/dev/null || true
+      - name: Upload the logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-e2e-logs
+          path: e2e-logs
+          retention-days: 3
+          if-no-files-found: ignore

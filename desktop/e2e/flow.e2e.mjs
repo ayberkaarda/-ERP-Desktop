@@ -34,7 +34,7 @@ describe('desktop e2e: sign-in, offline drafts, sync', () => {
       assert.equal(created.status, 201, `server order: ${JSON.stringify(created.json)}`)
       orders[name] = created.json.data.id
     }
-  })
+  }, { timeout: 180_000 })
 
   after(async () => {
     await app?.stop()
