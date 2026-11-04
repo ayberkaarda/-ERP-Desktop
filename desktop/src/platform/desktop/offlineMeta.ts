@@ -6,7 +6,10 @@ export interface OfflineMeta {
   as_of?: string
   partial: boolean
   stale: boolean
-  pending?: number
+  /** The answer shows a queued draft. */
+  pending?: boolean
+  /** Of a list page: ids of its rows that carry a queued draft, in page order. */
+  draft_ids?: string[]
   unsupported_filters?: string[]
 }
 

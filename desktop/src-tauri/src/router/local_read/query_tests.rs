@@ -626,7 +626,24 @@ async fn drafts_are_filtered_and_sorted_with_the_mirror() {
     let list = fx.call(get(PARTIES, query)).await;
     assert_eq!(ids(&list), [b, c, d]);
     assert_eq!(offline_of(&list)["pending"], true);
+    // The draft sits where the sort puts it; its row is named.
+    assert_eq!(offline_of(&list)["draft_ids"], json!([c]));
     assert_eq!(list.json().unwrap()["meta"]["pagination"]["total"], 3);
+
+    // A page without the draft names none.
+    let first = fx
+        .call(get(
+            PARTIES,
+            pairs(&[
+                ("sort", "name"),
+                ("filter[role]", "customer"),
+                ("per_page", "1"),
+            ]),
+        ))
+        .await;
+    assert_eq!(ids(&first), [b]);
+    assert_eq!(offline_of(&first)["pending"], Value::Null);
+    assert_eq!(offline_of(&first)["draft_ids"], Value::Null);
 
     let second = fx
         .call(get(
@@ -640,6 +657,7 @@ async fn drafts_are_filtered_and_sorted_with_the_mirror() {
         ))
         .await;
     assert_eq!(ids(&second), [c]);
+    assert_eq!(offline_of(&second)["draft_ids"], json!([c]));
     let found = fx.call(get(PARTIES, pairs(&[("q", "ınar")]))).await;
     assert_eq!(ids(&found), [c]);
 }

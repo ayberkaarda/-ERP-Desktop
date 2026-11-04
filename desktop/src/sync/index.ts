@@ -2,6 +2,7 @@
 // online-only hook. This file is the package's only public surface.
 export { mergedPayload, type FieldPick } from './conflicts'
 export { syncDepsOf, type SyncDeps } from './deps'
+export { createDraftRows, draftRowsOf, useDraftRowsState, type DraftRows } from './draftRows'
 export {
   createFreshnessTracker,
   type Freshness,

@@ -256,9 +256,11 @@ async fn drafts_are_laid_over_reads() {
     let list = fx.call(get(PARTIES, json!([]))).await;
     assert_eq!(ids(&list), [a, id]);
     assert_eq!(offline_of(&list)["pending"], true);
+    assert_eq!(offline_of(&list)["draft_ids"], json!([id]));
     let item = fx.call(get(&format!("{PARTIES}/{id}"), json!([]))).await;
     assert_eq!(item.json().unwrap()["data"]["name"], "Yeni Cari");
     assert_eq!(offline_of(&item)["pending"], true);
+    assert_eq!(offline_of(&item)["draft_ids"], Value::Null);
     let found = fx.call(get(PARTIES, json!([["q", "yeni"]]))).await;
     assert_eq!(ids(&found), [id]);
 }
