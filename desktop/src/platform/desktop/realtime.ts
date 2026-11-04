@@ -64,10 +64,16 @@ export function createDesktopRealtime(options: {
   const subscriptions = new Set<Subscription>()
   // Channels (Pusher names) the server accepted on the current socket.
   const accepted = new Set<string>()
+  // Channels the server refused on the current socket: a listener added later
+  // is told too, not left waiting for an answer that already came.
+  const refused = new Set<string>()
 
   const setState = (next: RealtimeState) => {
     // Any state but connected: the socket and its subscriptions are gone.
-    if (next !== 'connected') accepted.clear()
+    if (next !== 'connected') {
+      accepted.clear()
+      refused.clear()
+    }
     if (next === state) return
     state = next
     for (const listener of [...stateListeners]) listener(next)
@@ -82,6 +88,7 @@ export function createDesktopRealtime(options: {
   const accept = (channel: string) => {
     if (state !== 'connected' || accepted.has(channel)) return
     accepted.add(channel)
+    refused.delete(channel)
     report(channel, 'subscribed')
   }
 
@@ -128,6 +135,7 @@ export function createDesktopRealtime(options: {
         }
         case 'subscription_failed':
           accepted.delete(event.channel)
+          refused.add(event.channel)
           report(event.channel, 'error')
           return
       }
@@ -155,7 +163,11 @@ export function createDesktopRealtime(options: {
         return () => undefined
       }
       subscriptions.add(sub)
-      if (accepted.has(pusherName(channel))) {
+      if (refused.has(pusherName(channel))) {
+        queueMicrotask(() => {
+          if (subscriptions.has(sub) && refused.has(pusherName(channel))) onStatus?.('error')
+        })
+      } else if (accepted.has(pusherName(channel))) {
         queueMicrotask(() => {
           if (subscriptions.has(sub) && accepted.has(pusherName(channel))) onStatus?.('subscribed')
         })
@@ -168,6 +180,7 @@ export function createDesktopRealtime(options: {
       stopProfile()
       subscriptions.clear()
       accepted.clear()
+      refused.clear()
       void unlisten.then((stop) => {
         stop()
       })
