@@ -273,6 +273,12 @@ jobs:
           try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9222/json/version).Content } catch { Write-Host "devtools: $_" }
           Write-Host "--- stdout"; Get-Content app.out -ErrorAction SilentlyContinue
           Write-Host "--- stderr"; Get-Content app.err -ErrorAction SilentlyContinue
+          Write-Host "--- policies"
+          foreach ($k in 'HKLM:SOFTWAREPoliciesMicrosoftEdge','HKLM:SOFTWAREPoliciesMicrosoftEdgeWebView','HKCU:SOFTWAREPoliciesMicrosoftEdge') { if (Test-Path $k) { Write-Host $k; Get-ItemProperty $k | Format-List | Out-String | Write-Host } }
+          Write-Host "--- webview2 command lines"
+          Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Select-Object -First 2 | ForEach-Object { Write-Host $_.CommandLine }
+          Write-Host "--- listening"
+          netstat -ano | Select-String LISTENING | Select-String '127.0.0.1|[::1]' | ForEach-Object { Write-Host $_.Line }
           Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Measure-Object | ForEach-Object { Write-Host "webview2 processes: $($_.Count)" }
           Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
           Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
