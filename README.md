@@ -156,4 +156,4 @@ OpenAPI output and frontend API types are generated artifacts and are not commit
 
 ## License
 
-The backend package declares a proprietary license. This repository does not grant an open-source license.
+This project is released under the [MIT License](LICENSE). Third-party material bundled in the repository (for example the UBL schemas and the e-document runtime libraries) keeps its own license.

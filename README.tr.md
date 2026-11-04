@@ -156,4 +156,4 @@ OpenAPI çıktısı ve frontend API tipleri üretilen dosyalardır; depoda tutul
 
 ## Lisans
 
-Backend paketi proprietary lisans bildirir. Bu depo açık kaynak lisansı vermez.
+Bu proje [MIT Lisansı](LICENSE) ile yayımlanır. Depoda bulunan üçüncü taraf malzemeler (örneğin UBL şemaları ve e-belge çalışma zamanı kütüphaneleri) kendi lisanslarını korur.
