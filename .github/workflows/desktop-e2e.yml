@@ -264,7 +264,7 @@ jobs:
       - name: Run the scenarios
         working-directory: desktop
         timeout-minutes: 12
-        run: node --test --test-concurrency=1 --test-reporter=spec "e2e/*.e2e.mjs"
+        run: node --test --test-concurrency=1 --test-reporter=tap --test-force-exit --test-timeout=420000 "e2e/*.e2e.mjs"
         env:
           E2E_BACKEND_DIR: ${{ github.workspace }}\backend
           E2E_STATE: ${{ runner.temp }}\e2e-state.json
