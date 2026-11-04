@@ -92,6 +92,13 @@ describe('DataTable', () => {
     expect(onQuery).toHaveBeenCalledTimes(1)
   })
 
+  it('marks no row as unsent on web', () => {
+    const { container } = render(<Harness />)
+    expect(bodyRows(container)).toHaveLength(3)
+    expect(container.querySelector('[data-draft]')).toBeNull()
+    expect(screen.queryByTestId('row-draft')).toBeNull()
+  })
+
   it('moves between rows with the keyboard, activates and selects', async () => {
     const user = userEvent.setup()
     const onActivate = vi.fn()

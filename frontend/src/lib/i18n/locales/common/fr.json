@@ -61,7 +61,9 @@
     "filterAll": "Tous",
     "clearFilters": "Effacer les filtres",
     "resizeColumn": "Largeur de la colonne {{column}}",
-    "keyboardHint": "Utilisez les flèches pour passer d’une ligne à l’autre ; Entrée ouvre, Espace sélectionne."
+    "keyboardHint": "Utilisez les flèches pour passer d’une ligne à l’autre ; Entrée ouvre, Espace sélectionne.",
+    "draft": "Non envoyé",
+    "draftHint": "Cette ligne contient une modification faite sur cet appareil qui n’a pas encore été envoyée au serveur."
   },
   "form": {
     "errorSummaryTitle": "L’enregistrement a échoué",
