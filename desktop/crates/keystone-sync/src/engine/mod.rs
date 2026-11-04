@@ -15,7 +15,9 @@
 //!   download instead. Pulls that stop progressing fail the run.
 //! - Identity: exhausted authentication closes local reads while retaining data.
 //!   Company access loss and current-generation deactivation remove the mirror
-//!   and seal pending work. The same identity can reopen it after verification;
+//!   and seal pending work (deactivation deletes the outbox and conflicts too).
+//!   Sealed work (company access loss only) can be reopened by the same
+//!   identity after verification;
 //!   a different identity wipes it before pushing. Deactivation clears tokens
 //!   only for the marked generation (see [`crate::client::HttpClient`]).
 //! - Sign-in generation: a run belongs to the generation
@@ -1206,14 +1208,14 @@ impl<A: SyncApi> SyncEngine<A> {
                     .and_then(identity_company)
                     .is_some_and(|company| self.api.company_id() == Some(company))
                 {
-                    self.seal()?;
+                    self.seal(false)?;
                 }
             }
             SyncError::Api {
                 code: ErrorCode::UserDeactivated,
                 ..
             } if record.deactivated => {
-                self.seal()?;
+                self.seal(true)?;
                 // CAS preserves tokens from any later sign-in.
                 self.session.store().deactivate(
                     &TokenWrite::new(),
@@ -1302,9 +1304,10 @@ impl<A> SyncEngine<A> {
         Ok(())
     }
 
-    /// Removes server data while retaining sealed outbox and conflict records.
-    fn seal(&self) -> Result<()> {
-        let names = local::seal(&self.store)?;
+    /// Removes server data. Pending work is sealed (company access loss) or
+    /// deleted too (`drop_work`, deactivation).
+    fn seal(&self, drop_work: bool) -> Result<()> {
+        let names = local::seal(&self.store, drop_work)?;
         self.pending_pulls
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

@@ -63,7 +63,7 @@ Mitigations (verified):
 - `Secret` zeroes on drop and prints `<redacted>` (`auth/mod.rs`); the keychain record is serialized into a fixed `Zeroizing` buffer (`tokens.rs` `Bounded`).
 - Sign-out revokes the token generation first, then wipes mirror, outbox, conflicts and engine state in one transaction (`engine/mod.rs` `finish_sign_out`, `engine/local.rs` `wipe`); an interrupted sign-out resumes and keeps access closed. `profile_remove` deletes the tokens, the DB key and the profile directory (`bootstrap.rs`: `tokens.remove_profile`, `db_keys.remove`, `remove_dir_all`; for the active profile it refuses while unsent outbox or conflict work exists unless forced).
 
-Residual: an unlocked, logged-in session gives the thief the same access as the user, because the keychain opens for the OS user. The mirror is not wiped on idle, on a timer, or by a lock screen. `profiles.json` is plaintext (server URL, company id). Deleted SQLite pages are not securely overwritten (no `secure_delete` pragma is set; verified by search). The webview's own storage directory (WebView2 user data) is not audited.
+Residual: an unlocked, logged-in session gives the thief the same access as the user, because the keychain opens for the OS user. The mirror is not wiped on idle, on a timer, or by a lock screen. `profiles.json` is plaintext (server URL, company id). Deleted rows are zeroed in the database file (`PRAGMA secure_delete = ON` on the writer), but the database is encrypted at rest anyway and older copies may remain in the WAL file until the next checkpoint, in freed disk blocks of the file system, and in SSD wear-levelling; this is not forensic erasure. The webview's own storage directory (WebView2 user data) is not audited.
 
 ### S4. Token replay or theft of a token
 
@@ -80,11 +80,11 @@ Residual: before the 60 minute expiry a stolen access token works from any machi
 
 Mitigations (verified):
 - `AccessRevoker::revokeAll` deletes device rows and tokens and broadcasts `SessionRevoked` (`backend/app/Modules/Identity/Services/AccessRevoker.php`). The client receives `.session.revoked` over the realtime socket and forgets the tokens for that generation only (`src-tauri/src/realtime.rs`, ARCHITECTURE "Olaylar"). A deactivated user is refused refresh (`DeviceTokens::rotate` returns `'deactivated'`).
-- The client treats `USER_DEACTIVATED` as terminal: it seals the local store and marks the generation deactivated with a compare-and-set that spares a later sign-in (`engine/mod.rs` around line 1215, `auth/mod.rs` `deactivate`). Sealing removes the mirror and snapshots and the kept `/auth/me` answer, and blocks reads and writes until the same identity is verified again (`engine/local.rs` `seal`). Company access loss (`COMPANY_FORBIDDEN`) seals the same way.
+- The client treats `USER_DEACTIVATED` as terminal: it seals the local store and marks the generation deactivated with a compare-and-set that spares a later sign-in (`engine/mod.rs` around line 1215, `auth/mod.rs` `deactivate`). For a deactivation the seal removes the mirror, snapshots, the kept `/auth/me` answer, the outbox and the conflict records, in one transaction (`engine/local.rs` `seal(store, drop_work = true)`); unsent drafts are lost by design, because the user is deactivated. The store stays closed until the same identity is verified again. Company access loss (`COMPANY_FORBIDDEN`) removes the mirror but only seals the outbox and conflicts (`drop_work = false`): the user is still active and may regain access. The writer connection sets `PRAGMA secure_delete = ON` (`store/mod.rs`), so deleted rows are zeroed in the database file.
 - If the user's sign-in is bound to the wrong identity (different user or company) the mirror is wiped before pushing (`engine/pass.rs`).
 - `auth_devices_list` and `auth_devices_revoke` let the user revoke other devices.
 
-Residual: all of this needs the client to talk to the server. An offline device keeps its data and its token until it next connects. The seal removes the mirror but **retains the outbox and conflict records** (sealed, unreadable by the UI until the same identity re-verifies) (`seal` comment: "retaining sealed outbox and conflict records"); they stay in the encrypted database. A `.session.revoked` event drops the tokens but does not wipe local data by itself (ARCHITECTURE); the wipe happens on the next run. A revoke cut off by a profile switch within 3 seconds can leave the token until the next 401 (ARCHITECTURE "Takip listesi", "Kesilen revoke").
+Residual: all of this needs the client to talk to the server. An offline device keeps its data and its token until it next connects. Only a company-access-loss seal still retains the outbox and conflict records (sealed, unreadable until the same identity re-verifies). A `.session.revoked` event drops the tokens but does not wipe local data by itself (ARCHITECTURE); the wipe happens on the next run. A revoke cut off by a profile switch within 3 seconds can leave the token until the next 401 (ARCHITECTURE "Takip listesi", "Kesilen revoke").
 
 ### S6. Tampered build (there is no updater)
 
@@ -132,10 +132,10 @@ Residual: see S2. There is no per-command authorization or user confirmation; a 
 2. Unlocked session on a stolen laptop: no idle lock, no re-authentication to open the app.
 3. Stolen access token valid for up to 60 minutes; no device binding.
 4. No certificate pinning; a user-installed or corporate root CA can intercept TLS.
-5. Offline revocation gap: a deactivated or revoked device keeps its data and token until it reaches the server. Sealed outbox and conflicts survive a deactivation seal.
+5. Offline revocation gap: a deactivated or revoked device keeps its data and token until it reaches the server. A deactivation seal deletes the outbox and conflicts along with the mirror; only a company-access-loss seal keeps them sealed.
 6. XSS keeps the user's authority over all registered commands (no network, no token read, but destructive commands are reachable).
 7. No code signing, no update channel, no reproducible build: binary integrity is not verifiable.
-8. `profiles.json` is plaintext; SQLite free pages are not securely erased; WebView2's own user-data folder was not audited.
+8. `profiles.json` is plaintext; old copies of deleted rows can survive in the WAL, file-system blocks and SSD remapping despite `secure_delete`; WebView2's own user-data folder was not audited.
 9. Memory: zeroization covers the key and token buffers in Rust, but a debugger or crash dump of a running process can still read secrets; memory is not locked against swapping.
 10. Known open follow-ups from `ARCHITECTURE.md` "Takip listesi" (interrupted revoke, token absence in the webview after sign-in measured only by hand).
 
