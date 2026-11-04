@@ -126,6 +126,31 @@ it('posts a count with variances against the frozen system quantities', function
         ->and(Books::balance($this->company, '153'))->toBe(Inv::totalValue($this->company));
 });
 
+it('creates a count of only its own lines without a snapshot, at the current system quantities', function (): void {
+    // The desktop copies a locked count as a new draft this way: its lines are the scope.
+    $other = Inv::item($this->company)->id;
+    $empty = Inv::item($this->company)->id;
+    Inv::receive($this->company, $this->wh, $this->item, '10', '5');
+    Inv::receive($this->company, $this->wh, $other, '4', '2.5');
+    $user = Actors::user(['inventory.documents.create', 'inventory.documents.view']);
+
+    $count = Inv::postJson($user, $this->company, 'stock-documents', [
+        'doc_type' => 'count', 'document_date' => '2027-06-11', 'warehouse_id' => $this->wh, 'freeze' => false,
+        'lines' => [
+            // Copied lines carry the old document's ids and system quantities; both are ignored.
+            ['id' => (string) Str::uuid7(), 'item_id' => $this->item, 'counted_quantity' => '8', 'system_quantity' => '99.000000'],
+            ['item_id' => $empty, 'counted_quantity' => null],
+        ],
+    ])->assertCreated()->assertJsonCount(2, 'data.lines')->json('data');
+    $lines = collect($count['lines'])->keyBy('item_id');
+
+    expect($lines->has($other))->toBeFalse()
+        ->and($lines[$this->item]['system_quantity'])->toBe('10.000000')
+        ->and($lines[$this->item]['counted_quantity'])->toBe('8.000000')
+        ->and($lines[$empty]['system_quantity'])->toBe('0.000000')
+        ->and($lines[$empty]['counted_quantity'])->toBeNull();
+});
+
 it('imports counted quantities from CSV with a dry run first', function (): void {
     $item = Inv::item($this->company, ['code' => 'CSV-1'])->id;
     Inv::receive($this->company, $this->wh, $item, '3', '1');
