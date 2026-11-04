@@ -1,8 +1,8 @@
 # Keystone masaüstü performansı
 
-Durum: **soğuk açılış ve boşta bellek taban değerleri beklemede.** Bunlar pencere açabilen bir makinede GUI koşusu ister; burada kayıtlı değer yoktur. Aşağıdakilerin hiçbiri bu sayıların tahmini değildir.
+Durum: 2026-11-04'te ilk soğuk açılış ve boşta bellek taban değeri ölçüldü (aşağıda). **`window_ms` ve `ready_ms` değerleri kronometreyle karşılaştırılmadı**, bu yüzden gösterge olarak okuyun; bellek değerleri doğrudan süreç sayaçlarıdır.
 
-## Yöntem (bekleyen taban değer için)
+## Yöntem
 
 `desktop/scripts/measure-perf.ps1` (Windows, PowerShell) derlenmiş ikiliyi `-Runs` kez başlatır, her seferinde önceki süreç ağacını kapatır ve şunları kaydeder:
 
@@ -18,7 +18,20 @@ npm run tauri -- build --no-bundle
 powershell -NoProfile -File scripts/measure-perf.ps1 -Exe target/release/keystone-desktop.exe -Runs 10 -Json perf-release.json
 ```
 
-Bilinen uyarı: betiğin önceki bir sürümüyle (`-MinProcesses` öncesi) yapılan deneme gerçekçi olmayan erken hazır süreleri verdi; çünkü webview yardımcıları başlamadan CPU sessiz görünüyordu. Depodaki sürüm bu kapıyı ekler ama yeniden koşulmadı; ilk gerçek koşuda `ready_ms` bir kronometreyle karşılaştırılmalıdır.
+Bilinen uyarı: betiğin önceki bir sürümüyle (`-MinProcesses` öncesi) yapılan deneme gerçekçi olmayan erken hazır süreleri verdi; çünkü webview yardımcıları başlamadan CPU sessiz görünüyordu. Depodaki sürüm bu kapıyı ekler; aşağıdaki koşu onunla yapıldı ve her koşuda 7 süreç görüldü, ama `ready_ms` yine de bir kronometreyle karşılaştırılmadı.
+
+## Taban değer (2026-11-04)
+
+`main`'in (`d7c0de1`) release derlemesi, 5 koşu, `-IdleSeconds 15`, sunucu profili yok ("sunucu ekle" ekranı, ağ yok). Makine aşağıdakiyle aynı.
+
+| Ölçüt | Medyan | Aralık |
+|---|---|---|
+| `window_ms` (ilk üst düzey pencere) | 49 ms | 31-512 ms |
+| `ready_ms` (webview yüklendi, CPU sessiz) | 469 ms | 423-1410 ms |
+| Boşta özel bayt (tüm süreç ağacı) | 199 MB | 196-202 MB |
+| Boşta çalışma kümesi (tüm süreç ağacı) | 416 MB | 414-430 MB |
+
+Notlar: 1. koşu oturumun ilk başlatmasıydı ve en yavaşıydı (512 ms ve 1410 ms); 2-5. koşular 31-51 ms ve 423-483 ms. Tüm koşularda 7 süreç vardı (uygulama ve WebView2 yardımcıları). Bu kadar küçük `window_ms`, pencerenin boyanmadan önce oluştuğunu düşündürüyor. Çalışma kümesi WebView2 süreçleri arasında paylaşılan sayfaları iki kez sayar; alıntılanacak değer özel bayttır. Dosya önbelleği koşular arasında sıcak kalır, yani bunlar soğuk disk değerleri değildir. Bu koşunun derlemesi 8 dk 4 sn sürdü (`tauri build --no-bundle`, `tsc` adımı olmadan) ve 25,3 MB'lık `keystone-desktop.exe` üretti.
 
 ## Pencere açmadan ölçülenler
 
