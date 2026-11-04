@@ -142,8 +142,14 @@ jobs:
 
   e2e-windows:
     runs-on: windows-latest
-    timeout-minutes: 60
-    # Experimental until it has been green on hosted runners (see the PR).
+    timeout-minutes: 25
+    # EXPERIMENTAL, NON-BLOCKING (continue-on-error). Everything up to the app build works on
+    # hosted Windows (PostgreSQL 18 from the EDB zip, PHP + Laravel, tauri-driver, msedgedriver
+    # matching WebView2 156). It fails at "session not created: DevToolsActivePort file doesn't
+    # exist": WebView2 156 started by the app does not honour the remote-debugging port that
+    # msedgedriver requests through WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (the browser command
+    # line shows only the arguments wry sets itself). Making it pass needs an app-side change
+    # (a test-only additional-browser-args hook on the main window), outside this PR.
     continue-on-error: true
     defaults:
       run:
@@ -287,7 +293,7 @@ jobs:
           E2E_APP_BIN: ${{ github.workspace }}\desktop\target\debug\keystone-desktop.exe
       - name: Run the scenarios
         working-directory: desktop
-        timeout-minutes: 12
+        timeout-minutes: 8
         run: node --test --test-concurrency=1 --test-reporter=tap --test-force-exit --test-timeout=420000 "e2e/*.e2e.mjs"
         env:
           E2E_BACKEND_DIR: ${{ github.workspace }}\backend
