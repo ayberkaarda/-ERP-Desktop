@@ -83,7 +83,12 @@ fn matrix() -> Vec<Case> {
     const STOCK_DOCS: &str = "stock-documents";
     let edit = || json!({"notes": "x"});
     let mut cases = vec![case("parties", Create, None, json!({"name": "A"}), None)];
-    for resource in ["sales-quotes", "sales-orders", "purchase-requests"] {
+    for resource in [
+        "sales-quotes",
+        "sales-orders",
+        "purchase-requests",
+        "treasury-payments",
+    ] {
         cases.push(case(resource, Create, None, edit(), None));
         cases.push(case(resource, Update, Some(("draft", None)), edit(), None));
         cases.push(case(
@@ -98,12 +103,29 @@ fn matrix() -> Vec<Case> {
         cases.push(case(resource, Delete, approved, json!({}), LOCKED));
     }
     let rejected = Some(("rejected", None));
-    for resource in ["sales-quotes", "sales-orders"] {
+    for resource in ["sales-quotes", "sales-orders", "treasury-payments"] {
         cases.push(case(resource, Update, rejected, edit(), LOCKED));
         cases.push(case(resource, Delete, rejected, json!({}), LOCKED));
     }
     cases.push(case("purchase-requests", Update, rejected, edit(), None));
     cases.push(case("purchase-requests", Delete, rejected, json!({}), None));
+    // A payment is offline only as a draft: posted, pending approval or cancelled is locked.
+    for status in ["posted", "pending_approval", "cancelled"] {
+        cases.push(case(
+            "treasury-payments",
+            Update,
+            Some((status, None)),
+            edit(),
+            LOCKED,
+        ));
+        cases.push(case(
+            "treasury-payments",
+            Delete,
+            Some((status, None)),
+            json!({}),
+            LOCKED,
+        ));
+    }
 
     let count: Target = Some(("draft", Some("count")));
     let receipt: Target = Some(("draft", Some("receipt")));

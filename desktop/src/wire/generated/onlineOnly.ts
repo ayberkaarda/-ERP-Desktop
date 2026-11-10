@@ -161,7 +161,6 @@ export const ONLINE_ONLY = [
     "i18n_key": "desktop.onlineOnly.treasuryPayment",
     "category": "payment",
     "routes": [
-      "POST /api/v1/treasury-payments",
       "POST /api/v1/treasury-payments/{id}/submit",
       "POST /api/v1/treasury-payments/{id}/post",
       "POST /api/v1/treasury-payments/{id}/reverse",
@@ -215,6 +214,7 @@ export const ONLINE_ONLY = [
     "routes": [
       "POST /api/v1/sales-documents/preview-totals",
       "POST /api/v1/purchase-documents/preview-totals",
+      "GET /api/v1/treasury-payments/{id}/preview",
       "GET /api/v1/pricing/resolve",
       "GET /api/v1/customers/{id}/exposure",
       "GET /api/v1/suppliers/{id}/exposure"

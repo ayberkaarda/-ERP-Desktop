@@ -147,7 +147,8 @@
     "sales_quotes": "Verkaufsangebot",
     "sales_orders": "Verkaufsauftrag",
     "stock_documents": "Lagerbeleg",
-    "purchase_requests": "Bestellanforderung"
+    "purchase_requests": "Bestellanforderung",
+    "treasury_payments": "Zahlung"
   },
   "field": {
     "name": "Name",
@@ -224,6 +225,11 @@
     "counted_quantity": "Gezählte Menge",
     "valid_from": "Gültig ab",
     "valid_to": "Gültig bis",
-    "lineField": "Position {{number}} · {{field}}"
+    "lineField": "Position {{number}} · {{field}}",
+    "amount": "Betrag",
+    "account_id": "Kassen- oder Bankkonto",
+    "direction": "Richtung",
+    "counterparty_module": "Gegenpartei-Seite",
+    "allocations": "Rechnungszuordnungen"
   }
 }

@@ -1253,7 +1253,7 @@ async fn an_unsent_online_only_write_keeps_its_network_error() {
     );
 
     let fx = fixture_with_engine(&dead_url().await);
-    let unmapped = json!({ "method": "POST", "path": "/api/v1/treasury-payments",
+    let unmapped = json!({ "method": "POST", "path": "/api/v1/treasury-transfers",
         "body": { "kind": "json", "value": {} } });
     let error = fx.call_with(local.clone(), unmapped).await.unwrap_err();
     assert_eq!(error.code, "NETWORK_ERROR");

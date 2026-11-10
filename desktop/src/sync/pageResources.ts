@@ -71,6 +71,8 @@ export const PAGE_RESOURCES: readonly (readonly [route: string, api: readonly st
   ['/purchasing/returns/:id', ['/purchase-returns/:id']],
   ['/purchasing/returns/:id/print', ['/purchase-returns/:id']],
 
+  ['/treasury/payments', ['/treasury-payments']],
+  ['/treasury/payments/:id', ['/treasury-payments/:id']],
   ['/treasury/reports/:slug', ['/treasury-reports/:slug']],
 ]
 

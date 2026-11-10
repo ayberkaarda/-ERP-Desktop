@@ -147,7 +147,8 @@
     "sales_quotes": "Sales quote",
     "sales_orders": "Sales order",
     "stock_documents": "Stock document",
-    "purchase_requests": "Purchase request"
+    "purchase_requests": "Purchase request",
+    "treasury_payments": "Payment"
   },
   "field": {
     "name": "Name",
@@ -224,6 +225,11 @@
     "counted_quantity": "Counted quantity",
     "valid_from": "Valid from",
     "valid_to": "Valid to",
-    "lineField": "Line {{number}} · {{field}}"
+    "lineField": "Line {{number}} · {{field}}",
+    "amount": "Amount",
+    "account_id": "Cash or bank account",
+    "direction": "Direction",
+    "counterparty_module": "Counterparty side",
+    "allocations": "Invoice allocations"
   }
 }
