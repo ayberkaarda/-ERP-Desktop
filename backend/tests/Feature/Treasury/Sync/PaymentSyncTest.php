@@ -252,6 +252,130 @@ it('still conflicts when the server changed the allocations and a stale edit wou
         ->and(DB::table('treasury_payments')->where('id', $payment['id'])->first())->reference->toBeNull()->version->toBe(2);
 });
 
+/** @return list<array<string, mixed>> */
+function tpsRows(string $paymentId): array
+{
+    return DB::table('treasury_allocations')->where('payment_id', $paymentId)->orderBy('id')->get()->map(fn ($r) => (array) $r)->all();
+}
+
+it('prunes only allocations REST would accept as sent: a shape violation is left to the validation', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => 1, 'description' => 'Web note'])->assertOk()->assertJsonPath('data.version', 2);
+    $rows = tpsRows($payment['id']);
+
+    // Each equals the stored line once normalised, yet REST refuses the shape (string + regex, exact keys).
+    $invalid = [
+        'five decimals' => [[...$line, 'amount' => '100.00001']],
+        'exponent' => [[...$line, 'amount' => '1e2']],
+        'integer amount' => [[...$line, 'amount' => 100]],
+        'integer rate' => [[...$line, 'fx_rate' => 1]],
+        'seven rate decimals' => [[...$line, 'fx_rate' => '1.0000001']],
+        'extra key id' => [[...$line, 'id' => $rows[0]['id']]],
+        'extra key carrying_amount' => [[...$line, 'carrying_amount' => '100.0000']],
+        'object instead of list' => ['x' => $line],
+    ];
+
+    foreach ([...$invalid, 'no rate' => [array_diff_key($line, ['fx_rate' => true])]] as $label => $allocations) {
+        $stale = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => $allocations], 1));
+        expect($stale['status'])->toBe('conflict', $label)->and($stale['conflict']['conflicting_fields'])->toContain('allocations', $label);
+    }
+
+    foreach ($invalid as $label => $allocations) {
+        $current = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => $allocations], 2));
+        $rest = P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => 2, 'reference' => 'OFF-9', 'allocations' => $allocations]);
+        expect($current['status'])->toBe('rejected', $label)->and($current['error']['code'])->toBe('VALIDATION_ERROR', $label)
+            ->and(array_keys($current['error']['fields']))->toBe(array_keys($rest->assertStatus(422)->json('errors.fields')), $label);
+    }
+
+    expect(tpsRows($payment['id']))->toBe($rows)
+        ->and(DB::table('treasury_payments')->where('id', $payment['id'])->first())->reference->toBeNull()->version->toBe(2);
+});
+
+it('replays a stored allocation conflict as stored, even once the server came to match the client', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => 1, 'allocations' => [[...$line, 'amount' => '50']]])->assertOk();
+    $mutation = tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => [$line]], 1);
+
+    $first = tpsOne($w->user, $w->company, $mutation);
+    expect($first['status'])->toBe('conflict')->and($first['conflict']['conflicting_fields'])->toBe(['allocations'])->and($first['conflict']['server_version'])->toBe(2);
+
+    // The web puts the allocations back to what the client sent; the same key must answer the same conflict.
+    P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => 2, 'allocations' => [$line]])->assertOk()->assertJsonPath('data.version', 3);
+    $again = tpsOne($w->user, $w->company, $mutation);
+
+    expect($again['status'])->toBe('conflict')->and($again['replayed'])->toBeTrue()
+        ->and($again['conflict']['code'])->toBe('VERSION_CONFLICT')
+        ->and($again['conflict']['conflicting_fields'])->toBe(['allocations'])
+        ->and($again['conflict']['base_version'])->toBe(1)->and($again['conflict']['server_version'])->toBe(3)
+        ->and($again['conflict']['choices'])->toBe($first['conflict']['choices'])
+        ->and(DB::table('treasury_payments')->where('id', $payment['id'])->first())->reference->toBeNull()->version->toBe(3);
+});
+
+it('does not prune for a user who cannot see every stored allocation', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => 1, 'description' => 'Web note'])->assertOk()->assertJsonPath('data.version', 2);
+    $rows = tpsRows($payment['id']);
+    $blind = Actors::user(['treasury.payments.view', 'treasury.payments.update', 'treasury.accounts.view'], $w->company);
+
+    // Equal or not cannot be probed without purchasing.invoices.view: the stale base conflicts as before...
+    $stale = tpsOne($blind, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => [$line]], 1));
+    expect($stale['status'])->toBe('conflict')->and($stale['conflict']['conflicting_fields'])->toBe(['allocations']);
+
+    // ...and on the current base REST refuses to rewrite allocations the user cannot see.
+    $current = tpsOne($blind, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => [$line]], 2));
+    expect($current['status'])->toBe('rejected')->and($current['error']['code'])->toBe('FORBIDDEN')
+        ->and(tpsRows($payment['id']))->toBe($rows)
+        ->and(DB::table('treasury_payments')->where('id', $payment['id'])->first())->reference->toBeNull()->version->toBe(2);
+});
+
+it('replays a pruned merge from the stored result without a second write', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => 1, 'description' => 'Web note'])->assertOk();
+    $mutation = tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => [$line]], 1);
+
+    $first = tpsOne($w->user, $w->company, $mutation);
+    expect($first['status'])->toBe('applied')->and($first['version'])->toBe(3)->and($first['merged_fields'])->toBe(['reference']);
+    $rows = tpsRows($payment['id']);
+
+    $again = tpsOne($w->user, $w->company, $mutation);
+    expect($again['status'])->toBe('duplicate')->and($again['replayed'])->toBeTrue()
+        ->and($again['data'])->toBe($first['data'])->and($again['merged_fields'] ?? null)->toBe(['reference'])
+        ->and(tpsRows($payment['id']))->toBe($rows)
+        ->and(DB::table('treasury_payments')->where('id', $payment['id'])->value('version'))->toBe(3);
+});
+
+it('applies a current-base edit that only resends the allocations without rewriting them', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    $rows = tpsRows($payment['id']);
+
+    $result = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['allocations' => [$line]], 1));
+    expect($result['status'])->toBe('applied')->and($result['version'])->toBe(1)
+        ->and(array_key_exists('merged_fields', $result))->toBeFalse()
+        ->and($result['data']['version'])->toBe(1)->and($result['data']['allocations'])->toHaveCount(1)
+        ->and(tpsRows($payment['id']))->toBe($rows)
+        ->and(DB::table('treasury_payments')->where('id', $payment['id'])->value('version'))->toBe(1);
+});
+
+it('treats an empty allocations list resent for a payment without any as unchanged', function (): void {
+    $w = $this->w;
+    $id = tpsDraft($w)['data']['id'];
+    P::patch($w->user, $w->company, "treasury-payments/{$id}", ['version' => 1, 'description' => 'Web note'])->assertOk()->assertJsonPath('data.version', 2);
+
+    $merged = tpsOne($w->user, $w->company, tpsMutation('update', $id, ['reference' => 'OFF-9', 'allocations' => []], 1));
+    expect($merged['status'])->toBe('applied')->and($merged['version'])->toBe(3)->and($merged['merged_fields'])->toBe(['reference'])
+        ->and($merged['data']['allocations'])->toBe([])->and($merged['data']['description'])->toBe('Web note');
+});
+
 it('leaves the guard as it found it: empty stays empty, a switched user comes back', function (): void {
     $w = $this->w;
     $writer = app(PaymentSyncWriter::class);
