@@ -369,7 +369,7 @@ Numara verme sunucudadır. Çevrimdışı oluşturulan taslak numarasızdır; nu
 
 ## Çevrimdışı liste sorguları
 
-Masaüstü bir liste isteğini (`GET <path>?page&per_page&sort&filter[...]&q`) yerel kopyadan yanıtlarken yalnız kaynağın `query` bölümünde bildirilen adları uygular (`offline-manifest.json`, `manifest_version` 4). Bölüm isteğe bağlıdır ve `pull` kaynaklarında ve alt akışlarda (`children`) bulunur; `snapshot` kaynaklarında yoktur (şema reddeder). Bölüm sunucunun pull/push davranışını değiştirmez; yine de manifest içeriği değiştiği için sürüm 3'e çıktı. Sürüm 2 manifesti derlenmiş bir masaüstü, sunucu 3'ü bildirdiğinde `manifest_mismatch` ile çevrimdışı yazmayı kapatır; masaüstü sözleşme dosyalarını aldığında kalkar. Eski manifestte `query` olmaması geçerlidir. Sürüm 4 `treasury-payments` kaynağını (çevrimdışı ödeme taslakları, Çevrimdışı yazma kapsamı) ekledi; `query` kuralları değişmedi, 3 ve 4 aynı biçimde okunur.
+Masaüstü bir liste isteğini (`GET <path>?page&per_page&sort&filter[...]&q`) yerel kopyadan yanıtlarken yalnız kaynağın `query` bölümünde bildirilen adları uygular (`offline-manifest.json`, `manifest_version` 4). Bölüm isteğe bağlıdır ve `pull` kaynaklarında ve alt akışlarda (`children`) bulunur; `snapshot` kaynaklarında yoktur (şema reddeder). Bölüm sunucunun pull/push davranışını değiştirmez; yine de manifest içeriği değiştiği için bu bölümü getiren sürüm 3'e çıkıldı (yukarıdaki sürüm güncel olandır; aşağısı sürüm geçmişidir). Sürüm 2 manifesti derlenmiş bir masaüstü, sunucu 3'ü bildirdiğinde `manifest_mismatch` ile çevrimdışı yazmayı kapatır; masaüstü sözleşme dosyalarını aldığında kalkar. Eski manifestte `query` olmaması geçerlidir. Sürüm 4 `treasury-payments` kaynağını (çevrimdışı ödeme taslakları, Çevrimdışı yazma kapsamı) ekledi; `query` kuralları değişmedi, 3 ve 4 aynı biçimde okunur.
 
 | Alan | Anlamı |
 |---|---|
@@ -416,7 +416,7 @@ Yerel uygulama kuralları:
 
   Boş `q` arama değildir ve işaret taşımaz. `server_also` olmayan kaynakta yerel arama tamdır ve işaret taşımaz. Arayüz işaretli yanıtı görünür bir notla gösterir ("Çevrimdışı: sonuçlar yalnızca yerel kopyadan, eksik olabilir"); işaret yokken web davranışı değişmez. `web-list-queries.json` bu istekleri `local_partial` sınıflar (ör. ürünlerde `q=wid`, `q=8690000000001`); `OfflineManifestQueryTest` sınıfı manifestteki `server_also`'dan türetir.
 
-  Karar değişikliği: önceden eksik eşleşme yasaktı ve bu istekler çevrimdışıyken `503` ile reddediliyordu. Manifest değişmedi (`manifest_version` 3 kalır). Hâlâ `503` dönen eski bir masaüstü sürümünde, bu web koduyla ürün seçicisi aramada "Seçenekler yüklenemedi" gösterir (önceki istemci tarafı yedek arama kaldırıldı); bu kabul edilebilir, çünkü masaüstü web arayüzünü kendi paketinde taşır ve ikisi birlikte yayımlanır. `search_partial` eklemeli bir alandır: onu tanımayan istemci yanıtı olağan bir liste olarak gösterir.
+  Karar değişikliği: önceden eksik eşleşme yasaktı ve bu istekler çevrimdışıyken `503` ile reddediliyordu. Bu karar manifesti değiştirmedi (o sırada `manifest_version` 3'tü; sonradan çevrimdışı ödeme taslakları için 4'e çıkıldı). Hâlâ `503` dönen eski bir masaüstü sürümünde, bu web koduyla ürün seçicisi aramada "Seçenekler yüklenemedi" gösterir (önceki istemci tarafı yedek arama kaldırıldı); bu kabul edilebilir, çünkü masaüstü web arayüzünü kendi paketinde taşır ve ikisi birlikte yayımlanır. `search_partial` eklemeli bir alandır: onu tanımayan istemci yanıtı olağan bir liste olarak gösterir.
 
 ### Yerel yanıtın `meta.offline` alanı
 
