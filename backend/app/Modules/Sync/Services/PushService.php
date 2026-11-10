@@ -9,6 +9,7 @@ use App\Core\Http\ErrorCode;
 use App\Core\Http\ExceptionRenderer;
 use App\Core\Idempotency\ClaimStatus;
 use App\Core\Sync\ConflictChoice;
+use App\Core\Sync\Contracts\PrunesUnchangedFields;
 use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
@@ -268,6 +269,7 @@ final class PushService
             }
         }
 
+        $mutation = self::pruned($writer, $mutation, $target);
         $current = $writer->currentVersion($target);
         $serverData = fn (): array => $this->rows->current($adapter, $companyId, $mutation->id) ?? [];
 
@@ -453,7 +455,7 @@ final class PushService
                     $conflict->baseVersion,
                     $writer->currentVersion($target),
                     $op->isFieldMerge() && $mutation->op === MutationOp::Update
-                        ? $this->resolver->conflictingFields($write, $mutation, $target, $writer->currentVersion($target), $writer)
+                        ? $this->resolver->conflictingFields($write, self::pruned($writer, $mutation, $target), $target, $writer->currentVersion($target), $writer)
                         : [],
                     $data,
                     $conflict->choices,
@@ -651,6 +653,17 @@ final class PushService
         $stored = $this->results->find($this->results->scope($user->id, $companyId, $resolution->resolves));
 
         return $stored?->payloadHash !== null && hash_equals($stored->payloadHash, PushResults::payloadHash($mutation->payload));
+    }
+
+    /**
+     * An update without the untracked fields the client resent unchanged, when the writer
+     * prunes them (PrunesUnchangedFields); the claim and the stored result keep the mutation as sent.
+     */
+    private static function pruned(SyncWriter $writer, Mutation $mutation, Model $target): Mutation
+    {
+        return $mutation->op === MutationOp::Update && $writer instanceof PrunesUnchangedFields
+            ? $writer->withoutUnchanged($mutation, $target)
+            : $mutation;
     }
 
     private static function withoutResolution(Mutation $mutation): Mutation

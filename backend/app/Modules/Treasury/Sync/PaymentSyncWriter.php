@@ -7,6 +7,7 @@ namespace App\Modules\Treasury\Sync;
 use App\Core\Documents\VersionConflictException;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\Contracts\PrunesUnchangedFields;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
@@ -15,8 +16,12 @@ use App\Core\Sync\WriteOutcome;
 use App\Modules\Treasury\Enums\DocumentStatus;
 use App\Modules\Treasury\Http\Controllers\TreasuryCoreController;
 use App\Modules\Treasury\Http\Resources\PaymentResource;
+use App\Modules\Treasury\Models\TreasuryAllocation;
 use App\Modules\Treasury\Models\TreasuryPayment;
 use BackedEnum;
+use Brick\Math\BigDecimal;
+use Brick\Math\Exception\MathException;
+use Brick\Math\RoundingMode;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -43,7 +48,7 @@ use InvalidArgumentException;
  * or touch a payment that left draft (draft_only, and PaymentService answers DOCUMENT_LOCKED).
  * Submit, post, reverse and cancel stay online (manifest online_only `treasuryPayment`).
  */
-final class PaymentSyncWriter implements SyncWriter
+final class PaymentSyncWriter implements PrunesUnchangedFields, SyncWriter
 {
     private const string PATH = '/api/v1/treasury-payments';
 
@@ -130,7 +135,8 @@ final class PaymentSyncWriter implements SyncWriter
 
     /**
      * Columns of the payment's activity log (TreasuryRecord logs every attribute). Allocations are
-     * not logged on the payment, so a stale update of them is always a conflict.
+     * not logged on the payment, so a stale update that changes them is always a conflict
+     * (withoutUnchanged drops allocations resent as they are stored).
      */
     public function auditFields(): array
     {
@@ -143,17 +149,87 @@ final class PaymentSyncWriter implements SyncWriter
     }
 
     /**
+     * The editor sends the allocations on every save (PaymentEditor.tsx). When they equal the
+     * stored ones, line for line (invoice, amount and rate at the stored scales; order does not
+     * matter), they are not an edit: dropped before the conflict decision, so a stale base merges
+     * on the fields that did change and the stored allocation rows stay as they are. Any
+     * difference keeps them in the mutation, and a stale base conflicts on `allocations`.
+     */
+    public function withoutUnchanged(Mutation $mutation, Model $target): Mutation
+    {
+        if (! $target instanceof TreasuryPayment || ! array_key_exists('allocations', $mutation->payload)) {
+            return $mutation;
+        }
+
+        $sent = self::allocationLines($mutation->payload['allocations']);
+        $stored = self::allocationLines(TreasuryAllocation::query()
+            ->where('company_id', $target->getAttribute('company_id'))
+            ->where('payment_id', $target->getKey())
+            ->get()
+            ->map(static fn (TreasuryAllocation $allocation): array => $allocation->getAttributes())
+            ->all());
+
+        return $sent !== null && $sent === $stored ? $mutation->without(['allocations']) : $mutation;
+    }
+
+    /**
+     * One comparable line per allocation, sorted, or null when the value is not a list of lines
+     * with a module, an invoice, an amount and a rate (REST validation answers that).
+     *
+     * @return list<string>|null
+     */
+    private static function allocationLines(mixed $allocations): ?array
+    {
+        if (! is_array($allocations) || ! array_is_list($allocations)) {
+            return null;
+        }
+
+        $lines = [];
+
+        foreach ($allocations as $line) {
+            if (! is_array($line)) {
+                return null;
+            }
+
+            $module = $line['invoice_module'] ?? null;
+            $invoice = $line['invoice_id'] ?? null;
+            $amount = $line['amount'] ?? null;
+            $rate = $line['fx_rate'] ?? null;
+
+            if (! is_string($module) || ! is_string($invoice) || (! is_string($amount) && ! is_int($amount)) || (! is_string($rate) && ! is_int($rate))) {
+                return null;
+            }
+
+            try {
+                $lines[] = implode('|', [
+                    $module,
+                    strtolower($invoice),
+                    (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HalfUp),
+                    (string) BigDecimal::of($rate)->toScale(6, RoundingMode::HalfUp),
+                ]);
+            } catch (MathException) {
+                return null;
+            }
+        }
+
+        sort($lines);
+
+        return $lines;
+    }
+
+    /**
      * Runs one write as $user and turns what REST would answer with an error into an outcome.
      *
      * @param  Closure(TreasuryCoreController): WriteOutcome  $write
      */
     private function run(Authenticatable $user, Mutation $mutation, ?TreasuryPayment $target, Closure $write): WriteOutcome
     {
-        $previous = Auth::guard()->user();
+        $guard = Auth::guard();
+        $previous = $guard->user();
         $switched = $previous?->getAuthIdentifier() !== $user->getAuthIdentifier();
 
         if ($switched) {
-            Auth::setUser($user);
+            $guard->setUser($user);
         }
 
         try {
@@ -175,8 +251,13 @@ final class PaymentSyncWriter implements SyncWriter
 
             return WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
         } finally {
+            // The guard is left as it was found: the previous user comes back, and a guard that
+            // had none is emptied again (forgetUser clears the resolved user only; the session
+            // and other guards are untouched) so the write does not leave $user logged in.
             if ($switched && $previous !== null) {
-                Auth::setUser($previous);
+                $guard->setUser($previous);
+            } elseif ($switched) {
+                $guard->forgetUser();
             }
         }
     }
