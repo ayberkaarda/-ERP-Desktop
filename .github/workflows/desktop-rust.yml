@@ -72,7 +72,8 @@ jobs:
       - name: Wire code matches contracts/sync
         run: sh scripts/gen-wire.sh
       - run: cargo deny check
-      - run: cargo audit
+      # RUSTSEC-2026-0459: see desktop/deny.toml (bundled SQLCipher has no patched release).
+      - run: cargo audit --ignore RUSTSEC-2026-0459
   desktop-shell:
     runs-on: ubuntu-latest
     timeout-minutes: 25

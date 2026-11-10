@@ -13,6 +13,10 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zbus 5 under tauri-plugin-single-instance on Linux" },
     { id = "RUSTSEC-2026-0371", reason = "zbus 5 under tauri-plugin-single-instance on Linux" },
     { id = "RUSTSEC-2026-0372", reason = "zbus 5 under tauri-plugin-single-instance on Linux" },
+    # SQLite < 3.54 WAL page-size bug. We build bundled SQLCipher, and the patched
+    # libsqlite3-sys 0.39 still bundles SQLite 3.53.4 there, so no upgrade fixes it.
+    # Needs an attacker-crafted db + -wal pair; the app only opens its own database.
+    { id = "RUSTSEC-2026-0459", reason = "bundled SQLCipher has no patched release; local-only, app opens its own db" },
 ]
 
 [licenses]
