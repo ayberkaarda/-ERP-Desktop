@@ -157,7 +157,19 @@ const SERVER_FIELDS = new Set([
   'discount_total',
   'grand_total',
   'total',
+  'estimated_total',
 ])
+
+/**
+ * Fields the server overwrites on every write of one resource only: the
+ * `when: ["*"]` rules of `write.derived_fields` in
+ * contracts/offline-manifest.json (labels.test.ts keeps the two in step).
+ * Per resource, because a sales document's currency_code is the user's.
+ */
+const RESOURCE_SERVER_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
+  'purchase-requests': new Set(['currency_code']),
+  'treasury-payments': new Set(['currency_code', 'fx_rate']),
+}
 
 /** Web routes where a record of the resource can be opened and edited. */
 const RECORD_PATHS: Readonly<Record<string, (id: string) => string>> = {
@@ -296,8 +308,12 @@ export function sameValue(mine: unknown, server: unknown, field?: string): boole
   return mine === server
 }
 
-function isServerField(field: string): boolean {
-  return SERVER_FIELDS.has(field) || field.endsWith('_local')
+export function isServerField(field: string, resource?: string): boolean {
+  return (
+    SERVER_FIELDS.has(field) ||
+    field.endsWith('_local') ||
+    (resource !== undefined && RESOURCE_SERVER_FIELDS[resource]?.has(field) === true)
+  )
 }
 
 /**
@@ -308,8 +324,9 @@ export function differingFields(
   fields: readonly string[],
   mine: Record<string, unknown>,
   server: Record<string, unknown>,
+  resource?: string,
 ): string[] {
   return fields.filter(
-    (field) => !isServerField(field) && Object.hasOwn(mine, field) && !sameValue(mine[field], server[field], field),
+    (field) => !isServerField(field, resource) && Object.hasOwn(mine, field) && !sameValue(mine[field], server[field], field),
   )
 }

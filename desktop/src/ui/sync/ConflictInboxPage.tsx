@@ -291,7 +291,7 @@ function ModelBody({
   // value, so a merge never sends a draft value nobody looked at.
   const fields = model.code === 'VERSION_CONFLICT' ? model.fields : []
   const server = model.code === 'VERSION_CONFLICT' ? model.server : {}
-  const shown = differingFields(fields, conflict.local_payload, server)
+  const shown = differingFields(fields, conflict.local_payload, server, conflict.resource)
   const hidden = Object.fromEntries(
     fields.filter((field) => !shown.includes(field)).map((field): [string, FieldPick] => [field, 'server']),
   )
