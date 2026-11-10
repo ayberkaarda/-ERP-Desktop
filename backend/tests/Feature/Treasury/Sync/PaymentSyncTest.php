@@ -274,12 +274,13 @@ it('prunes only allocations REST would accept as sent: a shape violation is left
         'seven rate decimals' => [[...$line, 'fx_rate' => '1.0000001']],
         'extra key id' => [[...$line, 'id' => $rows[0]['id']]],
         'extra key carrying_amount' => [[...$line, 'carrying_amount' => '100.0000']],
-        'object instead of list' => ['x' => $line],
     ];
+    // REST takes these (an object passes `array`, a missing rate is computed), yet they are not the editor's shape: never pruned.
+    $unpruned = ['object instead of list' => ['x' => $line], 'no rate' => [array_diff_key($line, ['fx_rate' => true])]];
 
-    foreach ([...$invalid, 'no rate' => [array_diff_key($line, ['fx_rate' => true])]] as $label => $allocations) {
+    foreach ([...$invalid, ...$unpruned] as $label => $allocations) {
         $stale = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => $allocations], 1));
-        expect($stale['status'])->toBe('conflict', $label)->and($stale['conflict']['conflicting_fields'])->toContain('allocations', $label);
+        expect($stale['status'])->toBe('conflict', $label)->and($stale['conflict']['conflicting_fields'])->toBe(['allocations'], $label);
     }
 
     foreach ($invalid as $label => $allocations) {

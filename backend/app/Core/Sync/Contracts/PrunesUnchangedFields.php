@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Core\Sync\Contracts;
 
 use App\Core\Sync\Mutation;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -16,10 +17,13 @@ use Illuminate\Database\Eloquent\Model;
  * resending the same value is not an edit, so it neither conflicts nor is rewritten. A value
  * that differs stays in the mutation, and a stale base then conflicts as before.
  *
- * The idempotency fingerprint and the stored result are of the mutation as sent.
+ * The writer prunes only what its REST endpoint would accept as sent (shape and types), so a
+ * pruned write never skips a validation answer, and only when $user may read everything the
+ * comparison reads, so the probe tells nothing the user could not read. The idempotency
+ * fingerprint and the stored result are of the mutation as sent, and a replay never prunes.
  */
 interface PrunesUnchangedFields
 {
     /** The mutation without its unchanged untracked fields (Mutation::without), or as is. */
-    public function withoutUnchanged(Mutation $mutation, Model $target): Mutation;
+    public function withoutUnchanged(Authenticatable $user, Mutation $mutation, Model $target): Mutation;
 }

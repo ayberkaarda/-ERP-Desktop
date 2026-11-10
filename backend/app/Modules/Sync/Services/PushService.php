@@ -269,7 +269,7 @@ final class PushService
             }
         }
 
-        $mutation = self::pruned($writer, $mutation, $target);
+        $mutation = self::pruned($user, $writer, $mutation, $target);
         $current = $writer->currentVersion($target);
         $serverData = fn (): array => $this->rows->current($adapter, $companyId, $mutation->id) ?? [];
 
@@ -455,7 +455,7 @@ final class PushService
                     $conflict->baseVersion,
                     $writer->currentVersion($target),
                     $op->isFieldMerge() && $mutation->op === MutationOp::Update
-                        ? $this->resolver->conflictingFields($write, self::pruned($writer, $mutation, $target), $target, $writer->currentVersion($target), $writer)
+                        ? $this->resolver->conflictingFields($write, $mutation, $target, $writer->currentVersion($target), $writer)
                         : [],
                     $data,
                     $conflict->choices,
@@ -657,12 +657,14 @@ final class PushService
 
     /**
      * An update without the untracked fields the client resent unchanged, when the writer
-     * prunes them (PrunesUnchangedFields); the claim and the stored result keep the mutation as sent.
+     * prunes them (PrunesUnchangedFields). The claim and the stored result keep the mutation as
+     * sent, and a replay rebuilds a stored conflict from the mutation as sent: pruning it there
+     * could answer the same key with other conflicting fields than the stored result had.
      */
-    private static function pruned(SyncWriter $writer, Mutation $mutation, Model $target): Mutation
+    private static function pruned(User $user, SyncWriter $writer, Mutation $mutation, Model $target): Mutation
     {
         return $mutation->op === MutationOp::Update && $writer instanceof PrunesUnchangedFields
-            ? $writer->withoutUnchanged($mutation, $target)
+            ? $writer->withoutUnchanged($user, $mutation, $target)
             : $mutation;
     }
 
