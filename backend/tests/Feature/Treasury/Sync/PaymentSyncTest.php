@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Core\Sync\Contracts\SyncResource;
 use App\Core\Sync\Contracts\SyncWriter;
+use App\Core\Sync\Mutation;
+use App\Core\Sync\OutcomeStatus;
 use App\Models\User;
 use App\Modules\Sync\Services\Rows;
 use App\Modules\Treasury\Enums\DocumentStatus;
@@ -12,6 +14,7 @@ use App\Modules\Treasury\Sync\PaymentSyncResource;
 use App\Modules\Treasury\Sync\PaymentSyncWriter;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -189,9 +192,81 @@ it('updates a draft, merges a stale edit of another field and conflicts on the s
         ->and($stale['conflict']['conflicting_fields'])->toBe(['amount'])
         ->and($stale['conflict']['server_data']['amount'])->toBe('175.5000');
 
-    // Allocations are not in the payment's log: a stale allocation edit always conflicts.
-    $allocations = tpsOne($w->user, $w->company, tpsMutation('update', $id, ['allocations' => []], 1));
-    expect($allocations['status'])->toBe('conflict')->and($allocations['conflict']['conflicting_fields'])->toContain('allocations');
+    // Allocations are not in the payment's log: a stale edit that changes them always conflicts.
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '10', 'fx_rate' => '1'];
+    $allocations = tpsOne($w->user, $w->company, tpsMutation('update', $id, ['allocations' => [$line]], 1));
+    expect($allocations['status'])->toBe('conflict')->and($allocations['conflict']['conflicting_fields'])->toContain('allocations')
+        ->and(DB::table('treasury_allocations')->where('payment_id', $id)->count())->toBe(0);
+});
+
+/**
+ * The allocations as the payment editor resends them on every save (paymentAllocationInput).
+ *
+ * @param  list<array<string, mixed>>  $allocations
+ * @return list<array<string, mixed>>
+ */
+function tpsResent(array $allocations): array
+{
+    return array_map(static fn (array $a): array => ['invoice_module' => $a['invoice_module'], 'invoice_id' => $a['invoice_id'], 'amount' => $a['amount'], 'fx_rate' => $a['fx_rate']], $allocations);
+}
+
+it('merges a stale edit that resends the allocations unchanged and leaves them as they are', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    $served = P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => $payment['version'], 'description' => 'Web note'])->assertOk()->json('data');
+    $rows = DB::table('treasury_allocations')->where('payment_id', $payment['id'])->orderBy('id')->get()->map(fn ($r) => (array) $r)->all();
+    expect($served['version'])->toBe(2)->and($rows)->toHaveCount(1);
+
+    // Edited offline on version 1: another field plus the allocations as the server served them.
+    $merged = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => tpsResent($served['allocations'])], 1));
+    expect($merged['status'])->toBe('applied')->and($merged['version'])->toBe(3)
+        ->and($merged['merged_fields'])->toBe(['reference'])
+        ->and($merged['data']['reference'])->toBe('OFF-9')->and($merged['data']['description'])->toBe('Web note')
+        ->and(tpsResent($merged['data']['allocations']))->toBe(tpsResent($served['allocations']))
+        ->and(DB::table('treasury_allocations')->where('payment_id', $payment['id'])->orderBy('id')->get()->map(fn ($r) => (array) $r)->all())->toBe($rows, 'the allocation rows are not rewritten');
+
+    // The same allocations in the client's own notation ('100' / '1' instead of '100.0000' / '1.000000').
+    $again = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['amount' => '130', 'allocations' => [$line]], 1));
+    expect($again['status'])->toBe('applied')->and($again['merged_fields'])->toBe(['amount'])
+        ->and($again['data']['amount'])->toBe('130.0000')->and($again['data']['allocations'])->toHaveCount(1)
+        ->and(DB::table('treasury_allocations')->where('payment_id', $payment['id'])->orderBy('id')->get()->map(fn ($r) => (array) $r)->all())->toBe($rows);
+});
+
+it('still conflicts when the server changed the allocations and a stale edit would overwrite them', function (): void {
+    $w = $this->w;
+    $line = ['invoice_module' => 'purchasing', 'invoice_id' => T::invoice($w)['id'], 'amount' => '100', 'fx_rate' => '1'];
+    $payment = T::payment($w, 'payment', '120', ['allocations' => [$line]]);
+    $served = P::patch($w->user, $w->company, "treasury-payments/{$payment['id']}", ['version' => $payment['version'], 'allocations' => [[...$line, 'amount' => '50']]])->assertOk()->json('data');
+    expect($served['version'])->toBe(2)->and($served['allocations'][0]['amount'])->toBe('50.0000');
+
+    foreach ([[$line], [], [[...$line, 'fx_rate' => '1.5']]] as $i => $stale) {
+        $result = tpsOne($w->user, $w->company, tpsMutation('update', $payment['id'], ['reference' => 'OFF-9', 'allocations' => $stale], 1));
+        expect($result['status'])->toBe('conflict', "#{$i}")
+            ->and($result['conflict']['code'])->toBe('VERSION_CONFLICT', "#{$i}")
+            ->and($result['conflict']['conflicting_fields'])->toBe(['allocations'], "#{$i}")
+            ->and($result['conflict']['server_data']['allocations'][0]['amount'])->toBe('50.0000', "#{$i}");
+    }
+
+    expect(DB::table('treasury_allocations')->where('payment_id', $payment['id'])->pluck('amount')->all())->toBe(['50.0000'])
+        ->and(DB::table('treasury_payments')->where('id', $payment['id'])->first())->reference->toBeNull()->version->toBe(2);
+});
+
+it('leaves the guard as it found it: empty stays empty, a switched user comes back', function (): void {
+    $w = $this->w;
+    $writer = app(PaymentSyncWriter::class);
+    $create = fn (): Mutation => Mutation::fromArray(tpsMutation('create', (string) Str::uuid7(), tpsPayload($w)));
+    Identity::fresh();
+
+    expect(Auth::guard()->hasUser())->toBeFalse();
+    $outcome = P::in($w->company, fn () => $writer->create($w->user, $create()));
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)
+        ->and(Auth::guard()->hasUser())->toBeFalse()->and(Auth::user())->toBeNull();
+
+    $other = Actors::user(['treasury.payments.view'], $w->company);
+    Auth::setUser($other);
+    $outcome = P::in($w->company, fn () => $writer->create($w->user, $create()));
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)->and(Auth::user()?->is($other))->toBeTrue();
 });
 
 it('replays a repeated push without a second write', function (): void {
