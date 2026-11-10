@@ -7,6 +7,7 @@ namespace App\Modules\Purchasing\Sync;
 use App\Core\Documents\VersionConflictException;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\ActingAs;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
@@ -24,7 +25,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Redirector;
 use Illuminate\Routing\Route;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -132,15 +132,8 @@ final class PurchaseRequestSyncWriter implements SyncWriter
      */
     private function run(Authenticatable $user, ?Model $target, Closure $write): WriteOutcome
     {
-        $previous = Auth::guard()->user();
-        $switched = $previous?->getAuthIdentifier() !== $user->getAuthIdentifier();
-
-        if ($switched) {
-            Auth::setUser($user);
-        }
-
         try {
-            return $write();
+            return ActingAs::run($user, $write);
         } catch (ValidationException $e) {
             return WriteOutcome::rejected(ErrorCode::ValidationError, fields: $this->fields($e->errors()));
         } catch (AuthorizationException) {
@@ -153,10 +146,6 @@ final class PurchaseRequestSyncWriter implements SyncWriter
             }
 
             return WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
-        } finally {
-            if ($switched && $previous !== null) {
-                Auth::setUser($previous);
-            }
         }
     }
 
