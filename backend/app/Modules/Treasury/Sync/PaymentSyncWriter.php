@@ -7,16 +7,22 @@ namespace App\Modules\Treasury\Sync;
 use App\Core\Documents\VersionConflictException;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\Contracts\PrunesUnchangedFields;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
 use App\Core\Sync\SyncConflict;
 use App\Core\Sync\TargetConstraints;
 use App\Core\Sync\WriteOutcome;
+use App\Models\User;
+use App\Modules\Identity\Contracts\CompanyAuthorizer;
 use App\Modules\Treasury\Enums\DocumentStatus;
 use App\Modules\Treasury\Http\Controllers\TreasuryCoreController;
 use App\Modules\Treasury\Http\Resources\PaymentResource;
+use App\Modules\Treasury\Models\TreasuryAllocation;
 use App\Modules\Treasury\Models\TreasuryPayment;
 use BackedEnum;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Authenticatable;
@@ -43,7 +49,7 @@ use InvalidArgumentException;
  * or touch a payment that left draft (draft_only, and PaymentService answers DOCUMENT_LOCKED).
  * Submit, post, reverse and cancel stay online (manifest online_only `treasuryPayment`).
  */
-final class PaymentSyncWriter implements SyncWriter
+final class PaymentSyncWriter implements PrunesUnchangedFields, SyncWriter
 {
     private const string PATH = '/api/v1/treasury-payments';
 
@@ -130,7 +136,8 @@ final class PaymentSyncWriter implements SyncWriter
 
     /**
      * Columns of the payment's activity log (TreasuryRecord logs every attribute). Allocations are
-     * not logged on the payment, so a stale update of them is always a conflict.
+     * not logged on the payment, so a stale update that changes them is always a conflict
+     * (withoutUnchanged drops allocations resent as they are stored).
      */
     public function auditFields(): array
     {
@@ -143,17 +150,141 @@ final class PaymentSyncWriter implements SyncWriter
     }
 
     /**
+     * The editor sends the allocations on every save (PaymentEditor.tsx). When they equal the
+     * stored ones, line for line (invoice, amount and rate at the stored scales; order does not
+     * matter), they are not an edit: dropped before the conflict decision, so a stale base merges
+     * on the fields that did change and the stored allocation rows stay as they are. Any
+     * difference keeps them in the mutation, and a stale base conflicts on `allocations`.
+     *
+     * Nothing is pruned when the sent lines are not what the REST rules accept as sent (exact
+     * keys, strings in the money and rate formats, a rate given): the endpoint answers those.
+     * Nothing is pruned either for a user without the invoice view of every stored line
+     * (TreasuryCoreController::sources refuses the rewrite): the probe would tell whether lines
+     * the user cannot read equal the sent ones.
+     */
+    public function withoutUnchanged(Authenticatable $user, Mutation $mutation, Model $target): Mutation
+    {
+        if (! $target instanceof TreasuryPayment || ! array_key_exists('allocations', $mutation->payload)) {
+            return $mutation;
+        }
+
+        $sent = self::allocationLines($mutation->payload['allocations']);
+
+        if ($sent === null) {
+            return $mutation;
+        }
+
+        $company = (string) $target->getAttribute('company_id');
+        $rows = TreasuryAllocation::query()
+            ->where('company_id', $company)
+            ->where('payment_id', $target->getKey())
+            ->get()
+            ->map(static fn (TreasuryAllocation $allocation): array => $allocation->getAttributes())
+            ->all();
+
+        if (! $user instanceof User || ! $this->seesAll($user, $company, $rows)) {
+            return $mutation;
+        }
+
+        return $sent === self::storedLines($rows) ? $mutation->without(['allocations']) : $mutation;
+    }
+
+    /**
+     * The sent lines in a comparable form, sorted, or null unless each is exactly what the REST
+     * rules take (`allocations.*` of TreasuryCoreController): the four keys at most, module,
+     * invoice and a money string with up to 4 decimals and a rate string with up to 6.
+     *
+     * @return list<string>|null
+     */
+    private static function allocationLines(mixed $allocations): ?array
+    {
+        if (! is_array($allocations) || ! array_is_list($allocations)) {
+            return null;
+        }
+
+        $lines = [];
+
+        foreach ($allocations as $line) {
+            if (! is_array($line) || array_diff_key($line, ['invoice_module' => 1, 'invoice_id' => 1, 'amount' => 1, 'fx_rate' => 1]) !== []) {
+                return null;
+            }
+
+            $module = $line['invoice_module'] ?? null;
+            $invoice = $line['invoice_id'] ?? null;
+            $amount = $line['amount'] ?? null;
+            $rate = $line['fx_rate'] ?? null;
+
+            if (! in_array($module, ['sales', 'purchasing'], true) || ! is_string($invoice) || ! Str::isUuid($invoice)
+                || ! is_string($amount) || preg_match('/^\d{1,16}(\.\d{1,4})?$/', $amount) !== 1
+                || ! is_string($rate) || preg_match('/^\d{1,14}(\.\d{1,6})?$/', $rate) !== 1) {
+                return null;
+            }
+
+            $lines[] = self::line($module, $invoice, $amount, $rate);
+        }
+
+        sort($lines);
+
+        return $lines;
+    }
+
+    /**
+     * The stored rows in the same comparable form, sorted.
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return list<string>
+     */
+    private static function storedLines(array $rows): array
+    {
+        $lines = array_map(static fn (array $row): string => self::line((string) $row['invoice_module'], (string) $row['invoice_id'], (string) $row['amount'], (string) $row['fx_rate']), $rows);
+        sort($lines);
+
+        return $lines;
+    }
+
+    private static function line(string $module, string $invoice, string $amount, string $rate): string
+    {
+        return implode('|', [
+            $module,
+            strtolower($invoice),
+            (string) BigDecimal::of($amount)->toScale(4, RoundingMode::HalfUp),
+            (string) BigDecimal::of($rate)->toScale(6, RoundingMode::HalfUp),
+        ]);
+    }
+
+    /**
+     * Whether the user may read every stored allocation, as PaymentResource and
+     * TreasuryCoreController::sources judge it (sales.invoices.view / purchasing.invoices.view
+     * in the payment's company).
+     *
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function seesAll(User $user, string $company, array $rows): bool
+    {
+        $authorizer = app(CompanyAuthorizer::class);
+
+        foreach (array_unique(array_map(static fn (array $row): string => (string) $row['invoice_module'], $rows)) as $module) {
+            if (! $authorizer->allows($user, $module === 'sales' ? 'sales.invoices.view' : 'purchasing.invoices.view', $company)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Runs one write as $user and turns what REST would answer with an error into an outcome.
      *
      * @param  Closure(TreasuryCoreController): WriteOutcome  $write
      */
     private function run(Authenticatable $user, Mutation $mutation, ?TreasuryPayment $target, Closure $write): WriteOutcome
     {
-        $previous = Auth::guard()->user();
+        $guard = Auth::guard();
+        $previous = $guard->user();
         $switched = $previous?->getAuthIdentifier() !== $user->getAuthIdentifier();
 
         if ($switched) {
-            Auth::setUser($user);
+            $guard->setUser($user);
         }
 
         try {
@@ -175,8 +306,13 @@ final class PaymentSyncWriter implements SyncWriter
 
             return WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
         } finally {
+            // The guard is left as it was found: the previous user comes back, and a guard that
+            // had none is emptied again (forgetUser clears the resolved user only; the session
+            // and other guards are untouched) so the write does not leave $user logged in.
             if ($switched && $previous !== null) {
-                Auth::setUser($previous);
+                $guard->setUser($previous);
+            } elseif ($switched) {
+                $guard->forgetUser();
             }
         }
     }

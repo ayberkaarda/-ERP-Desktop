@@ -118,6 +118,33 @@ final readonly class Mutation
     }
 
     /**
+     * A copy without the given payload keys and changed fields, for a writer that drops a
+     * field the client resent unchanged (Contracts\PrunesUnchangedFields). Everything else,
+     * the idempotency key included, is kept; the fingerprint is taken of the mutation as sent.
+     *
+     * @param  list<string>  $fields
+     */
+    public function without(array $fields): self
+    {
+        $drop = array_fill_keys($fields, true);
+
+        return new self(
+            idempotencyKey: $this->idempotencyKey,
+            op: $this->op,
+            resource: $this->resource,
+            id: $this->id,
+            baseVersion: $this->baseVersion,
+            changedFields: array_values(array_filter($this->changedFields, static fn (string $field): bool => ! isset($drop[$field]))),
+            occurredAt: $this->occurredAt,
+            payload: array_diff_key($this->payload, $drop),
+            action: $this->action,
+            parentId: $this->parentId,
+            dependsOn: $this->dependsOn,
+            resolution: $this->resolution,
+        );
+    }
+
+    /**
      * Stable digest of what the client asked for; the same key with another digest is
      * IDEMPOTENCY_KEY_REUSED. Object keys are sorted, list order is kept.
      */
