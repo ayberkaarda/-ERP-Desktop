@@ -93,6 +93,7 @@ Otomatik güncelleyici yoktur (`tauri-plugin-updater` `Cargo.toml`/`tauri.conf.j
 Önlemler (doğrulandı):
 - Release derlemeleri zayıflatılmış CSP/yapılandırmayı reddeder (derleme kapısı, yukarıda) ve `KEYSTONE_DEV_ALLOW_HTTP` release'te yok sayılır (`bootstrap::allow_http`).
 - CI'da bağımlılık denetimi: `cargo deny check`, `cargo audit` (`deny.toml`, ARCHITECTURE "Doğrulama").
+- Yalnızca hata ayıklama WebDriver kancası: Windows e2e takımı için, Windows'ta bir debug derleme `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` değerini (msedgedriver'ın `--remote-debugging-port` argümanı) ana pencerenin WebView2 argümanlarına ekler (`src-tauri/src/webdriver_hook.rs`). Modül yalnızca Windows'ta `debug_assertions` ile derlenir; release derlemesi değişkeni okumaz, adını da içermez. `desktop-bundle.yml` release ikilisinde bu adı arar, bulursa derlemeyi düşürür.
 - Devtools: `tauri` crate'i `devtools` özelliği olmadan derlenir (`src-tauri/Cargo.toml`); release webview'ı varsayılan olarak bunu açmaz.
 
 Artık: ikiliyi diskte değiştirebilen kullanıcının oturumunu ele geçirir. İkililer imzasızdır; Windows SmartScreen uyarır ve bütünlük doğrulanamaz. Portfolyo projesi için kabul edilmiştir.
