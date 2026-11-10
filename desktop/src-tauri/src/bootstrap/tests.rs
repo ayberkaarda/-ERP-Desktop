@@ -203,7 +203,7 @@ fn me_body(companies: &[(&str, &str)]) -> Value {
 
 fn manifest() -> Value {
     json!({"data": {
-        "schema_version": 1, "min_schema_version": 1, "offline_manifest_version": 3,
+        "schema_version": 1, "min_schema_version": 1, "offline_manifest_version": 4,
         "server_time": "2026-10-27T09:15:00+03:00",
         "company_id": COMPANY, "user_id": USER,
         "device_id": "0192f5a0-0000-7000-8000-0000000000d1",

@@ -62,7 +62,7 @@ pub struct ResourceSpec {
 /// Highest offline manifest version whose `query` sections this build
 /// understands. A manifest of another version keeps its resources, but its
 /// `query` sections are not read (lists fall back to the window field).
-pub const QUERY_MANIFEST_VERSION: u32 = 3;
+pub const QUERY_MANIFEST_VERSION: u32 = 4;
 
 /// `query` of a list stream: the server's list parameter names the local
 /// copy can apply, each on a top-level row field.

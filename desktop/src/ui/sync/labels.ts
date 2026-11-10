@@ -16,6 +16,7 @@ const RESOURCES = {
   'sales-orders': 'sync.resource.sales_orders',
   'stock-documents': 'sync.resource.stock_documents',
   'purchase-requests': 'sync.resource.purchase_requests',
+  'treasury-payments': 'sync.resource.treasury_payments',
 } as const
 
 const FIELDS = [
@@ -93,6 +94,11 @@ const FIELDS = [
   'counted_quantity',
   'valid_from',
   'valid_to',
+  'amount',
+  'account_id',
+  'direction',
+  'counterparty_module',
+  'allocations',
 ] as const
 
 /**
@@ -119,7 +125,13 @@ function isNumericField(field: string | undefined): boolean {
 }
 
 /** Documents whose number comes from the server: unnumbered until pushed. */
-const NUMBERED = new Set(['sales-quotes', 'sales-orders', 'stock-documents', 'purchase-requests'])
+const NUMBERED = new Set([
+  'sales-quotes',
+  'sales-orders',
+  'stock-documents',
+  'purchase-requests',
+  'treasury-payments',
+])
 
 /**
  * Fields the server computes or owns: never a choice for the user, even when
@@ -153,6 +165,7 @@ const RECORD_PATHS: Readonly<Record<string, (id: string) => string>> = {
   items: (id) => `/catalog/items/${id}`,
   'sales-quotes': (id) => `/sales/quotes/${id}`,
   'sales-orders': (id) => `/sales/orders/${id}`,
+  'treasury-payments': (id) => `/treasury/payments/${id}`,
 }
 
 function isOneOf<T extends string>(list: readonly T[], value: string): value is T {

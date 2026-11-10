@@ -737,6 +737,9 @@ mod tests {
         let delivery = format!("/api/v1/sales-deliveries/{ID}");
         let posting = format!("/api/v1/sales-deliveries/{ID}/post");
         let party = format!("/api/v1/parties/{ID}");
+        let payment = format!("/api/v1/treasury-payments/{ID}");
+        let post_payment = format!("/api/v1/treasury-payments/{ID}/post");
+        let preview = format!("/api/v1/treasury-payments/{ID}/preview");
         let cases: Vec<(ProxyMethod, &str, bool, Decision)> = vec![
             // local-first, writable (stock-documents)
             (
@@ -794,6 +797,34 @@ mod tests {
                     false,
                 ),
             ),
+            // local-first, draft writes (treasury-payments): posting and the preview stay online
+            (
+                Post,
+                "/api/v1/treasury-payments",
+                false,
+                local(write("treasury-payments", Create, None, None), false),
+            ),
+            (
+                Patch,
+                &payment,
+                false,
+                local(write("treasury-payments", Update, None, Some(id())), false),
+            ),
+            (
+                Delete,
+                &payment,
+                false,
+                local(write("treasury-payments", Del, None, Some(id())), false),
+            ),
+            (
+                Get,
+                &payment,
+                false,
+                local(read("treasury-payments", Some(id()), false, false), false),
+            ),
+            (Post, &post_payment, true, online.clone()),
+            (Post, &post_payment, false, Refuse(Offline)),
+            (Get, &preview, false, Refuse(Offline)),
             // local-first, create only (parties): other writes are online only
             (Patch, &party, true, online.clone()),
             (Patch, &party, false, Refuse(Offline)),
@@ -922,7 +953,7 @@ mod tests {
                 Decision::ONLINE
             );
             assert_eq!(
-                decide_for(Post, "/api/v1/treasury-payments", &facts(false, copy)),
+                decide_for(Post, "/api/v1/treasury-transfers", &facts(false, copy)),
                 Decision::Refuse(Refusal::Offline)
             );
         }

@@ -19,6 +19,8 @@ use App\Modules\Organization\Events\CompanyCreated;
 use App\Modules\Organization\Models\Company;
 use App\Modules\Parties\Models\Party;
 use App\Modules\Reference\Models\Warehouse;
+use App\Modules\Treasury\Services\AccountService;
+use Illuminate\Support\Facades\DB;
 
 $backend = getenv('E2E_BACKEND_DIR') ?: dirname(__DIR__, 3).'/backend';
 $statePath = getenv('E2E_STATE') ?: dirname(__DIR__).'/state.json';
@@ -49,14 +51,20 @@ $root = User::query()->where('email', mb_strtolower((string) getenv('ADMIN_EMAIL
 app(CompanyDirectory::class)->setMembership($root->id, $company->id, true);
 $token = $root->createToken('e2e-web', ['*'])->plainTextToken;
 
-$records = app(CompanyContext::class)->runAs($company->id, static function (): array {
+$records = app(CompanyContext::class)->runAs($company->id, static function () use ($company): array {
     $party = Party::factory()->create(['name' => 'E2E Customer']);
+    $supplier = Party::factory()->supplier()->create(['name' => 'E2E Supplier']);
+    // The cash account of the offline payment draft (scenario 2), on the bootstrapped chart.
+    $cash = app(AccountService::class)->save(null, [
+        'type' => 'cash', 'code' => 'E2E-CASH', 'name' => 'E2E cash', 'currency_code' => 'TRY',
+        'gl_account_id' => (string) DB::table('accounts')->where('company_id', $company->id)->where('code', '100')->value('id'),
+    ], null);
     $unit = Unit::factory()->create(['code' => 'E2EPCS', 'name' => 'E2E piece']);
     $item = Item::factory()->create(['base_unit_id' => $unit->id, 'code' => 'E2E-WIDGET', 'name' => 'E2E widget']);
     $warehouse = Warehouse::query()->where('is_default', true)->first()
         ?? Warehouse::factory()->create(['code' => 'E2E', 'name' => 'E2E', 'negative_stock_policy' => 'block', 'is_default' => true]);
 
-    return ['party' => $party, 'item' => $item, 'warehouse' => $warehouse];
+    return ['party' => $party, 'supplier' => $supplier, 'cash' => $cash, 'item' => $item, 'warehouse' => $warehouse];
 });
 
 file_put_contents($statePath, json_encode([
@@ -68,6 +76,8 @@ file_put_contents($statePath, json_encode([
     'party' => ['id' => $records['party']->id, 'name' => 'E2E Customer'],
     'item_id' => $records['item']->id,
     'warehouse_id' => $records['warehouse']->id,
+    'supplier' => ['id' => $records['supplier']->id, 'name' => 'E2E Supplier'],
+    'cash_account_id' => $records['cash']->id,
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR));
 
 echo "seeded company {$company->id}\n";

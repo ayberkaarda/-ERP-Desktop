@@ -437,7 +437,7 @@ fn manifest(version: Option<u64>, query: Value) -> String {
 }
 
 #[test]
-fn query_sections_are_read_from_version_3_manifests_only() {
+fn query_sections_are_read_from_version_3_and_4_manifests_only() {
     let query = json!({
         "default_sort": ["-name"],
         "sort": {"name": {"type": "text"}, "since": {"field": "created_at", "type": "datetime"}},
@@ -463,8 +463,11 @@ fn query_sections_are_read_from_version_3_manifests_only() {
     assert_eq!(q.online_only[0].reason, "server only");
     assert!(read.specs[1].query.is_some(), "a child keeps its own query");
 
+    // Version 4 (treasury-payments) reads them like 3.
+    let v4 = offline_manifest(&manifest(Some(4), query.clone())).unwrap();
+    assert_eq!(v4.specs[0].query, parties.query);
     // Version 2 has no query sections; a newer version is not guessed.
-    for version in [2, 4] {
+    for version in [2, 5] {
         let read = offline_manifest(&manifest(Some(version), query.clone())).unwrap();
         assert!(read.specs.iter().all(|s| s.query.is_none()), "{version}");
     }
@@ -517,7 +520,7 @@ fn the_shipped_manifest_registers_with_its_query_sections() {
         keystone_sync::store::QUERY_MANIFEST_VERSION
     );
     let with_query = manifest.specs.iter().filter(|s| s.query.is_some()).count();
-    assert_eq!(with_query, 25);
+    assert_eq!(with_query, 26);
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(dir.path().join("m.db"), &DbKey::from_bytes([1; 32])).unwrap();
     store.register_all(&manifest.specs).unwrap();

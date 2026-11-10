@@ -109,6 +109,14 @@ describe('conflictModel on the fixture conflicts', () => {
           server: expect.objectContaining({ id: '0193b1e9-1200-7e40-9444-8b9c0d1e2f71', version: 3 }) as unknown,
         },
       },
+      {
+        ok: true,
+        model: {
+          code: 'DOCUMENT_LOCKED',
+          choices: ['save_as_new_draft', 'discard'],
+          server: expect.objectContaining({ status: 'posted', number: 'TP2026000000014', version: 2 }) as unknown,
+        },
+      },
     ])
   })
 

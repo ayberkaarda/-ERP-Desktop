@@ -574,6 +574,28 @@ export const VALID_FIXTURES = {
         "payload": {}
       },
       {
+        "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000c",
+        "op": "create",
+        "resource": "treasury-payments",
+        "id": "0193b1ea-3300-7f50-a555-9c0d1e2f3a80",
+        "base_version": null,
+        "changed_fields": [],
+        "occurred_at": "2026-10-25T18:20:00+03:00",
+        "payload": {
+          "direction": "payment",
+          "counterparty_module": "purchasing",
+          "account_id": "0193a000-0000-7000-8000-0000000000e1",
+          "party_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+          "document_date": "2026-10-25",
+          "fx_rate": "1",
+          "amount": "250.00",
+          "reference": "KASA-118",
+          "description": "Kırtasiye masrafı",
+          "currency_code": "TRY",
+          "allocations": []
+        }
+      },
+      {
         "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000a",
         "op": "create",
         "resource": "parties",
@@ -890,6 +912,45 @@ export const VALID_FIXTURES = {
               "discard"
             ]
           }
+        },
+        {
+          "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000c",
+          "resource": "treasury-payments",
+          "id": "0193b1ea-3300-7f50-a555-9c0d1e2f3a80",
+          "status": "applied",
+          "replayed": false,
+          "version": 1,
+          "data": {
+            "id": "0193b1ea-3300-7f50-a555-9c0d1e2f3a80",
+            "company_id": "0193a000-0000-7000-8000-000000000001",
+            "number": null,
+            "document_date": "2026-10-25",
+            "status": "draft",
+            "description": "Kırtasiye masrafı",
+            "journal_entry_id": null,
+            "reversal_journal_entry_id": null,
+            "reversal_date": null,
+            "reversal_reason": null,
+            "created_by": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
+            "version": 1,
+            "created_at": "2026-10-25T18:20:03+03:00",
+            "updated_at": "2026-10-25T18:20:03+03:00",
+            "direction": "payment",
+            "account_id": "0193a000-0000-7000-8000-0000000000e1",
+            "party_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+            "currency_code": "TRY",
+            "amount": "250.0000",
+            "fx_rate": "1.000000",
+            "reference": "KASA-118",
+            "amount_local": "0.0000",
+            "allocated_local": "0.0000",
+            "advance_local": "0.0000",
+            "realized_fx": "0.0000",
+            "approval_request_id": null,
+            "counterparty_module": "purchasing",
+            "allocations": [],
+            "allocations_redacted": false
+          }
         }
       ]
     },
@@ -1093,6 +1154,66 @@ export const VALID_FIXTURES = {
                 "invoiced_quantity": "0.000000",
                 "reservation_id": null
               }
+            ]
+          }
+        },
+        {
+          "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000d",
+          "resource": "treasury-payments",
+          "id": "0193b1ea-3300-7f50-a555-9c0d1e2f3a81",
+          "status": "rejected",
+          "replayed": false,
+          "error": {
+            "message": "Bu değişiklik çevrimdışıyken yapılamaz.",
+            "code": "SYNC_OFFLINE_WRITE_NOT_ALLOWED"
+          }
+        },
+        {
+          "idempotency_key": "0193b1f0-1111-7aaa-8bbb-00000000000e",
+          "resource": "treasury-payments",
+          "id": "0193b1ea-3300-7f50-a555-9c0d1e2f3a82",
+          "status": "conflict",
+          "replayed": false,
+          "conflict": {
+            "code": "DOCUMENT_LOCKED",
+            "message": "Bu belge artık taslak değil, değiştirilemez.",
+            "base_version": 1,
+            "server_version": 2,
+            "conflicting_fields": [],
+            "server_data": {
+              "id": "0193b1ea-3300-7f50-a555-9c0d1e2f3a82",
+              "company_id": "0193a000-0000-7000-8000-000000000001",
+              "number": "TP2026000000014",
+              "document_date": "2026-10-24",
+              "status": "posted",
+              "description": "Kargo ödemesi",
+              "journal_entry_id": "0193b2b0-0001-7c00-8b00-0000000000f1",
+              "reversal_journal_entry_id": null,
+              "reversal_date": null,
+              "reversal_reason": null,
+              "created_by": "01937a2c-5b10-7c11-8d42-2a9e7f3c5b02",
+              "version": 2,
+              "created_at": "2026-10-24T09:00:00+03:00",
+              "updated_at": "2026-10-24T16:30:00+03:00",
+              "direction": "payment",
+              "account_id": "0193a000-0000-7000-8000-0000000000e1",
+              "party_id": "0193b1e4-2a7c-7d55-b8e9-3f4a5b6c7d10",
+              "currency_code": "TRY",
+              "amount": "480.0000",
+              "fx_rate": "1.000000",
+              "reference": null,
+              "amount_local": "480.0000",
+              "allocated_local": "0.0000",
+              "advance_local": "480.0000",
+              "realized_fx": "0.0000",
+              "approval_request_id": null,
+              "counterparty_module": "purchasing",
+              "allocations": [],
+              "allocations_redacted": false
+            },
+            "choices": [
+              "save_as_new_draft",
+              "discard"
             ]
           }
         }
