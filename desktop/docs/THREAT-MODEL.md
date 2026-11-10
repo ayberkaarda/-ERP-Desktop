@@ -93,6 +93,7 @@ There is no auto-updater (`tauri-plugin-updater` is absent from `Cargo.toml`/`ta
 Mitigations (verified):
 - Release builds refuse a weakened CSP/config (build guard, above), and `KEYSTONE_DEV_ALLOW_HTTP` is ignored in release (`bootstrap::allow_http`).
 - Dependency checks in CI: `cargo deny check`, `cargo audit` (`deny.toml`, ARCHITECTURE "Doğrulama").
+- Debug-only WebDriver hook: for the Windows e2e suite, a debug build on Windows appends `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (msedgedriver's `--remote-debugging-port`) to the main window's WebView2 arguments (`src-tauri/src/webdriver_hook.rs`). The module is compiled only with `debug_assertions` on Windows, so a release build neither reads the variable nor contains its name; `desktop-bundle.yml` greps the release binary for it and fails the build if it is there.
 - Devtools: the `tauri` crate is built without the `devtools` feature (`src-tauri/Cargo.toml`), so release webviews do not expose it by default.
 
 Residual: anyone who can replace the binary on disk owns the user's session. Binaries are unsigned, so Windows SmartScreen will warn and integrity cannot be checked. This is accepted for a portfolio project.

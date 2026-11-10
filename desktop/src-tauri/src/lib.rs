@@ -23,6 +23,8 @@ pub mod realtime;
 pub mod router;
 pub mod runtime;
 pub mod state;
+#[cfg(all(windows, debug_assertions))]
+mod webdriver_hook;
 
 use tauri::Manager;
 
@@ -117,7 +119,14 @@ fn create_main_window<R: tauri::Runtime>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = main_window_config(&app.config().app.windows)?;
     let dev_url = allowed_dev_url(tauri::is_dev(), app.config().build.dev_url.as_ref());
-    tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+    let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?;
+    // Debug builds on Windows only: lets msedgedriver reach the browser process.
+    #[cfg(all(windows, debug_assertions))]
+    let builder = match webdriver_hook::browser_args() {
+        Some(args) => builder.additional_browser_args(&args),
+        None => builder,
+    };
+    builder
         .on_navigation(navigation_hook(dev_url))
         .on_new_window(|url, _features| {
             if new_window_allowed(&url) {
