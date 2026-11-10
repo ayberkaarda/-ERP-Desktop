@@ -1,9 +1,19 @@
 import i18next from 'i18next'
 import { describe, expect, it } from 'vitest'
 
+import manifest from '../../../../contracts/offline-manifest.json'
 import { addDesktopResources } from '../../i18n'
 import { createDesktopText } from '../../sync'
-import { differingFields, fieldName, humanize, recordLabel, resourceName, sameValue, shortId } from './labels'
+import {
+  differingFields,
+  fieldName,
+  humanize,
+  isServerField,
+  recordLabel,
+  resourceName,
+  sameValue,
+  shortId,
+} from './labels'
 
 async function text(language = 'tr') {
   const i18n = i18next.createInstance()
@@ -126,5 +136,34 @@ describe('text that looks like a number', () => {
     const mine = { risk_limit: '1000', lines: [{ quantity: '2', unit_price: '10.5' }] }
     const server = { risk_limit: '1000.00', lines: [{ id: 'l', quantity: '2.000', unit_price: '10.50' }] }
     expect(differingFields(['risk_limit', 'lines'], mine, server)).toEqual([])
+  })
+})
+
+describe('server-derived fields of the offline manifest', () => {
+  it("currency_code is the server's on a payment or a purchase request, the user's on a sales document", () => {
+    expect(isServerField('currency_code', 'treasury-payments')).toBe(true)
+    expect(isServerField('currency_code', 'purchase-requests')).toBe(true)
+    expect(isServerField('currency_code', 'sales-quotes')).toBe(false)
+    expect(isServerField('currency_code')).toBe(false)
+  })
+
+  it('a payment conflict never asks about its currency', () => {
+    const fields = ['currency_code', 'fx_rate', 'notes']
+    const server = { currency_code: 'EUR', fx_rate: '35.1', notes: 'b' }
+    const mine = { currency_code: 'TRY', fx_rate: '1', notes: 'a' }
+    expect(differingFields(fields, mine, server, 'treasury-payments')).toEqual(['notes'])
+    expect(differingFields(fields, mine, server, 'sales-orders')).toEqual(['currency_code', 'notes'])
+  })
+
+  it('every field the manifest derives on every write is a server field of its resource', () => {
+    const always = manifest.resources.flatMap((entry) => {
+      const rules: readonly { when: readonly string[]; derives: readonly string[] }[] =
+        ('write' in entry ? entry.write?.derived_fields : undefined) ?? []
+      return rules
+        .filter((rule) => rule.when.includes('*'))
+        .flatMap((rule) => rule.derives.map((field) => [entry.resource, field] as const))
+    })
+    expect(always.length).toBeGreaterThan(0)
+    for (const [resource, field] of always) expect(isServerField(field, resource), `${resource}.${field}`).toBe(true)
   })
 })
