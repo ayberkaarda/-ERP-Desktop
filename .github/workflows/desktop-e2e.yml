@@ -142,15 +142,9 @@ jobs:
 
   e2e-windows:
     runs-on: windows-latest
-    timeout-minutes: 25
-    # EXPERIMENTAL, NON-BLOCKING (continue-on-error). Everything up to the app build works on
-    # hosted Windows (PostgreSQL 18 from the EDB zip, PHP + Laravel, tauri-driver, msedgedriver
-    # matching WebView2 156). It fails at "session not created: DevToolsActivePort file doesn't
-    # exist": WebView2 156 started by the app does not honour the remote-debugging port that
-    # msedgedriver requests through WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (the browser command
-    # line shows only the arguments wry sets itself). Making it pass needs an app-side change
-    # (a test-only additional-browser-args hook on the main window), outside this PR.
-    continue-on-error: true
+    timeout-minutes: 35
+    # Needs the debug-only WebView2 hook of src-tauri/src/webdriver_hook.rs: msedgedriver's
+    # --remote-debugging-port reaches the browser process through it (debug builds only).
     defaults:
       run:
         shell: pwsh
@@ -267,30 +261,6 @@ jobs:
       - name: Build the desktop app (debug profile, no bundle)
         working-directory: desktop
         run: npm run tauri -- build --debug --no-bundle
-      - name: Diagnose a bare app launch (stderr, exit code, devtools port)
-        continue-on-error: true
-        timeout-minutes: 3
-        run: |
-          $env:KEYSTONE_DEV_ALLOW_HTTP = '1'
-          $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
-          $env:WEBVIEW2_USER_DATA_FOLDER = Join-Path $env:RUNNER_TEMP wv2-data
-          $p = Start-Process -FilePath $env:E2E_APP_BIN -PassThru -RedirectStandardOutput app.out -RedirectStandardError app.err
-          Start-Sleep -Seconds 20
-          Write-Host "exited: $($p.HasExited) code: $(if ($p.HasExited) { $p.ExitCode })"
-          try { (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:9222/json/version).Content } catch { Write-Host "devtools: $_" }
-          Write-Host "--- stdout"; Get-Content app.out -ErrorAction SilentlyContinue
-          Write-Host "--- stderr"; Get-Content app.err -ErrorAction SilentlyContinue
-          Write-Host "--- policies"
-          foreach ($k in 'HKLM:SOFTWAREPoliciesMicrosoftEdge','HKLM:SOFTWAREPoliciesMicrosoftEdgeWebView','HKCU:SOFTWAREPoliciesMicrosoftEdge') { if (Test-Path $k) { Write-Host $k; Get-ItemProperty $k | Format-List | Out-String | Write-Host } }
-          Write-Host "--- webview2 command lines"
-          Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Select-Object -First 2 | ForEach-Object { Write-Host $_.CommandLine }
-          Write-Host "--- listening"
-          netstat -ano | Select-String LISTENING | Select-String '127.0.0.1|[::1]' | ForEach-Object { Write-Host $_.Line }
-          Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Measure-Object | ForEach-Object { Write-Host "webview2 processes: $($_.Count)" }
-          Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
-          Get-Process -Name msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-        env:
-          E2E_APP_BIN: ${{ github.workspace }}\desktop\target\debug\keystone-desktop.exe
       - name: Run the scenarios
         working-directory: desktop
         timeout-minutes: 8
