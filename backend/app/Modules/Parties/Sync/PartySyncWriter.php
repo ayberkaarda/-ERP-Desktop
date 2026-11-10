@@ -6,6 +6,7 @@ namespace App\Modules\Parties\Sync;
 
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\ActingAs;
 use App\Core\Sync\ConflictChoice;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
@@ -22,7 +23,6 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
@@ -81,25 +81,31 @@ final class PartySyncWriter implements SyncWriter
         $payload['id'] = $mutation->id;
 
         try {
-            $request = $this->request($user, $payload);
+            $party = ActingAs::run($user, function () use ($user, $payload, $keepMine): WriteOutcome|Party {
+                $request = $this->request($user, $payload);
 
-            if (! $request->authorize()) {
-                return WriteOutcome::rejected(ErrorCode::Forbidden);
-            }
-
-            $request->validateResolved();
-            /** @var array<string, mixed> $validated */
-            $validated = $request->validated();
-
-            if (! $keepMine && Gate::forUser($user)->allows('viewAny', Party::class)) {
-                $candidates = $this->candidates($payload);
-
-                if ($candidates !== []) {
-                    return WriteOutcome::conflict(SyncConflict::duplicateRecord($candidates));
+                if (! $request->authorize()) {
+                    return WriteOutcome::rejected(ErrorCode::Forbidden);
                 }
-            }
 
-            $party = $this->parties->create($validated);
+                $request->validateResolved();
+                /** @var array<string, mixed> $validated */
+                $validated = $request->validated();
+
+                if (! $keepMine && Gate::forUser($user)->allows('viewAny', Party::class)) {
+                    $candidates = $this->candidates($payload);
+
+                    if ($candidates !== []) {
+                        return WriteOutcome::conflict(SyncConflict::duplicateRecord($candidates));
+                    }
+                }
+
+                return $this->parties->create($validated);
+            });
+
+            if ($party instanceof WriteOutcome) {
+                return $party;
+            }
         } catch (ValidationException $e) {
             return WriteOutcome::rejected(ErrorCode::ValidationError, fields: $this->fields($e->errors()));
         } catch (AuthorizationException) {
@@ -145,7 +151,6 @@ final class PartySyncWriter implements SyncWriter
      */
     private function request(Authenticatable $user, array $payload): PartyRequest
     {
-        Auth::setUser($user);
         $base = Request::create('/api/v1/parties', 'POST', $payload);
         $request = PartyRequest::createFrom($base);
         $request->setContainer(app())->setRedirector(app('redirect'));

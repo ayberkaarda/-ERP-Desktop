@@ -14,6 +14,7 @@ use App\Modules\Parties\Models\Party;
 use App\Modules\Parties\Sync\PartySyncResource;
 use App\Modules\Parties\Sync\PartySyncWriter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -314,4 +315,15 @@ it('never leaks sync_txid into REST or sync party JSON', function (): void {
         ->and($index->getContent())->not->toContain('sync_txid')
         ->and($children->getContent())->not->toContain('sync_txid')
         ->and($show->json('data.addresses'))->toHaveCount(1);
+});
+
+it('leaves the guard as it found it: empty stays empty, a switched user comes back', function (): void {
+    expect(Auth::guard()->hasUser())->toBeFalse();
+    $outcome = $this->writer->create($this->manager, partyMutation());
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)
+        ->and(Auth::guard()->hasUser())->toBeFalse()->and(Auth::user())->toBeNull();
+
+    Auth::setUser($this->viewer);
+    $outcome = $this->writer->create($this->manager, partyMutation(['payload' => [...$this->payload, 'name' => 'Acme İkinci', 'tax_number' => null]]));
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)->and(Auth::user()?->is($this->viewer))->toBeTrue();
 });

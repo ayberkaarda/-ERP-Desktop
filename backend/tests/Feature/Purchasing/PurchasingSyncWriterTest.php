@@ -14,6 +14,7 @@ use App\Modules\Purchasing\Models\PurchaseRequest;
 use App\Modules\Purchasing\Sync\PurchaseRequestSyncWriter;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
@@ -447,4 +448,18 @@ it('lets the sync touch through the receipt guard only when nothing but sync_txi
     expect(fn () => DB::transaction(static fn () => DB::table('purchase_receipts')->where('id', $receipt['id'])->update(['sync_txid' => DB::raw('sync_txid')])))
         ->toThrow(QueryException::class, 'cannot be changed');
     expect(DB::table('purchase_receipts')->where('id', $receipt['id'])->value('notes'))->not->toBe('tampered');
+});
+
+it('leaves the guard as it found it: empty stays empty, a switched user comes back', function (): void {
+    $w = $this->w;
+
+    expect(Auth::guard()->hasUser())->toBeFalse();
+    $outcome = syncWrite($w, fn () => $this->writer->create($w->user, requestMutation(['payload' => requestPayload($w)])));
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)
+        ->and(Auth::guard()->hasUser())->toBeFalse()->and(Auth::user())->toBeNull();
+
+    $other = Actors::user(['purchasing.requests.view'], $w->company);
+    Auth::setUser($other);
+    $outcome = syncWrite($w, fn () => $this->writer->create($w->user, requestMutation(['payload' => requestPayload($w)])));
+    expect($outcome->status)->toBe(OutcomeStatus::Applied)->and(Auth::user()?->is($other))->toBeTrue();
 });
