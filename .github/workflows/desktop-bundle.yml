@@ -108,6 +108,14 @@ jobs:
           projectPath: desktop
           # No tagName/releaseId: the action publishes nothing. The web bundle comes from web-bundle.
           args: --config ci-no-before-build.json
+      - name: Release binary must not contain the debug-only WebDriver hook
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          if grep -a -q WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS desktop/target/release/keystone-desktop.exe; then
+            echo 'debug-only WebDriver hook found in the release binary'
+            exit 1
+          fi
       - name: Collect the installers
         shell: bash
         run: |

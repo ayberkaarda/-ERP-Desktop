@@ -8,7 +8,20 @@ import { join } from 'node:path'
 import { createProxy, loadState, PROXY_URL, requiredEnv, startServer } from './stack.mjs'
 import { AppSession, startDriver, waitFor } from './webdriver.mjs'
 
+/**
+ * Windows has no XDG override: the app keeps its data and the webview profile under
+ * %APPDATA% and %LOCALAPPDATA% of the user. On a CI runner (never on a developer
+ * machine) clear them, so that every spec file starts from a first run as on Linux.
+ */
+function resetWindowsAppData() {
+  if (process.platform !== 'win32' || process.env.CI !== 'true') return
+  for (const root of [process.env.APPDATA, process.env.LOCALAPPDATA]) {
+    if (root) rmSync(join(root, 'com.keystone.desktop'), { recursive: true, force: true })
+  }
+}
+
 export async function launch() {
+  resetWindowsAppData()
   const state = loadState()
   const dataDir = mkdtempSync(join(tmpdir(), 'keystone-e2e-'))
   const server = await startServer()
@@ -18,6 +31,8 @@ export async function launch() {
     XDG_DATA_HOME: join(dataDir, 'data'),
     XDG_CACHE_HOME: join(dataDir, 'cache'),
     KEYSTONE_DEV_ALLOW_HTTP: '1',
+    // Chromium ignores remote debugging on the default profile folder, and WebDriver needs it.
+    ...(process.platform === 'win32' ? { WEBVIEW2_USER_DATA_FOLDER: join(dataDir, 'webview2') } : {}),
   })
   let session
   try {

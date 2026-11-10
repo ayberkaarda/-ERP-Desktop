@@ -2,7 +2,7 @@
 // session, element commands, script execution, and the Tauri IPC from inside
 // the webview (`window.__TAURI_INTERNALS__.invoke`, the call the app's own
 // bridge makes).
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf'
@@ -26,7 +26,7 @@ export async function waitFor(check, { timeout = 30_000, interval = 250, message
   }
 }
 
-/** Starts tauri-driver (which starts WebKitWebDriver) with the given environment. */
+/** Starts tauri-driver (which starts WebKitWebDriver, or msedgedriver on Windows) with the given environment. */
 export async function startDriver(env) {
   const child = spawn('tauri-driver', ['--port', String(DRIVER_PORT)], {
     env: { ...process.env, ...env },
@@ -43,6 +43,12 @@ export async function startDriver(env) {
   )
   return {
     async stop() {
+      if (process.platform === 'win32') {
+        // No signals: kill the whole tree (tauri-driver, msedgedriver, the app, its webview).
+        spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
+        await Promise.race([exited, sleep(5_000)])
+        return
+      }
       child.kill('SIGTERM')
       await Promise.race([exited, sleep(5_000)])
       if (child.exitCode === null) child.kill('SIGKILL')
