@@ -7,6 +7,7 @@ namespace App\Modules\Treasury\Sync;
 use App\Core\Documents\VersionConflictException;
 use App\Core\Http\ApiException;
 use App\Core\Http\ErrorCode;
+use App\Core\Sync\ActingAs;
 use App\Core\Sync\Contracts\PrunesUnchangedFields;
 use App\Core\Sync\Contracts\SyncWriter;
 use App\Core\Sync\Mutation;
@@ -29,7 +30,6 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
@@ -279,16 +279,8 @@ final class PaymentSyncWriter implements PrunesUnchangedFields, SyncWriter
      */
     private function run(Authenticatable $user, Mutation $mutation, ?TreasuryPayment $target, Closure $write): WriteOutcome
     {
-        $guard = Auth::guard();
-        $previous = $guard->user();
-        $switched = $previous?->getAuthIdentifier() !== $user->getAuthIdentifier();
-
-        if ($switched) {
-            $guard->setUser($user);
-        }
-
         try {
-            return $write(app(TreasuryCoreController::class));
+            return ActingAs::run($user, static fn (): WriteOutcome => $write(app(TreasuryCoreController::class)));
         } catch (ValidationException $e) {
             return WriteOutcome::rejected(ErrorCode::ValidationError, fields: $this->fields($e->errors()));
         } catch (AuthorizationException) {
@@ -305,15 +297,6 @@ final class PaymentSyncWriter implements PrunesUnchangedFields, SyncWriter
             }
 
             return WriteOutcome::rejected($e->errorCode, $e->getMessage(), $e->fields);
-        } finally {
-            // The guard is left as it was found: the previous user comes back, and a guard that
-            // had none is emptied again (forgetUser clears the resolved user only; the session
-            // and other guards are untouched) so the write does not leave $user logged in.
-            if ($switched && $previous !== null) {
-                $guard->setUser($previous);
-            } elseif ($switched) {
-                $guard->forgetUser();
-            }
         }
     }
 
